@@ -4,7 +4,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'PAP Management System',
-  description: 'Sistem manajemen operasional terpadu PT Pandawa Amertha Packindo.',
+  description: 'Sistem manajemen operasional PT Pandawa Amerta Packindo — produsen kantong plastik HD, PP, PE dan mika rigid. Focus on Quality.',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -15,10 +15,6 @@ export const metadata: Metadata = {
       {
         url: '/icon-dark-32x32.png',
         media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
       },
     ],
     apple: '/apple-icon.png',
