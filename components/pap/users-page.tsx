@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { KeyRound, Pencil, Plus, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { api, Field, formatDate, Modal, Notice, PasswordInput } from './ui'
 
 type Division = { id: number; code: string; name: string; has_levels: boolean }
 type Role = { id: number; code: string; name: string; description: string | null; is_super_admin: boolean }
@@ -188,7 +188,7 @@ function UserForm({ actor, initial, divisions, roles, onClose, onSaved }: { acto
         <Field label="Nama lengkap"><input className="pap-input" required maxLength={100} value={values.name} onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))} /></Field>
         <Field label="Email"><input className="pap-input" type="email" required value={values.email} onChange={(e) => setValues((v) => ({ ...v, email: e.target.value }))} /></Field>
         <Field label={initial ? 'Password baru' : 'Password'} hint={initial ? 'Kosongkan bila tidak diganti. Minimal 8 karakter.' : 'Minimal 8 karakter.'} full>
-          <input className="pap-input" type="password" autoComplete="new-password" required={!initial} minLength={8} value={values.password} onChange={(e) => setValues((v) => ({ ...v, password: e.target.value }))} />
+          <PasswordInput autoComplete="new-password" required={!initial} minLength={8} value={values.password} onChange={(e) => setValues((v) => ({ ...v, password: e.target.value }))} />
         </Field>
         <Field label="Divisi">
           <select className="pap-select" value={values.division_id} onChange={(e) => changeDivision(e.target.value)}>

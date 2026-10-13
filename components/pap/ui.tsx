@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, type ReactNode } from 'react'
-import { X } from 'lucide-react'
+import { useEffect, useState, type InputHTMLAttributes, type ReactNode } from 'react'
+import { Eye, EyeOff, X } from 'lucide-react'
 import { PLANNING_APPROVAL, PLANNING_STATUS, type PlanningApproval, type PlanningStatus } from '@/lib/permissions'
 
 // Panggil API JSON; lempar Error berisi pesan dari server bila gagal
@@ -47,6 +47,19 @@ export function Field({ label, hint, children, full }: { label: string; hint?: s
       {children}
       {hint && <small>{hint}</small>}
     </label>
+  )
+}
+
+// Input password dengan ikon mata untuk menampilkan/menyembunyikan isian
+export function PasswordInput(props: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <span className="pap-password-field">
+      <input {...props} type={visible ? 'text' : 'password'} className={`pap-input ${props.className ?? ''}`} />
+      <button type="button" className="pap-password-toggle" onClick={() => setVisible((v) => !v)} aria-label={visible ? 'Sembunyikan password' : 'Tampilkan password'} aria-pressed={visible}>
+        {visible ? <EyeOff /> : <Eye />}
+      </button>
+    </span>
   )
 }
 

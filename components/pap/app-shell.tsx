@@ -6,7 +6,7 @@ import type { UserProfile } from '@/lib/users'
 import { PlanningPage } from './planning-page'
 import { RolesPage } from './roles-page'
 import { UsersPage } from './users-page'
-import { Bell, CalendarDays, ChevronDown, ChevronRight, ClipboardList, Factory, LayoutDashboard, Menu, Moon, MoreHorizontal, PackageCheck, Search, Settings, Sun, Users, X, LogOut, CheckCircle2, Clock3, AlertCircle, BarChart3, UserRound, FileText, Wrench, Handshake, UserCheck, ListChecks, UserCog, ShieldCheck } from 'lucide-react'
+import { Bell, CalendarDays, ChevronDown, ChevronRight, ClipboardList, Factory, LayoutDashboard, Menu, Moon, MoreHorizontal, PackageCheck, Search, Settings, Sun, Users, X, LogOut, CheckCircle2, Clock3, AlertCircle, BarChart3, UserRound, FileText, Wrench, Handshake, UserCheck, ListChecks, UserCog, ShieldCheck, Eye, EyeOff } from 'lucide-react'
 
 type MenuItem = { label: string; icon: typeof LayoutDashboard; badge?: string }
 const groups: { label: string; items: MenuItem[] }[] = [
@@ -39,9 +39,6 @@ const PAGE_GROUP: Record<string, string> = { Planning: 'KOLABORASI', 'Manajemen 
 
 const canOpen = (user: User, label: string) => user.menus.includes(MENU_KEYS[label as keyof typeof MENU_KEYS])
 
-const DEMO_EMAIL = 'demo@pap-ms.id'
-const DEMO_PASSWORD = 'demo1234'
-
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
 
 function Login({ onLogin }: { onLogin: (user: User) => void }) {
@@ -49,6 +46,7 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   async function login(credentials: { email: string; password: string }) {
     setLoading(true)
     setError('')
@@ -63,12 +61,7 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
       setLoading(false)
     }
   }
-  function useDemo() {
-    setEmail(DEMO_EMAIL)
-    setPassword(DEMO_PASSWORD)
-    login({ email: DEMO_EMAIL, password: DEMO_PASSWORD })
-  }
-  return <main className="pap-auth"><section className="pap-auth-hero" aria-label="PT. Pandawa Amerta Packindo"><div className="pap-auth-hero-content"><span className="pap-auth-hero-logo"><img src="/logo-mark.png" alt="" /></span><p className="pap-auth-tagline">Focus on Quality</p><h2>PT. Pandawa Amerta Packindo</h2><p className="pap-auth-sub">Flexible Plastic Packaging Manufacture</p><p className="pap-auth-desc">Produsen kantong plastik HD, PP, dan PE dari biji plastik melalui proses blow, cetak rotogravure, hingga bag making (gusset, cut seal, dan side seal). Melayani produk custom B2B dari berbagai sektor usaha, plastik laundry, serta mika rigid.</p></div></section><section className="pap-auth-panel"><div className="pap-login-card"><img className="pap-login-logo" src="/logo-pap.png" alt="PT. Pandawa Amerta Packindo — Flexible Plastic Packaging Manufacture" /><p className="pap-eyebrow">PAP MANAGEMENT SYSTEM</p><form onSubmit={(e) => { e.preventDefault(); login({ email, password }) }}><label>Email<input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nama@perusahaan.com" /></label><label>Password<input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" /></label>{error && <p className="pap-login-error" role="alert">{error}</p>}<button type="submit" className="pap-primary-button pap-login-button" disabled={loading}>{loading ? 'Memproses...' : 'Masuk'} <ChevronRight /></button></form><button type="button" className="pap-demo-button" onClick={useDemo} disabled={loading}>Gunakan akun demo</button><div className="pap-demo-hint"><strong>Demo User</strong><span>{DEMO_EMAIL} · {DEMO_PASSWORD}</span></div></div></section></main>
+  return <main className="pap-auth"><section className="pap-auth-hero" aria-label="PT. Pandawa Amerta Packindo"><div className="pap-auth-hero-content"><span className="pap-auth-hero-logo"><img src="/logo-mark.png" alt="" /></span><p className="pap-auth-tagline">Focus on Quality</p><h2>PT. Pandawa Amerta Packindo</h2><p className="pap-auth-sub">Flexible Plastic Packaging Manufacture</p><p className="pap-auth-desc">Produsen kantong plastik HD, PP, dan PE dari biji plastik melalui proses blow, cetak rotogravure, hingga bag making (gusset, cut seal, dan side seal). Melayani produk custom B2B dari berbagai sektor usaha, plastik laundry, serta mika rigid.</p></div></section><section className="pap-auth-panel"><div className="pap-login-card"><img className="pap-login-logo" src="/logo-pap.png" alt="PT. Pandawa Amerta Packindo — Flexible Plastic Packaging Manufacture" /><p className="pap-eyebrow">PAP MANAGEMENT SYSTEM</p><form onSubmit={(e) => { e.preventDefault(); login({ email, password }) }}><label>Email<input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nama@perusahaan.com" /></label><label>Password<span className="pap-password-field"><input type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" /><button type="button" className="pap-password-toggle" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'} aria-pressed={showPassword}>{showPassword ? <EyeOff /> : <Eye />}</button></span></label>{error && <p className="pap-login-error" role="alert">{error}</p>}<button type="submit" className="pap-primary-button pap-login-button" disabled={loading}>{loading ? 'Memproses...' : 'Masuk'} <ChevronRight /></button></form></div></section></main>
 }
 
 export function AppShell() {
