@@ -4,7 +4,8 @@ import { cookies } from 'next/headers'
 export const SESSION_COOKIE = 'pap_session'
 const MAX_AGE = 60 * 60 * 8 // 8 jam
 
-export type SessionUser = { id: number; name: string; email: string; role: string }
+// Sesi hanya menyimpan id user; role & hak akses selalu dibaca ulang dari database
+export type SessionUser = { id: number }
 
 function secret() {
   const value = process.env.AUTH_SECRET
@@ -13,7 +14,7 @@ function secret() {
 }
 
 export async function createSession(user: SessionUser) {
-  const token = await new SignJWT({ ...user })
+  const token = await new SignJWT({})
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(String(user.id))
     .setIssuedAt()
@@ -34,7 +35,7 @@ export async function getSession(): Promise<SessionUser | null> {
   if (!token) return null
   try {
     const { payload } = await jwtVerify(token, secret())
-    return { id: Number(payload.sub), name: String(payload.name), email: String(payload.email), role: String(payload.role) }
+    return payload.sub ? { id: Number(payload.sub) } : null
   } catch {
     return null
   }

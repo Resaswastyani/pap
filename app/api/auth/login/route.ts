@@ -1,10 +1,8 @@
 import bcrypt from 'bcryptjs'
-import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { createSession } from '@/lib/auth'
 import { db } from '@/lib/db'
-
-type UserRow = RowDataPacket & { id: number; name: string; email: string; password_hash: string; role: string; is_active: number }
+import { findUserByEmail, toProfile } from '@/lib/users'
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null)
@@ -13,17 +11,15 @@ export async function POST(request: Request) {
   if (!email || !password) return NextResponse.json({ error: 'Email dan password wajib diisi.' }, { status: 400 })
 
   try {
-    const [rows] = await db.query<UserRow[]>('SELECT id, name, email, password_hash, role, is_active FROM users WHERE email = ? LIMIT 1', [email])
-    const user = rows[0]
+    const user = await findUserByEmail(email)
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
       return NextResponse.json({ error: 'Email atau password salah.' }, { status: 401 })
     }
     if (!user.is_active) return NextResponse.json({ error: 'Akun dinonaktifkan. Hubungi admin.' }, { status: 403 })
 
     await db.query('UPDATE users SET last_login_at = NOW() WHERE id = ?', [user.id])
-    const sessionUser = { id: user.id, name: user.name, email: user.email, role: user.role }
-    await createSession(sessionUser)
-    return NextResponse.json({ user: sessionUser })
+    await createSession({ id: user.id })
+    return NextResponse.json({ user: await toProfile(user) })
   } catch (error) {
     console.error('[auth/login]', error)
     return NextResponse.json({ error: dbErrorMessage(error) }, { status: 500 })

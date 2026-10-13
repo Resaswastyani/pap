@@ -1,0 +1,446 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { CheckCircle2, ClipboardList, Clock3, ExternalLink, FileText, Link2, Paperclip, Pencil, Plus, Search, Trash2, Upload, XCircle } from 'lucide-react'
+import { FILE_ACCEPT, FILE_MAX_BYTES, PERMISSIONS, PLANNING_APPROVAL, PLANNING_STATUS, type PlanningApproval, type PlanningStatus } from '@/lib/permissions'
+import type { UserProfile } from '@/lib/users'
+import { api, ApprovalBadge, Field, formatDate, formatSize, Modal, Notice, Progress, StatusBadge } from './ui'
+
+type Division = { id: number; code: string; name: string }
+type Abilities = { edit: boolean; delete: boolean; progress: boolean; approve: boolean; attach: boolean }
+type Planning = {
+  id: number
+  nomor: string
+  division_id: number
+  division_name: string
+  judul: string
+  deskripsi: string | null
+  tanggal_mulai: string
+  tanggal_selesai: string
+  status: PlanningStatus
+  progress: number
+  approval: PlanningApproval
+  approval_note: string | null
+  approved_by_name: string | null
+  approved_at: string | null
+  created_by: number
+  created_by_name: string
+  created_at: string
+  file_count: number
+  can: Abilities
+}
+type PlanningFile = { id: number; type: 'link' | 'file'; name: string; url: string | null; mime: string | null; size: number | null; uploaded_by: number; uploaded_by_name: string; created_at: string }
+type Summary = { total: number; menunggu: number; berjalan: number; selesai: number }
+type PendingAttachment = { kind: 'file'; file: File } | { kind: 'link'; name: string; url: string }
+
+const ACCEPT = Object.keys(FILE_ACCEPT).join(',') + ',' + Object.values(FILE_ACCEPT).join(',')
+const has = (user: UserProfile, permission: string) => user.role.isSuperAdmin || user.permissions.includes(permission as never)
+
+function validateFile(file: File) {
+  if (!(file.type in FILE_ACCEPT)) return `${file.name}: format harus gambar, PDF, atau Word.`
+  if (file.size > FILE_MAX_BYTES) return `${file.name}: ukuran maksimal 5 MB.`
+  return ''
+}
+
+async function uploadAttachment(planningId: number, item: PendingAttachment) {
+  if (item.kind === 'link') return api<{ files: PlanningFile[] }>(`/api/planning/${planningId}/files`, { method: 'POST', json: { name: item.name, url: item.url } })
+  const form = new FormData()
+  form.append('file', item.file)
+  return api<{ files: PlanningFile[] }>(`/api/planning/${planningId}/files`, { method: 'POST', body: form })
+}
+
+export function PlanningPage({ user }: { user: UserProfile }) {
+  const viewAll = has(user, PERMISSIONS.planningViewAll)
+  const [divisions, setDivisions] = useState<Division[]>([])
+  const [items, setItems] = useState<Planning[]>([])
+  const [summary, setSummary] = useState<Summary>({ total: 0, menunggu: 0, berjalan: 0, selesai: 0 })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [division, setDivision] = useState(viewAll ? '' : String(user.division.id))
+  const [status, setStatus] = useState('')
+  const [approval, setApproval] = useState('')
+  const [q, setQ] = useState('')
+  const [form, setForm] = useState<Planning | 'new' | null>(null)
+  const [detailId, setDetailId] = useState<number | null>(null)
+
+  useEffect(() => {
+    api<{ items: Division[] }>('/api/divisions').then((res) => setDivisions(res.items)).catch(() => {})
+  }, [])
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (division) params.set('division', division)
+      if (status) params.set('status', status)
+      if (approval) params.set('approval', approval)
+      if (q.trim()) params.set('q', q.trim())
+      const res = await api<{ items: Planning[]; summary: Summary }>(`/api/planning?${params}`)
+      setItems(res.items)
+      setSummary(res.summary)
+      setError('')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }, [division, status, approval, q])
+
+  useEffect(() => {
+    const timer = setTimeout(load, q ? 300 : 0)
+    return () => clearTimeout(timer)
+  }, [load, q])
+
+  const flash = (text: string) => {
+    setMessage(text)
+    setTimeout(() => setMessage(''), 4000)
+  }
+
+  const divisionOptions = viewAll ? divisions : divisions.filter((d) => d.id === user.division.id)
+  const stats: [string, number, string, string][] = [
+    ['Total planning', summary.total, viewAll && !division ? 'Semua divisi' : divisions.find((d) => String(d.id) === division)?.name ?? user.division.name, 'stat-1'],
+    ['Menunggu approval', summary.menunggu, 'Perlu ditinjau lead', 'stat-2'],
+    ['Sedang berjalan', summary.berjalan, 'Sudah disetujui', 'stat-0'],
+    ['Selesai', summary.selesai, 'Progress 100%', 'stat-0'],
+  ]
+
+  return (
+    <>
+      <div className="pap-page-heading">
+        <div>
+          <p className="pap-eyebrow">KOLABORASI</p>
+          <h1>Planning</h1>
+          <span>Rencana kerja per divisi: pengajuan, approval, dan monitoring progress.</span>
+        </div>
+        {has(user, PERMISSIONS.planningCreate) && <button className="pap-primary-button" onClick={() => setForm('new')}><Plus /> Buat planning</button>}
+      </div>
+      {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
+      <div className="pap-stat-grid four">
+        {stats.map(([label, value, note, tone]) => (
+          <div className="pap-stat-card" key={label}>
+            <div><span>{label}</span><strong>{value}</strong><small className="neutral">{note}</small></div>
+            <div className={`pap-stat-icon ${tone}`}>{label === 'Menunggu approval' ? <Clock3 /> : label === 'Total planning' ? <ClipboardList /> : <CheckCircle2 />}</div>
+          </div>
+        ))}
+      </div>
+      <div className="pap-table-card">
+        <div className="pap-card-head">
+          <div>
+            <h2>Daftar planning</h2>
+            <p>{viewAll ? 'Anda dapat melihat planning semua divisi' : `Menampilkan planning divisi ${user.division.name}`}</p>
+          </div>
+        </div>
+        <div className="pap-filters">
+          <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari judul atau nomor..." /></label>
+          <select className="pap-select" value={division} onChange={(e) => setDivision(e.target.value)} disabled={!viewAll} aria-label="Filter divisi">
+            {viewAll && <option value="">Semua divisi</option>}
+            {divisionOptions.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+          <select className="pap-select" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter status">
+            <option value="">Semua status</option>
+            {Object.entries(PLANNING_STATUS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
+          <select className="pap-select" value={approval} onChange={(e) => setApproval(e.target.value)} aria-label="Filter approval">
+            <option value="">Semua approval</option>
+            {Object.entries(PLANNING_APPROVAL).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
+        </div>
+        {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        <div className="pap-table-wrap">
+          <table>
+            <thead><tr><th>Nomor / Judul</th><th>Divisi</th><th>Periode</th><th>Progress</th><th>Status</th><th>Approval</th><th aria-label="Aksi" /></tr></thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
+                  <td>
+                    <div className="pap-cell-title">{item.judul}</div>
+                    <div className="pap-cell-sub">{item.nomor} · oleh {item.created_by_name}{item.file_count ? <> · <Paperclip className="pap-inline-icon" />{item.file_count}</> : null}</div>
+                  </td>
+                  <td>{item.division_name}</td>
+                  <td className="pap-nowrap">{formatDate(item.tanggal_mulai)} – {formatDate(item.tanggal_selesai)}</td>
+                  <td><Progress value={item.progress} /></td>
+                  <td><StatusBadge value={item.status} /></td>
+                  <td><ApprovalBadge value={item.approval} /></td>
+                  <td><button className="pap-link-button" onClick={(e) => { e.stopPropagation(); setDetailId(item.id) }}>Detail</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!loading && !items.length && <div className="pap-empty">Belum ada planning{q || status || approval ? ' yang cocok dengan filter' : ''}.</div>}
+          {loading && !items.length && <div className="pap-empty">Memuat planning...</div>}
+        </div>
+      </div>
+
+      {form && (
+        <PlanningForm
+          user={user}
+          divisions={viewAll ? divisions : divisions.filter((d) => d.id === user.division.id)}
+          initial={form === 'new' ? null : form}
+          onClose={() => setForm(null)}
+          onSaved={(text, id) => {
+            setForm(null)
+            flash(text)
+            load()
+            if (id) setDetailId(id)
+          }}
+        />
+      )}
+      {detailId && (
+        <PlanningDetail
+          id={detailId}
+          onClose={() => setDetailId(null)}
+          onChanged={load}
+          onEdit={(item) => { setDetailId(null); setForm(item) }}
+          onDeleted={() => { setDetailId(null); flash('Planning dihapus.'); load() }}
+        />
+      )}
+    </>
+  )
+}
+
+function PlanningForm({ user, divisions, initial, onClose, onSaved }: { user: UserProfile; divisions: Division[]; initial: Planning | null; onClose: () => void; onSaved: (message: string, id?: number) => void }) {
+  const viewAll = has(user, PERMISSIONS.planningViewAll)
+  const today = new Date().toISOString().slice(0, 10)
+  const [values, setValues] = useState({
+    judul: initial?.judul ?? '',
+    division_id: String(initial?.division_id ?? user.division.id),
+    tanggal_mulai: initial?.tanggal_mulai ?? today,
+    tanggal_selesai: initial?.tanggal_selesai ?? today,
+    deskripsi: initial?.deskripsi ?? '',
+  })
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([])
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const set = (key: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [key]: e.target.value }))
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    setError('')
+    try {
+      const payload = { ...values, division_id: Number(values.division_id) }
+      if (initial) {
+        await api(`/api/planning/${initial.id}`, { method: 'PATCH', json: payload })
+        onSaved(initial.approval === 'ditolak' ? 'Planning diperbarui dan diajukan ulang.' : 'Planning diperbarui.')
+        return
+      }
+      const res = await api<{ item: Planning }>('/api/planning', { method: 'POST', json: payload })
+      const failed: string[] = []
+      for (const item of attachments) {
+        try {
+          await uploadAttachment(res.item.id, item)
+        } catch (err) {
+          failed.push((err as Error).message)
+        }
+      }
+      onSaved(failed.length ? `Planning dibuat, tetapi ${failed.length} lampiran gagal: ${failed.join(' ')}` : 'Planning diajukan dan menunggu approval.', res.item.id)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal
+      title={initial ? 'Edit planning' : 'Buat planning'}
+      subtitle={initial ? initial.nomor : 'Pengajuan akan ditinjau oleh lead divisi'}
+      onClose={onClose}
+      footer={<><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="planning-form" className="pap-primary-button" disabled={saving}>{saving ? 'Menyimpan...' : initial ? 'Simpan' : 'Ajukan planning'}</button></>}
+    >
+      <form id="planning-form" className="pap-form-grid" onSubmit={submit}>
+        {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        <Field label="Judul" full><input className="pap-input" required maxLength={200} value={values.judul} onChange={set('judul')} placeholder="Contoh: Follow up 20 calon customer sektor F&B" /></Field>
+        <Field label="Divisi" hint={viewAll ? undefined : 'Planning dibuat untuk divisi Anda'}>
+          <select className="pap-select" value={values.division_id} onChange={set('division_id')} disabled={!viewAll}>
+            {divisions.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        </Field>
+        <div className="pap-field-pair">
+          <Field label="Tanggal mulai"><input className="pap-input" type="date" required value={values.tanggal_mulai} onChange={set('tanggal_mulai')} /></Field>
+          <Field label="Tanggal selesai"><input className="pap-input" type="date" required min={values.tanggal_mulai} value={values.tanggal_selesai} onChange={set('tanggal_selesai')} /></Field>
+        </div>
+        <Field label="Deskripsi" full><textarea className="pap-input" rows={4} maxLength={5000} value={values.deskripsi} onChange={set('deskripsi')} placeholder="Tujuan, target, dan langkah kerja" /></Field>
+        {!initial && (
+          <div className="full">
+            <AttachmentPicker onAdd={(item) => setAttachments((list) => [...list, item])} onError={setError} />
+            {attachments.length > 0 && (
+              <ul className="pap-file-list">
+                {attachments.map((item, index) => (
+                  <li key={index}>
+                    {item.kind === 'file' ? <FileText /> : <Link2 />}
+                    <div><strong>{item.kind === 'file' ? item.file.name : item.name}</strong><span>{item.kind === 'file' ? formatSize(item.file.size) : item.url}</span></div>
+                    <button type="button" className="pap-icon-button" aria-label="Hapus lampiran" onClick={() => setAttachments((list) => list.filter((_, i) => i !== index))}><Trash2 /></button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </form>
+    </Modal>
+  )
+}
+
+function AttachmentPicker({ onAdd, onError, busy }: { onAdd: (item: PendingAttachment) => void; onError: (message: string) => void; busy?: boolean }) {
+  const [linkOpen, setLinkOpen] = useState(false)
+  const [link, setLink] = useState({ name: '', url: '' })
+  return (
+    <div className="pap-attach">
+      <div className="pap-attach-actions">
+        <span className="pap-attach-label">Lampiran (opsional)</span>
+        <label className={`pap-btn ${busy ? 'disabled' : ''}`}>
+          <Upload /> Upload file
+          <input type="file" hidden accept={ACCEPT} multiple disabled={busy} onChange={(e) => {
+            for (const file of Array.from(e.target.files ?? [])) {
+              const problem = validateFile(file)
+              if (problem) onError(problem)
+              else onAdd({ kind: 'file', file })
+            }
+            e.target.value = ''
+          }} />
+        </label>
+        <button type="button" className="pap-btn" onClick={() => setLinkOpen((v) => !v)} disabled={busy}><Link2 /> Tambah link</button>
+      </div>
+      <small className="pap-hint">Gambar (JPG, PNG, WEBP, GIF), PDF, atau Word (.doc/.docx), maks. 5 MB per file.</small>
+      {linkOpen && (
+        <div className="pap-link-row">
+          <input className="pap-input" placeholder="Nama link (opsional)" value={link.name} onChange={(e) => setLink((v) => ({ ...v, name: e.target.value }))} />
+          <input className="pap-input" placeholder="https://..." value={link.url} onChange={(e) => setLink((v) => ({ ...v, url: e.target.value }))} />
+          <button type="button" className="pap-primary-button" onClick={() => {
+            if (!/^https?:\/\/\S+$/i.test(link.url.trim())) return onError('Link harus diawali http:// atau https://')
+            onAdd({ kind: 'link', name: link.name.trim(), url: link.url.trim() })
+            setLink({ name: '', url: '' })
+            setLinkOpen(false)
+          }}>Tambah</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PlanningDetail({ id, onClose, onChanged, onEdit, onDeleted }: { id: number; onClose: () => void; onChanged: () => void; onEdit: (item: Planning) => void; onDeleted: () => void }) {
+  const [item, setItem] = useState<Planning | null>(null)
+  const [files, setFiles] = useState<PlanningFile[]>([])
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [status, setStatus] = useState<PlanningStatus>('belum_mulai')
+  const [rejecting, setRejecting] = useState(false)
+  const [note, setNote] = useState('')
+
+  const load = useCallback(async () => {
+    try {
+      const res = await api<{ item: Planning; files: PlanningFile[] }>(`/api/planning/${id}`)
+      setItem(res.item)
+      setFiles(res.files)
+      setProgress(res.item.progress)
+      setStatus(res.item.status)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }, [id])
+  useEffect(() => { load() }, [load])
+
+  async function run(action: () => Promise<unknown>) {
+    setBusy(true)
+    setError('')
+    try {
+      await action()
+      await load()
+      onChanged()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // Status ikut menyesuaikan progress, tetap bisa diubah manual
+  function changeProgress(value: number) {
+    const next = Math.max(0, Math.min(100, value))
+    setProgress(next)
+    setStatus((current) => (next >= 100 ? 'selesai' : next > 0 && (current === 'belum_mulai' || current === 'selesai') ? 'berjalan' : next === 0 && current === 'berjalan' ? 'belum_mulai' : current))
+  }
+
+  const progressChanged = item && (progress !== item.progress || status !== item.status)
+  const overdue = useMemo(() => item && item.status !== 'selesai' && item.tanggal_selesai < new Date().toISOString().slice(0, 10), [item])
+
+  if (!item) return <Modal title="Detail planning" onClose={onClose}>{error ? <Notice>{error}</Notice> : <p className="pap-muted">Memuat...</p>}</Modal>
+
+  return (
+    <Modal
+      wide
+      title={item.judul}
+      subtitle={`${item.nomor} · ${item.division_name}`}
+      onClose={onClose}
+      footer={!(item.can.delete || item.can.edit || item.can.approve) ? undefined : (
+        <>
+          {item.can.delete && <button className="pap-btn danger" disabled={busy} onClick={() => window.confirm(`Hapus planning "${item.judul}"?`) && run(async () => { await api(`/api/planning/${item.id}`, { method: 'DELETE' }); onDeleted() })}><Trash2 /> Hapus</button>}
+          <span className="pap-spacer" />
+          {item.can.edit && <button className="pap-btn" onClick={() => onEdit(item)}><Pencil /> Edit</button>}
+          {item.can.approve && item.approval !== 'ditolak' && <button className="pap-btn danger" disabled={busy} onClick={() => setRejecting(true)}><XCircle /> Tolak</button>}
+          {item.can.approve && item.approval !== 'disetujui' && <button className="pap-btn success" disabled={busy} onClick={() => run(() => api(`/api/planning/${item.id}/approval`, { method: 'POST', json: { action: 'approve' } }))}><CheckCircle2 /> Setujui</button>}
+        </>
+      )}
+    >
+      {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      <div className="pap-detail-badges"><ApprovalBadge value={item.approval} /><StatusBadge value={item.status} />{overdue && <span className="pap-status danger">Lewat tenggat</span>}</div>
+      <dl className="pap-detail-grid">
+        <div><dt>Periode</dt><dd>{formatDate(item.tanggal_mulai)} – {formatDate(item.tanggal_selesai)}</dd></div>
+        <div><dt>Diajukan oleh</dt><dd>{item.created_by_name} · {formatDate(item.created_at, true)}</dd></div>
+        <div><dt>Approval</dt><dd>{item.approved_by_name ? `${item.approved_by_name} · ${formatDate(item.approved_at, true)}` : 'Belum ditinjau'}</dd></div>
+        <div><dt>Progress</dt><dd><Progress value={item.progress} /></dd></div>
+      </dl>
+      {item.approval_note && <div className={`pap-note ${item.approval === 'ditolak' ? 'danger' : ''}`}><strong>Catatan approval</strong><p>{item.approval_note}</p></div>}
+      {rejecting && (
+        <div className="pap-note danger">
+          <strong>Alasan penolakan</strong>
+          <textarea className="pap-input" rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Jelaskan apa yang perlu diperbaiki" autoFocus />
+          <div className="pap-inline-actions">
+            <button className="pap-btn" onClick={() => setRejecting(false)}>Batal</button>
+            <button className="pap-btn danger" disabled={busy || !note.trim()} onClick={() => run(async () => { await api(`/api/planning/${item.id}/approval`, { method: 'POST', json: { action: 'reject', note } }); setRejecting(false); setNote('') })}>Tolak planning</button>
+          </div>
+        </div>
+      )}
+      <section className="pap-detail-section">
+        <h3>Deskripsi</h3>
+        <p className="pap-prewrap">{item.deskripsi || <span className="pap-muted">Tidak ada deskripsi.</span>}</p>
+      </section>
+      {item.can.progress ? (
+        <section className="pap-detail-section">
+          <h3>Update progress</h3>
+          <div className="pap-progress-editor">
+            <input type="range" min={0} max={100} step={5} value={progress} onChange={(e) => changeProgress(Number(e.target.value))} aria-label="Progress" />
+            <input className="pap-input pap-progress-number" type="number" min={0} max={100} value={progress} onChange={(e) => changeProgress(Number(e.target.value) || 0)} aria-label="Progress persen" />
+            <select className="pap-select" value={status} onChange={(e) => setStatus(e.target.value as PlanningStatus)} aria-label="Status">
+              {Object.entries(PLANNING_STATUS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            </select>
+            <button className="pap-primary-button" disabled={busy || !progressChanged} onClick={() => run(() => api(`/api/planning/${item.id}`, { method: 'PATCH', json: { progress, status } }))}>Simpan progress</button>
+          </div>
+        </section>
+      ) : item.approval !== 'disetujui' ? (
+        <p className="pap-hint">Progress dapat diupdate setelah planning disetujui.</p>
+      ) : null}
+      <section className="pap-detail-section">
+        <h3>Lampiran ({files.length})</h3>
+        {files.length > 0 ? (
+          <ul className="pap-file-list">
+            {files.map((file) => (
+              <li key={file.id}>
+                {file.type === 'link' ? <Link2 /> : <FileText />}
+                <div>
+                  <a href={file.type === 'link' ? file.url! : `/api/planning/files/${file.id}`} target="_blank" rel="noopener noreferrer">{file.name} <ExternalLink className="pap-inline-icon" /></a>
+                  <span>{file.type === 'link' ? file.url : formatSize(file.size)} · {file.uploaded_by_name}</span>
+                </div>
+                {item.can.attach && <button className="pap-icon-button" aria-label={`Hapus ${file.name}`} disabled={busy} onClick={() => window.confirm(`Hapus lampiran "${file.name}"?`) && run(() => api(`/api/planning/files/${file.id}`, { method: 'DELETE' }))}><Trash2 /></button>}
+              </li>
+            ))}
+          </ul>
+        ) : <p className="pap-muted">Belum ada lampiran.</p>}
+        {item.can.attach && <AttachmentPicker busy={busy} onError={setError} onAdd={(attachment) => run(() => uploadAttachment(item.id, attachment))} />}
+      </section>
+    </Modal>
+  )
+}

@@ -14,6 +14,15 @@ export const db =
     waitForConnections: true,
     connectionLimit: 5,
     connectTimeout: 8000,
+    // DATE/DATETIME dikembalikan sebagai string agar tidak bergeser zona waktu
+    dateStrings: true,
   })
+
+if (!globalForDb.papPool) {
+  // Server MySQL Hostinger memakai UTC; NOW()/CURRENT_TIMESTAMP disamakan ke WIB
+  db.pool.on('connection', (connection) => {
+    connection.query(`SET time_zone = '${process.env.DB_TIMEZONE || '+07:00'}'`)
+  })
+}
 
 if (process.env.NODE_ENV !== 'production') globalForDb.papPool = db

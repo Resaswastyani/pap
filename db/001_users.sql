@@ -1,6 +1,6 @@
 -- PAP-MS: skema tabel login
--- Import lewat phpMyAdmin Hostinger ke database u982265876_pap,
--- atau jalankan `pnpm db:setup` (butuh Remote MySQL aktif).
+-- Jalankan semua file db/*.sql berurutan: `pnpm db:setup`,
+-- atau import manual satu per satu lewat phpMyAdmin.
 
 CREATE TABLE IF NOT EXISTS users (
   id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
