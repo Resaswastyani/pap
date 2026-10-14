@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CalendarClock, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, List, ExternalLink, MapPin, Pencil, Plus, Search, Trash2, Users, Video } from 'lucide-react'
 import { MEETING_STATUS, PERMISSIONS, type MeetingStatus, type PlanningStatus } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
-import { PlanningForm } from './planning-page'
+import { AttachmentPicker, FileItems, PendingItems, PlanningForm, type PendingAttachment, type PlanningFile } from './planning-page'
 import { api, Field, formatDate, Modal, Notice, Progress, StatusBadge, UserPicker, type UserOption } from './ui'
 
 type Abilities = { edit: boolean; delete: boolean; result: boolean }
@@ -458,7 +458,15 @@ function MeetingForm({ user, initial, defaultDate, onClose, onSaved }: { user: U
   )
 }
 
-type MeetingResponse = { item: Meeting; participants: Participant[]; plannings?: LinkedPlanning[] }
+type MeetingResponse = { item: Meeting; participants: Participant[]; plannings?: LinkedPlanning[]; files?: PlanningFile[] }
+
+// Upload satu lampiran hasil meeting (file atau link)
+async function uploadMeetingFile(meetingId: number, item: PendingAttachment) {
+  if (item.kind === 'link') return api(`/api/meetings/${meetingId}/files`, { method: 'POST', json: { name: item.name, url: item.url } })
+  const form = new FormData()
+  form.append('file', item.file)
+  return api(`/api/meetings/${meetingId}/files`, { method: 'POST', body: form })
+}
 
 function MeetingDetail({ user, id, onOpenPlanning, onClose, onChanged, onEdit, onDeleted }: { user: UserProfile; id: number; onOpenPlanning: (id: number) => void; onClose: () => void; onChanged: () => void; onEdit: (item: Meeting) => void; onDeleted: () => void }) {
   const [item, setItem] = useState<Meeting | null>(null)
@@ -469,6 +477,8 @@ function MeetingDetail({ user, id, onOpenPlanning, onClose, onChanged, onEdit, o
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<MeetingStatus>('terjadwal')
   const [hasil, setHasil] = useState('')
+  const [files, setFiles] = useState<PlanningFile[]>([])
+  const [pending, setPending] = useState<PendingAttachment[]>([])
   const [planningForm, setPlanningForm] = useState(false)
   const canCreatePlanning = has(user, PERMISSIONS.planningCreate)
 
@@ -476,6 +486,7 @@ function MeetingDetail({ user, id, onOpenPlanning, onClose, onChanged, onEdit, o
     setItem(res.item)
     setParticipants(res.participants)
     if (res.plannings) setPlannings(res.plannings)
+    if (res.files) setFiles(res.files)
     setStatus(res.item.status)
     setHasil(res.item.hasil_meeting ?? '')
   }
@@ -489,7 +500,18 @@ function MeetingDetail({ user, id, onOpenPlanning, onClose, onChanged, onEdit, o
     setBusy(true)
     setError('')
     try {
-      apply(await api(`/api/meetings/${item.id}`, { method: 'PATCH', json: { status, hasil_meeting: hasil } }))
+      if (resultChanged) apply(await api(`/api/meetings/${item.id}`, { method: 'PATCH', json: { status, hasil_meeting: hasil } }))
+      const failed: string[] = []
+      for (const attachment of pending) {
+        try {
+          await uploadMeetingFile(item.id, attachment)
+        } catch (err) {
+          failed.push((err as Error).message)
+        }
+      }
+      setPending([])
+      await reload()
+      if (failed.length) setError(`Sebagian lampiran gagal: ${failed.join(' ')}`)
       onChanged()
     } catch (e) {
       setError((e as Error).message)
@@ -549,16 +571,43 @@ function MeetingDetail({ user, id, onOpenPlanning, onClose, onChanged, onEdit, o
         <h3>Hasil meeting</h3>
         {item.can.result ? (
           <div className="pap-result-editor">
-            <textarea className="pap-input" rows={5} maxLength={10000} value={hasil} onChange={(e) => setHasil(e.target.value)} placeholder="Keputusan, tindak lanjut, dan PIC..." />
+            <label className="pap-field">
+              <span>Catatan hasil meeting (opsional)</span>
+              <textarea className="pap-input" rows={5} maxLength={10000} value={hasil} onChange={(e) => setHasil(e.target.value)} placeholder="Keputusan, tindak lanjut, dan PIC..." />
+            </label>
+            {files.length > 0 && (
+              <FileItems
+                files={files}
+                basePath="/api/meetings/files"
+                busy={busy}
+                canDelete={(file) => item.can.edit || file.uploaded_by === user.id}
+                onDelete={async (file) => {
+                  setBusy(true)
+                  try {
+                    await api(`/api/meetings/files/${file.id}`, { method: 'DELETE' })
+                    await reload()
+                  } catch (e) {
+                    setError((e as Error).message)
+                  } finally {
+                    setBusy(false)
+                  }
+                }}
+              />
+            )}
+            <AttachmentPicker label="Lampiran hasil meeting (opsional)" busy={busy} onError={setError} onAdd={(attachment) => setPending((list) => [...list, attachment])} />
+            <PendingItems items={pending} onRemove={(index) => setPending((list) => list.filter((_, i) => i !== index))} />
             <div className="pap-inline-actions">
               <select className="pap-select" value={status} onChange={(e) => setStatus(e.target.value as MeetingStatus)} aria-label="Status meeting">
                 {Object.entries(MEETING_STATUS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
               </select>
-              <button className="pap-primary-button" disabled={busy || !resultChanged} onClick={saveResult}>Simpan hasil</button>
+              <button className="pap-primary-button" disabled={busy || (!resultChanged && !pending.length)} onClick={saveResult}>{busy ? 'Menyimpan...' : 'Simpan hasil'}</button>
             </div>
           </div>
         ) : (
-          <p className="pap-prewrap">{item.hasil_meeting || <span className="pap-muted">Belum ada hasil meeting.</span>}</p>
+          <>
+            <p className="pap-prewrap">{item.hasil_meeting || (!files.length && <span className="pap-muted">Belum ada hasil meeting.</span>)}</p>
+            {files.length > 0 && <FileItems files={files} basePath="/api/meetings/files" busy={false} canDelete={false} onDelete={() => {}} />}
+          </>
         )}
       </section>
       <section className="pap-detail-section">

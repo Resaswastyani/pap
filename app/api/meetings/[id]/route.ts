@@ -2,7 +2,7 @@ import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
-import { loadMeeting, loadParticipants, meetingAbilities, parseDateTime, serializeMeeting, validParticipants, type MeetingRow } from '@/lib/meeting'
+import { loadMeeting, loadMeetingFiles, loadParticipants, meetingAbilities, parseDateTime, serializeMeeting, validParticipants, type MeetingRow } from '@/lib/meeting'
 import { meetingBody, notify } from '@/lib/notifications'
 import { pushToUsers } from '@/lib/push'
 import { MEETING_STATUS, PERMISSIONS } from '@/lib/permissions'
@@ -47,7 +47,7 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
      JOIN divisions d ON d.id = p.division_id WHERE p.meeting_id = ? ORDER BY p.id`,
     [row.id],
   )
-  return NextResponse.json({ item: serializeMeeting(user, row), participants: await loadParticipants(row.id), plannings })
+  return NextResponse.json({ item: serializeMeeting(user, row), participants: await loadParticipants(row.id), plannings, files: await loadMeetingFiles(row.id) })
 })
 
 // Edit meeting:

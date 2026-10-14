@@ -31,10 +31,10 @@ type Planning = {
   can: Abilities
 }
 type Pic = { id: number; name: string; division_name: string }
-type PlanningFile = { id: number; type: 'link' | 'file'; name: string; url: string | null; mime: string | null; size: number | null; uploaded_by: number; uploaded_by_name: string; created_at: string }
+export type PlanningFile = { id: number; type: 'link' | 'file'; name: string; url: string | null; mime: string | null; size: number | null; uploaded_by: number; uploaded_by_name: string; created_at: string }
 type ProgressNote = { id: number; progress: number; status: PlanningStatus; catatan: string | null; created_by_name: string; created_at: string; updated_at: string; files: PlanningFile[]; can: { edit: boolean; delete: boolean } }
 type Summary = { total: number; belum_mulai: number; berjalan: number; selesai: number }
-type PendingAttachment = { kind: 'file'; file: File } | { kind: 'link'; name: string; url: string }
+export type PendingAttachment = { kind: 'file'; file: File } | { kind: 'link'; name: string; url: string }
 
 const ACCEPT = Object.keys(FILE_ACCEPT).join(',') + ',' + Object.values(FILE_ACCEPT).join(',')
 const has = (user: UserProfile, permission: string) => user.role.isSuperAdmin || user.permissions.includes(permission as never)
@@ -319,7 +319,7 @@ export function PlanningForm({ user, initial = null, meeting, onClose, onSaved }
   )
 }
 
-function AttachmentPicker({ onAdd, onError, busy, label = 'Lampiran (opsional)' }: { onAdd: (item: PendingAttachment) => void; onError: (message: string) => void; busy?: boolean; label?: string }) {
+export function AttachmentPicker({ onAdd, onError, busy, label = 'Lampiran (opsional)' }: { onAdd: (item: PendingAttachment) => void; onError: (message: string) => void; busy?: boolean; label?: string }) {
   const [linkOpen, setLinkOpen] = useState(false)
   const [link, setLink] = useState({ name: '', url: '' })
   return (
@@ -356,24 +356,25 @@ function AttachmentPicker({ onAdd, onError, busy, label = 'Lampiran (opsional)' 
   )
 }
 
-function FileItems({ files, canDelete, busy, onDelete }: { files: PlanningFile[]; canDelete: boolean; busy: boolean; onDelete: (file: PlanningFile) => void }) {
+// basePath: URL unduh file (planning atau meeting); canDelete boleh berupa fungsi per file
+export function FileItems({ files, canDelete, busy, onDelete, basePath = '/api/planning/files' }: { files: PlanningFile[]; canDelete: boolean | ((file: PlanningFile) => boolean); busy: boolean; onDelete: (file: PlanningFile) => void; basePath?: string }) {
   return (
     <ul className="pap-file-list">
       {files.map((file) => (
         <li key={file.id}>
           {file.type === 'link' ? <Link2 /> : <FileText />}
           <div>
-            <a href={file.type === 'link' ? file.url! : `/api/planning/files/${file.id}`} target="_blank" rel="noopener noreferrer">{file.name} <ExternalLink className="pap-inline-icon" /></a>
+            <a href={file.type === 'link' ? file.url! : `${basePath}/${file.id}`} target="_blank" rel="noopener noreferrer">{file.name} <ExternalLink className="pap-inline-icon" /></a>
             <span>{file.type === 'link' ? file.url : formatSize(file.size)} · {file.uploaded_by_name}</span>
           </div>
-          {canDelete && <button className="pap-icon-button" aria-label={`Hapus ${file.name}`} disabled={busy} onClick={() => window.confirm(`Hapus lampiran "${file.name}"?`) && onDelete(file)}><Trash2 /></button>}
+          {(typeof canDelete === 'function' ? canDelete(file) : canDelete) && <button className="pap-icon-button" aria-label={`Hapus ${file.name}`} disabled={busy} onClick={() => window.confirm(`Hapus lampiran "${file.name}"?`) && onDelete(file)}><Trash2 /></button>}
         </li>
       ))}
     </ul>
   )
 }
 
-function PendingItems({ items, onRemove }: { items: PendingAttachment[]; onRemove: (index: number) => void }) {
+export function PendingItems({ items, onRemove }: { items: PendingAttachment[]; onRemove: (index: number) => void }) {
   if (!items.length) return null
   return (
     <ul className="pap-file-list">

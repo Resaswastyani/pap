@@ -94,3 +94,13 @@ export async function validParticipants(value: unknown, creatorId: number) {
   if (rows.length !== ids.size) fail(400, 'Ada peserta yang tidak valid atau tidak aktif.')
   return [...ids]
 }
+
+// Lampiran hasil meeting (tanpa isi file)
+export async function loadMeetingFiles(meetingId: number) {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT f.id, f.type, f.name, f.url, f.mime, f.size, f.uploaded_by, u.name AS uploaded_by_name, f.created_at
+     FROM meeting_files f JOIN users u ON u.id = f.uploaded_by WHERE f.meeting_id = ? ORDER BY f.id`,
+    [meetingId],
+  )
+  return rows
+}
