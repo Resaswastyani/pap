@@ -3,14 +3,14 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { PERMISSIONS } from '@/lib/permissions'
-import { loadPlanning, planningAbilities } from '@/lib/planning'
+import { loadNote, loadPlanning, noteAbilities, planningAbilities } from '@/lib/planning'
 
 type Ctx = { params: Promise<{ fileId: string }> }
-type FileRow = RowDataPacket & { id: number; planning_id: number; type: 'link' | 'file'; name: string; url: string | null; mime: string | null; uploaded_by: number }
+type FileRow = RowDataPacket & { id: number; planning_id: number; note_id: number | null; type: 'link' | 'file'; name: string; url: string | null; mime: string | null; uploaded_by: number }
 
 async function loadFile(ctx: Ctx, withData = false) {
   const id = int((await ctx.params).fileId) ?? fail(404, 'File tidak ditemukan.')
-  const [rows] = await db.query<FileRow[]>(`SELECT id, planning_id, type, name, url, mime, uploaded_by${withData ? ', data' : ''} FROM planning_files WHERE id = ?`, [id])
+  const [rows] = await db.query<FileRow[]>(`SELECT id, planning_id, note_id, type, name, url, mime, uploaded_by${withData ? ', data' : ''} FROM planning_files WHERE id = ?`, [id])
   return rows[0] ?? fail(404, 'File tidak ditemukan.')
 }
 
@@ -36,7 +36,10 @@ export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const file = await loadFile(ctx)
   const planning = await loadPlanning(user, file.planning_id)
   const ability = planningAbilities(user, planning)
-  if (!ability.edit && !(ability.attach && file.uploaded_by === user.id)) fail(403, 'Anda tidak dapat menghapus lampiran ini.')
+  const allowed = file.note_id
+    ? noteAbilities(user, planning, await loadNote(file.note_id)).edit
+    : ability.edit || (ability.attach && file.uploaded_by === user.id)
+  if (!allowed) fail(403, 'Anda tidak dapat menghapus lampiran ini.')
   await db.query('DELETE FROM planning_files WHERE id = ?', [file.id])
   return NextResponse.json({ ok: true })
 })

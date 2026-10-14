@@ -1,43 +1,33 @@
-import type { ResultSetHeader } from 'mysql2'
 import { NextResponse } from 'next/server'
-import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
+import { fail, handle, int, readJson, requireUser } from '@/lib/api'
+import { PERMISSIONS } from '@/lib/permissions'
 import { db } from '@/lib/db'
-import { FILE_ACCEPT, FILE_MAX_BYTES, PERMISSIONS } from '@/lib/permissions'
-import { loadFiles, loadPlanning, planningAbilities } from '@/lib/planning'
+import { insertAttachment, loadFiles, loadNote, loadNotes, loadPlanning, noteAbilities, planningAbilities, validLink, validUpload } from '@/lib/planning'
 
 type Ctx = { params: Promise<{ id: string }> }
 
-// Tambah lampiran: multipart (field "file") untuk upload, atau JSON { name, url } untuk link
+// Tambah lampiran: multipart (field "file") untuk upload, atau JSON { name, url } untuk link.
+// Isi "note_id" untuk menambah lampiran ke catatan progress tertentu.
 export const POST = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser(PERMISSIONS.planningView)
   const row = await loadPlanning(user, int((await ctx.params).id) ?? fail(404, 'Planning tidak ditemukan.'))
-  if (!planningAbilities(user, row).attach) fail(403, 'Anda tidak dapat menambah lampiran pada planning ini.')
 
-  if ((request.headers.get('content-type') ?? '').startsWith('multipart/form-data')) {
-    const form = await request.formData().catch(() => fail(400, 'Upload tidak valid.'))
-    const file = form.get('file')
-    if (!(file instanceof File) || !file.size) fail(400, 'File wajib dipilih.')
-    const upload = file as File
-    if (!(upload.type in FILE_ACCEPT)) fail(400, 'Format file harus gambar (JPG/PNG/WEBP/GIF), PDF, atau Word.')
-    if (upload.size > FILE_MAX_BYTES) fail(400, 'Ukuran file maksimal 5 MB.')
-    await db.query<ResultSetHeader>(
-      "INSERT INTO planning_files (planning_id, type, name, mime, size, data, uploaded_by) VALUES (?, 'file', ?, ?, ?, ?, ?)",
-      [row.id, upload.name.slice(0, 255), upload.type, upload.size, Buffer.from(await upload.arrayBuffer()), user.id],
-    )
-  } else {
-    const body = await readJson(request)
-    const url = str(body.url, 1000)
-    let parsed: URL | null = null
-    try {
-      parsed = new URL(url)
-    } catch {}
-    if (!parsed || !['http:', 'https:'].includes(parsed.protocol)) fail(400, 'Link harus diawali http:// atau https://')
-    await db.query("INSERT INTO planning_files (planning_id, type, name, url, uploaded_by) VALUES (?, 'link', ?, ?, ?)", [
-      row.id,
-      str(body.name, 255) || parsed!.hostname,
-      url,
-      user.id,
-    ])
+  const multipart = (request.headers.get('content-type') ?? '').startsWith('multipart/form-data')
+  const form = multipart ? await request.formData().catch(() => fail(400, 'Upload tidak valid.')) : null
+  const body = multipart ? null : await readJson(request)
+  const noteId = int(multipart ? form!.get('note_id') : body!.note_id)
+
+  if (noteId) {
+    const note = await loadNote(noteId)
+    if (note.planning_id !== row.id) fail(404, 'Catatan tidak ditemukan.')
+    if (!noteAbilities(user, row, note).edit) fail(403, 'Anda hanya dapat menambah lampiran pada catatan milik sendiri.')
+  } else if (!planningAbilities(user, row).attach) {
+    fail(403, 'Anda tidak dapat menambah lampiran pada planning ini.')
   }
-  return NextResponse.json({ files: await loadFiles(row.id) }, { status: 201 })
+
+  const target = { planningId: row.id, noteId: noteId ?? null, userId: user.id }
+  if (multipart) await insertAttachment(db, target, { file: validUpload(form!.get('file')) })
+  else await insertAttachment(db, target, { link: validLink(body!) })
+
+  return NextResponse.json(noteId ? { notes: await loadNotes(user, row) } : { files: await loadFiles(row.id) }, { status: 201 })
 })

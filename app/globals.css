@@ -55,6 +55,7 @@ button { font: inherit; }
 .pap-shell.dark { color-scheme:dark; }
 /* ===== Fitur data asli: Planning, Manajemen User & Role ===== */
 .pap-stat-grid.four { grid-template-columns:repeat(4,1fr); }
+.pap-page-heading .pap-primary-button { flex:none; white-space:nowrap; }
 .pap-status.danger { background:rgb(239 68 68 / .12); color:#dc2626; }
 .pap-status.neutral { background:rgb(107 112 133 / .12); color:var(--pap-muted); }
 .pap-input, .pap-select { width:100%; min-height:40px; padding:9px 12px; border:1px solid var(--pap-border); border-radius:10px; outline:none; background:var(--pap-surface); color:var(--pap-text); font:inherit; font-size:13px; }
@@ -79,6 +80,7 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
 .pap-filter-search input { width:100%; border:0; outline:none; background:transparent; color:var(--pap-text); font:inherit; font-size:12px; }
 .pap-card-notice { padding:0 22px 14px; }
 .pap-cell-title { display:flex; align-items:center; gap:8px; font-weight:700; font-size:13px; }
+.pap-table-wrap td:has(> .pap-cell-title) { min-width:240px; }
 .pap-cell-sub { margin-top:4px; color:var(--pap-muted); font-size:11px; }
 .pap-nowrap { white-space:nowrap; }
 .pap-row-link { cursor:pointer; }
@@ -174,6 +176,57 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
   .pap-link-row { grid-template-columns:1fr; }
   .pap-modal-foot .pap-btn, .pap-modal-foot .pap-primary-button { flex:1 1 auto; }
   .pap-modal-foot .pap-spacer { display:none; }
+}
+/* Meeting */
+.pap-meeting-link { display:inline-flex; align-items:center; gap:3px; color:#7050e7; font-weight:700; text-decoration:none; }
+.pap-meeting-link:hover { text-decoration:underline; }
+.pap-meeting-place { max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pap-field-label { display:block; margin-bottom:7px; font-size:12px; font-weight:700; }
+.pap-hint-inline { color:var(--pap-muted); font-size:11px; }
+.pap-picker { display:flex; flex-direction:column; gap:8px; }
+.pap-picker-search { flex:none; max-width:none; }
+.pap-picker-list { max-height:240px; overflow:auto; padding:6px 12px 10px; border:1px solid var(--pap-border); border-radius:10px; }
+.pap-picker-group { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 14px; padding:8px 0; border-bottom:1px dashed var(--pap-border); }
+.pap-picker-group:last-child { border-bottom:0; }
+.pap-picker-group .pap-check { font-size:12px; }
+.pap-picker-group-head { grid-column:1 / -1; display:flex; justify-content:space-between; padding:2px 0; border:0; background:transparent; color:var(--pap-muted); font-size:10px; font-weight:800; text-align:left; text-transform:uppercase; letter-spacing:.08em; cursor:pointer; }
+.pap-picker-group-head:hover { color:#7050e7; }
+.pap-participants { display:flex; flex-wrap:wrap; gap:8px; }
+.pap-participant { display:flex; flex-direction:column; padding:7px 11px; border:1px solid var(--pap-border); border-radius:10px; font-size:12px; }
+.pap-participant small { margin-top:2px; color:var(--pap-muted); font-size:10px; }
+.pap-result-editor { display:flex; flex-direction:column; gap:10px; }
+.pap-result-editor .pap-select { width:auto; min-width:160px; }
+@media (max-width:640px) {
+  .pap-picker-group { grid-template-columns:1fr; }
+  .pap-meeting-place { max-width:160px; }
+  .pap-result-editor .pap-inline-actions { flex-direction:column; }
+  .pap-result-editor .pap-select, .pap-result-editor .pap-primary-button { width:100%; justify-content:center; }
+}
+/* Catatan progress planning */
+.pap-note-list { display:flex; flex-direction:column; gap:0; margin:0; padding:0 0 0 14px; border-left:2px solid rgb(124 92 252 / .2); list-style:none; }
+.pap-note-item { position:relative; display:flex; flex-direction:column; gap:8px; padding:4px 0 16px 16px; }
+.pap-note-item::before { content:''; position:absolute; top:9px; left:-21px; width:10px; height:10px; border:2px solid var(--pap-surface); border-radius:50%; background:#7c5cfc; }
+.pap-note-item:last-child { padding-bottom:4px; }
+.pap-note-head { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.pap-note-progress { padding:3px 8px; border-radius:8px; background:rgb(124 92 252 / .12); color:#7050e7; font-size:12px; font-weight:800; }
+.pap-note-meta { color:var(--pap-muted); font-size:12px; }
+.pap-note-meta strong { color:var(--pap-text); }
+.pap-note-actions { display:flex; gap:4px; margin-left:auto; }
+.pap-note-actions .pap-icon-button { width:30px; height:30px; }
+.pap-note-item .pap-prewrap { padding:10px 12px; border-radius:10px; background:var(--pap-bg); }
+.pap-note-item .pap-file-list { margin-top:0; }
+.pap-note-edit { display:flex; flex-direction:column; gap:10px; }
+.pap-progress-update { padding:18px; border:1px solid rgb(124 92 252 / .25); border-radius:14px; background:rgb(124 92 252 / .04); }
+.pap-progress-update .pap-progress-editor { grid-template-columns:1fr 80px 160px; }
+.pap-progress-note { margin:14px 0 10px; }
+.pap-progress-submit { align-items:center; justify-content:space-between; margin-top:14px; }
+.pap-progress-submit .pap-hint { margin:0; }
+@media (max-width:640px) {
+  .pap-progress-update { padding:14px; }
+  .pap-progress-update .pap-progress-editor { grid-template-columns:1fr 80px; }
+  .pap-progress-update .pap-progress-editor .pap-select { grid-column:1 / -1; }
+  .pap-progress-submit { flex-direction:column; align-items:stretch; }
+  .pap-progress-submit .pap-primary-button { justify-content:center; }
 }
 @media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition-duration:.01ms!important; animation-duration:.01ms!important; } }
 

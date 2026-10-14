@@ -26,6 +26,7 @@ type Planning = {
   can: Abilities
 }
 type PlanningFile = { id: number; type: 'link' | 'file'; name: string; url: string | null; mime: string | null; size: number | null; uploaded_by: number; uploaded_by_name: string; created_at: string }
+type ProgressNote = { id: number; progress: number; status: PlanningStatus; catatan: string | null; created_by_name: string; created_at: string; updated_at: string; files: PlanningFile[]; can: { edit: boolean; delete: boolean } }
 type Summary = { total: number; belum_mulai: number; berjalan: number; selesai: number }
 type PendingAttachment = { kind: 'file'; file: File } | { kind: 'link'; name: string; url: string }
 
@@ -38,10 +39,12 @@ function validateFile(file: File) {
   return ''
 }
 
-async function uploadAttachment(planningId: number, item: PendingAttachment) {
-  if (item.kind === 'link') return api<{ files: PlanningFile[] }>(`/api/planning/${planningId}/files`, { method: 'POST', json: { name: item.name, url: item.url } })
+// noteId diisi untuk menambah lampiran ke catatan progress
+async function uploadAttachment(planningId: number, item: PendingAttachment, noteId?: number) {
+  if (item.kind === 'link') return api<{ files: PlanningFile[] }>(`/api/planning/${planningId}/files`, { method: 'POST', json: { name: item.name, url: item.url, note_id: noteId } })
   const form = new FormData()
   form.append('file', item.file)
+  if (noteId) form.append('note_id', String(noteId))
   return api<{ files: PlanningFile[] }>(`/api/planning/${planningId}/files`, { method: 'POST', body: form })
 }
 
@@ -272,13 +275,13 @@ function PlanningForm({ user, divisions, initial, onClose, onSaved }: { user: Us
   )
 }
 
-function AttachmentPicker({ onAdd, onError, busy }: { onAdd: (item: PendingAttachment) => void; onError: (message: string) => void; busy?: boolean }) {
+function AttachmentPicker({ onAdd, onError, busy, label = 'Lampiran (opsional)' }: { onAdd: (item: PendingAttachment) => void; onError: (message: string) => void; busy?: boolean; label?: string }) {
   const [linkOpen, setLinkOpen] = useState(false)
   const [link, setLink] = useState({ name: '', url: '' })
   return (
     <div className="pap-attach">
       <div className="pap-attach-actions">
-        <span className="pap-attach-label">Lampiran (opsional)</span>
+        <span className="pap-attach-label">{label}</span>
         <label className={`pap-btn ${busy ? 'disabled' : ''}`}>
           <Upload /> Upload file
           <input type="file" hidden accept={ACCEPT} multiple disabled={busy} onChange={(e) => {
@@ -309,19 +312,89 @@ function AttachmentPicker({ onAdd, onError, busy }: { onAdd: (item: PendingAttac
   )
 }
 
+function FileItems({ files, canDelete, busy, onDelete }: { files: PlanningFile[]; canDelete: boolean; busy: boolean; onDelete: (file: PlanningFile) => void }) {
+  return (
+    <ul className="pap-file-list">
+      {files.map((file) => (
+        <li key={file.id}>
+          {file.type === 'link' ? <Link2 /> : <FileText />}
+          <div>
+            <a href={file.type === 'link' ? file.url! : `/api/planning/files/${file.id}`} target="_blank" rel="noopener noreferrer">{file.name} <ExternalLink className="pap-inline-icon" /></a>
+            <span>{file.type === 'link' ? file.url : formatSize(file.size)} · {file.uploaded_by_name}</span>
+          </div>
+          {canDelete && <button className="pap-icon-button" aria-label={`Hapus ${file.name}`} disabled={busy} onClick={() => window.confirm(`Hapus lampiran "${file.name}"?`) && onDelete(file)}><Trash2 /></button>}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function PendingItems({ items, onRemove }: { items: PendingAttachment[]; onRemove: (index: number) => void }) {
+  if (!items.length) return null
+  return (
+    <ul className="pap-file-list">
+      {items.map((item, index) => (
+        <li key={index}>
+          {item.kind === 'file' ? <FileText /> : <Link2 />}
+          <div><strong>{item.kind === 'file' ? item.file.name : item.name || item.url}</strong><span>{item.kind === 'file' ? formatSize(item.file.size) : item.url}</span></div>
+          <button type="button" className="pap-icon-button" aria-label="Hapus lampiran" onClick={() => onRemove(index)}><Trash2 /></button>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function NoteCard({ note, planningId, busy, run, onError }: { note: ProgressNote; planningId: number; busy: boolean; run: (action: () => Promise<unknown>) => Promise<void>; onError: (message: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState(note.catatan ?? '')
+  const edited = note.updated_at !== note.created_at
+  return (
+    <li className="pap-note-item">
+      <div className="pap-note-head">
+        <span className="pap-note-progress">{note.progress}%</span>
+        <StatusBadge value={note.status} />
+        <span className="pap-note-meta"><strong>{note.created_by_name}</strong> · {formatDate(note.created_at, true)}{edited && ' · diedit'}</span>
+        {note.can.edit && !editing && (
+          <span className="pap-note-actions">
+            <button className="pap-icon-button" aria-label="Edit catatan" disabled={busy} onClick={() => { setText(note.catatan ?? ''); setEditing(true) }}><Pencil /></button>
+            <button className="pap-icon-button danger" aria-label="Hapus catatan" disabled={busy} onClick={() => window.confirm('Hapus catatan progress ini beserta lampirannya?') && run(() => api(`/api/planning/notes/${note.id}`, { method: 'DELETE' }))}><Trash2 /></button>
+          </span>
+        )}
+      </div>
+      {editing ? (
+        <div className="pap-note-edit">
+          <textarea className="pap-input" rows={3} maxLength={5000} value={text} onChange={(e) => setText(e.target.value)} placeholder="Catatan progress" autoFocus />
+          <AttachmentPicker label="Tambah lampiran ke catatan" busy={busy} onError={onError} onAdd={(attachment) => run(() => uploadAttachment(planningId, attachment, note.id))} />
+          <div className="pap-inline-actions">
+            <button className="pap-btn" onClick={() => setEditing(false)}>Selesai</button>
+            <button className="pap-primary-button" disabled={busy || text === (note.catatan ?? '')} onClick={() => run(async () => { await api(`/api/planning/notes/${note.id}`, { method: 'PATCH', json: { catatan: text } }); setEditing(false) })}>Simpan catatan</button>
+          </div>
+        </div>
+      ) : (
+        note.catatan && <p className="pap-prewrap">{note.catatan}</p>
+      )}
+      {note.files.length > 0 && <FileItems files={note.files} canDelete={note.can.edit} busy={busy} onDelete={(file) => run(() => api(`/api/planning/files/${file.id}`, { method: 'DELETE' }))} />}
+    </li>
+  )
+}
+
 function PlanningDetail({ id, onClose, onChanged, onEdit, onDeleted }: { id: number; onClose: () => void; onChanged: () => void; onEdit: (item: Planning) => void; onDeleted: () => void }) {
   const [item, setItem] = useState<Planning | null>(null)
   const [files, setFiles] = useState<PlanningFile[]>([])
+  const [notes, setNotes] = useState<ProgressNote[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState(0)
   const [status, setStatus] = useState<PlanningStatus>('belum_mulai')
+  const [catatan, setCatatan] = useState('')
+  const [pending, setPending] = useState<PendingAttachment[]>([])
 
   const load = useCallback(async () => {
     try {
-      const res = await api<{ item: Planning; files: PlanningFile[] }>(`/api/planning/${id}`)
+      const res = await api<{ item: Planning; files: PlanningFile[]; notes: ProgressNote[] }>(`/api/planning/${id}`)
       setItem(res.item)
       setFiles(res.files)
+      setNotes(res.notes)
       setProgress(res.item.progress)
       setStatus(res.item.status)
     } catch (e) {
@@ -351,7 +424,23 @@ function PlanningDetail({ id, onClose, onChanged, onEdit, onDeleted }: { id: num
     setStatus((current) => (next >= 100 ? 'selesai' : next > 0 && (current === 'belum_mulai' || current === 'selesai') ? 'berjalan' : next === 0 && current === 'berjalan' ? 'belum_mulai' : current))
   }
 
-  const progressChanged = item && (progress !== item.progress || status !== item.status)
+  function saveProgress() {
+    if (!item) return
+    const form = new FormData()
+    form.append('progress', String(progress))
+    form.append('status', status)
+    form.append('catatan', catatan)
+    form.append('links', JSON.stringify(pending.filter((p) => p.kind === 'link').map((p) => (p.kind === 'link' ? { name: p.name, url: p.url } : null))))
+    for (const p of pending) if (p.kind === 'file') form.append('files', p.file)
+    return run(async () => {
+      await api(`/api/planning/${item.id}/progress`, { method: 'POST', body: form })
+      setCatatan('')
+      setPending([])
+    })
+  }
+
+  const progressChanged = !!item && (progress !== item.progress || status !== item.status)
+  const hasNote = !!catatan.trim() || pending.length > 0
   const overdue = useMemo(() => item && item.status !== 'selesai' && item.tanggal_selesai < new Date().toISOString().slice(0, 10), [item])
 
   if (!item) return <Modal title="Detail planning" onClose={onClose}>{error ? <Notice>{error}</Notice> : <p className="pap-muted">Memuat...</p>}</Modal>
@@ -381,8 +470,23 @@ function PlanningDetail({ id, onClose, onChanged, onEdit, onDeleted }: { id: num
         <h3>Deskripsi</h3>
         <p className="pap-prewrap">{item.deskripsi || <span className="pap-muted">Tidak ada deskripsi.</span>}</p>
       </section>
-      {item.can.progress ? (
-        <section className="pap-detail-section">
+      <section className="pap-detail-section">
+        <h3>Lampiran ({files.length})</h3>
+        {files.length > 0 ? (
+          <FileItems files={files} canDelete={item.can.attach} busy={busy} onDelete={(file) => run(() => api(`/api/planning/files/${file.id}`, { method: 'DELETE' }))} />
+        ) : <p className="pap-muted">Belum ada lampiran.</p>}
+        {item.can.attach && <AttachmentPicker busy={busy} onError={setError} onAdd={(attachment) => run(() => uploadAttachment(item.id, attachment))} />}
+      </section>
+      <section className="pap-detail-section">
+        <h3>Catatan progress ({notes.length})</h3>
+        {notes.length > 0 ? (
+          <ul className="pap-note-list">
+            {notes.map((note) => <NoteCard key={`${note.id}-${note.updated_at}`} note={note} planningId={item.id} busy={busy} run={run} onError={setError} />)}
+          </ul>
+        ) : <p className="pap-muted">Belum ada catatan progress.</p>}
+      </section>
+      {item.can.progress && (
+        <section className="pap-detail-section pap-progress-update">
           <h3>Update progress</h3>
           <div className="pap-progress-editor">
             <input type="range" min={0} max={100} step={5} value={progress} onChange={(e) => changeProgress(Number(e.target.value))} aria-label="Progress" />
@@ -390,28 +494,19 @@ function PlanningDetail({ id, onClose, onChanged, onEdit, onDeleted }: { id: num
             <select className="pap-select" value={status} onChange={(e) => setStatus(e.target.value as PlanningStatus)} aria-label="Status">
               {Object.entries(PLANNING_STATUS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
             </select>
-            <button className="pap-primary-button" disabled={busy || !progressChanged} onClick={() => run(() => api(`/api/planning/${item.id}`, { method: 'PATCH', json: { progress, status } }))}>Simpan progress</button>
+          </div>
+          <label className="pap-field pap-progress-note">
+            <span>Catatan progress (opsional)</span>
+            <textarea className="pap-input" rows={3} maxLength={5000} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Apa yang sudah dikerjakan, kendala, atau rencana berikutnya" />
+          </label>
+          <AttachmentPicker label="Lampiran catatan (opsional)" busy={busy} onError={setError} onAdd={(attachment) => setPending((list) => [...list, attachment])} />
+          <PendingItems items={pending} onRemove={(index) => setPending((list) => list.filter((_, i) => i !== index))} />
+          <div className="pap-inline-actions pap-progress-submit">
+            <small className="pap-hint">Tanggal &amp; waktu catatan dicatat otomatis.</small>
+            <button className="pap-primary-button" disabled={busy || (!progressChanged && !hasNote)} onClick={saveProgress}>{hasNote ? 'Simpan progress & catatan' : 'Simpan progress'}</button>
           </div>
         </section>
-      ) : null}
-      <section className="pap-detail-section">
-        <h3>Lampiran ({files.length})</h3>
-        {files.length > 0 ? (
-          <ul className="pap-file-list">
-            {files.map((file) => (
-              <li key={file.id}>
-                {file.type === 'link' ? <Link2 /> : <FileText />}
-                <div>
-                  <a href={file.type === 'link' ? file.url! : `/api/planning/files/${file.id}`} target="_blank" rel="noopener noreferrer">{file.name} <ExternalLink className="pap-inline-icon" /></a>
-                  <span>{file.type === 'link' ? file.url : formatSize(file.size)} · {file.uploaded_by_name}</span>
-                </div>
-                {item.can.attach && <button className="pap-icon-button" aria-label={`Hapus ${file.name}`} disabled={busy} onClick={() => window.confirm(`Hapus lampiran "${file.name}"?`) && run(() => api(`/api/planning/files/${file.id}`, { method: 'DELETE' }))}><Trash2 /></button>}
-              </li>
-            ))}
-          </ul>
-        ) : <p className="pap-muted">Belum ada lampiran.</p>}
-        {item.can.attach && <AttachmentPicker busy={busy} onError={setError} onAdd={(attachment) => run(() => uploadAttachment(item.id, attachment))} />}
-      </section>
+      )}
     </Modal>
   )
 }
