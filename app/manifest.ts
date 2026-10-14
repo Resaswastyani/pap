@@ -16,6 +16,10 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
       { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
       { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      // Ikon status bar notifikasi saat aplikasi terpasang di Android: siluet logo putih, latar transparan.
+      // Tanpa ini Android memakai siluet ikon di atas (opak) sehingga tampil sebagai kotak putih.
+      { src: '/icon-monochrome-192.png', sizes: '192x192', type: 'image/png', purpose: 'monochrome' },
+      { src: '/icon-monochrome-512.png', sizes: '512x512', type: 'image/png', purpose: 'monochrome' },
     ],
   }
 }
