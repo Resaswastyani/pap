@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { PERMISSIONS, PLANNING_STATUS } from '@/lib/permissions'
-import { assertDivision, canViewAllDivisions, loadFiles, loadNotes, loadPlanning, parseDate, planningAbilities, serializePlanning } from '@/lib/planning'
+import { assertDivision, canViewAllDivisions, loadFiles, loadNotes, loadPics, loadPlanning, notifyPics, parseDate, planningAbilities, serializePlanning, validPics } from '@/lib/planning'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -11,7 +11,7 @@ const planningId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, '
 export const GET = handle(async (_request: Request, ctx: Ctx) => {
   const user = await requireUser(PERMISSIONS.planningView)
   const row = await loadPlanning(user, await planningId(ctx))
-  return NextResponse.json({ item: serializePlanning(user, row), files: await loadFiles(row.id), notes: await loadNotes(user, row) })
+  return NextResponse.json({ item: serializePlanning(user, row), files: await loadFiles(row.id), notes: await loadNotes(user, row), pics: await loadPics(row.id) })
 })
 
 // Edit planning. Yang boleh diubah tergantung hak:
@@ -25,7 +25,7 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   const sets: string[] = []
   const args: unknown[] = []
 
-  const wantsDetail = ['judul', 'deskripsi', 'tanggal_mulai', 'tanggal_selesai', 'division_id'].some((key) => key in body)
+  const wantsDetail = ['judul', 'deskripsi', 'tanggal_mulai', 'tanggal_selesai', 'division_id', 'pic_ids'].some((key) => key in body)
   if (wantsDetail && !ability.edit) fail(403, 'Anda hanya dapat mengubah progress planning ini.')
   if (!ability.edit && !ability.progress) fail(403, 'Anda tidak punya akses untuk mengubah planning ini.')
 
@@ -68,11 +68,29 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
     args.push(progress >= 100 ? 'selesai' : progress > 0 ? 'berjalan' : row.status)
   }
 
-  if (!sets.length) fail(400, 'Tidak ada perubahan.')
+  const pics = 'pic_ids' in body ? await validPics(body.pic_ids, row.created_by) : null
+  if (!sets.length && !pics) fail(400, 'Tidak ada perubahan.')
+  const oldPics = serializePlanning(user, row).pic_ids
 
-  await db.query(`UPDATE plannings SET ${sets.join(', ')} WHERE id = ?`, [...args, row.id])
+  const conn = await db.getConnection()
+  try {
+    await conn.beginTransaction()
+    if (sets.length) await conn.query(`UPDATE plannings SET ${sets.join(', ')} WHERE id = ?`, [...args, row.id])
+    if (pics) {
+      await conn.query('DELETE FROM planning_pics WHERE planning_id = ?', [row.id])
+      await conn.query('INSERT INTO planning_pics (planning_id, user_id) VALUES ?', [pics.map((userId) => [row.id, userId])])
+      const added = pics.filter((userId) => !oldPics.includes(userId) && userId !== user.id)
+      await notifyPics(conn, added, { id: row.id, judul: str(body.judul, 200) || row.judul, mulai, selesai, meetingJudul: row.meeting_judul }, user.name)
+    }
+    await conn.commit()
+  } catch (error) {
+    await conn.rollback()
+    throw error
+  } finally {
+    conn.release()
+  }
   const updated = await loadPlanning(user, row.id)
-  return NextResponse.json({ item: serializePlanning(user, updated) })
+  return NextResponse.json({ item: serializePlanning(user, updated), pics: await loadPics(row.id) })
 })
 
 export const DELETE = handle(async (_request: Request, ctx: Ctx) => {

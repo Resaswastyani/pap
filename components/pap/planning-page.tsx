@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, ClipboardList, Clock3, ExternalLink, FileText, Link2, Paperclip, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react'
+import { CalendarDays, CheckCircle2, ClipboardList, Clock3, ExternalLink, FileText, Link2, Paperclip, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react'
 import { FILE_ACCEPT, FILE_MAX_BYTES, PERMISSIONS, PLANNING_STATUS, type PlanningStatus } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
-import { api, Field, formatDate, formatSize, Modal, Notice, Progress, StatusBadge } from './ui'
+import { api, Field, formatDate, formatSize, Modal, Notice, Progress, StatusBadge, UserPicker, type UserOption } from './ui'
 
 type Division = { id: number; code: string; name: string }
 type Abilities = { edit: boolean; delete: boolean; progress: boolean; attach: boolean }
@@ -19,12 +19,18 @@ type Planning = {
   tanggal_selesai: string
   status: PlanningStatus
   progress: number
+  meeting_id: number | null
+  meeting_nomor: string | null
+  meeting_judul: string | null
   created_by: number
   created_by_name: string
   created_at: string
   file_count: number
+  pic_ids: number[]
+  is_pic: boolean
   can: Abilities
 }
+type Pic = { id: number; name: string; division_name: string }
 type PlanningFile = { id: number; type: 'link' | 'file'; name: string; url: string | null; mime: string | null; size: number | null; uploaded_by: number; uploaded_by_name: string; created_at: string }
 type ProgressNote = { id: number; progress: number; status: PlanningStatus; catatan: string | null; created_by_name: string; created_at: string; updated_at: string; files: PlanningFile[]; can: { edit: boolean; delete: boolean } }
 type Summary = { total: number; belum_mulai: number; berjalan: number; selesai: number }
@@ -48,7 +54,8 @@ async function uploadAttachment(planningId: number, item: PendingAttachment, not
   return api<{ files: PlanningFile[] }>(`/api/planning/${planningId}/files`, { method: 'POST', body: form })
 }
 
-export function PlanningPage({ user }: { user: UserProfile }) {
+// focusId: buka detail planning ini saat halaman dibuka (dari notifikasi atau meeting)
+export function PlanningPage({ user, focusId, onOpenMeeting }: { user: UserProfile; focusId?: number | null; onOpenMeeting: (id: number) => void }) {
   const viewAll = has(user, PERMISSIONS.planningViewAll)
   const [divisions, setDivisions] = useState<Division[]>([])
   const [items, setItems] = useState<Planning[]>([])
@@ -58,9 +65,14 @@ export function PlanningPage({ user }: { user: UserProfile }) {
   const [message, setMessage] = useState('')
   const [division, setDivision] = useState(viewAll ? '' : String(user.division.id))
   const [status, setStatus] = useState('')
+  const [mine, setMine] = useState('')
   const [q, setQ] = useState('')
   const [form, setForm] = useState<Planning | 'new' | null>(null)
-  const [detailId, setDetailId] = useState<number | null>(null)
+  const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
+
+  useEffect(() => {
+    if (focusId) setDetailId(focusId)
+  }, [focusId])
 
   useEffect(() => {
     api<{ items: Division[] }>('/api/divisions').then((res) => setDivisions(res.items)).catch(() => {})
@@ -72,6 +84,7 @@ export function PlanningPage({ user }: { user: UserProfile }) {
       const params = new URLSearchParams()
       if (division) params.set('division', division)
       if (status) params.set('status', status)
+      if (mine) params.set('mine', '1')
       if (q.trim()) params.set('q', q.trim())
       const res = await api<{ items: Planning[]; summary: Summary }>(`/api/planning?${params}`)
       setItems(res.items)
@@ -82,7 +95,7 @@ export function PlanningPage({ user }: { user: UserProfile }) {
     } finally {
       setLoading(false)
     }
-  }, [division, status, q])
+  }, [division, status, mine, q])
 
   useEffect(() => {
     const timer = setTimeout(load, q ? 300 : 0)
@@ -138,6 +151,10 @@ export function PlanningPage({ user }: { user: UserProfile }) {
             <option value="">Semua status</option>
             {Object.entries(PLANNING_STATUS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
           </select>
+          <select className="pap-select" value={mine} onChange={(e) => setMine(e.target.value)} aria-label="Filter PIC">
+            <option value="">Semua planning</option>
+            <option value="mine">PIC saya</option>
+          </select>
         </div>
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
@@ -148,7 +165,7 @@ export function PlanningPage({ user }: { user: UserProfile }) {
                 <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
                   <td>
                     <div className="pap-cell-title">{item.judul}</div>
-                    <div className="pap-cell-sub">{item.nomor} · oleh {item.created_by_name}{item.file_count ? <> · <Paperclip className="pap-inline-icon" />{item.file_count}</> : null}</div>
+                    <div className="pap-cell-sub">{item.nomor} · oleh {item.created_by_name}{item.meeting_nomor ? <> · <CalendarDays className="pap-inline-icon" />{item.meeting_nomor}</> : null}{item.file_count ? <> · <Paperclip className="pap-inline-icon" />{item.file_count}</> : null}{item.is_pic && <span className="pap-chip">PIC</span>}</div>
                   </td>
                   <td>{item.division_name}</td>
                   <td className="pap-nowrap">{formatDate(item.tanggal_mulai)} – {formatDate(item.tanggal_selesai)}</td>
@@ -159,7 +176,7 @@ export function PlanningPage({ user }: { user: UserProfile }) {
               ))}
             </tbody>
           </table>
-          {!loading && !items.length && <div className="pap-empty">Belum ada planning{q || status ?' yang cocok dengan filter' : ''}.</div>}
+          {!loading && !items.length && <div className="pap-empty">Belum ada planning{q || status || mine ? ' yang cocok dengan filter' : ''}.</div>}
           {loading && !items.length && <div className="pap-empty">Memuat planning...</div>}
         </div>
       </div>
@@ -167,7 +184,6 @@ export function PlanningPage({ user }: { user: UserProfile }) {
       {form && (
         <PlanningForm
           user={user}
-          divisions={viewAll ? divisions : divisions.filter((d) => d.id === user.division.id)}
           initial={form === 'new' ? null : form}
           onClose={() => setForm(null)}
           onSaved={(text, id) => {
@@ -181,6 +197,7 @@ export function PlanningPage({ user }: { user: UserProfile }) {
       {detailId && (
         <PlanningDetail
           id={detailId}
+          onOpenMeeting={onOpenMeeting}
           onClose={() => setDetailId(null)}
           onChanged={load}
           onEdit={(item) => { setDetailId(null); setForm(item) }}
@@ -191,27 +208,42 @@ export function PlanningPage({ user }: { user: UserProfile }) {
   )
 }
 
-function PlanningForm({ user, divisions, initial, onClose, onSaved }: { user: UserProfile; divisions: Division[]; initial: Planning | null; onClose: () => void; onSaved: (message: string, id?: number) => void }) {
+export type MeetingSource = { id: number; nomor: string; judul: string; hasil: string | null; participantIds: number[] }
+
+// Dipakai di menu Planning dan dari detail meeting (meeting terisi = planning hasil meeting)
+export function PlanningForm({ user, initial = null, meeting, onClose, onSaved }: { user: UserProfile; initial?: Planning | null; meeting?: MeetingSource; onClose: () => void; onSaved: (message: string, id?: number) => void }) {
   const viewAll = has(user, PERMISSIONS.planningViewAll)
   const today = new Date().toISOString().slice(0, 10)
+  const [divisions, setDivisions] = useState<Division[]>([])
+  const [users, setUsers] = useState<UserOption[]>([])
+  const creatorId = initial?.created_by ?? user.id
+  const [pics, setPics] = useState<Set<number>>(new Set(initial?.pic_ids ?? [creatorId]))
   const [values, setValues] = useState({
     judul: initial?.judul ?? '',
     division_id: String(initial?.division_id ?? user.division.id),
     tanggal_mulai: initial?.tanggal_mulai ?? today,
     tanggal_selesai: initial?.tanggal_selesai ?? today,
-    deskripsi: initial?.deskripsi ?? '',
+    deskripsi: initial?.deskripsi ?? (meeting?.hasil ? `Tindak lanjut meeting ${meeting.nomor}:\n${meeting.hasil}` : ''),
   })
   const [attachments, setAttachments] = useState<PendingAttachment[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const set = (key: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [key]: e.target.value }))
 
+  useEffect(() => {
+    api<{ items: Division[] }>('/api/divisions').then((res) => setDivisions(viewAll ? res.items : res.items.filter((d) => d.id === user.division.id))).catch(() => {})
+    api<{ items: UserOption[] }>('/api/users/options').then((res) => setUsers(res.items)).catch((e) => setError(e.message))
+  }, [viewAll, user.division.id])
+
+  // Peserta meeting yang ikut menjadi PIC (pembuat tetap terkunci)
+  const meetingParticipants = meeting?.participantIds.filter((id) => users.some((u) => u.id === id)) ?? []
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     setError('')
     try {
-      const payload = { ...values, division_id: Number(values.division_id) }
+      const payload = { ...values, division_id: Number(values.division_id), pic_ids: [...pics], meeting_id: meeting?.id }
       if (initial) {
         await api(`/api/planning/${initial.id}`, { method: 'PATCH', json: payload })
         onSaved('Planning diperbarui.')
@@ -236,8 +268,9 @@ function PlanningForm({ user, divisions, initial, onClose, onSaved }: { user: Us
 
   return (
     <Modal
-      title={initial ? 'Edit planning' : 'Buat planning'}
-      subtitle={initial ? initial.nomor : 'Planning langsung aktif dan dapat diupdate progress-nya oleh divisi'}
+      wide
+      title={initial ? 'Edit planning' : meeting ? 'Buat planning dari meeting' : 'Buat planning'}
+      subtitle={initial ? initial.nomor : meeting ? `${meeting.nomor} · ${meeting.judul}` : 'Planning langsung aktif dan dapat diupdate progress-nya oleh divisi'}
       onClose={onClose}
       footer={<><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="planning-form" className="pap-primary-button" disabled={saving}>{saving ? 'Menyimpan...' : initial ? 'Simpan' : 'Buat planning'}</button></>}
     >
@@ -254,6 +287,16 @@ function PlanningForm({ user, divisions, initial, onClose, onSaved }: { user: Us
           <Field label="Tanggal selesai"><input className="pap-input" type="date" required min={values.tanggal_mulai} value={values.tanggal_selesai} onChange={set('tanggal_selesai')} /></Field>
         </div>
         <Field label="Deskripsi" full><textarea className="pap-input" rows={4} maxLength={5000} value={values.deskripsi} onChange={set('deskripsi')} placeholder="Tujuan, target, dan langkah kerja" /></Field>
+        <div className="full">
+          <div className="pap-section-head">
+            <span className="pap-field-label">Person in charge (PIC)</span>
+            {meetingParticipants.length > 1 && (
+              <button type="button" className="pap-link-button" onClick={() => setPics(new Set([creatorId, ...meetingParticipants]))}>Pilih semua peserta meeting</button>
+            )}
+          </div>
+          <UserPicker users={users} selected={pics} lockedId={creatorId} lockedLabel="pembuat" noun="PIC" onChange={setPics} />
+          <small className="pap-hint">PIC dapat melihat planning ini dan mengupdate progress-nya, walaupun dari divisi lain.</small>
+        </div>
         {!initial && (
           <div className="full">
             <AttachmentPicker onAdd={(item) => setAttachments((list) => [...list, item])} onError={setError} />
@@ -378,10 +421,11 @@ function NoteCard({ note, planningId, busy, run, onError }: { note: ProgressNote
   )
 }
 
-function PlanningDetail({ id, onClose, onChanged, onEdit, onDeleted }: { id: number; onClose: () => void; onChanged: () => void; onEdit: (item: Planning) => void; onDeleted: () => void }) {
+function PlanningDetail({ id, onOpenMeeting, onClose, onChanged, onEdit, onDeleted }: { id: number; onOpenMeeting: (id: number) => void; onClose: () => void; onChanged: () => void; onEdit: (item: Planning) => void; onDeleted: () => void }) {
   const [item, setItem] = useState<Planning | null>(null)
   const [files, setFiles] = useState<PlanningFile[]>([])
   const [notes, setNotes] = useState<ProgressNote[]>([])
+  const [pics, setPics] = useState<Pic[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -391,10 +435,11 @@ function PlanningDetail({ id, onClose, onChanged, onEdit, onDeleted }: { id: num
 
   const load = useCallback(async () => {
     try {
-      const res = await api<{ item: Planning; files: PlanningFile[]; notes: ProgressNote[] }>(`/api/planning/${id}`)
+      const res = await api<{ item: Planning; files: PlanningFile[]; notes: ProgressNote[]; pics: Pic[] }>(`/api/planning/${id}`)
       setItem(res.item)
       setFiles(res.files)
       setNotes(res.notes)
+      setPics(res.pics)
       setProgress(res.item.progress)
       setStatus(res.item.status)
     } catch (e) {
@@ -460,12 +505,22 @@ function PlanningDetail({ id, onClose, onChanged, onEdit, onDeleted }: { id: num
       )}
     >
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
-      <div className="pap-detail-badges"><StatusBadge value={item.status} />{overdue && <span className="pap-status danger">Lewat tenggat</span>}</div>
+      <div className="pap-detail-badges"><StatusBadge value={item.status} />{item.is_pic && <span className="pap-status info">Anda PIC</span>}{overdue && <span className="pap-status danger">Lewat tenggat</span>}</div>
       <dl className="pap-detail-grid">
         <div><dt>Periode</dt><dd>{formatDate(item.tanggal_mulai)} – {formatDate(item.tanggal_selesai)}</dd></div>
         <div><dt>Dibuat oleh</dt><dd>{item.created_by_name} · {formatDate(item.created_at, true)}</dd></div>
         <div><dt>Progress</dt><dd><Progress value={item.progress} /></dd></div>
+        <div>
+          <dt>Dari meeting</dt>
+          <dd>{item.meeting_id ? <button className="pap-link-button" onClick={() => onOpenMeeting(item.meeting_id!)}><CalendarDays className="pap-inline-icon" /> {item.meeting_nomor} · {item.meeting_judul}</button> : <span className="pap-muted">—</span>}</dd>
+        </div>
       </dl>
+      <section className="pap-detail-section">
+        <h3>Person in charge ({pics.length})</h3>
+        <div className="pap-participants">
+          {pics.map((p) => <span key={p.id} className="pap-participant"><strong>{p.name}{p.id === item.created_by && <small className="pap-hint-inline"> · pembuat</small>}</strong><small>{p.division_name}</small></span>)}
+        </div>
+      </section>
       <section className="pap-detail-section">
         <h3>Deskripsi</h3>
         <p className="pap-prewrap">{item.deskripsi || <span className="pap-muted">Tidak ada deskripsi.</span>}</p>

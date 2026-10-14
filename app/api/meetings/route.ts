@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canViewAllMeetings, MEETING_SELECT, parseDateTime, serializeMeeting, validParticipants, visibilityClause, type MeetingRow } from '@/lib/meeting'
+import { meetingBody, notify } from '@/lib/notifications'
 import { MEETING_STATUS, PERMISSIONS } from '@/lib/permissions'
 import { loadPlanning } from '@/lib/planning'
 
@@ -62,6 +63,13 @@ export const POST = handle(async (request: Request) => {
     id = result.insertId
     await conn.query("UPDATE meetings SET nomor = CONCAT('MTG-', DATE_FORMAT(created_at, '%Y%m'), '-', LPAD(id, 4, '0')) WHERE id = ?", [id])
     await conn.query('INSERT INTO meeting_participants (meeting_id, user_id) VALUES ?', [participants.map((userId) => [id, userId])])
+    await notify(participants.filter((userId) => userId !== user.id), {
+      type: 'meeting_baru',
+      title: `Meeting baru: ${judul}`,
+      body: `${meetingBody({ waktu, tempat: str(body.tempat, 500) || null })} · dari ${user.name}`,
+      meetingId: id,
+      refKey: `meeting_baru:${id}`,
+    }, conn)
     await conn.commit()
   } catch (error) {
     await conn.rollback()

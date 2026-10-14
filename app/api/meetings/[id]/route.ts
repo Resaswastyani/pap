@@ -1,18 +1,49 @@
+import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
-import { loadMeeting, loadParticipants, meetingAbilities, parseDateTime, serializeMeeting, validParticipants } from '@/lib/meeting'
+import { loadMeeting, loadParticipants, meetingAbilities, parseDateTime, serializeMeeting, validParticipants, type MeetingRow } from '@/lib/meeting'
+import { meetingBody, notify } from '@/lib/notifications'
 import { MEETING_STATUS, PERMISSIONS } from '@/lib/permissions'
+import type { UserProfile } from '@/lib/users'
 import { loadPlanning } from '@/lib/planning'
 
 type Ctx = { params: Promise<{ id: string }> }
+
+// Peserta baru mendapat notifikasi "meeting baru"; peserta lama diberi tahu bila jadwal/tempat berubah
+async function notifyMeetingChanges(user: UserProfile, before: MeetingRow, after: MeetingRow, oldIds: number[], newIds: number[]) {
+  const added = oldIds.length ? newIds.filter((id) => !oldIds.includes(id)) : []
+  await notify(added.filter((id) => id !== user.id), {
+    type: 'meeting_baru',
+    title: `Meeting baru: ${after.judul}`,
+    body: `${meetingBody(after)} · dari ${user.name}`,
+    meetingId: after.id,
+    refKey: `meeting_baru:${after.id}`,
+  })
+  const rescheduled = before.waktu !== after.waktu || before.tempat !== after.tempat
+  const cancelled = before.status !== 'dibatalkan' && after.status === 'dibatalkan'
+  if (!rescheduled && !cancelled) return
+  await notify(newIds.filter((id) => id !== user.id && !added.includes(id)), {
+    type: 'meeting_diubah',
+    title: cancelled ? `Meeting dibatalkan: ${after.judul}` : `Jadwal meeting diubah: ${after.judul}`,
+    body: `${meetingBody(after)} · oleh ${user.name}`,
+    meetingId: after.id,
+    refKey: `meeting_diubah:${after.id}:${Date.now()}`,
+  })
+}
 
 const meetingId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Meeting tidak ditemukan.')
 
 export const GET = handle(async (_request: Request, ctx: Ctx) => {
   const user = await requireUser(PERMISSIONS.meetingView)
   const row = await loadMeeting(user, await meetingId(ctx))
-  return NextResponse.json({ item: serializeMeeting(user, row), participants: await loadParticipants(row.id) })
+  // Planning yang dibuat dari meeting ini (ringkasan; detail tetap mengikuti hak akses planning)
+  const [plannings] = await db.query<RowDataPacket[]>(
+    `SELECT p.id, p.nomor, p.judul, p.status, p.progress, d.name AS division_name FROM plannings p
+     JOIN divisions d ON d.id = p.division_id WHERE p.meeting_id = ? ORDER BY p.id`,
+    [row.id],
+  )
+  return NextResponse.json({ item: serializeMeeting(user, row), participants: await loadParticipants(row.id), plannings })
 })
 
 // Edit meeting:
@@ -49,6 +80,7 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
 
   const participants = 'participant_ids' in body ? await validParticipants(body.participant_ids, row.created_by) : null
   if (!sets.length && !participants) fail(400, 'Tidak ada perubahan.')
+  const before = participants ? (await loadParticipants(row.id)).map((p) => Number(p.id)) : []
 
   const conn = await db.getConnection()
   try {
@@ -66,7 +98,9 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
     conn.release()
   }
   const updated = await loadMeeting(user, row.id)
-  return NextResponse.json({ item: serializeMeeting(user, updated), participants: await loadParticipants(row.id) })
+  const current = await loadParticipants(row.id)
+  await notifyMeetingChanges(user, row, updated, before, current.map((p) => Number(p.id)))
+  return NextResponse.json({ item: serializeMeeting(user, updated), participants: current })
 })
 
 export const DELETE = handle(async (_request: Request, ctx: Ctx) => {

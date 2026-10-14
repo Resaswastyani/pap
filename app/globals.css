@@ -241,3 +241,53 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
 .pap-user-logout { display:grid; place-items:center; flex:0 0 auto; width:34px; height:34px; border:0; border-radius:9px; background:transparent; color:#9295a7; cursor:pointer; }
 .pap-user-logout svg { width:16px; height:16px; }
 .pap-user-logout:hover, .pap-user-logout:focus-visible { background:rgb(239 90 60 / .15); color:#ff8a70; }
+
+/* Judul section dengan aksi di kanan (planning dari meeting, PIC) */
+.pap-section-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.pap-section-head h3, .pap-section-head .pap-field-label { margin:0; }
+.pap-section-head .pap-btn { min-height:32px; }
+
+/* Daftar planning yang lahir dari meeting */
+.pap-linked-list { display:flex; flex-direction:column; gap:8px; margin:0; padding:0; list-style:none; }
+.pap-linked-list button { display:flex; align-items:center; gap:12px; width:100%; padding:10px 12px; border:1px solid var(--pap-border); border-radius:12px; background:transparent; color:var(--pap-text); text-align:left; cursor:pointer; }
+.pap-linked-list button:hover { border-color:#7c5cfc; background:rgb(124 92 252 / .05); }
+.pap-linked-list button > svg { flex:none; width:16px; height:16px; color:var(--pap-muted); }
+.pap-linked-main { flex:1; min-width:0; }
+.pap-linked-main strong, .pap-linked-main small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pap-linked-main strong { font-size:13px; }
+.pap-linked-main small { margin-top:2px; color:var(--pap-muted); font-size:11px; }
+.pap-linked-list .pap-progress { width:110px; flex:none; }
+@media (max-width:640px) { .pap-linked-list .pap-progress { display:none; } }
+
+/* Notifikasi: lonceng, panel, dan pop-up (toast) */
+.pap-notif { position:relative; }
+.pap-notif-count { position:absolute; top:-5px; right:-5px; display:grid; place-items:center; min-width:18px; height:18px; padding:0 4px; border:2px solid var(--pap-surface); border-radius:99px; background:#ef5a3c; color:#fff; font-size:9px; font-weight:800; }
+.pap-notif-panel { position:absolute; top:calc(100% + 10px); right:-60px; z-index:40; display:flex; flex-direction:column; width:min(360px, calc(100vw - 24px)); max-height:min(520px, calc(100dvh - 120px)); border:1px solid var(--pap-border); border-radius:14px; background:var(--pap-surface); color:var(--pap-text); box-shadow:0 18px 40px rgb(0 0 0 / .18); overflow:hidden; }
+.pap-notif-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 16px 10px; }
+.pap-notif-head strong { font-size:14px; }
+.pap-notif-enable { display:flex; align-items:center; gap:8px; margin:0 12px 8px; padding:9px 12px; border:1px dashed #7c5cfc; border-radius:10px; background:rgb(124 92 252 / .06); color:#7050e7; font-size:12px; font-weight:700; text-align:left; cursor:pointer; }
+.pap-notif-enable svg { flex:none; width:15px; height:15px; }
+.pap-notif-hint { margin:0 16px 8px; color:var(--pap-muted); font-size:11px; line-height:1.4; }
+.pap-notif-list { flex:1; margin:0; padding:0 6px 6px; overflow:auto; list-style:none; }
+.pap-notif-list button { display:flex; align-items:flex-start; gap:10px; width:100%; padding:10px; border:0; border-radius:10px; background:transparent; color:var(--pap-text); text-align:left; cursor:pointer; }
+.pap-notif-list button:hover { background:rgb(124 92 252 / .06); }
+.pap-notif-list button.unread { background:rgb(124 92 252 / .08); }
+.pap-notif-list button.unread .pap-notif-text strong::after { content:''; display:inline-block; width:7px; height:7px; margin-left:6px; border-radius:50%; background:#7c5cfc; vertical-align:middle; }
+.pap-notif-empty { padding:24px 10px; color:var(--pap-muted); font-size:12px; text-align:center; }
+.pap-notif-icon { display:grid; place-items:center; flex:none; width:32px; height:32px; border-radius:10px; background:rgb(124 92 252 / .12); color:#7050e7; }
+.pap-notif-icon svg { width:16px; height:16px; }
+.pap-notif-icon.meeting_reminder { background:rgb(239 90 60 / .14); color:#e2502f; }
+.pap-notif-icon.planning_pic { background:rgb(29 185 138 / .14); color:#0f9c74; }
+.pap-notif-text { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.pap-notif-text strong { font-size:12px; line-height:1.35; }
+.pap-notif-text small { color:var(--pap-muted); font-size:11px; line-height:1.4; }
+.pap-notif-text time { color:var(--pap-muted); font-size:10px; }
+.pap-toasts { position:fixed; right:20px; bottom:20px; z-index:60; display:flex; flex-direction:column; gap:10px; width:min(360px, calc(100vw - 32px)); }
+.pap-toast { display:flex; align-items:flex-start; gap:4px; padding:4px; border:1px solid var(--pap-border); border-left:4px solid #7c5cfc; border-radius:12px; background:var(--pap-surface); color:var(--pap-text); box-shadow:0 16px 40px rgb(0 0 0 / .2); animation:pap-toast-in .25s ease; }
+.pap-toast.meeting_reminder { border-left-color:#ef5a3c; }
+.pap-toast.planning_pic { border-left-color:#1db98a; }
+.pap-toast-main { display:flex; flex:1; align-items:flex-start; gap:10px; min-width:0; padding:8px; border:0; background:transparent; color:inherit; text-align:left; cursor:pointer; }
+.pap-toast-close { display:grid; place-items:center; flex:none; width:28px; height:28px; border:0; border-radius:8px; background:transparent; color:var(--pap-muted); cursor:pointer; }
+.pap-toast-close svg { width:14px; height:14px; }
+@keyframes pap-toast-in { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+@media (max-width:800px) { .pap-toasts { right:16px; bottom:84px; left:16px; width:auto; } .pap-notif-panel { position:fixed; top:72px; right:12px; left:12px; width:auto; } }

@@ -1,6 +1,7 @@
 import type { RowDataPacket } from 'mysql2'
 import { fail } from '@/lib/api'
 import { db } from '@/lib/db'
+import { formatWaktu, notify } from '@/lib/notifications'
 import { FILE_ACCEPT, FILE_MAX_BYTES, PERMISSIONS, type PlanningStatus } from '@/lib/permissions'
 import { can, type UserProfile } from '@/lib/users'
 
@@ -15,43 +16,91 @@ export type PlanningRow = RowDataPacket & {
   tanggal_selesai: string
   status: PlanningStatus
   progress: number
+  meeting_id: number | null
+  meeting_nomor: string | null
+  meeting_judul: string | null
   created_by: number
   created_by_name: string
   created_at: string
   updated_at: string
   file_count: number
+  pic_ids: string | null // "3,7,12"
 }
 
 export const PLANNING_SELECT = `SELECT p.id, p.nomor, p.division_id, d.name AS division_name, p.judul, p.deskripsi,
-  p.tanggal_mulai, p.tanggal_selesai, p.status, p.progress, p.created_by, cr.name AS created_by_name,
-  p.created_at, p.updated_at,
-  (SELECT COUNT(*) FROM planning_files f WHERE f.planning_id = p.id AND f.note_id IS NULL) AS file_count
+  p.tanggal_mulai, p.tanggal_selesai, p.status, p.progress, p.meeting_id, m.nomor AS meeting_nomor, m.judul AS meeting_judul,
+  p.created_by, cr.name AS created_by_name, p.created_at, p.updated_at,
+  (SELECT COUNT(*) FROM planning_files f WHERE f.planning_id = p.id AND f.note_id IS NULL) AS file_count,
+  (SELECT GROUP_CONCAT(pp.user_id) FROM planning_pics pp WHERE pp.planning_id = p.id) AS pic_ids
   FROM plannings p
   JOIN divisions d ON d.id = p.division_id
-  JOIN users cr ON cr.id = p.created_by`
+  JOIN users cr ON cr.id = p.created_by
+  LEFT JOIN meetings m ON m.id = p.meeting_id`
 
 export const canViewAllDivisions = (user: UserProfile) => can(user, PERMISSIONS.planningViewAll)
 
 export const inScope = (user: UserProfile, divisionId: number) => canViewAllDivisions(user) || divisionId === user.division.id
 
+const picIds = (row: Pick<PlanningRow, 'pic_ids'>) => (row.pic_ids ? row.pic_ids.split(',').map(Number) : [])
+export const isPic = (user: UserProfile, row: Pick<PlanningRow, 'pic_ids'>) => picIds(row).includes(user.id)
+
+// Planning terlihat oleh divisinya, admin (lihat semua), dan PIC-nya (walau beda divisi)
+export const canAccess = (user: UserProfile, row: Pick<PlanningRow, 'division_id' | 'pic_ids'>) => inScope(user, row.division_id) || isPic(user, row)
+
 // Hak aksi user terhadap satu planning (dipakai API & dikirim ke UI)
-// Planning dibuat lead tanpa approval; staff divisi hanya update progress
-export function planningAbilities(user: UserProfile, row: Pick<PlanningRow, 'division_id' | 'created_by'>) {
+// Planning dibuat lead tanpa approval; staff divisi & PIC update progress
+export function planningAbilities(user: UserProfile, row: Pick<PlanningRow, 'division_id' | 'created_by' | 'pic_ids'>) {
   const scoped = inScope(user, row.division_id)
   const edit = scoped && (can(user, PERMISSIONS.planningManage) || (row.created_by === user.id && can(user, PERMISSIONS.planningCreate)))
-  const progress = edit || (scoped && can(user, PERMISSIONS.planningUpdateProgress))
+  const progress = edit || isPic(user, row) || (scoped && can(user, PERMISSIONS.planningUpdateProgress))
   return { edit, delete: edit, progress, attach: progress }
 }
 
 export function serializePlanning(user: UserProfile, row: PlanningRow) {
-  return { ...row, file_count: Number(row.file_count), can: planningAbilities(user, row) }
+  const { pic_ids, ...rest } = row
+  return { ...rest, file_count: Number(row.file_count), pic_ids: picIds({ pic_ids }), is_pic: isPic(user, row), can: planningAbilities(user, row) }
 }
 
 export async function loadPlanning(user: UserProfile, id: number) {
   const [rows] = await db.query<PlanningRow[]>(`${PLANNING_SELECT} WHERE p.id = ? LIMIT 1`, [id])
   const row = rows[0]
-  if (!row || !inScope(user, row.division_id)) fail(404, 'Planning tidak ditemukan.')
+  if (!row || !canAccess(user, row)) fail(404, 'Planning tidak ditemukan.')
   return row as PlanningRow
+}
+
+export async function loadPics(planningId: number) {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT u.id, u.name, d.name AS division_name FROM planning_pics pp
+     JOIN users u ON u.id = pp.user_id JOIN divisions d ON d.id = u.division_id
+     WHERE pp.planning_id = ? ORDER BY d.sort_order, u.name`,
+    [planningId],
+  )
+  return rows
+}
+
+// Beri tahu user yang baru ditunjuk sebagai PIC
+export async function notifyPics(
+  conn: Queryable,
+  userIds: number[],
+  planning: { id: number; judul: string; mulai: string; selesai: string; meetingJudul?: string | null },
+  byName: string,
+) {
+  await notify(userIds, {
+    type: 'planning_pic',
+    title: `Anda PIC planning: ${planning.judul}`,
+    body: [`${formatWaktu(planning.mulai)} – ${formatWaktu(planning.selesai)}`, planning.meetingJudul ? `dari meeting ${planning.meetingJudul}` : null, `oleh ${byName}`].filter(Boolean).join(' · '),
+    planningId: planning.id,
+    refKey: `planning_pic:${planning.id}`,
+  }, conn)
+}
+
+// PIC harus user aktif; pembuat planning selalu ikut sebagai PIC
+export async function validPics(value: unknown, creatorId: number) {
+  const ids = new Set<number>([creatorId])
+  if (Array.isArray(value)) for (const id of value) if (Number.isInteger(Number(id))) ids.add(Number(id))
+  const [rows] = await db.query<RowDataPacket[]>('SELECT id FROM users WHERE is_active = 1 AND id IN (?)', [[...ids]])
+  if (rows.length !== ids.size) fail(400, 'Ada PIC yang tidak valid atau tidak aktif.')
+  return [...ids]
 }
 
 export async function loadFiles(planningId: number) {
@@ -66,7 +115,7 @@ export async function loadFiles(planningId: number) {
 export type NoteRow = RowDataPacket & { id: number; planning_id: number; progress: number; status: PlanningStatus; catatan: string | null; created_by: number; created_by_name: string; created_at: string; updated_at: string }
 
 // Catatan progress: penulis bisa edit/hapus catatannya; lead/admin (hak edit planning) bisa semua
-export function noteAbilities(user: UserProfile, planning: Pick<PlanningRow, 'division_id' | 'created_by'>, note: Pick<NoteRow, 'created_by'>) {
+export function noteAbilities(user: UserProfile, planning: Pick<PlanningRow, 'division_id' | 'created_by' | 'pic_ids'>, note: Pick<NoteRow, 'created_by'>) {
   const ability = planningAbilities(user, planning)
   const edit = ability.edit || (ability.progress && note.created_by === user.id)
   return { edit, delete: edit }

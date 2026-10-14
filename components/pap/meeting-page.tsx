@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CalendarClock, CalendarDays, CheckCircle2, ExternalLink, MapPin, Pencil, Plus, Search, Trash2, Users, Video } from 'lucide-react'
-import { MEETING_STATUS, PERMISSIONS, type MeetingStatus } from '@/lib/permissions'
+import { CalendarClock, CalendarDays, CheckCircle2, ChevronRight, ClipboardList, ExternalLink, MapPin, Pencil, Plus, Search, Trash2, Users, Video } from 'lucide-react'
+import { MEETING_STATUS, PERMISSIONS, type MeetingStatus, type PlanningStatus } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { PlanningForm } from './planning-page'
+import { api, Field, formatDate, Modal, Notice, Progress, StatusBadge, UserPicker, type UserOption } from './ui'
 
 type Abilities = { edit: boolean; delete: boolean; result: boolean }
 type Meeting = {
@@ -28,7 +29,7 @@ type Meeting = {
   can: Abilities
 }
 type Participant = { id: number; name: string; division_name: string }
-type UserOption = { id: number; name: string; division_id: number; division_name: string }
+type LinkedPlanning = { id: number; nomor: string; judul: string; status: PlanningStatus; progress: number; division_name: string }
 type PlanningOption = { id: number; nomor: string; judul: string; division_name: string; status: string }
 type Division = { id: number; name: string }
 type Summary = { total: number; hari_ini: number; terjadwal: number; selesai: number }
@@ -50,7 +51,8 @@ function Place({ value }: { value: string | null }) {
   return <span><MapPin className="pap-inline-icon" /> {value}</span>
 }
 
-export function MeetingPage({ user }: { user: UserProfile }) {
+// focusId: buka detail meeting ini saat halaman dibuka (dari notifikasi atau planning)
+export function MeetingPage({ user, focusId, onOpenPlanning }: { user: UserProfile; focusId?: number | null; onOpenPlanning: (id: number) => void }) {
   const viewAll = has(user, PERMISSIONS.meetingViewAll)
   const [items, setItems] = useState<Meeting[]>([])
   const [summary, setSummary] = useState<Summary>({ total: 0, hari_ini: 0, terjadwal: 0, selesai: 0 })
@@ -63,7 +65,11 @@ export function MeetingPage({ user }: { user: UserProfile }) {
   const [scope, setScope] = useState('')
   const [division, setDivision] = useState('')
   const [form, setForm] = useState<Meeting | 'new' | null>(null)
-  const [detailId, setDetailId] = useState<number | null>(null)
+  const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
+
+  useEffect(() => {
+    if (focusId) setDetailId(focusId)
+  }, [focusId])
 
   useEffect(() => {
     if (viewAll) api<{ items: Division[] }>('/api/divisions').then((res) => setDivisions(res.items)).catch(() => {})
@@ -178,7 +184,9 @@ export function MeetingPage({ user }: { user: UserProfile }) {
       )}
       {detailId && (
         <MeetingDetail
+          user={user}
           id={detailId}
+          onOpenPlanning={onOpenPlanning}
           onClose={() => setDetailId(null)}
           onChanged={load}
           onEdit={(item) => { setDetailId(null); setForm(item) }}
@@ -186,52 +194,6 @@ export function MeetingPage({ user }: { user: UserProfile }) {
         />
       )}
     </>
-  )
-}
-
-function ParticipantPicker({ users, selected, lockedId, onChange }: { users: UserOption[]; selected: Set<number>; lockedId: number; onChange: (next: Set<number>) => void }) {
-  const [term, setTerm] = useState('')
-  const filtered = useMemo(() => {
-    const t = term.trim().toLowerCase()
-    return users.filter((u) => !t || u.name.toLowerCase().includes(t) || u.division_name.toLowerCase().includes(t))
-  }, [users, term])
-  const groups = useMemo(() => {
-    const map = new Map<string, UserOption[]>()
-    for (const u of filtered) map.set(u.division_name, [...(map.get(u.division_name) ?? []), u])
-    return [...map.entries()]
-  }, [filtered])
-  const toggle = (id: number) => {
-    if (id === lockedId) return
-    const next = new Set(selected)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    onChange(next)
-  }
-  const toggleGroup = (members: UserOption[]) => {
-    const next = new Set(selected)
-    const all = members.every((m) => next.has(m.id))
-    for (const m of members) if (m.id !== lockedId) all ? next.delete(m.id) : next.add(m.id)
-    onChange(next)
-  }
-  return (
-    <div className="pap-picker">
-      <label className="pap-filter-search pap-picker-search"><Search /><input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Cari nama atau divisi..." /></label>
-      <div className="pap-picker-list">
-        {groups.map(([divisionName, members]) => (
-          <div key={divisionName} className="pap-picker-group">
-            <button type="button" className="pap-picker-group-head" onClick={() => toggleGroup(members)}>{divisionName} <span>{members.filter((m) => selected.has(m.id)).length}/{members.length}</span></button>
-            {members.map((u) => (
-              <label key={u.id} className="pap-check">
-                <input type="checkbox" checked={selected.has(u.id)} disabled={u.id === lockedId} onChange={() => toggle(u.id)} />
-                <span>{u.name}{u.id === lockedId && <small className="pap-hint-inline"> (pembuat)</small>}</span>
-              </label>
-            ))}
-          </div>
-        ))}
-        {!groups.length && <p className="pap-muted">Tidak ada user yang cocok.</p>}
-      </div>
-      <small className="pap-hint">{selected.size} peserta dipilih. Klik nama divisi untuk memilih satu divisi sekaligus.</small>
-    </div>
   )
 }
 
@@ -309,30 +271,38 @@ function MeetingForm({ user, initial, onClose, onSaved }: { user: UserProfile; i
         </Field>
         <div className="full">
           <span className="pap-field-label">Peserta</span>
-          <ParticipantPicker users={users} selected={selected} lockedId={creatorId} onChange={setSelected} />
+          <UserPicker users={users} selected={selected} lockedId={creatorId} lockedLabel="pembuat" noun="peserta" onChange={setSelected} />
         </div>
       </form>
     </Modal>
   )
 }
 
-function MeetingDetail({ id, onClose, onChanged, onEdit, onDeleted }: { id: number; onClose: () => void; onChanged: () => void; onEdit: (item: Meeting) => void; onDeleted: () => void }) {
+type MeetingResponse = { item: Meeting; participants: Participant[]; plannings?: LinkedPlanning[] }
+
+function MeetingDetail({ user, id, onOpenPlanning, onClose, onChanged, onEdit, onDeleted }: { user: UserProfile; id: number; onOpenPlanning: (id: number) => void; onClose: () => void; onChanged: () => void; onEdit: (item: Meeting) => void; onDeleted: () => void }) {
   const [item, setItem] = useState<Meeting | null>(null)
   const [participants, setParticipants] = useState<Participant[]>([])
+  const [plannings, setPlannings] = useState<LinkedPlanning[]>([])
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<MeetingStatus>('terjadwal')
   const [hasil, setHasil] = useState('')
+  const [planningForm, setPlanningForm] = useState(false)
+  const canCreatePlanning = has(user, PERMISSIONS.planningCreate)
 
-  const apply = (res: { item: Meeting; participants: Participant[] }) => {
+  const apply = (res: MeetingResponse) => {
     setItem(res.item)
     setParticipants(res.participants)
+    if (res.plannings) setPlannings(res.plannings)
     setStatus(res.item.status)
     setHasil(res.item.hasil_meeting ?? '')
   }
+  const reload = useCallback(() => api<MeetingResponse>(`/api/meetings/${id}`).then(apply).catch((e) => setError(e.message)), [id])
   useEffect(() => {
-    api<{ item: Meeting; participants: Participant[] }>(`/api/meetings/${id}`).then(apply).catch((e) => setError(e.message))
-  }, [id])
+    reload()
+  }, [reload])
 
   async function saveResult() {
     if (!item) return
@@ -411,6 +381,42 @@ function MeetingDetail({ id, onClose, onChanged, onEdit, onDeleted }: { id: numb
           <p className="pap-prewrap">{item.hasil_meeting || <span className="pap-muted">Belum ada hasil meeting.</span>}</p>
         )}
       </section>
+      <section className="pap-detail-section">
+        <div className="pap-section-head">
+          <h3>Planning dari meeting ini ({plannings.length})</h3>
+          {canCreatePlanning && <button className="pap-btn" onClick={() => setPlanningForm(true)}><Plus /> Buat planning</button>}
+        </div>
+        {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
+        {plannings.length > 0 ? (
+          <ul className="pap-linked-list">
+            {plannings.map((p) => (
+              <li key={p.id}>
+                <button onClick={() => onOpenPlanning(p.id)}>
+                  <ClipboardList />
+                  <span className="pap-linked-main"><strong>{p.judul}</strong><small>{p.nomor} · {p.division_name}</small></span>
+                  <Progress value={p.progress} />
+                  <StatusBadge value={p.status} />
+                  <ChevronRight />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="pap-muted">{canCreatePlanning ? 'Belum ada planning. Buat planning untuk menindaklanjuti hasil meeting ini.' : 'Belum ada planning dari meeting ini.'}</p>
+        )}
+      </section>
+      {planningForm && (
+        <PlanningForm
+          user={user}
+          meeting={{ id: item.id, nomor: item.nomor, judul: item.judul, hasil: item.hasil_meeting, participantIds: participants.map((p) => p.id) }}
+          onClose={() => setPlanningForm(false)}
+          onSaved={(text) => {
+            setPlanningForm(false)
+            setMessage(`${text} Planning juga tampil di menu Planning.`)
+            reload()
+          }}
+        />
+      )}
     </Modal>
   )
 }

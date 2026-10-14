@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, type InputHTMLAttributes, type ReactNode } from 'react'
-import { Eye, EyeOff, X } from 'lucide-react'
+import { useEffect, useMemo, useState, type InputHTMLAttributes, type ReactNode } from 'react'
+import { Eye, EyeOff, Search, X } from 'lucide-react'
 import { PLANNING_STATUS, type PlanningStatus } from '@/lib/permissions'
 
 // Panggil API JSON; lempar Error berisi pesan dari server bila gagal
@@ -36,6 +36,55 @@ export function Modal({ title, subtitle, onClose, children, footer, wide }: { ti
         <div className="pap-modal-body">{children}</div>
         {footer && <div className="pap-modal-foot">{footer}</div>}
       </div>
+    </div>
+  )
+}
+
+export type UserOption = { id: number; name: string; division_id: number; division_name: string }
+
+// Pilih banyak user dikelompokkan per divisi (peserta meeting, PIC planning). lockedId selalu terpilih.
+export function UserPicker({ users, selected, lockedId, lockedLabel, noun, onChange }: { users: UserOption[]; selected: Set<number>; lockedId: number; lockedLabel: string; noun: string; onChange: (next: Set<number>) => void }) {
+  const [term, setTerm] = useState('')
+  const filtered = useMemo(() => {
+    const t = term.trim().toLowerCase()
+    return users.filter((u) => !t || u.name.toLowerCase().includes(t) || u.division_name.toLowerCase().includes(t))
+  }, [users, term])
+  const groups = useMemo(() => {
+    const map = new Map<string, UserOption[]>()
+    for (const u of filtered) map.set(u.division_name, [...(map.get(u.division_name) ?? []), u])
+    return [...map.entries()]
+  }, [filtered])
+  const toggle = (id: number) => {
+    if (id === lockedId) return
+    const next = new Set(selected)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    onChange(next)
+  }
+  const toggleGroup = (members: UserOption[]) => {
+    const next = new Set(selected)
+    const all = members.every((m) => next.has(m.id))
+    for (const m of members) if (m.id !== lockedId) all ? next.delete(m.id) : next.add(m.id)
+    onChange(next)
+  }
+  return (
+    <div className="pap-picker">
+      <label className="pap-filter-search pap-picker-search"><Search /><input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Cari nama atau divisi..." /></label>
+      <div className="pap-picker-list">
+        {groups.map(([divisionName, members]) => (
+          <div key={divisionName} className="pap-picker-group">
+            <button type="button" className="pap-picker-group-head" onClick={() => toggleGroup(members)}>{divisionName} <span>{members.filter((m) => selected.has(m.id)).length}/{members.length}</span></button>
+            {members.map((u) => (
+              <label key={u.id} className="pap-check">
+                <input type="checkbox" checked={selected.has(u.id)} disabled={u.id === lockedId} onChange={() => toggle(u.id)} />
+                <span>{u.name}{u.id === lockedId && <small className="pap-hint-inline"> ({lockedLabel})</small>}</span>
+              </label>
+            ))}
+          </div>
+        ))}
+        {!groups.length && <p className="pap-muted">Tidak ada user yang cocok.</p>}
+      </div>
+      <small className="pap-hint">{selected.size} {noun} dipilih. Klik nama divisi untuk memilih satu divisi sekaligus.</small>
     </div>
   )
 }
