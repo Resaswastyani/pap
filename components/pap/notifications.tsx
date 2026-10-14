@@ -8,7 +8,7 @@ export type NotificationTarget = { meetingId?: number | null; planningId?: numbe
 
 type Item = {
   id: number
-  type: 'meeting_baru' | 'meeting_diubah' | 'meeting_reminder' | 'planning_pic' | 'planning_baru'
+  type: 'meeting_baru' | 'meeting_diubah' | 'meeting_reminder' | 'planning_pic' | 'planning_baru' | 'sistem'
   title: string
   body: string | null
   meeting_id: number | null
@@ -19,7 +19,7 @@ type Item = {
 
 const POLL_MS = 30_000
 const TOAST_MS = 15_000
-const ICONS = { meeting_baru: CalendarDays, meeting_diubah: CalendarDays, meeting_reminder: CalendarClock, planning_pic: ClipboardList, planning_baru: ClipboardCheck }
+const ICONS = { meeting_baru: CalendarDays, meeting_diubah: CalendarDays, meeting_reminder: CalendarClock, planning_pic: ClipboardList, planning_baru: ClipboardCheck, sistem: BellRing }
 
 // Dipanggil setelah aksi yang mungkin membuat notifikasi (lihat api() di ui.tsx) agar lonceng langsung diperbarui
 export const REFRESH_EVENT = 'pap-notif-refresh'
@@ -54,7 +54,7 @@ function urlBase64ToUint8Array(value: string) {
 export async function subscribePush() {
   if (!pushSupported() || Notification.permission !== 'granted') return false
   const config = await api<{ enabled: boolean; publicKey: string }>('/api/push/subscribe')
-  if (!config.enabled) return false
+  if (!config.enabled) throw new Error('Server belum dikonfigurasi untuk notifikasi HP (VAPID belum diisi di Vercel).')
   const registration = await navigator.serviceWorker.register('/sw.js')
   await navigator.serviceWorker.ready
   const subscription =
@@ -93,6 +93,15 @@ async function showOsNotification(item: Item) {
   } catch {}
 }
 
+const BANNER_KEY = 'pap-push-banner-dismissed'
+const bannerDismissed = () => {
+  try {
+    return Date.now() - Number(localStorage.getItem(BANNER_KEY) || 0) < 3 * 864e5 // muncul lagi setelah 3 hari
+  } catch {
+    return false
+  }
+}
+
 const relative = (value: string) => {
   const diff = (Date.now() - new Date(value.replace(' ', 'T') + '+07:00').getTime()) / 60000
   if (diff < 1) return 'baru saja'
@@ -110,6 +119,9 @@ export function NotificationCenter({ userId, onOpen }: { userId: number; onOpen:
   const [pushActive, setPushActive] = useState(false)
   const [iosNeedsInstall, setIosNeedsInstall] = useState(false)
   const [enabling, setEnabling] = useState(false)
+  const [pushError, setPushError] = useState('')
+  const [testing, setTesting] = useState('')
+  const [showBanner, setShowBanner] = useState(false)
   const pushActiveRef = useRef(false)
   const lastSeen = useRef<number | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -140,11 +152,17 @@ export function NotificationCenter({ userId, onOpen }: { userId: number; onOpen:
   }, [userId, dismissToast])
 
   useEffect(() => {
-    setPermission(osSupported() ? Notification.permission : 'unsupported')
-    setIosNeedsInstall(isIos() && !isStandalone())
+    const current = osSupported() ? Notification.permission : 'unsupported'
+    const iosInstall = isIos() && !isStandalone()
+    setPermission(current)
+    setIosNeedsInstall(iosInstall)
+    // Ajak aktifkan notifikasi setelah login bila belum pernah diputuskan di perangkat ini
+    setShowBanner(!bannerDismissed() && (iosInstall || (current === 'default' && pushSupported())))
     navigator.serviceWorker?.register('/sw.js').catch(() => {})
     // Izin sudah diberikan sebelumnya: pastikan langganan perangkat ini tercatat untuk akun yang login
-    subscribePush().then((ok) => setPushActive((pushActiveRef.current = ok))).catch(() => {})
+    subscribePush()
+      .then((ok) => setPushActive((pushActiveRef.current = ok)))
+      .catch((e) => setPushError((e as Error).message || 'Gagal menghubungkan notifikasi HP.'))
     poll()
     const timer = setInterval(poll, POLL_MS)
     const onVisible = () => document.visibilityState === 'visible' && poll()
@@ -185,19 +203,42 @@ export function NotificationCenter({ userId, onOpen }: { userId: number; onOpen:
   async function enableOs() {
     if (!osSupported()) return
     setEnabling(true)
+    setPushError('')
     try {
-      const result = await Notification.requestPermission()
+      const result = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission()
       setPermission(result)
       if (result === 'granted') {
-        const ok = await subscribePush().catch(() => false)
+        const ok = await subscribePush()
         setPushActive((pushActiveRef.current = ok))
+        setShowBanner(false)
         const registration = await navigator.serviceWorker?.getRegistration()
         registration?.showNotification('Notifikasi PAP-MS aktif', { body: 'Pemberitahuan meeting dan planning akan muncul di perangkat ini.', icon: '/icon-192.png', tag: 'pap-welcome' })
       }
+    } catch (e) {
+      setPushError((e as Error).message || 'Gagal mengaktifkan notifikasi.')
     } finally {
       setEnabling(false)
     }
   }
+
+  async function sendTest() {
+    setTesting('Mengirim...')
+    try {
+      const res = await api<{ devices: number }>('/api/push/test', { method: 'POST' })
+      setTesting(res.devices ? `Terkirim ke ${res.devices} perangkat. Cek layar HP/laptop dalam beberapa detik.` : 'Belum ada perangkat terdaftar untuk akun ini.')
+    } catch (e) {
+      setTesting((e as Error).message)
+    }
+  }
+
+  function dismissBanner() {
+    setShowBanner(false)
+    try {
+      localStorage.setItem(BANNER_KEY, String(Date.now()))
+    } catch {}
+  }
+
+  const iosHint = <><Smartphone className="pap-inline-icon" /> Di iPhone: ketuk <strong>Share</strong> lalu <strong>Add to Home Screen</strong>, buka PAP-MS dari ikon tersebut, kemudian aktifkan notifikasi.</>
 
   return (
     <>
@@ -213,14 +254,21 @@ export function NotificationCenter({ userId, onOpen }: { userId: number; onOpen:
               {unread > 0 && <button className="pap-link-button" onClick={() => markRead({ all: true })}>Tandai semua dibaca</button>}
             </div>
             {iosNeedsInstall ? (
-              <p className="pap-notif-hint"><Smartphone className="pap-inline-icon" /> Di iPhone: ketuk tombol <strong>Share</strong> lalu <strong>Add to Home Screen</strong>, buka PAP-MS dari ikon tersebut, kemudian aktifkan notifikasi di sini.</p>
-            ) : permission === 'default' ? (
-              <button className="pap-notif-enable" onClick={enableOs} disabled={enabling}><BellRing /> {enabling ? 'Mengaktifkan...' : 'Aktifkan notifikasi di HP / perangkat ini'}</button>
+              <p className="pap-notif-hint">{iosHint}</p>
+            ) : permission === 'unsupported' ? (
+              <p className="pap-notif-hint">Browser ini tidak mendukung notifikasi. Gunakan Chrome (Android/PC) atau buka dari ikon Home Screen (iPhone).</p>
             ) : permission === 'denied' ? (
               <p className="pap-notif-hint">Notifikasi diblokir browser. Izinkan notifikasi untuk situs ini di pengaturan browser, lalu muat ulang halaman.</p>
             ) : pushActive ? (
-              <p className="pap-notif-hint ok"><CheckCircle2 className="pap-inline-icon" /> Notifikasi aktif di perangkat ini, termasuk saat aplikasi ditutup.</p>
-            ) : null}
+              <div className="pap-notif-status">
+                <p className="pap-notif-hint ok"><CheckCircle2 className="pap-inline-icon" /> Notifikasi aktif di perangkat ini, termasuk saat aplikasi ditutup.</p>
+                <button className="pap-link-button" onClick={sendTest}>Kirim notifikasi uji</button>
+                {testing && <small className="pap-notif-test">{testing}</small>}
+              </div>
+            ) : (
+              <button className="pap-notif-enable" onClick={enableOs} disabled={enabling}><BellRing /> {enabling ? 'Mengaktifkan...' : permission === 'granted' ? 'Hubungkan notifikasi HP / perangkat ini' : 'Aktifkan notifikasi di HP / perangkat ini'}</button>
+            )}
+            {pushError && <p className="pap-notif-hint error">{pushError}</p>}
             <ul className="pap-notif-list">
               {items.map((item) => {
                 const Icon = ICONS[item.type]
@@ -238,6 +286,20 @@ export function NotificationCenter({ userId, onOpen }: { userId: number; onOpen:
           </div>
         )}
       </div>
+      {showBanner && (
+        <div className="pap-push-banner" role="dialog" aria-label="Aktifkan notifikasi">
+          <span className="pap-notif-icon sistem"><BellRing /></span>
+          <div className="pap-push-banner-text">
+            <strong>Aktifkan notifikasi di perangkat ini</strong>
+            <small>{iosNeedsInstall ? iosHint : 'Pemberitahuan meeting baru & reminder 15 menit akan muncul di layar HP seperti pesan WhatsApp.'}</small>
+            {pushError && <small className="error">{pushError}</small>}
+          </div>
+          <div className="pap-push-banner-actions">
+            {!iosNeedsInstall && <button className="pap-primary-button" onClick={enableOs} disabled={enabling}>{enabling ? 'Mengaktifkan...' : 'Aktifkan'}</button>}
+            <button className="pap-btn" onClick={dismissBanner}>Nanti</button>
+          </div>
+        </div>
+      )}
       {toasts.length > 0 && (
         <div className="pap-toasts" aria-live="polite">
           {toasts.map((item) => {

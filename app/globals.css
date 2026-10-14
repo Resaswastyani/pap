@@ -354,3 +354,23 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
   .pap-calendar-dayname { padding:6px 2px; font-size:9px; }
   .pap-calendar-agenda .pap-section-head { flex-wrap:wrap; }
 }
+
+/* Ajakan aktifkan notifikasi HP (muncul setelah login) & status push */
+.pap-push-banner { position:fixed; right:20px; bottom:20px; z-index:55; display:flex; align-items:flex-start; gap:12px; width:min(420px, calc(100vw - 32px)); padding:14px; border:1px solid var(--pap-border); border-left:4px solid #7c5cfc; border-radius:14px; background:var(--pap-surface); color:var(--pap-text); box-shadow:0 18px 44px rgb(0 0 0 / .22); animation:pap-toast-in .25s ease; }
+.pap-push-banner-text { display:flex; flex:1; flex-direction:column; gap:4px; min-width:0; }
+.pap-push-banner-text strong { font-size:13px; }
+.pap-push-banner-text small { color:var(--pap-muted); font-size:11.5px; line-height:1.45; }
+.pap-push-banner-text small.error { color:#dc2626; }
+.pap-push-banner-actions { display:flex; flex-direction:column; gap:6px; }
+.pap-push-banner-actions .pap-primary-button, .pap-push-banner-actions .pap-btn { justify-content:center; min-height:34px; padding:0 14px; font-size:12px; }
+.pap-notif-icon.sistem { background:rgb(124 92 252 / .12); color:#7050e7; }
+.pap-toast.sistem { border-left-color:#7c5cfc; }
+.pap-notif-status { display:flex; flex-direction:column; align-items:flex-start; gap:4px; margin:0 16px 8px; }
+.pap-notif-status .pap-notif-hint { margin:0; }
+.pap-notif-test { color:var(--pap-muted); font-size:11px; line-height:1.4; }
+.pap-notif-hint.error { color:#dc2626; }
+@media (max-width:800px) {
+  .pap-push-banner { right:12px; bottom:80px; left:12px; width:auto; flex-wrap:wrap; }
+  .pap-push-banner-actions { flex-direction:row; width:100%; }
+  .pap-push-banner-actions > * { flex:1; }
+}

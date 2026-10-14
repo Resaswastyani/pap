@@ -4,7 +4,7 @@ import { pushToUsers } from '@/lib/push'
 
 export const REMINDER_MINUTES = 15
 
-export type NotificationType = 'meeting_baru' | 'meeting_diubah' | 'meeting_reminder' | 'planning_pic' | 'planning_baru'
+export type NotificationType = 'meeting_baru' | 'meeting_diubah' | 'meeting_reminder' | 'planning_pic' | 'planning_baru' | 'sistem'
 
 type NotificationInput = {
   type: NotificationType
