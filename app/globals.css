@@ -206,3 +206,7 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
 
 /* Sidebar mobile: batasi tinggi ke layar agar menu bisa di-scroll (iOS Safari) */
 @media (max-width:800px) { .pap-sidebar { height:100vh; height:100dvh; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; padding-bottom:calc(20px + env(safe-area-inset-bottom)); } .pap-nav { flex:none; overflow:visible; } }
+
+/* reCAPTCHA v2 (puzzle) yang muncul bila skor v3 rendah */
+.pap-captcha { display:flex; justify-content:center; min-height:78px; margin-top:16px; }
+@media (max-width:360px) { .pap-captcha { transform:scale(.88); transform-origin:center top; } }

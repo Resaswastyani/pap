@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { MENU_KEYS } from '@/lib/menus'
 import type { UserProfile } from '@/lib/users'
 import { MeetingPage } from './meeting-page'
 import { PlanningPage } from './planning-page'
+import { getRecaptchaToken, loadRecaptcha, RECAPTCHA_V2_SITE_KEY } from './recaptcha'
 import { RolesPage } from './roles-page'
 import { UsersPage } from './users-page'
 import { Bell, CalendarDays, ChevronDown, ChevronRight, ClipboardList, Factory, LayoutDashboard, Menu, Moon, MoreHorizontal, PackageCheck, Search, Settings, Sun, Users, X, LogOut, CheckCircle2, Clock3, AlertCircle, BarChart3, UserRound, FileText, Wrench, Handshake, UserCheck, ListChecks, UserCog, ShieldCheck, Eye, EyeOff } from 'lucide-react'
@@ -47,21 +48,47 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  // Puzzle v2 hanya muncul bila skor v3 dinilai mencurigakan oleh server
+  const [challenge, setChallenge] = useState(false)
+  const [v2Token, setV2Token] = useState('')
+  const challengeRef = useRef<HTMLDivElement>(null)
+  const widgetId = useRef<number | null>(null)
+
+  useEffect(() => {
+    loadRecaptcha().catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!challenge || !challengeRef.current || widgetId.current !== null) return
+    loadRecaptcha().then((grecaptcha) => {
+      if (!challengeRef.current || widgetId.current !== null) return
+      widgetId.current = grecaptcha.render(challengeRef.current, { sitekey: RECAPTCHA_V2_SITE_KEY, callback: setV2Token, 'expired-callback': () => setV2Token('') })
+    }).catch((e: Error) => setError(e.message))
+  }, [challenge])
+
   async function login(credentials: { email: string; password: string }) {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(credentials) })
+      const captchaToken = challenge ? undefined : await getRecaptchaToken('login')
+      const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...credentials, captchaToken, captchaV2Token: challenge ? v2Token : undefined }) })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok) return setError(json.error ?? 'Gagal masuk. Coba lagi.')
+      if (!res.ok) {
+        if (json.captcha === 'challenge' && RECAPTCHA_V2_SITE_KEY) setChallenge(true)
+        if (challenge && widgetId.current !== null) {
+          window.grecaptcha?.reset(widgetId.current)
+          setV2Token('')
+        }
+        return setError(json.error ?? 'Gagal masuk. Coba lagi.')
+      }
       onLogin(json.user)
-    } catch {
-      setError('Tidak dapat terhubung ke server.')
+    } catch (e) {
+      setError(e instanceof Error && e.message.includes('reCAPTCHA') ? e.message : 'Tidak dapat terhubung ke server.')
     } finally {
       setLoading(false)
     }
   }
-  return <main className="pap-auth"><section className="pap-auth-hero" aria-label="PT. Pandawa Amerta Packindo"><div className="pap-auth-hero-content"><span className="pap-auth-hero-logo"><img src="/logo-mark.png" alt="" /></span><p className="pap-auth-tagline">Focus on Quality</p><h2>PT. Pandawa Amerta Packindo</h2><p className="pap-auth-sub">Flexible Plastic Packaging Manufacture</p><p className="pap-auth-desc">Produsen kantong plastik HD, PP, dan PE dari biji plastik melalui proses blow, cetak rotogravure, hingga bag making (gusset, cut seal, dan side seal). Melayani produk custom B2B dari berbagai sektor usaha, plastik laundry, serta mika rigid.</p></div></section><section className="pap-auth-panel"><div className="pap-login-card"><img className="pap-login-logo" src="/logo-pap.png" alt="PT. Pandawa Amerta Packindo — Flexible Plastic Packaging Manufacture" /><p className="pap-eyebrow">PAP MANAGEMENT SYSTEM</p><form onSubmit={(e) => { e.preventDefault(); login({ email, password }) }}><label>Email<input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nama@perusahaan.com" /></label><label>Password<span className="pap-password-field"><input type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" /><button type="button" className="pap-password-toggle" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'} aria-pressed={showPassword}>{showPassword ? <EyeOff /> : <Eye />}</button></span></label>{error && <p className="pap-login-error" role="alert">{error}</p>}<button type="submit" className="pap-primary-button pap-login-button" disabled={loading}>{loading ? 'Memproses...' : 'Masuk'} <ChevronRight /></button></form></div></section></main>
+  return <main className="pap-auth"><section className="pap-auth-hero" aria-label="PT. Pandawa Amerta Packindo"><div className="pap-auth-hero-content"><span className="pap-auth-hero-logo"><img src="/logo-mark.png" alt="" /></span><p className="pap-auth-tagline">Focus on Quality</p><h2>PT. Pandawa Amerta Packindo</h2><p className="pap-auth-sub">Flexible Plastic Packaging Manufacture</p><p className="pap-auth-desc">Produsen kantong plastik HD, PP, dan PE dari biji plastik melalui proses blow, cetak rotogravure, hingga bag making (gusset, cut seal, dan side seal). Melayani produk custom B2B dari berbagai sektor usaha, plastik laundry, serta mika rigid.</p></div></section><section className="pap-auth-panel"><div className="pap-login-card"><img className="pap-login-logo" src="/logo-pap.png" alt="PT. Pandawa Amerta Packindo — Flexible Plastic Packaging Manufacture" /><p className="pap-eyebrow">PAP MANAGEMENT SYSTEM</p><form onSubmit={(e) => { e.preventDefault(); login({ email, password }) }}><label>Email<input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nama@perusahaan.com" /></label><label>Password<span className="pap-password-field"><input type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" /><button type="button" className="pap-password-toggle" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'} aria-pressed={showPassword}>{showPassword ? <EyeOff /> : <Eye />}</button></span></label>{challenge && <div className="pap-captcha" ref={challengeRef} />}{error && <p className="pap-login-error" role="alert">{error}</p>}<button type="submit" className="pap-primary-button pap-login-button" disabled={loading || (challenge && !v2Token)}>{loading ? 'Memproses...' : 'Masuk'} <ChevronRight /></button></form></div></section></main>
 }
 
 export function AppShell() {
