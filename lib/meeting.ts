@@ -12,8 +12,9 @@ export type MeetingRow = RowDataPacket & {
   planning_judul: string | null
   division_id: number
   division_name: string
+  judul: string
   waktu: string
-  deskripsi: string
+  deskripsi: string | null
   tempat: string | null
   status: MeetingStatus
   hasil_meeting: string | null
@@ -27,7 +28,7 @@ export type MeetingRow = RowDataPacket & {
 
 // ? pertama = id user yang sedang login (penanda is_participant)
 export const MEETING_SELECT = `SELECT m.id, m.nomor, m.planning_id, p.nomor AS planning_nomor, p.judul AS planning_judul,
-  m.division_id, d.name AS division_name, m.waktu, m.deskripsi, m.tempat, m.status, m.hasil_meeting,
+  m.division_id, d.name AS division_name, m.judul, m.waktu, m.deskripsi, m.tempat, m.status, m.hasil_meeting,
   m.created_by, cr.name AS created_by_name, m.created_at, m.updated_at,
   (SELECT COUNT(*) FROM meeting_participants mp WHERE mp.meeting_id = m.id) AS participant_count,
   EXISTS (SELECT 1 FROM meeting_participants mp WHERE mp.meeting_id = m.id AND mp.user_id = ?) AS is_participant

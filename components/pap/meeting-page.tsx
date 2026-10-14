@@ -15,8 +15,9 @@ type Meeting = {
   planning_judul: string | null
   division_id: number
   division_name: string
+  judul: string
   waktu: string
-  deskripsi: string
+  deskripsi: string | null
   tempat: string | null
   status: MeetingStatus
   hasil_meeting: string | null
@@ -36,7 +37,6 @@ const STATUS_TONE: Record<MeetingStatus, string> = { terjadwal: 'info', berlangs
 const MeetingStatusBadge = ({ value }: { value: MeetingStatus }) => <span className={`pap-status ${STATUS_TONE[value]}`}>{MEETING_STATUS[value]}</span>
 const has = (user: UserProfile, permission: string) => user.role.isSuperAdmin || user.permissions.includes(permission as never)
 const isUrl = (value: string | null) => !!value && /^https?:\/\/\S+$/i.test(value)
-const firstLine = (text: string) => text.split('\n')[0]
 
 function Place({ value }: { value: string | null }) {
   if (!value) return <span className="pap-muted">—</span>
@@ -127,7 +127,7 @@ export function MeetingPage({ user }: { user: UserProfile }) {
       <div className="pap-table-card">
         <div className="pap-card-head"><div><h2>Daftar meeting</h2><p>Meeting terdekat ditampilkan paling atas</p></div></div>
         <div className="pap-filters">
-          <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari deskripsi, nomor, tempat..." /></label>
+          <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari judul, nomor, tempat..." /></label>
           <select className="pap-select" value={scope} onChange={(e) => setScope(e.target.value)} aria-label="Filter meeting">
             <option value="">Semua meeting</option>
             <option value="mine">Meeting saya</option>
@@ -146,12 +146,12 @@ export function MeetingPage({ user }: { user: UserProfile }) {
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Nomor / Deskripsi</th><th>Waktu</th><th>Tempat / Link</th><th>Peserta</th><th>Status</th><th aria-label="Aksi" /></tr></thead>
+            <thead><tr><th>Judul / Nomor</th><th>Waktu</th><th>Tempat / Link</th><th>Peserta</th><th>Status</th><th aria-label="Aksi" /></tr></thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
                   <td>
-                    <div className="pap-cell-title">{firstLine(item.deskripsi)}</div>
+                    <div className="pap-cell-title">{item.judul}</div>
                     <div className="pap-cell-sub">{item.nomor} · {item.planning_nomor ? `Planning ${item.planning_nomor}` : 'Meeting dadakan'}{viewAll ? ` · ${item.division_name}` : ''}</div>
                   </td>
                   <td className="pap-nowrap">{formatDate(item.waktu, true)}</td>
@@ -252,6 +252,7 @@ function MeetingForm({ user, initial, onClose, onSaved }: { user: UserProfile; i
     planning_id: String(initial?.planning_id ?? ''),
     waktu: initial ? toInputDateTime(initial.waktu) : defaultTime,
     tempat: initial?.tempat ?? '',
+    judul: initial?.judul ?? '',
     deskripsi: initial?.deskripsi ?? '',
   })
   const [saving, setSaving] = useState(false)
@@ -294,6 +295,7 @@ function MeetingForm({ user, initial, onClose, onSaved }: { user: UserProfile; i
     >
       <form id="meeting-form" className="pap-form-grid" onSubmit={submit}>
         {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        <Field label="Judul meeting" full><input className="pap-input" required maxLength={200} value={values.judul} onChange={set('judul')} placeholder="Contoh: Review jadwal produksi minggu depan" /></Field>
         <Field label="Planning (opsional)" hint="Kosongkan untuk meeting dadakan." full>
           <select className="pap-select" value={values.planning_id} onChange={set('planning_id')}>
             <option value="">— Tanpa planning (meeting dadakan) —</option>
@@ -302,8 +304,8 @@ function MeetingForm({ user, initial, onClose, onSaved }: { user: UserProfile; i
         </Field>
         <Field label="Waktu"><input className="pap-input" type="datetime-local" required value={values.waktu} onChange={set('waktu')} /></Field>
         <Field label="Tempat / link meeting" hint="Nama ruangan, atau link Zoom/Google Meet."><input className="pap-input" maxLength={500} value={values.tempat} onChange={set('tempat')} placeholder="Ruang Meeting A / https://meet.google.com/..." /></Field>
-        <Field label="Deskripsi" hint="Baris pertama tampil sebagai judul di daftar meeting." full>
-          <textarea className="pap-input" rows={4} required maxLength={5000} value={values.deskripsi} onChange={set('deskripsi')} placeholder={'Review jadwal produksi minggu depan\nAgenda: ...'} />
+        <Field label="Deskripsi (opsional)" full>
+          <textarea className="pap-input" rows={4} maxLength={5000} value={values.deskripsi} onChange={set('deskripsi')} placeholder="Agenda dan hal yang perlu disiapkan peserta" />
         </Field>
         <div className="full">
           <span className="pap-field-label">Peserta</span>
@@ -364,7 +366,7 @@ function MeetingDetail({ id, onClose, onChanged, onEdit, onDeleted }: { id: numb
   return (
     <Modal
       wide
-      title={firstLine(item.deskripsi)}
+      title={item.judul}
       subtitle={`${item.nomor} · ${item.division_name}`}
       onClose={onClose}
       footer={item.can.edit ? (
@@ -385,7 +387,7 @@ function MeetingDetail({ id, onClose, onChanged, onEdit, onDeleted }: { id: numb
       </dl>
       <section className="pap-detail-section">
         <h3>Deskripsi</h3>
-        <p className="pap-prewrap">{item.deskripsi}</p>
+        <p className="pap-prewrap">{item.deskripsi || <span className="pap-muted">Tidak ada deskripsi.</span>}</p>
       </section>
       <section className="pap-detail-section">
         <h3>Peserta ({participants.length})</h3>

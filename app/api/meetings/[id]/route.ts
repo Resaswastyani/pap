@@ -23,17 +23,18 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   const row = await loadMeeting(user, await meetingId(ctx))
   const ability = meetingAbilities(user, row)
   const body = await readJson(request)
-  const detailKeys = ['planning_id', 'waktu', 'deskripsi', 'tempat', 'participant_ids']
+  const detailKeys = ['judul', 'planning_id', 'waktu', 'deskripsi', 'tempat', 'participant_ids']
   if (detailKeys.some((key) => key in body) && !ability.edit) fail(403, 'Anda hanya dapat mengisi status dan hasil meeting.')
   if (!ability.result) fail(403, 'Anda tidak punya akses untuk mengubah meeting ini.')
 
   const sets: string[] = []
   const args: unknown[] = []
-  if ('deskripsi' in body) {
-    const deskripsi = str(body.deskripsi, 5000)
-    if (!deskripsi) fail(400, 'Deskripsi meeting wajib diisi.')
-    sets.push('deskripsi = ?'), args.push(deskripsi)
+  if ('judul' in body) {
+    const judul = str(body.judul, 200)
+    if (!judul) fail(400, 'Judul meeting wajib diisi.')
+    sets.push('judul = ?'), args.push(judul)
   }
+  if ('deskripsi' in body) sets.push('deskripsi = ?'), args.push(str(body.deskripsi, 5000) || null)
   if ('waktu' in body) sets.push('waktu = ?'), args.push(parseDateTime(body.waktu))
   if ('tempat' in body) sets.push('tempat = ?'), args.push(str(body.tempat, 500) || null)
   if ('planning_id' in body) {
