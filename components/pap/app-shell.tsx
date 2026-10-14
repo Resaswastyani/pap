@@ -48,13 +48,14 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  // Puzzle v2 hanya muncul bila skor v3 dinilai mencurigakan oleh server
+  // Kotak "I'm not a robot" (v2) selalu tampil bila key v2 diset; token sekali pakai
   const [challenge, setChallenge] = useState(false)
   const [v2Token, setV2Token] = useState('')
   const challengeRef = useRef<HTMLDivElement>(null)
   const widgetId = useRef<number | null>(null)
 
   useEffect(() => {
+    getCaptchaConfig().then(({ v2SiteKey }) => setChallenge(!!v2SiteKey))
     loadRecaptcha().catch(() => {})
   }, [])
 
@@ -74,7 +75,6 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
       const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...credentials, captchaToken, captchaV2Token: challenge ? v2Token : undefined }) })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
-        if (json.captcha === 'challenge' && (await getCaptchaConfig()).v2SiteKey) setChallenge(true)
         if (challenge && widgetId.current !== null) {
           window.grecaptcha?.reset(widgetId.current)
           setV2Token('')

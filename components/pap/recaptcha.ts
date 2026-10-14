@@ -1,4 +1,4 @@
-// reCAPTCHA di browser: v3 untuk skor (tak terlihat), v2 checkbox/puzzle bila skor rendah.
+// reCAPTCHA di browser: kotak v2 "I'm not a robot" bila key v2 diset, selain itu v3 tak terlihat.
 // Site key diambil dari server (/api/auth/captcha) agar tidak perlu env NEXT_PUBLIC_.
 type CaptchaConfig = { siteKey: string; v2SiteKey: string }
 
@@ -26,12 +26,12 @@ export function getCaptchaConfig() {
   return config
 }
 
-// Satu script untuk keduanya: ?render=<key v3> sekaligus menyediakan grecaptcha.render untuk v2
+// v3 butuh ?render=<key>; v2 cukup render=explicit lalu grecaptcha.render di form
 export function loadRecaptcha() {
-  loading ??= getCaptchaConfig().then(({ siteKey }) => new Promise<Grecaptcha>((resolve, reject) => {
-    if (!siteKey) return reject(new Error('reCAPTCHA belum dikonfigurasi'))
+  loading ??= getCaptchaConfig().then(({ siteKey, v2SiteKey }) => new Promise<Grecaptcha>((resolve, reject) => {
+    if (!siteKey && !v2SiteKey) return reject(new Error('reCAPTCHA belum dikonfigurasi'))
     const script = document.createElement('script')
-    script.src = `https://www.google.com/recaptcha/api.js?render=${siteKey}`
+    script.src = `https://www.google.com/recaptcha/api.js?render=${v2SiteKey ? 'explicit' : siteKey}&hl=id`
     script.async = true
     script.onload = () => window.grecaptcha!.ready(() => resolve(window.grecaptcha!))
     script.onerror = () => {

@@ -14,9 +14,9 @@ export async function POST(request: Request) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || null
   const captcha = await checkCaptcha({ token: body?.captchaToken, v2Token: body?.captchaV2Token }, ip).catch((error) => {
     console.error('[auth/login] recaptcha', error)
-    return { ok: false as const, challenge: false, error: 'Layanan verifikasi captcha tidak dapat dihubungi. Coba lagi.' }
+    return { ok: false as const, error: 'Layanan verifikasi captcha tidak dapat dihubungi. Coba lagi.' }
   })
-  if (!captcha.ok) return NextResponse.json({ error: captcha.error, captcha: captcha.challenge ? 'challenge' : undefined }, { status: 403 })
+  if (!captcha.ok) return NextResponse.json({ error: captcha.error }, { status: 403 })
 
   try {
     const user = await findUserByEmail(email)
