@@ -202,6 +202,32 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
   .pap-result-editor .pap-inline-actions { flex-direction:column; }
   .pap-result-editor .pap-select, .pap-result-editor .pap-primary-button { width:100%; justify-content:center; }
 }
+/* Catatan progress planning */
+.pap-note-list { display:flex; flex-direction:column; gap:0; margin:0; padding:0 0 0 14px; border-left:2px solid rgb(124 92 252 / .2); list-style:none; }
+.pap-note-item { position:relative; display:flex; flex-direction:column; gap:8px; padding:4px 0 16px 16px; }
+.pap-note-item::before { content:''; position:absolute; top:9px; left:-21px; width:10px; height:10px; border:2px solid var(--pap-surface); border-radius:50%; background:#7c5cfc; }
+.pap-note-item:last-child { padding-bottom:4px; }
+.pap-note-head { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.pap-note-progress { padding:3px 8px; border-radius:8px; background:rgb(124 92 252 / .12); color:#7050e7; font-size:12px; font-weight:800; }
+.pap-note-meta { color:var(--pap-muted); font-size:12px; }
+.pap-note-meta strong { color:var(--pap-text); }
+.pap-note-actions { display:flex; gap:4px; margin-left:auto; }
+.pap-note-actions .pap-icon-button { width:30px; height:30px; }
+.pap-note-item .pap-prewrap { padding:10px 12px; border-radius:10px; background:var(--pap-bg); }
+.pap-note-item .pap-file-list { margin-top:0; }
+.pap-note-edit { display:flex; flex-direction:column; gap:10px; }
+.pap-progress-update { padding:18px; border:1px solid rgb(124 92 252 / .25); border-radius:14px; background:rgb(124 92 252 / .04); }
+.pap-progress-update .pap-progress-editor { grid-template-columns:1fr 80px 160px; }
+.pap-progress-note { margin:14px 0 10px; }
+.pap-progress-submit { align-items:center; justify-content:space-between; margin-top:14px; }
+.pap-progress-submit .pap-hint { margin:0; }
+@media (max-width:640px) {
+  .pap-progress-update { padding:14px; }
+  .pap-progress-update .pap-progress-editor { grid-template-columns:1fr 80px; }
+  .pap-progress-update .pap-progress-editor .pap-select { grid-column:1 / -1; }
+  .pap-progress-submit { flex-direction:column; align-items:stretch; }
+  .pap-progress-submit .pap-primary-button { justify-content:center; }
+}
 @media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition-duration:.01ms!important; animation-duration:.01ms!important; } }
 
 /* Sidebar mobile: batasi tinggi ke layar agar menu bisa di-scroll (iOS Safari) */

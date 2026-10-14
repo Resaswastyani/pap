@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { PERMISSIONS, PLANNING_STATUS } from '@/lib/permissions'
-import { assertDivision, canViewAllDivisions, loadFiles, loadPlanning, parseDate, planningAbilities, serializePlanning } from '@/lib/planning'
+import { assertDivision, canViewAllDivisions, loadFiles, loadNotes, loadPlanning, parseDate, planningAbilities, serializePlanning } from '@/lib/planning'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -11,7 +11,7 @@ const planningId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, '
 export const GET = handle(async (_request: Request, ctx: Ctx) => {
   const user = await requireUser(PERMISSIONS.planningView)
   const row = await loadPlanning(user, await planningId(ctx))
-  return NextResponse.json({ item: serializePlanning(user, row), files: await loadFiles(row.id) })
+  return NextResponse.json({ item: serializePlanning(user, row), files: await loadFiles(row.id), notes: await loadNotes(user, row) })
 })
 
 // Edit planning. Yang boleh diubah tergantung hak:
