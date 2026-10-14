@@ -7,6 +7,10 @@ export const PERMISSIONS = {
   planningManage: 'planning.manage',
   usersManage: 'users.manage',
   rolesManage: 'roles.manage',
+  meetingView: 'meeting.view',
+  meetingViewAll: 'meeting.view_all',
+  meetingCreate: 'meeting.create',
+  meetingManage: 'meeting.manage',
 } as const
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
@@ -21,6 +25,14 @@ export const PLANNING_STATUS = {
   dibatalkan: 'Dibatalkan',
 } as const
 
+export const MEETING_STATUS = {
+  terjadwal: 'Terjadwal',
+  berlangsung: 'Berlangsung',
+  selesai: 'Selesai',
+  dibatalkan: 'Dibatalkan',
+} as const
+
+export type MeetingStatus = keyof typeof MEETING_STATUS
 export type PlanningStatus = keyof typeof PLANNING_STATUS
 
 // Lampiran planning: gambar, PDF, dan Word (maks 5 MB per file)

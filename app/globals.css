@@ -55,6 +55,7 @@ button { font: inherit; }
 .pap-shell.dark { color-scheme:dark; }
 /* ===== Fitur data asli: Planning, Manajemen User & Role ===== */
 .pap-stat-grid.four { grid-template-columns:repeat(4,1fr); }
+.pap-page-heading .pap-primary-button { flex:none; white-space:nowrap; }
 .pap-status.danger { background:rgb(239 68 68 / .12); color:#dc2626; }
 .pap-status.neutral { background:rgb(107 112 133 / .12); color:var(--pap-muted); }
 .pap-input, .pap-select { width:100%; min-height:40px; padding:9px 12px; border:1px solid var(--pap-border); border-radius:10px; outline:none; background:var(--pap-surface); color:var(--pap-text); font:inherit; font-size:13px; }
@@ -79,6 +80,7 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
 .pap-filter-search input { width:100%; border:0; outline:none; background:transparent; color:var(--pap-text); font:inherit; font-size:12px; }
 .pap-card-notice { padding:0 22px 14px; }
 .pap-cell-title { display:flex; align-items:center; gap:8px; font-weight:700; font-size:13px; }
+.pap-table-wrap td:has(> .pap-cell-title) { min-width:240px; }
 .pap-cell-sub { margin-top:4px; color:var(--pap-muted); font-size:11px; }
 .pap-nowrap { white-space:nowrap; }
 .pap-row-link { cursor:pointer; }
@@ -174,6 +176,31 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
   .pap-link-row { grid-template-columns:1fr; }
   .pap-modal-foot .pap-btn, .pap-modal-foot .pap-primary-button { flex:1 1 auto; }
   .pap-modal-foot .pap-spacer { display:none; }
+}
+/* Meeting */
+.pap-meeting-link { display:inline-flex; align-items:center; gap:3px; color:#7050e7; font-weight:700; text-decoration:none; }
+.pap-meeting-link:hover { text-decoration:underline; }
+.pap-meeting-place { max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pap-field-label { display:block; margin-bottom:7px; font-size:12px; font-weight:700; }
+.pap-hint-inline { color:var(--pap-muted); font-size:11px; }
+.pap-picker { display:flex; flex-direction:column; gap:8px; }
+.pap-picker-search { flex:none; max-width:none; }
+.pap-picker-list { max-height:240px; overflow:auto; padding:6px 12px 10px; border:1px solid var(--pap-border); border-radius:10px; }
+.pap-picker-group { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 14px; padding:8px 0; border-bottom:1px dashed var(--pap-border); }
+.pap-picker-group:last-child { border-bottom:0; }
+.pap-picker-group .pap-check { font-size:12px; }
+.pap-picker-group-head { grid-column:1 / -1; display:flex; justify-content:space-between; padding:2px 0; border:0; background:transparent; color:var(--pap-muted); font-size:10px; font-weight:800; text-align:left; text-transform:uppercase; letter-spacing:.08em; cursor:pointer; }
+.pap-picker-group-head:hover { color:#7050e7; }
+.pap-participants { display:flex; flex-wrap:wrap; gap:8px; }
+.pap-participant { display:flex; flex-direction:column; padding:7px 11px; border:1px solid var(--pap-border); border-radius:10px; font-size:12px; }
+.pap-participant small { margin-top:2px; color:var(--pap-muted); font-size:10px; }
+.pap-result-editor { display:flex; flex-direction:column; gap:10px; }
+.pap-result-editor .pap-select { width:auto; min-width:160px; }
+@media (max-width:640px) {
+  .pap-picker-group { grid-template-columns:1fr; }
+  .pap-meeting-place { max-width:160px; }
+  .pap-result-editor .pap-inline-actions { flex-direction:column; }
+  .pap-result-editor .pap-select, .pap-result-editor .pap-primary-button { width:100%; justify-content:center; }
 }
 @media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition-duration:.01ms!important; animation-duration:.01ms!important; } }
 

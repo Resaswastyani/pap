@@ -11,7 +11,7 @@ export const MENU_KEYS = {
   Absensi: 'absensi',
   Planning: 'planning',
   'Progress Kerja': 'progress-kerja',
-  'Planning Meeting': 'planning-meeting',
+  Meeting: 'meeting',
   'Manajemen User': 'users',
   'Manajemen Role': 'roles',
   Pengaturan: 'pengaturan',
@@ -23,6 +23,7 @@ export const ALL_MENU_KEYS = Object.values(MENU_KEYS) as MenuKey[]
 
 export const PERMISSION_MENUS: Partial<Record<MenuKey, string>> = {
   planning: 'planning.view',
+  meeting: 'meeting.view',
   users: 'users.manage',
   roles: 'roles.manage',
 }
