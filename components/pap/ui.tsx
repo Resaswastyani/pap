@@ -14,6 +14,8 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(data.error ?? `Permintaan gagal (${res.status}).`)
+  // Aksi yang mengubah data bisa membuat notifikasi baru (mis. meeting/planning dibuat): segarkan lonceng
+  if (rest.method && rest.method !== 'GET' && !path.startsWith('/api/notifications')) window.dispatchEvent(new Event('pap-notif-refresh'))
   return data as T
 }
 

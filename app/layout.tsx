@@ -19,6 +19,7 @@ export const metadata: Metadata = {
     ],
     apple: '/apple-icon.png',
   },
+  appleWebApp: { capable: true, title: 'PAP-MS', statusBarStyle: 'default' },
 }
 
 export const viewport: Viewport = {

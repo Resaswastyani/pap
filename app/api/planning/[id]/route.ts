@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { PERMISSIONS, PLANNING_STATUS } from '@/lib/permissions'
+import { pushToUsers } from '@/lib/push'
 import { assertDivision, canViewAllDivisions, loadFiles, loadNotes, loadPics, loadPlanning, notifyPics, parseDate, planningAbilities, serializePlanning, validPics } from '@/lib/planning'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -73,14 +74,15 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   const oldPics = serializePlanning(user, row).pic_ids
 
   const conn = await db.getConnection()
+  let notified: number[] = []
   try {
     await conn.beginTransaction()
     if (sets.length) await conn.query(`UPDATE plannings SET ${sets.join(', ')} WHERE id = ?`, [...args, row.id])
     if (pics) {
       await conn.query('DELETE FROM planning_pics WHERE planning_id = ?', [row.id])
       await conn.query('INSERT INTO planning_pics (planning_id, user_id) VALUES ?', [pics.map((userId) => [row.id, userId])])
-      const added = pics.filter((userId) => !oldPics.includes(userId) && userId !== user.id)
-      await notifyPics(conn, added, { id: row.id, judul: str(body.judul, 200) || row.judul, mulai, selesai, meetingJudul: row.meeting_judul }, user.name)
+      const added = pics.filter((userId) => !oldPics.includes(userId))
+      notified = await notifyPics(conn, added, { id: row.id, judul: str(body.judul, 200) || row.judul, mulai, selesai, meetingJudul: row.meeting_judul }, user.name)
     }
     await conn.commit()
   } catch (error) {
@@ -89,6 +91,7 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   } finally {
     conn.release()
   }
+  await pushToUsers(notified)
   const updated = await loadPlanning(user, row.id)
   return NextResponse.json({ item: serializePlanning(user, updated), pics: await loadPics(row.id) })
 })

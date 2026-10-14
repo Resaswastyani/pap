@@ -291,3 +291,66 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
 .pap-toast-close svg { width:14px; height:14px; }
 @keyframes pap-toast-in { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
 @media (max-width:800px) { .pap-toasts { right:16px; bottom:84px; left:16px; width:auto; } .pap-notif-panel { position:fixed; top:72px; right:12px; left:12px; width:auto; } }
+
+/* Notifikasi: konfirmasi planning dibuat & status push aktif */
+.pap-notif-icon.planning_baru { background:rgb(29 185 138 / .14); color:#0f9c74; }
+.pap-toast.planning_baru { border-left-color:#1db98a; }
+.pap-notif-hint.ok { color:#0f9c74; }
+.pap-notif-hint .pap-inline-icon { vertical-align:-2px; }
+.pap-notif-enable:disabled { opacity:.6; cursor:wait; }
+
+/* Pilihan tampilan Daftar / Kalender */
+.pap-segmented { display:inline-flex; flex:none; padding:3px; border:1px solid var(--pap-border); border-radius:10px; background:var(--pap-bg); }
+.pap-segmented button { display:flex; align-items:center; gap:6px; padding:6px 12px; border:0; border-radius:8px; background:transparent; color:var(--pap-muted); font-size:12px; font-weight:700; cursor:pointer; }
+.pap-segmented button svg { width:14px; height:14px; }
+.pap-segmented button.active { background:var(--pap-surface); color:#7050e7; box-shadow:0 1px 3px rgb(0 0 0 / .08); }
+
+/* Kalender meeting bulanan */
+.pap-calendar { padding:0 22px 22px; border-top:1px solid var(--pap-border); }
+.pap-calendar-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 0 12px; }
+.pap-calendar-nav { display:flex; align-items:center; gap:6px; }
+.pap-calendar-nav h3 { margin:0 0 0 8px; font-size:16px; }
+.pap-calendar-nav .pap-icon-button { display:grid; place-items:center; background:transparent; color:var(--pap-text); cursor:pointer; }
+.pap-calendar-nav .pap-icon-button svg { width:16px; height:16px; }
+.pap-calendar-grid { display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); overflow:hidden; border:1px solid var(--pap-border); border-radius:12px; transition:opacity .2s; }
+.pap-calendar-grid.loading { opacity:.6; }
+.pap-calendar-dayname { padding:8px; border-bottom:1px solid var(--pap-border); background:rgb(124 92 252 / .04); color:var(--pap-muted); font-size:10px; font-weight:800; text-align:center; text-transform:uppercase; letter-spacing:.06em; }
+.pap-calendar-cell { position:relative; display:flex; flex-direction:column; gap:4px; min-width:0; min-height:104px; padding:6px; border-right:1px solid var(--pap-border); border-bottom:1px solid var(--pap-border); cursor:pointer; outline:none; }
+.pap-calendar-cell:nth-child(7n) { border-right:0; }
+.pap-calendar-cell:nth-last-child(-n+7) { border-bottom:0; }
+.pap-calendar-cell:hover { background:rgb(124 92 252 / .04); }
+.pap-calendar-cell:focus-visible { box-shadow:inset 0 0 0 2px #7c5cfc; }
+.pap-calendar-cell.outside { background:rgb(0 0 0 / .015); }
+.pap-calendar-cell.outside .pap-calendar-date { color:var(--pap-muted); opacity:.55; }
+.pap-calendar-cell.selected { background:rgb(124 92 252 / .08); box-shadow:inset 0 0 0 2px rgb(124 92 252 / .5); }
+.pap-calendar-date { display:grid; place-items:center; width:24px; height:24px; border-radius:50%; font-size:12px; font-weight:700; }
+.pap-calendar-cell.today .pap-calendar-date { background:#7c5cfc; color:#fff; }
+.pap-calendar-events { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.pap-calendar-event { overflow:hidden; padding:3px 6px; border:0; border-left:3px solid #7c5cfc; border-radius:5px; background:rgb(124 92 252 / .1); color:var(--pap-text); font-size:10.5px; text-align:left; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+.pap-calendar-event b { font-weight:800; }
+.pap-calendar-event:hover { background:rgb(124 92 252 / .2); }
+.pap-calendar-event.berlangsung { border-left-color:#f5b43c; background:rgb(245 180 60 / .15); }
+.pap-calendar-event.selesai { border-left-color:#1db98a; background:rgb(29 185 138 / .12); }
+.pap-calendar-event.dibatalkan { border-left-color:#ef5a3c; background:rgb(239 90 60 / .1); text-decoration:line-through; opacity:.75; }
+.pap-calendar-more { padding-left:4px; color:var(--pap-muted); font-size:10px; font-weight:700; }
+.pap-calendar-dots { display:none; gap:3px; justify-content:center; }
+.pap-calendar-dots i { width:6px; height:6px; border-radius:50%; background:#7c5cfc; }
+.pap-calendar-dots i.berlangsung { background:#f5b43c; }
+.pap-calendar-dots i.selesai { background:#1db98a; }
+.pap-calendar-dots i.dibatalkan { background:#ef5a3c; }
+.pap-calendar-agenda { margin-top:18px; }
+.pap-calendar-agenda h3 { font-size:14px; }
+.pap-agenda-time { flex:none; min-width:46px; padding:4px 8px; border-radius:8px; background:rgb(124 92 252 / .1); color:#7050e7; font-size:12px; font-weight:800; text-align:center; }
+.pap-shell.dark .pap-calendar-cell.outside { background:rgb(255 255 255 / .02); }
+
+/* HP: sel kalender hanya menampilkan titik; detail ada di agenda di bawahnya */
+@media (max-width:800px) {
+  .pap-card-head .pap-segmented { align-self:stretch; }
+  .pap-segmented button { flex:1; justify-content:center; }
+  .pap-calendar { padding:0 12px 16px; }
+  .pap-calendar-cell { align-items:center; min-height:56px; padding:4px 2px; }
+  .pap-calendar-events { display:none; }
+  .pap-calendar-dots { display:flex; }
+  .pap-calendar-dayname { padding:6px 2px; font-size:9px; }
+  .pap-calendar-agenda .pap-section-head { flex-wrap:wrap; }
+}

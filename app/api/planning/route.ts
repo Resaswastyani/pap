@@ -1,10 +1,11 @@
-import type { ResultSetHeader } from 'mysql2'
+import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { PERMISSIONS, PLANNING_STATUS } from '@/lib/permissions'
 import { loadMeeting } from '@/lib/meeting'
-import { assertDivision, canViewAllDivisions, notifyPics, parseDate, PLANNING_SELECT, serializePlanning, validPics, type PlanningRow } from '@/lib/planning'
+import { assertDivision, canViewAllDivisions, notifyCreator, notifyPics, parseDate, PLANNING_SELECT, serializePlanning, validPics, type PlanningRow } from '@/lib/planning'
+import { pushToUsers } from '@/lib/push'
 
 // Daftar planning sesuai cakupan divisi user + ringkasan
 export const GET = handle(async (request: Request) => {
@@ -66,8 +67,11 @@ export const POST = handle(async (request: Request) => {
   const meeting = body.meeting_id ? await loadMeeting(user, Number(body.meeting_id)) : null
   const pics = await validPics(body.pic_ids)
 
+  const [picRows] = await db.query<(RowDataPacket & { name: string })[]>('SELECT name FROM users WHERE id IN (?) ORDER BY name', [pics])
+
   const conn = await db.getConnection()
   let id = 0
+  const notified: number[] = []
   try {
     await conn.beginTransaction()
     const [result] = await conn.query<ResultSetHeader>(
@@ -77,7 +81,10 @@ export const POST = handle(async (request: Request) => {
     id = result.insertId
     await conn.query("UPDATE plannings SET nomor = CONCAT('PLN-', DATE_FORMAT(created_at, '%Y%m'), '-', LPAD(id, 4, '0')) WHERE id = ?", [id])
     await conn.query('INSERT INTO planning_pics (planning_id, user_id) VALUES ?', [pics.map((userId) => [id, userId])])
-    await notifyPics(conn, pics.filter((userId) => userId !== user.id), { id, judul, mulai, selesai, meetingJudul: meeting?.judul }, user.name)
+    // Pembuat mendapat konfirmasi; PIC lain mendapat "Anda PIC planning"
+    const info = { id, judul, mulai, selesai, meetingJudul: meeting?.judul }
+    notified.push(...(await notifyCreator(conn, user.id, info, picRows.map((p) => p.name))))
+    notified.push(...(await notifyPics(conn, pics.filter((userId) => userId !== user.id), info, user.name)))
     await conn.commit()
   } catch (error) {
     await conn.rollback()
@@ -85,6 +92,7 @@ export const POST = handle(async (request: Request) => {
   } finally {
     conn.release()
   }
+  await pushToUsers(notified)
   const [rows] = await db.query<PlanningRow[]>(`${PLANNING_SELECT} WHERE p.id = ?`, [id])
   return NextResponse.json({ item: serializePlanning(user, rows[0]) }, { status: 201 })
 })

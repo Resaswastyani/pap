@@ -78,19 +78,28 @@ export async function loadPics(planningId: number) {
   return rows
 }
 
-// Beri tahu user yang baru ditunjuk sebagai PIC
-export async function notifyPics(
-  conn: Queryable,
-  userIds: number[],
-  planning: { id: number; judul: string; mulai: string; selesai: string; meetingJudul?: string | null },
-  byName: string,
-) {
-  await notify(userIds, {
+type PlanningInfo = { id: number; judul: string; mulai: string; selesai: string; meetingJudul?: string | null }
+const periode = (p: PlanningInfo) => `${formatWaktu(p.mulai)} – ${formatWaktu(p.selesai)}`
+
+// Beri tahu user yang baru ditunjuk sebagai PIC. Mengembalikan penerima (untuk push setelah commit).
+export async function notifyPics(conn: Queryable, userIds: number[], planning: PlanningInfo, byName: string) {
+  return notify(userIds, {
     type: 'planning_pic',
     title: `Anda PIC planning: ${planning.judul}`,
-    body: [`${formatWaktu(planning.mulai)} – ${formatWaktu(planning.selesai)}`, planning.meetingJudul ? `dari meeting ${planning.meetingJudul}` : null, `oleh ${byName}`].filter(Boolean).join(' · '),
+    body: [periode(planning), planning.meetingJudul ? `dari meeting ${planning.meetingJudul}` : null, `oleh ${byName}`].filter(Boolean).join(' · '),
     planningId: planning.id,
     refKey: `planning_pic:${planning.id}`,
+  }, conn)
+}
+
+// Konfirmasi ke pembuat planning (berisi daftar PIC)
+export async function notifyCreator(conn: Queryable, creatorId: number, planning: PlanningInfo, picNames: string[]) {
+  return notify([creatorId], {
+    type: 'planning_baru',
+    title: `Planning dibuat: ${planning.judul}`,
+    body: [periode(planning), `PIC: ${picNames.join(', ')}`, planning.meetingJudul ? `dari meeting ${planning.meetingJudul}` : null].filter(Boolean).join(' · '),
+    planningId: planning.id,
+    refKey: `planning_baru:${planning.id}`,
   }, conn)
 }
 

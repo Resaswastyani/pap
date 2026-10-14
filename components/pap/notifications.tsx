@@ -1,14 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bell, BellRing, CalendarClock, CalendarDays, ClipboardList, X } from 'lucide-react'
+import { Bell, BellRing, CalendarClock, CalendarDays, CheckCircle2, ClipboardCheck, ClipboardList, Smartphone, X } from 'lucide-react'
 import { api } from './ui'
 
 export type NotificationTarget = { meetingId?: number | null; planningId?: number | null }
 
 type Item = {
   id: number
-  type: 'meeting_baru' | 'meeting_diubah' | 'meeting_reminder' | 'planning_pic'
+  type: 'meeting_baru' | 'meeting_diubah' | 'meeting_reminder' | 'planning_pic' | 'planning_baru'
   title: string
   body: string | null
   meeting_id: number | null
@@ -19,7 +19,10 @@ type Item = {
 
 const POLL_MS = 30_000
 const TOAST_MS = 15_000
-const ICONS = { meeting_baru: CalendarDays, meeting_diubah: CalendarDays, meeting_reminder: CalendarClock, planning_pic: ClipboardList }
+const ICONS = { meeting_baru: CalendarDays, meeting_diubah: CalendarDays, meeting_reminder: CalendarClock, planning_pic: ClipboardList, planning_baru: ClipboardCheck }
+
+// Dipanggil setelah aksi yang mungkin membuat notifikasi (lihat api() di ui.tsx) agar lonceng langsung diperbarui
+export const REFRESH_EVENT = 'pap-notif-refresh'
 
 const storageKey = (userId: number) => `pap-notif-last-${userId}`
 function readLastSeen(userId: number) {
@@ -37,6 +40,40 @@ function writeLastSeen(userId: number, id: number) {
 }
 
 const osSupported = () => typeof window !== 'undefined' && 'Notification' in window
+const pushSupported = () => osSupported() && 'serviceWorker' in navigator && 'PushManager' in window
+// iPhone/iPad: push hanya bisa bila aplikasi dibuka dari ikon Home Screen (mode standalone)
+const isIos = () => typeof navigator !== 'undefined' && /iphone|ipad|ipod/i.test(navigator.userAgent)
+const isStandalone = () => typeof window !== 'undefined' && (window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true)
+
+function urlBase64ToUint8Array(value: string) {
+  const base64 = (value + '='.repeat((4 - (value.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/')
+  return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
+}
+
+// Daftarkan perangkat ini ke Web Push dan simpan langganannya di server (untuk user yang sedang login)
+export async function subscribePush() {
+  if (!pushSupported() || Notification.permission !== 'granted') return false
+  const config = await api<{ enabled: boolean; publicKey: string }>('/api/push/subscribe')
+  if (!config.enabled) return false
+  const registration = await navigator.serviceWorker.register('/sw.js')
+  await navigator.serviceWorker.ready
+  const subscription =
+    (await registration.pushManager.getSubscription()) ??
+    (await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(config.publicKey) }))
+  await api('/api/push/subscribe', { method: 'POST', json: subscription.toJSON() })
+  return true
+}
+
+// Saat logout: perangkat ini berhenti menerima notifikasi akun tersebut
+export async function unsubscribePush() {
+  try {
+    const registration = await navigator.serviceWorker?.getRegistration()
+    const subscription = await registration?.pushManager.getSubscription()
+    if (!subscription) return
+    await fetch('/api/push/subscribe', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: subscription.endpoint }) })
+    await subscription.unsubscribe()
+  } catch {}
+}
 
 // Pop-up sistem operasi. Lewat service worker bila ada (wajib di Android), selain itu Notification biasa.
 async function showOsNotification(item: Item) {
@@ -44,7 +81,7 @@ async function showOsNotification(item: Item) {
   const options: NotificationOptions = {
     body: item.body ?? undefined,
     tag: `pap-${item.id}`,
-    icon: '/apple-icon.png',
+    icon: '/icon-192.png',
     badge: '/icon-light-32x32.png',
     data: { meetingId: item.meeting_id, planningId: item.planning_id },
     requireInteraction: item.type === 'meeting_reminder',
@@ -70,6 +107,10 @@ export function NotificationCenter({ userId, onOpen }: { userId: number; onOpen:
   const [open, setOpen] = useState(false)
   const [toasts, setToasts] = useState<Item[]>([])
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('unsupported')
+  const [pushActive, setPushActive] = useState(false)
+  const [iosNeedsInstall, setIosNeedsInstall] = useState(false)
+  const [enabling, setEnabling] = useState(false)
+  const pushActiveRef = useRef(false)
   const lastSeen = useRef<number | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -92,21 +133,33 @@ export function NotificationCenter({ userId, onOpen }: { userId: number; onOpen:
         setToasts((list) => [...list.filter((t) => t.id !== item.id), item].slice(-3))
         // Reminder tetap tampil sampai ditutup; jenis lain hilang sendiri
         if (item.type !== 'meeting_reminder') setTimeout(() => dismissToast(item.id), TOAST_MS)
-        if (document.visibilityState !== 'visible' || item.type === 'meeting_reminder') showOsNotification(item)
+        // Bila push aktif, pop-up perangkat sudah ditampilkan service worker (hindari dobel)
+        if (!pushActiveRef.current && (document.visibilityState !== 'visible' || item.type === 'meeting_reminder')) showOsNotification(item)
       }
     } catch {}
   }, [userId, dismissToast])
 
   useEffect(() => {
     setPermission(osSupported() ? Notification.permission : 'unsupported')
+    setIosNeedsInstall(isIos() && !isStandalone())
     navigator.serviceWorker?.register('/sw.js').catch(() => {})
+    // Izin sudah diberikan sebelumnya: pastikan langganan perangkat ini tercatat untuk akun yang login
+    subscribePush().then((ok) => setPushActive((pushActiveRef.current = ok))).catch(() => {})
     poll()
     const timer = setInterval(poll, POLL_MS)
     const onVisible = () => document.visibilityState === 'visible' && poll()
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined
+    const onRefresh = () => {
+      clearTimeout(refreshTimer)
+      refreshTimer = setTimeout(poll, 800)
+    }
     document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener(REFRESH_EVENT, onRefresh)
     return () => {
       clearInterval(timer)
+      clearTimeout(refreshTimer)
       document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener(REFRESH_EVENT, onRefresh)
     }
   }, [poll])
 
@@ -131,7 +184,19 @@ export function NotificationCenter({ userId, onOpen }: { userId: number; onOpen:
 
   async function enableOs() {
     if (!osSupported()) return
-    setPermission(await Notification.requestPermission())
+    setEnabling(true)
+    try {
+      const result = await Notification.requestPermission()
+      setPermission(result)
+      if (result === 'granted') {
+        const ok = await subscribePush().catch(() => false)
+        setPushActive((pushActiveRef.current = ok))
+        const registration = await navigator.serviceWorker?.getRegistration()
+        registration?.showNotification('Notifikasi PAP-MS aktif', { body: 'Pemberitahuan meeting dan planning akan muncul di perangkat ini.', icon: '/icon-192.png', tag: 'pap-welcome' })
+      }
+    } finally {
+      setEnabling(false)
+    }
   }
 
   return (
@@ -147,10 +212,15 @@ export function NotificationCenter({ userId, onOpen }: { userId: number; onOpen:
               <strong>Notifikasi</strong>
               {unread > 0 && <button className="pap-link-button" onClick={() => markRead({ all: true })}>Tandai semua dibaca</button>}
             </div>
-            {permission === 'default' && (
-              <button className="pap-notif-enable" onClick={enableOs}><BellRing /> Aktifkan pop-up notifikasi di perangkat ini</button>
-            )}
-            {permission === 'denied' && <p className="pap-notif-hint">Pop-up diblokir browser. Izinkan notifikasi untuk situs ini di pengaturan browser.</p>}
+            {iosNeedsInstall ? (
+              <p className="pap-notif-hint"><Smartphone className="pap-inline-icon" /> Di iPhone: ketuk tombol <strong>Share</strong> lalu <strong>Add to Home Screen</strong>, buka PAP-MS dari ikon tersebut, kemudian aktifkan notifikasi di sini.</p>
+            ) : permission === 'default' ? (
+              <button className="pap-notif-enable" onClick={enableOs} disabled={enabling}><BellRing /> {enabling ? 'Mengaktifkan...' : 'Aktifkan notifikasi di HP / perangkat ini'}</button>
+            ) : permission === 'denied' ? (
+              <p className="pap-notif-hint">Notifikasi diblokir browser. Izinkan notifikasi untuk situs ini di pengaturan browser, lalu muat ulang halaman.</p>
+            ) : pushActive ? (
+              <p className="pap-notif-hint ok"><CheckCircle2 className="pap-inline-icon" /> Notifikasi aktif di perangkat ini, termasuk saat aplikasi ditutup.</p>
+            ) : null}
             <ul className="pap-notif-list">
               {items.map((item) => {
                 const Icon = ICONS[item.type]

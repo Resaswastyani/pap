@@ -4,6 +4,7 @@ import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canViewAllMeetings, MEETING_SELECT, parseDateTime, serializeMeeting, validParticipants, visibilityClause, type MeetingRow } from '@/lib/meeting'
 import { meetingBody, notify } from '@/lib/notifications'
+import { pushToUsers } from '@/lib/push'
 import { MEETING_STATUS, PERMISSIONS } from '@/lib/permissions'
 import { loadPlanning } from '@/lib/planning'
 
@@ -21,6 +22,12 @@ export const GET = handle(async (request: Request) => {
   if (planning) where.push('m.planning_id = ?'), args.push(planning)
   const status = params.get('status')
   if (status && status in MEETING_STATUS) where.push('m.status = ?'), args.push(status)
+  // Rentang tanggal untuk tampilan kalender: from (inklusif) - to (eksklusif), format YYYY-MM-DD
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+  const from = params.get('from')
+  const to = params.get('to')
+  if (from && DATE_RE.test(from)) where.push('m.waktu >= ?'), args.push(from)
+  if (to && DATE_RE.test(to)) where.push('m.waktu < ?'), args.push(to)
   if (params.get('mine') === '1') where.push('(m.created_by = ? OR EXISTS (SELECT 1 FROM meeting_participants x WHERE x.meeting_id = m.id AND x.user_id = ?))'), args.push(user.id, user.id)
   const q = str(params.get('q'), 100)
   if (q) where.push('(m.judul LIKE ? OR m.deskripsi LIKE ? OR m.nomor LIKE ? OR m.tempat LIKE ? OR p.judul LIKE ?)'), args.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`)
@@ -54,6 +61,7 @@ export const POST = handle(async (request: Request) => {
 
   const conn = await db.getConnection()
   let id = 0
+  let notified: number[] = []
   try {
     await conn.beginTransaction()
     const [result] = await conn.query<ResultSetHeader>(
@@ -63,7 +71,8 @@ export const POST = handle(async (request: Request) => {
     id = result.insertId
     await conn.query("UPDATE meetings SET nomor = CONCAT('MTG-', DATE_FORMAT(created_at, '%Y%m'), '-', LPAD(id, 4, '0')) WHERE id = ?", [id])
     await conn.query('INSERT INTO meeting_participants (meeting_id, user_id) VALUES ?', [participants.map((userId) => [id, userId])])
-    await notify(participants.filter((userId) => userId !== user.id), {
+    // Semua peserta termasuk pembuat menerima notifikasi
+    notified = await notify(participants, {
       type: 'meeting_baru',
       title: `Meeting baru: ${judul}`,
       body: `${meetingBody({ waktu, tempat: str(body.tempat, 500) || null })} · dari ${user.name}`,
@@ -77,6 +86,7 @@ export const POST = handle(async (request: Request) => {
   } finally {
     conn.release()
   }
+  await pushToUsers(notified)
   const [rows] = await db.query<MeetingRow[]>(`${MEETING_SELECT} WHERE m.id = ?`, [user.id, id])
   return NextResponse.json({ item: serializeMeeting(user, rows[0]) }, { status: 201 })
 })

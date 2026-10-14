@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { MENU_KEYS } from '@/lib/menus'
 import type { UserProfile } from '@/lib/users'
 import { MeetingPage } from './meeting-page'
-import { NotificationCenter, type NotificationTarget } from './notifications'
+import { NotificationCenter, unsubscribePush, type NotificationTarget } from './notifications'
 import { PlanningPage } from './planning-page'
 import { getCaptchaConfig, getRecaptchaToken, loadRecaptcha, primeCaptchaConfig } from './recaptcha'
 import { RolesPage } from './roles-page'
@@ -128,6 +128,8 @@ export function AppShell() {
     }).catch(() => setUser(null)).finally(() => setChecking(false))
   }, [])
   async function logout() {
+    // Perangkat ini berhenti menerima notifikasi akun yang logout
+    await unsubscribePush()
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
     setUser(null)
     setProfileOpen(false)

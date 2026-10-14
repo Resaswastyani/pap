@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CalendarClock, CalendarDays, CheckCircle2, ChevronRight, ClipboardList, ExternalLink, MapPin, Pencil, Plus, Search, Trash2, Users, Video } from 'lucide-react'
+import { CalendarClock, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, List, ExternalLink, MapPin, Pencil, Plus, Search, Trash2, Users, Video } from 'lucide-react'
 import { MEETING_STATUS, PERMISSIONS, type MeetingStatus, type PlanningStatus } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
 import { PlanningForm } from './planning-page'
@@ -65,7 +65,24 @@ export function MeetingPage({ user, focusId, onOpenPlanning }: { user: UserProfi
   const [scope, setScope] = useState('')
   const [division, setDivision] = useState('')
   const [form, setForm] = useState<Meeting | 'new' | null>(null)
+  const [newAt, setNewAt] = useState<string | null>(null) // tanggal dari kalender untuk meeting baru
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
+  const [view, setView] = useState<'list' | 'calendar'>('list')
+  const [calendarKey, setCalendarKey] = useState(0)
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('pap-meeting-view') === 'calendar') setView('calendar')
+    } catch {}
+  }, [])
+  const changeView = (next: 'list' | 'calendar') => {
+    setView(next)
+    try {
+      localStorage.setItem('pap-meeting-view', next)
+    } catch {}
+  }
+  const canCreate = has(user, PERMISSIONS.meetingCreate)
+  const filters = useMemo(() => ({ q, status, scope, division }), [q, status, scope, division])
 
   useEffect(() => {
     if (focusId) setDetailId(focusId)
@@ -103,6 +120,10 @@ export function MeetingPage({ user, focusId, onOpenPlanning }: { user: UserProfi
     setMessage(text)
     setTimeout(() => setMessage(''), 4000)
   }
+  const reloadAll = () => {
+    load()
+    setCalendarKey((k) => k + 1)
+  }
 
   const stats: [string, number, string, typeof CalendarDays, string][] = [
     ['Total meeting', summary.total, viewAll ? 'Semua divisi' : `${user.division.name} & yang Anda ikuti`, CalendarDays, 'stat-1'],
@@ -119,7 +140,7 @@ export function MeetingPage({ user, focusId, onOpenPlanning }: { user: UserProfi
           <h1>Meeting</h1>
           <span>Jadwal rapat, peserta, dan hasil meeting. Bisa terhubung ke planning atau berdiri sendiri.</span>
         </div>
-        {has(user, PERMISSIONS.meetingCreate) && <button className="pap-primary-button" onClick={() => setForm('new')}><Plus /> Tambah meeting</button>}
+        {canCreate && <button className="pap-primary-button" onClick={() => { setNewAt(null); setForm('new') }}><Plus /> Tambah meeting</button>}
       </div>
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       <div className="pap-stat-grid four">
@@ -131,7 +152,13 @@ export function MeetingPage({ user, focusId, onOpenPlanning }: { user: UserProfi
         ))}
       </div>
       <div className="pap-table-card">
-        <div className="pap-card-head"><div><h2>Daftar meeting</h2><p>Meeting terdekat ditampilkan paling atas</p></div></div>
+        <div className="pap-card-head">
+          <div><h2>{view === 'calendar' ? 'Kalender meeting' : 'Daftar meeting'}</h2><p>{view === 'calendar' ? 'Klik tanggal untuk melihat agenda hari itu' : 'Meeting terdekat ditampilkan paling atas'}</p></div>
+          <div className="pap-segmented" role="tablist" aria-label="Tampilan meeting">
+            <button role="tab" aria-selected={view === 'list'} className={view === 'list' ? 'active' : ''} onClick={() => changeView('list')}><List /> Daftar</button>
+            <button role="tab" aria-selected={view === 'calendar'} className={view === 'calendar' ? 'active' : ''} onClick={() => changeView('calendar')}><CalendarDays /> Kalender</button>
+          </div>
+        </div>
         <div className="pap-filters">
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari judul, nomor, tempat..." /></label>
           <select className="pap-select" value={scope} onChange={(e) => setScope(e.target.value)} aria-label="Filter meeting">
@@ -150,6 +177,15 @@ export function MeetingPage({ user, focusId, onOpenPlanning }: { user: UserProfi
           </select>
         </div>
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        {view === 'calendar' ? (
+          <MeetingCalendar
+            key={calendarKey}
+            filters={filters}
+            canCreate={canCreate}
+            onOpen={setDetailId}
+            onCreateAt={(date) => { setNewAt(date); setForm('new') }}
+          />
+        ) : (
         <div className="pap-table-wrap">
           <table>
             <thead><tr><th>Judul / Nomor</th><th>Waktu</th><th>Tempat / Link</th><th>Peserta</th><th>Status</th><th aria-label="Aksi" /></tr></thead>
@@ -172,14 +208,16 @@ export function MeetingPage({ user, focusId, onOpenPlanning }: { user: UserProfi
           {!loading && !items.length && <div className="pap-empty">Belum ada meeting{q || status || scope ? ' yang cocok dengan filter' : ''}.</div>}
           {loading && !items.length && <div className="pap-empty">Memuat meeting...</div>}
         </div>
+        )}
       </div>
 
       {form && (
         <MeetingForm
           user={user}
           initial={form === 'new' ? null : form}
+          defaultDate={form === 'new' ? newAt : null}
           onClose={() => setForm(null)}
-          onSaved={(text, id) => { setForm(null); flash(text); load(); if (id) setDetailId(id) }}
+          onSaved={(text, id) => { setForm(null); flash(text); reloadAll(); if (id) setDetailId(id) }}
         />
       )}
       {detailId && (
@@ -188,12 +226,154 @@ export function MeetingPage({ user, focusId, onOpenPlanning }: { user: UserProfi
           id={detailId}
           onOpenPlanning={onOpenPlanning}
           onClose={() => setDetailId(null)}
-          onChanged={load}
+          onChanged={reloadAll}
           onEdit={(item) => { setDetailId(null); setForm(item) }}
-          onDeleted={() => { setDetailId(null); flash('Meeting dihapus.'); load() }}
+          onDeleted={() => { setDetailId(null); flash('Meeting dihapus.'); reloadAll() }}
         />
       )}
     </>
+  )
+}
+
+// ---------- Kalender meeting ----------
+const DAY_NAMES = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
+const MONTH_NAMES = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
+const pad = (n: number) => String(n).padStart(2, '0')
+const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+// Hari ini menurut WIB (meeting disimpan dalam jam WIB)
+const todayWib = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
+
+type CalendarFilters = { q: string; status: string; scope: string; division: string }
+
+function MeetingCalendar({ filters, canCreate, onOpen, onCreateAt }: { filters: CalendarFilters; canCreate: boolean; onOpen: (id: number) => void; onCreateAt: (date: string) => void }) {
+  const today = todayWib()
+  const [month, setMonth] = useState(() => today.slice(0, 7)) // "YYYY-MM"
+  const [selected, setSelected] = useState(today)
+  const [items, setItems] = useState<Meeting[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  // Grid 6 minggu mulai Senin sebelum/tepat tanggal 1
+  const days = useMemo(() => {
+    const [y, m] = month.split('-').map(Number)
+    const first = new Date(y, m - 1, 1)
+    const start = new Date(y, m - 1, 1 - ((first.getDay() + 6) % 7))
+    return Array.from({ length: 42 }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i))
+  }, [month])
+
+  useEffect(() => {
+    const last = days[41]
+    const params = new URLSearchParams({ from: ymd(days[0]), to: ymd(new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1)) })
+    if (filters.q.trim()) params.set('q', filters.q.trim())
+    if (filters.status) params.set('status', filters.status)
+    if (filters.scope) params.set('mine', '1')
+    if (filters.division) params.set('division', filters.division)
+    let cancelled = false
+    setLoading(true)
+    const timer = setTimeout(() => {
+      api<{ items: Meeting[] }>(`/api/meetings?${params}`)
+        .then((res) => {
+          if (cancelled) return
+          setItems(res.items)
+          setError('')
+        })
+        .catch((e) => !cancelled && setError(e.message))
+        .finally(() => !cancelled && setLoading(false))
+    }, filters.q ? 300 : 0)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [days, filters])
+
+  const byDay = useMemo(() => {
+    const map = new Map<string, Meeting[]>()
+    for (const item of [...items].sort((a, b) => a.waktu.localeCompare(b.waktu))) {
+      const key = item.waktu.slice(0, 10)
+      map.set(key, [...(map.get(key) ?? []), item])
+    }
+    return map
+  }, [items])
+
+  const shift = (delta: number) => {
+    const [y, m] = month.split('-').map(Number)
+    const d = new Date(y, m - 1 + delta, 1)
+    setMonth(`${d.getFullYear()}-${pad(d.getMonth() + 1)}`)
+  }
+  const goToday = () => {
+    setMonth(today.slice(0, 7))
+    setSelected(today)
+  }
+  const [year, monthNo] = month.split('-').map(Number)
+  const agenda = byDay.get(selected) ?? []
+
+  return (
+    <div className="pap-calendar">
+      <div className="pap-calendar-bar">
+        <div className="pap-calendar-nav">
+          <button className="pap-icon-button" aria-label="Bulan sebelumnya" onClick={() => shift(-1)}><ChevronLeft /></button>
+          <button className="pap-icon-button" aria-label="Bulan berikutnya" onClick={() => shift(1)}><ChevronRight /></button>
+          <h3>{MONTH_NAMES[monthNo - 1]} {year}</h3>
+        </div>
+        <button className="pap-btn" onClick={goToday}>Hari ini</button>
+      </div>
+      {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      <div className={`pap-calendar-grid${loading ? ' loading' : ''}`}>
+        {DAY_NAMES.map((name) => <div key={name} className="pap-calendar-dayname">{name}</div>)}
+        {days.map((day) => {
+          const key = ymd(day)
+          const list = byDay.get(key) ?? []
+          const outside = day.getMonth() !== monthNo - 1
+          return (
+            <div
+              key={key}
+              role="button"
+              tabIndex={0}
+              aria-label={`${day.getDate()} ${MONTH_NAMES[day.getMonth()]}, ${list.length} meeting`}
+              className={`pap-calendar-cell${outside ? ' outside' : ''}${key === today ? ' today' : ''}${key === selected ? ' selected' : ''}`}
+              onClick={() => setSelected(key)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setSelected(key)
+                }
+              }}
+            >
+              <span className="pap-calendar-date">{day.getDate()}</span>
+              <div className="pap-calendar-events">
+                {list.slice(0, 3).map((item) => (
+                  <button key={item.id} className={`pap-calendar-event ${item.status}`} title={`${item.waktu.slice(11, 16)} ${item.judul}`} onClick={(e) => { e.stopPropagation(); onOpen(item.id) }}>
+                    <b>{item.waktu.slice(11, 16)}</b> {item.judul}
+                  </button>
+                ))}
+                {list.length > 3 && <span className="pap-calendar-more">+{list.length - 3} lagi</span>}
+              </div>
+              {list.length > 0 && <span className="pap-calendar-dots" aria-hidden="true">{list.slice(0, 4).map((item) => <i key={item.id} className={item.status} />)}</span>}
+            </div>
+          )
+        })}
+      </div>
+      <div className="pap-calendar-agenda">
+        <div className="pap-section-head">
+          <h3>{formatDate(selected)}{selected === today ? ' · Hari ini' : ''}</h3>
+          {canCreate && selected >= today && <button className="pap-btn" onClick={() => onCreateAt(selected)}><Plus /> Meeting di tanggal ini</button>}
+        </div>
+        {agenda.length > 0 ? (
+          <ul className="pap-linked-list">
+            {agenda.map((item) => (
+              <li key={item.id}>
+                <button onClick={() => onOpen(item.id)}>
+                  <span className="pap-agenda-time">{item.waktu.slice(11, 16)}</span>
+                  <span className="pap-linked-main"><strong>{item.judul}</strong><small>{item.nomor}{item.tempat ? ` · ${item.tempat}` : ''} · {item.participant_count} peserta</small></span>
+                  <MeetingStatusBadge value={item.status} />
+                  <ChevronRight />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="pap-muted">{loading ? 'Memuat...' : 'Tidak ada meeting di tanggal ini.'}</p>}
+      </div>
+    </div>
   )
 }
 
@@ -201,7 +381,7 @@ function toInputDateTime(value: string) {
   return value.slice(0, 16).replace(' ', 'T')
 }
 
-function MeetingForm({ user, initial, onClose, onSaved }: { user: UserProfile; initial: Meeting | null; onClose: () => void; onSaved: (message: string, id?: number) => void }) {
+function MeetingForm({ user, initial, defaultDate, onClose, onSaved }: { user: UserProfile; initial: Meeting | null; defaultDate?: string | null; onClose: () => void; onSaved: (message: string, id?: number) => void }) {
   const [plannings, setPlannings] = useState<PlanningOption[]>([])
   const [users, setUsers] = useState<UserOption[]>([])
   const creatorId = initial?.created_by ?? user.id
@@ -212,7 +392,7 @@ function MeetingForm({ user, initial, onClose, onSaved }: { user: UserProfile; i
   }, [])
   const [values, setValues] = useState({
     planning_id: String(initial?.planning_id ?? ''),
-    waktu: initial ? toInputDateTime(initial.waktu) : defaultTime,
+    waktu: initial ? toInputDateTime(initial.waktu) : defaultDate ? `${defaultDate}T09:00` : defaultTime,
     tempat: initial?.tempat ?? '',
     judul: initial?.judul ?? '',
     deskripsi: initial?.deskripsi ?? '',

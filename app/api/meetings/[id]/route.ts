@@ -4,16 +4,18 @@ import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { loadMeeting, loadParticipants, meetingAbilities, parseDateTime, serializeMeeting, validParticipants, type MeetingRow } from '@/lib/meeting'
 import { meetingBody, notify } from '@/lib/notifications'
+import { pushToUsers } from '@/lib/push'
 import { MEETING_STATUS, PERMISSIONS } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
 import { loadPlanning } from '@/lib/planning'
 
 type Ctx = { params: Promise<{ id: string }> }
 
-// Peserta baru mendapat notifikasi "meeting baru"; peserta lama diberi tahu bila jadwal/tempat berubah
+// Peserta baru mendapat notifikasi "meeting baru"; peserta lama (termasuk yang mengubah) diberi tahu
+// bila jadwal/tempat berubah atau meeting dibatalkan. Push dikirim ke semua yang menerima notifikasi.
 async function notifyMeetingChanges(user: UserProfile, before: MeetingRow, after: MeetingRow, oldIds: number[], newIds: number[]) {
   const added = oldIds.length ? newIds.filter((id) => !oldIds.includes(id)) : []
-  await notify(added.filter((id) => id !== user.id), {
+  const notified = await notify(added, {
     type: 'meeting_baru',
     title: `Meeting baru: ${after.judul}`,
     body: `${meetingBody(after)} · dari ${user.name}`,
@@ -22,14 +24,16 @@ async function notifyMeetingChanges(user: UserProfile, before: MeetingRow, after
   })
   const rescheduled = before.waktu !== after.waktu || before.tempat !== after.tempat
   const cancelled = before.status !== 'dibatalkan' && after.status === 'dibatalkan'
-  if (!rescheduled && !cancelled) return
-  await notify(newIds.filter((id) => id !== user.id && !added.includes(id)), {
-    type: 'meeting_diubah',
-    title: cancelled ? `Meeting dibatalkan: ${after.judul}` : `Jadwal meeting diubah: ${after.judul}`,
-    body: `${meetingBody(after)} · oleh ${user.name}`,
-    meetingId: after.id,
-    refKey: `meeting_diubah:${after.id}:${Date.now()}`,
-  })
+  if (rescheduled || cancelled) {
+    notified.push(...(await notify(newIds.filter((id) => !added.includes(id)), {
+      type: 'meeting_diubah',
+      title: cancelled ? `Meeting dibatalkan: ${after.judul}` : `Jadwal meeting diubah: ${after.judul}`,
+      body: `${meetingBody(after)} · oleh ${user.name}`,
+      meetingId: after.id,
+      refKey: `meeting_diubah:${after.id}:${Date.now()}`,
+    })))
+  }
+  await pushToUsers(notified)
 }
 
 const meetingId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Meeting tidak ditemukan.')
