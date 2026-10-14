@@ -4,7 +4,8 @@ self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
 
 const ICON = '/icon-192.png'
-const BADGE = '/icon-light-32x32.png'
+// Badge Android (ikon kecil di status bar): siluet logo putih di atas latar transparan
+const BADGE = '/notification-badge.png'
 
 // Push dikirim tanpa isi; ambil notifikasi yang belum tampil di perangkat ini dari server
 async function showPending() {

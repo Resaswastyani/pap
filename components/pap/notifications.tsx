@@ -82,7 +82,7 @@ async function showOsNotification(item: Item) {
     body: item.body ?? undefined,
     tag: `pap-${item.id}`,
     icon: '/icon-192.png',
-    badge: '/icon-light-32x32.png',
+    badge: '/notification-badge.png',
     data: { meetingId: item.meeting_id, planningId: item.planning_id },
     requireInteraction: item.type === 'meeting_reminder',
   }
@@ -212,7 +212,7 @@ export function NotificationCenter({ userId, onOpen }: { userId: number; onOpen:
         setPushActive((pushActiveRef.current = ok))
         setShowBanner(false)
         const registration = await navigator.serviceWorker?.getRegistration()
-        registration?.showNotification('Notifikasi PAP-MS aktif', { body: 'Pemberitahuan meeting dan planning akan muncul di perangkat ini.', icon: '/icon-192.png', tag: 'pap-welcome' })
+        registration?.showNotification('Notifikasi PAP-MS aktif', { body: 'Pemberitahuan meeting dan planning akan muncul di perangkat ini.', icon: '/icon-192.png', badge: '/notification-badge.png', tag: 'pap-welcome' })
       }
     } catch (e) {
       setPushError((e as Error).message || 'Gagal mengaktifkan notifikasi.')
