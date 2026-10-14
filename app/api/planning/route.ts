@@ -52,7 +52,7 @@ export const GET = handle(async (request: Request) => {
 })
 
 // Buat planning (lead/admin); langsung aktif tanpa approval.
-// meeting_id opsional (planning hasil meeting), pic_ids = PIC tambahan (pembuat otomatis PIC)
+// meeting_id opsional (planning hasil meeting), pic_ids = PIC (minimal satu, pembuat tidak wajib)
 export const POST = handle(async (request: Request) => {
   const user = await requireUser(PERMISSIONS.planningCreate)
   const body = await readJson(request)
@@ -64,7 +64,7 @@ export const POST = handle(async (request: Request) => {
   // Hanya admin/super admin yang boleh membuat untuk divisi lain
   const divisionId = canViewAllDivisions(user) && body.division_id ? await assertDivision(body.division_id) : user.division.id
   const meeting = body.meeting_id ? await loadMeeting(user, Number(body.meeting_id)) : null
-  const pics = await validPics(body.pic_ids, user.id)
+  const pics = await validPics(body.pic_ids)
 
   const conn = await db.getConnection()
   let id = 0

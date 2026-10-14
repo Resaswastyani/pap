@@ -216,8 +216,8 @@ export function PlanningForm({ user, initial = null, meeting, onClose, onSaved }
   const today = new Date().toISOString().slice(0, 10)
   const [divisions, setDivisions] = useState<Division[]>([])
   const [users, setUsers] = useState<UserOption[]>([])
-  const creatorId = initial?.created_by ?? user.id
-  const [pics, setPics] = useState<Set<number>>(new Set(initial?.pic_ids ?? [creatorId]))
+  // Pembuat tidak otomatis menjadi PIC; planning baru dimulai tanpa PIC terpilih
+  const [pics, setPics] = useState<Set<number>>(new Set(initial?.pic_ids ?? []))
   const [values, setValues] = useState({
     judul: initial?.judul ?? '',
     division_id: String(initial?.division_id ?? user.division.id),
@@ -240,6 +240,7 @@ export function PlanningForm({ user, initial = null, meeting, onClose, onSaved }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    if (!pics.size) return setError('Pilih minimal satu person in charge (PIC).')
     setSaving(true)
     setError('')
     try {
@@ -291,10 +292,10 @@ export function PlanningForm({ user, initial = null, meeting, onClose, onSaved }
           <div className="pap-section-head">
             <span className="pap-field-label">Person in charge (PIC)</span>
             {meetingParticipants.length > 1 && (
-              <button type="button" className="pap-link-button" onClick={() => setPics(new Set([creatorId, ...meetingParticipants]))}>Pilih semua peserta meeting</button>
+              <button type="button" className="pap-link-button" onClick={() => setPics(new Set([...pics, ...meetingParticipants]))}>Pilih semua peserta meeting</button>
             )}
           </div>
-          <UserPicker users={users} selected={pics} lockedId={creatorId} lockedLabel="pembuat" noun="PIC" onChange={setPics} />
+          <UserPicker users={users} selected={pics} noun="PIC" onChange={setPics} />
           <small className="pap-hint">PIC dapat melihat planning ini dan mengupdate progress-nya, walaupun dari divisi lain.</small>
         </div>
         {!initial && (

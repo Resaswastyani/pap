@@ -42,8 +42,8 @@ export function Modal({ title, subtitle, onClose, children, footer, wide }: { ti
 
 export type UserOption = { id: number; name: string; division_id: number; division_name: string }
 
-// Pilih banyak user dikelompokkan per divisi (peserta meeting, PIC planning). lockedId selalu terpilih.
-export function UserPicker({ users, selected, lockedId, lockedLabel, noun, onChange }: { users: UserOption[]; selected: Set<number>; lockedId: number; lockedLabel: string; noun: string; onChange: (next: Set<number>) => void }) {
+// Pilih banyak user dikelompokkan per divisi (peserta meeting, PIC planning). lockedId (opsional) selalu terpilih.
+export function UserPicker({ users, selected, lockedId = null, lockedLabel = '', noun, onChange }: { users: UserOption[]; selected: Set<number>; lockedId?: number | null; lockedLabel?: string; noun: string; onChange: (next: Set<number>) => void }) {
   const [term, setTerm] = useState('')
   const filtered = useMemo(() => {
     const t = term.trim().toLowerCase()

@@ -94,10 +94,11 @@ export async function notifyPics(
   }, conn)
 }
 
-// PIC harus user aktif; pembuat planning selalu ikut sebagai PIC
-export async function validPics(value: unknown, creatorId: number) {
-  const ids = new Set<number>([creatorId])
+// PIC harus user aktif, minimal satu orang (pembuat planning tidak wajib menjadi PIC)
+export async function validPics(value: unknown) {
+  const ids = new Set<number>()
   if (Array.isArray(value)) for (const id of value) if (Number.isInteger(Number(id))) ids.add(Number(id))
+  if (!ids.size) fail(400, 'Pilih minimal satu person in charge (PIC).')
   const [rows] = await db.query<RowDataPacket[]>('SELECT id FROM users WHERE is_active = 1 AND id IN (?)', [[...ids]])
   if (rows.length !== ids.size) fail(400, 'Ada PIC yang tidak valid atau tidak aktif.')
   return [...ids]

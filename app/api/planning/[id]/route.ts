@@ -68,7 +68,7 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
     args.push(progress >= 100 ? 'selesai' : progress > 0 ? 'berjalan' : row.status)
   }
 
-  const pics = 'pic_ids' in body ? await validPics(body.pic_ids, row.created_by) : null
+  const pics = 'pic_ids' in body ? await validPics(body.pic_ids) : null
   if (!sets.length && !pics) fail(400, 'Tidak ada perubahan.')
   const oldPics = serializePlanning(user, row).pic_ids
 
