@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs'
 import { NextResponse } from 'next/server'
 import { createSession } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { checkCaptcha } from '@/lib/recaptcha'
 import { findUserByEmail, toProfile } from '@/lib/users'
 
 export async function POST(request: Request) {
@@ -9,6 +10,13 @@ export async function POST(request: Request) {
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
   const password = typeof body?.password === 'string' ? body.password : ''
   if (!email || !password) return NextResponse.json({ error: 'Email dan password wajib diisi.' }, { status: 400 })
+
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || null
+  const captcha = await checkCaptcha({ token: body?.captchaToken, v2Token: body?.captchaV2Token }, ip).catch((error) => {
+    console.error('[auth/login] recaptcha', error)
+    return { ok: false as const, challenge: false, error: 'Layanan verifikasi captcha tidak dapat dihubungi. Coba lagi.' }
+  })
+  if (!captcha.ok) return NextResponse.json({ error: captcha.error, captcha: captcha.challenge ? 'challenge' : undefined }, { status: 403 })
 
   try {
     const user = await findUserByEmail(email)
