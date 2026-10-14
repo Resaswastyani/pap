@@ -1,7 +1,7 @@
 import type { RowDataPacket } from 'mysql2'
 import { fail } from '@/lib/api'
 import { db } from '@/lib/db'
-import { PERMISSIONS, type PlanningApproval, type PlanningStatus } from '@/lib/permissions'
+import { PERMISSIONS, type PlanningStatus } from '@/lib/permissions'
 import { can, type UserProfile } from '@/lib/users'
 
 export type PlanningRow = RowDataPacket & {
@@ -15,11 +15,6 @@ export type PlanningRow = RowDataPacket & {
   tanggal_selesai: string
   status: PlanningStatus
   progress: number
-  approval: PlanningApproval
-  approval_note: string | null
-  approved_by: number | null
-  approved_by_name: string | null
-  approved_at: string | null
   created_by: number
   created_by_name: string
   created_at: string
@@ -28,34 +23,24 @@ export type PlanningRow = RowDataPacket & {
 }
 
 export const PLANNING_SELECT = `SELECT p.id, p.nomor, p.division_id, d.name AS division_name, p.judul, p.deskripsi,
-  p.tanggal_mulai, p.tanggal_selesai, p.status, p.progress, p.approval, p.approval_note,
-  p.approved_by, ap.name AS approved_by_name, p.approved_at, p.created_by, cr.name AS created_by_name,
+  p.tanggal_mulai, p.tanggal_selesai, p.status, p.progress, p.created_by, cr.name AS created_by_name,
   p.created_at, p.updated_at,
   (SELECT COUNT(*) FROM planning_files f WHERE f.planning_id = p.id) AS file_count
   FROM plannings p
   JOIN divisions d ON d.id = p.division_id
-  JOIN users cr ON cr.id = p.created_by
-  LEFT JOIN users ap ON ap.id = p.approved_by`
+  JOIN users cr ON cr.id = p.created_by`
 
 export const canViewAllDivisions = (user: UserProfile) => can(user, PERMISSIONS.planningViewAll)
 
 export const inScope = (user: UserProfile, divisionId: number) => canViewAllDivisions(user) || divisionId === user.division.id
 
 // Hak aksi user terhadap satu planning (dipakai API & dikirim ke UI)
-export function planningAbilities(user: UserProfile, row: Pick<PlanningRow, 'division_id' | 'created_by' | 'approval'>) {
+// Planning dibuat lead tanpa approval; staff divisi hanya update progress
+export function planningAbilities(user: UserProfile, row: Pick<PlanningRow, 'division_id' | 'created_by'>) {
   const scoped = inScope(user, row.division_id)
-  const manage = scoped && can(user, PERMISSIONS.planningManage)
-  const ownPending = row.created_by === user.id && row.approval !== 'disetujui'
-  const edit = manage || ownPending
-  // Progress hanya berjalan setelah planning disetujui (lead/admin tetap bisa koreksi kapan saja)
-  const progress = manage || (scoped && can(user, PERMISSIONS.planningUpdateProgress) && row.approval === 'disetujui')
-  return {
-    edit,
-    delete: edit,
-    progress,
-    approve: scoped && can(user, PERMISSIONS.planningApprove),
-    attach: edit || progress,
-  }
+  const edit = scoped && (can(user, PERMISSIONS.planningManage) || (row.created_by === user.id && can(user, PERMISSIONS.planningCreate)))
+  const progress = edit || (scoped && can(user, PERMISSIONS.planningUpdateProgress))
+  return { edit, delete: edit, progress, attach: progress }
 }
 
 export function serializePlanning(user: UserProfile, row: PlanningRow) {

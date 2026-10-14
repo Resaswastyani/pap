@@ -176,3 +176,6 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
   .pap-modal-foot .pap-spacer { display:none; }
 }
 @media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition-duration:.01ms!important; animation-duration:.01ms!important; } }
+
+/* Sidebar mobile: batasi tinggi ke layar agar menu bisa di-scroll (iOS Safari) */
+@media (max-width:800px) { .pap-sidebar { height:100vh; height:100dvh; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; padding-bottom:calc(20px + env(safe-area-inset-bottom)); } .pap-nav { flex:none; overflow:visible; } }

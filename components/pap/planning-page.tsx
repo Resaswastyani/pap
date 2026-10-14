@@ -1,13 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, ClipboardList, Clock3, ExternalLink, FileText, Link2, Paperclip, Pencil, Plus, Search, Trash2, Upload, XCircle } from 'lucide-react'
-import { FILE_ACCEPT, FILE_MAX_BYTES, PERMISSIONS, PLANNING_APPROVAL, PLANNING_STATUS, type PlanningApproval, type PlanningStatus } from '@/lib/permissions'
+import { CheckCircle2, ClipboardList, Clock3, ExternalLink, FileText, Link2, Paperclip, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react'
+import { FILE_ACCEPT, FILE_MAX_BYTES, PERMISSIONS, PLANNING_STATUS, type PlanningStatus } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
-import { api, ApprovalBadge, Field, formatDate, formatSize, Modal, Notice, Progress, StatusBadge } from './ui'
+import { api, Field, formatDate, formatSize, Modal, Notice, Progress, StatusBadge } from './ui'
 
 type Division = { id: number; code: string; name: string }
-type Abilities = { edit: boolean; delete: boolean; progress: boolean; approve: boolean; attach: boolean }
+type Abilities = { edit: boolean; delete: boolean; progress: boolean; attach: boolean }
 type Planning = {
   id: number
   nomor: string
@@ -19,10 +19,6 @@ type Planning = {
   tanggal_selesai: string
   status: PlanningStatus
   progress: number
-  approval: PlanningApproval
-  approval_note: string | null
-  approved_by_name: string | null
-  approved_at: string | null
   created_by: number
   created_by_name: string
   created_at: string
@@ -30,7 +26,7 @@ type Planning = {
   can: Abilities
 }
 type PlanningFile = { id: number; type: 'link' | 'file'; name: string; url: string | null; mime: string | null; size: number | null; uploaded_by: number; uploaded_by_name: string; created_at: string }
-type Summary = { total: number; menunggu: number; berjalan: number; selesai: number }
+type Summary = { total: number; belum_mulai: number; berjalan: number; selesai: number }
 type PendingAttachment = { kind: 'file'; file: File } | { kind: 'link'; name: string; url: string }
 
 const ACCEPT = Object.keys(FILE_ACCEPT).join(',') + ',' + Object.values(FILE_ACCEPT).join(',')
@@ -53,13 +49,12 @@ export function PlanningPage({ user }: { user: UserProfile }) {
   const viewAll = has(user, PERMISSIONS.planningViewAll)
   const [divisions, setDivisions] = useState<Division[]>([])
   const [items, setItems] = useState<Planning[]>([])
-  const [summary, setSummary] = useState<Summary>({ total: 0, menunggu: 0, berjalan: 0, selesai: 0 })
+  const [summary, setSummary] = useState<Summary>({ total: 0, belum_mulai: 0, berjalan: 0, selesai: 0 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [division, setDivision] = useState(viewAll ? '' : String(user.division.id))
   const [status, setStatus] = useState('')
-  const [approval, setApproval] = useState('')
   const [q, setQ] = useState('')
   const [form, setForm] = useState<Planning | 'new' | null>(null)
   const [detailId, setDetailId] = useState<number | null>(null)
@@ -74,7 +69,6 @@ export function PlanningPage({ user }: { user: UserProfile }) {
       const params = new URLSearchParams()
       if (division) params.set('division', division)
       if (status) params.set('status', status)
-      if (approval) params.set('approval', approval)
       if (q.trim()) params.set('q', q.trim())
       const res = await api<{ items: Planning[]; summary: Summary }>(`/api/planning?${params}`)
       setItems(res.items)
@@ -85,7 +79,7 @@ export function PlanningPage({ user }: { user: UserProfile }) {
     } finally {
       setLoading(false)
     }
-  }, [division, status, approval, q])
+  }, [division, status, q])
 
   useEffect(() => {
     const timer = setTimeout(load, q ? 300 : 0)
@@ -100,8 +94,8 @@ export function PlanningPage({ user }: { user: UserProfile }) {
   const divisionOptions = viewAll ? divisions : divisions.filter((d) => d.id === user.division.id)
   const stats: [string, number, string, string][] = [
     ['Total planning', summary.total, viewAll && !division ? 'Semua divisi' : divisions.find((d) => String(d.id) === division)?.name ?? user.division.name, 'stat-1'],
-    ['Menunggu approval', summary.menunggu, 'Perlu ditinjau lead', 'stat-2'],
-    ['Sedang berjalan', summary.berjalan, 'Sudah disetujui', 'stat-0'],
+    ['Belum mulai', summary.belum_mulai, 'Menunggu dikerjakan', 'stat-2'],
+    ['Sedang berjalan', summary.berjalan, 'Dalam pengerjaan', 'stat-0'],
     ['Selesai', summary.selesai, 'Progress 100%', 'stat-0'],
   ]
 
@@ -111,7 +105,7 @@ export function PlanningPage({ user }: { user: UserProfile }) {
         <div>
           <p className="pap-eyebrow">KOLABORASI</p>
           <h1>Planning</h1>
-          <span>Rencana kerja per divisi: pengajuan, approval, dan monitoring progress.</span>
+          <span>Rencana kerja per divisi yang dibuat lead, beserta monitoring progress.</span>
         </div>
         {has(user, PERMISSIONS.planningCreate) && <button className="pap-primary-button" onClick={() => setForm('new')}><Plus /> Buat planning</button>}
       </div>
@@ -120,7 +114,7 @@ export function PlanningPage({ user }: { user: UserProfile }) {
         {stats.map(([label, value, note, tone]) => (
           <div className="pap-stat-card" key={label}>
             <div><span>{label}</span><strong>{value}</strong><small className="neutral">{note}</small></div>
-            <div className={`pap-stat-icon ${tone}`}>{label === 'Menunggu approval' ? <Clock3 /> : label === 'Total planning' ? <ClipboardList /> : <CheckCircle2 />}</div>
+            <div className={`pap-stat-icon ${tone}`}>{label === 'Belum mulai' ? <Clock3 /> : label === 'Total planning' ? <ClipboardList /> : <CheckCircle2 />}</div>
           </div>
         ))}
       </div>
@@ -141,15 +135,11 @@ export function PlanningPage({ user }: { user: UserProfile }) {
             <option value="">Semua status</option>
             {Object.entries(PLANNING_STATUS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
           </select>
-          <select className="pap-select" value={approval} onChange={(e) => setApproval(e.target.value)} aria-label="Filter approval">
-            <option value="">Semua approval</option>
-            {Object.entries(PLANNING_APPROVAL).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-          </select>
         </div>
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Nomor / Judul</th><th>Divisi</th><th>Periode</th><th>Progress</th><th>Status</th><th>Approval</th><th aria-label="Aksi" /></tr></thead>
+            <thead><tr><th>Nomor / Judul</th><th>Divisi</th><th>Periode</th><th>Progress</th><th>Status</th><th aria-label="Aksi" /></tr></thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
@@ -161,13 +151,12 @@ export function PlanningPage({ user }: { user: UserProfile }) {
                   <td className="pap-nowrap">{formatDate(item.tanggal_mulai)} – {formatDate(item.tanggal_selesai)}</td>
                   <td><Progress value={item.progress} /></td>
                   <td><StatusBadge value={item.status} /></td>
-                  <td><ApprovalBadge value={item.approval} /></td>
                   <td><button className="pap-link-button" onClick={(e) => { e.stopPropagation(); setDetailId(item.id) }}>Detail</button></td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {!loading && !items.length && <div className="pap-empty">Belum ada planning{q || status || approval ? ' yang cocok dengan filter' : ''}.</div>}
+          {!loading && !items.length && <div className="pap-empty">Belum ada planning{q || status ?' yang cocok dengan filter' : ''}.</div>}
           {loading && !items.length && <div className="pap-empty">Memuat planning...</div>}
         </div>
       </div>
@@ -222,7 +211,7 @@ function PlanningForm({ user, divisions, initial, onClose, onSaved }: { user: Us
       const payload = { ...values, division_id: Number(values.division_id) }
       if (initial) {
         await api(`/api/planning/${initial.id}`, { method: 'PATCH', json: payload })
-        onSaved(initial.approval === 'ditolak' ? 'Planning diperbarui dan diajukan ulang.' : 'Planning diperbarui.')
+        onSaved('Planning diperbarui.')
         return
       }
       const res = await api<{ item: Planning }>('/api/planning', { method: 'POST', json: payload })
@@ -234,7 +223,7 @@ function PlanningForm({ user, divisions, initial, onClose, onSaved }: { user: Us
           failed.push((err as Error).message)
         }
       }
-      onSaved(failed.length ? `Planning dibuat, tetapi ${failed.length} lampiran gagal: ${failed.join(' ')}` : 'Planning diajukan dan menunggu approval.', res.item.id)
+      onSaved(failed.length ? `Planning dibuat, tetapi ${failed.length} lampiran gagal: ${failed.join(' ')}` : 'Planning dibuat.', res.item.id)
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -245,9 +234,9 @@ function PlanningForm({ user, divisions, initial, onClose, onSaved }: { user: Us
   return (
     <Modal
       title={initial ? 'Edit planning' : 'Buat planning'}
-      subtitle={initial ? initial.nomor : 'Pengajuan akan ditinjau oleh lead divisi'}
+      subtitle={initial ? initial.nomor : 'Planning langsung aktif dan dapat diupdate progress-nya oleh divisi'}
       onClose={onClose}
-      footer={<><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="planning-form" className="pap-primary-button" disabled={saving}>{saving ? 'Menyimpan...' : initial ? 'Simpan' : 'Ajukan planning'}</button></>}
+      footer={<><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="planning-form" className="pap-primary-button" disabled={saving}>{saving ? 'Menyimpan...' : initial ? 'Simpan' : 'Buat planning'}</button></>}
     >
       <form id="planning-form" className="pap-form-grid" onSubmit={submit}>
         {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
@@ -327,8 +316,6 @@ function PlanningDetail({ id, onClose, onChanged, onEdit, onDeleted }: { id: num
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState(0)
   const [status, setStatus] = useState<PlanningStatus>('belum_mulai')
-  const [rejecting, setRejecting] = useState(false)
-  const [note, setNote] = useState('')
 
   const load = useCallback(async () => {
     try {
@@ -375,35 +362,21 @@ function PlanningDetail({ id, onClose, onChanged, onEdit, onDeleted }: { id: num
       title={item.judul}
       subtitle={`${item.nomor} · ${item.division_name}`}
       onClose={onClose}
-      footer={!(item.can.delete || item.can.edit || item.can.approve) ? undefined : (
+      footer={!(item.can.delete || item.can.edit) ? undefined : (
         <>
           {item.can.delete && <button className="pap-btn danger" disabled={busy} onClick={() => window.confirm(`Hapus planning "${item.judul}"?`) && run(async () => { await api(`/api/planning/${item.id}`, { method: 'DELETE' }); onDeleted() })}><Trash2 /> Hapus</button>}
           <span className="pap-spacer" />
           {item.can.edit && <button className="pap-btn" onClick={() => onEdit(item)}><Pencil /> Edit</button>}
-          {item.can.approve && item.approval !== 'ditolak' && <button className="pap-btn danger" disabled={busy} onClick={() => setRejecting(true)}><XCircle /> Tolak</button>}
-          {item.can.approve && item.approval !== 'disetujui' && <button className="pap-btn success" disabled={busy} onClick={() => run(() => api(`/api/planning/${item.id}/approval`, { method: 'POST', json: { action: 'approve' } }))}><CheckCircle2 /> Setujui</button>}
         </>
       )}
     >
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
-      <div className="pap-detail-badges"><ApprovalBadge value={item.approval} /><StatusBadge value={item.status} />{overdue && <span className="pap-status danger">Lewat tenggat</span>}</div>
+      <div className="pap-detail-badges"><StatusBadge value={item.status} />{overdue && <span className="pap-status danger">Lewat tenggat</span>}</div>
       <dl className="pap-detail-grid">
         <div><dt>Periode</dt><dd>{formatDate(item.tanggal_mulai)} – {formatDate(item.tanggal_selesai)}</dd></div>
-        <div><dt>Diajukan oleh</dt><dd>{item.created_by_name} · {formatDate(item.created_at, true)}</dd></div>
-        <div><dt>Approval</dt><dd>{item.approved_by_name ? `${item.approved_by_name} · ${formatDate(item.approved_at, true)}` : 'Belum ditinjau'}</dd></div>
+        <div><dt>Dibuat oleh</dt><dd>{item.created_by_name} · {formatDate(item.created_at, true)}</dd></div>
         <div><dt>Progress</dt><dd><Progress value={item.progress} /></dd></div>
       </dl>
-      {item.approval_note && <div className={`pap-note ${item.approval === 'ditolak' ? 'danger' : ''}`}><strong>Catatan approval</strong><p>{item.approval_note}</p></div>}
-      {rejecting && (
-        <div className="pap-note danger">
-          <strong>Alasan penolakan</strong>
-          <textarea className="pap-input" rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Jelaskan apa yang perlu diperbaiki" autoFocus />
-          <div className="pap-inline-actions">
-            <button className="pap-btn" onClick={() => setRejecting(false)}>Batal</button>
-            <button className="pap-btn danger" disabled={busy || !note.trim()} onClick={() => run(async () => { await api(`/api/planning/${item.id}/approval`, { method: 'POST', json: { action: 'reject', note } }); setRejecting(false); setNote('') })}>Tolak planning</button>
-          </div>
-        </div>
-      )}
       <section className="pap-detail-section">
         <h3>Deskripsi</h3>
         <p className="pap-prewrap">{item.deskripsi || <span className="pap-muted">Tidak ada deskripsi.</span>}</p>
@@ -420,8 +393,6 @@ function PlanningDetail({ id, onClose, onChanged, onEdit, onDeleted }: { id: num
             <button className="pap-primary-button" disabled={busy || !progressChanged} onClick={() => run(() => api(`/api/planning/${item.id}`, { method: 'PATCH', json: { progress, status } }))}>Simpan progress</button>
           </div>
         </section>
-      ) : item.approval !== 'disetujui' ? (
-        <p className="pap-hint">Progress dapat diupdate setelah planning disetujui.</p>
       ) : null}
       <section className="pap-detail-section">
         <h3>Lampiran ({files.length})</h3>

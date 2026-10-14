@@ -33,7 +33,7 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
   return NextResponse.json({ user: { id: target.id, name: target.name, role_name: target.role_name, is_super_admin: !!target.is_super_admin }, items })
 })
 
-// Simpan override: { overrides: { "planning.approve": "allow" | "deny" | "inherit", ... } }
+// Simpan override: { overrides: { "planning.manage": "allow" | "deny" | "inherit", ... } }
 export const PUT = handle(async (request: Request, ctx: Ctx) => {
   const actor = await requireUser(PERMISSIONS.usersManage)
   const target = await loadTarget(ctx)

@@ -15,8 +15,8 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
 })
 
 // Edit planning. Yang boleh diubah tergantung hak:
-// - edit (lead/admin, atau pembuat selama belum disetujui): semua field
-// - progress (staff pada planning yang sudah disetujui): status & progress saja
+// - edit (lead/admin divisi, atau pembuatnya): semua field
+// - progress (staff divisi): status & progress saja
 export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser(PERMISSIONS.planningView)
   const row = await loadPlanning(user, await planningId(ctx))
@@ -28,7 +28,6 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   const wantsDetail = ['judul', 'deskripsi', 'tanggal_mulai', 'tanggal_selesai', 'division_id'].some((key) => key in body)
   if (wantsDetail && !ability.edit) fail(403, 'Anda hanya dapat mengubah progress planning ini.')
   if (!ability.edit && !ability.progress) fail(403, 'Anda tidak punya akses untuk mengubah planning ini.')
-  if (('progress' in body || 'status' in body) && !ability.progress) fail(403, 'Progress dapat diupdate setelah planning disetujui.')
 
   if ('judul' in body) {
     const judul = str(body.judul, 200)
@@ -69,8 +68,6 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
     args.push(progress >= 100 ? 'selesai' : progress > 0 ? 'berjalan' : row.status)
   }
 
-  // Detail yang diubah setelah ditolak diajukan ulang
-  if (wantsDetail && row.approval === 'ditolak') sets.push("approval = 'menunggu', approval_note = NULL, approved_by = NULL, approved_at = NULL")
   if (!sets.length) fail(400, 'Tidak ada perubahan.')
 
   await db.query(`UPDATE plannings SET ${sets.join(', ')} WHERE id = ?`, [...args, row.id])

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type InputHTMLAttributes, type ReactNode } from 'react'
 import { Eye, EyeOff, X } from 'lucide-react'
-import { PLANNING_APPROVAL, PLANNING_STATUS, type PlanningApproval, type PlanningStatus } from '@/lib/permissions'
+import { PLANNING_STATUS, type PlanningStatus } from '@/lib/permissions'
 
 // Panggil API JSON; lempar Error berisi pesan dari server bila gagal
 export async function api<T = unknown>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
@@ -73,10 +73,8 @@ export function Notice({ kind = 'error', children, onClose }: { kind?: 'error' |
 }
 
 const STATUS_TONE: Record<PlanningStatus, string> = { belum_mulai: 'neutral', berjalan: 'info', selesai: 'success', ditunda: 'warning', dibatalkan: 'danger' }
-const APPROVAL_TONE: Record<PlanningApproval, string> = { menunggu: 'warning', disetujui: 'success', ditolak: 'danger' }
 
 export const StatusBadge = ({ value }: { value: PlanningStatus }) => <span className={`pap-status ${STATUS_TONE[value]}`}>{PLANNING_STATUS[value]}</span>
-export const ApprovalBadge = ({ value }: { value: PlanningApproval }) => <span className={`pap-status ${APPROVAL_TONE[value]}`}>{PLANNING_APPROVAL[value]}</span>
 
 export function Progress({ value }: { value: number }) {
   return (
