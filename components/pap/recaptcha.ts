@@ -1,6 +1,6 @@
-// reCAPTCHA di browser: v3 untuk skor (tak terlihat), v2 checkbox/puzzle bila skor rendah
-export const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? ''
-export const RECAPTCHA_V2_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_V2_SITE_KEY ?? ''
+// reCAPTCHA di browser: v3 untuk skor (tak terlihat), v2 checkbox/puzzle bila skor rendah.
+// Site key diambil dari server (/api/auth/captcha) agar tidak perlu env NEXT_PUBLIC_.
+type CaptchaConfig = { siteKey: string; v2SiteKey: string }
 
 type Grecaptcha = {
   ready: (callback: () => void) => void
@@ -13,14 +13,25 @@ declare global {
   interface Window { grecaptcha?: Grecaptcha }
 }
 
+let config: Promise<CaptchaConfig> | null = null
 let loading: Promise<Grecaptcha> | null = null
+
+export function getCaptchaConfig() {
+  config ??= fetch('/api/auth/captcha', { cache: 'no-store' })
+    .then((res) => (res.ok ? res.json() : { siteKey: '', v2SiteKey: '' }))
+    .catch(() => {
+      config = null
+      return { siteKey: '', v2SiteKey: '' }
+    })
+  return config
+}
 
 // Satu script untuk keduanya: ?render=<key v3> sekaligus menyediakan grecaptcha.render untuk v2
 export function loadRecaptcha() {
-  if (!RECAPTCHA_SITE_KEY) return Promise.reject(new Error('reCAPTCHA belum dikonfigurasi'))
-  loading ??= new Promise<Grecaptcha>((resolve, reject) => {
+  loading ??= getCaptchaConfig().then(({ siteKey }) => new Promise<Grecaptcha>((resolve, reject) => {
+    if (!siteKey) return reject(new Error('reCAPTCHA belum dikonfigurasi'))
     const script = document.createElement('script')
-    script.src = `https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`
+    script.src = `https://www.google.com/recaptcha/api.js?render=${siteKey}`
     script.async = true
     script.onload = () => window.grecaptcha!.ready(() => resolve(window.grecaptcha!))
     script.onerror = () => {
@@ -28,19 +39,20 @@ export function loadRecaptcha() {
       reject(new Error('Gagal memuat reCAPTCHA. Periksa koneksi internet.'))
     }
     document.head.appendChild(script)
-  })
+  }))
   return loading
 }
 
 // Domain yang tidak terdaftar di reCAPTCHA membuat execute tidak pernah selesai, jadi diberi batas waktu
 export async function getRecaptchaToken(action: string) {
-  if (!RECAPTCHA_SITE_KEY) return undefined
+  const { siteKey } = await getCaptchaConfig()
+  if (!siteKey) return undefined
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error('Verifikasi reCAPTCHA tidak merespons. Muat ulang halaman lalu coba lagi.')), 15000)
   })
   try {
-    return await Promise.race([loadRecaptcha().then((grecaptcha) => grecaptcha.execute(RECAPTCHA_SITE_KEY, { action })), timeout])
+    return await Promise.race([loadRecaptcha().then((grecaptcha) => grecaptcha.execute(siteKey, { action })), timeout])
   } finally {
     clearTimeout(timer)
   }
