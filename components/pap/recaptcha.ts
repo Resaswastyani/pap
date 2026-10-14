@@ -1,6 +1,6 @@
 // reCAPTCHA di browser: kotak v2 "I'm not a robot" bila key v2 diset, selain itu v3 tak terlihat.
 // Site key diambil dari server (/api/auth/captcha) agar tidak perlu env NEXT_PUBLIC_.
-type CaptchaConfig = { siteKey: string; v2SiteKey: string }
+export type CaptchaConfig = { siteKey: string; v2SiteKey: string }
 
 type Grecaptcha = {
   ready: (callback: () => void) => void
@@ -15,6 +15,11 @@ declare global {
 
 let config: Promise<CaptchaConfig> | null = null
 let loading: Promise<Grecaptcha> | null = null
+
+// Dipakai bila config sudah didapat dari /api/auth/me
+export function primeCaptchaConfig(value: CaptchaConfig) {
+  config ??= Promise.resolve(value)
+}
 
 export function getCaptchaConfig() {
   config ??= fetch('/api/auth/captcha', { cache: 'no-store' })

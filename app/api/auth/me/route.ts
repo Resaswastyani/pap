@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
+import { captchaConfig } from '@/lib/recaptcha'
 import { getCurrentUser } from '@/lib/users'
 
 export async function GET() {
   try {
     const user = await getCurrentUser()
-    if (!user) return NextResponse.json({ user: null }, { status: 401 })
+    // Config captcha ikut dikirim agar halaman login tidak perlu request tambahan
+    if (!user) return NextResponse.json({ user: null, captcha: captchaConfig() }, { status: 401 })
     return NextResponse.json({ user })
   } catch (error) {
     console.error('[auth/me]', error)

@@ -5,7 +5,7 @@ import { MENU_KEYS } from '@/lib/menus'
 import type { UserProfile } from '@/lib/users'
 import { MeetingPage } from './meeting-page'
 import { PlanningPage } from './planning-page'
-import { getCaptchaConfig, getRecaptchaToken, loadRecaptcha } from './recaptcha'
+import { getCaptchaConfig, getRecaptchaToken, loadRecaptcha, primeCaptchaConfig } from './recaptcha'
 import { RolesPage } from './roles-page'
 import { UsersPage } from './users-page'
 import { Bell, CalendarDays, ChevronDown, ChevronRight, ClipboardList, Factory, LayoutDashboard, Menu, Moon, MoreHorizontal, PackageCheck, Search, Settings, Sun, Users, X, LogOut, CheckCircle2, Clock3, AlertCircle, BarChart3, UserRound, FileText, Wrench, Handshake, UserCheck, ListChecks, UserCog, ShieldCheck, Eye, EyeOff } from 'lucide-react'
@@ -99,7 +99,14 @@ export function AppShell() {
   const [dark, setDark] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   useEffect(() => {
-    fetch('/api/auth/me').then((res) => res.json()).then((json) => setUser(json.user ?? null)).catch(() => setUser(null)).finally(() => setChecking(false))
+    fetch('/api/auth/me').then((res) => res.json()).then((json) => {
+      // Belum login: langsung muat reCAPTCHA sebelum form login dirender
+      if (!json.user && json.captcha) {
+        primeCaptchaConfig(json.captcha)
+        loadRecaptcha().catch(() => {})
+      }
+      setUser(json.user ?? null)
+    }).catch(() => setUser(null)).finally(() => setChecking(false))
   }, [])
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
