@@ -236,3 +236,8 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
 /* reCAPTCHA v2 "I'm not a robot" di form login */
 .pap-captcha { display:flex; justify-content:center; min-height:78px; margin-top:16px; }
 @media (max-width:400px) { .pap-captcha { transform:scale(.88); transform-origin:center top; } }
+
+/* Tombol keluar di kartu user sidebar (satu-satunya akses logout di mobile) */
+.pap-user-logout { display:grid; place-items:center; flex:0 0 auto; width:34px; height:34px; border:0; border-radius:9px; background:transparent; color:#9295a7; cursor:pointer; }
+.pap-user-logout svg { width:16px; height:16px; }
+.pap-user-logout:hover, .pap-user-logout:focus-visible { background:rgb(239 90 60 / .15); color:#ff8a70; }
