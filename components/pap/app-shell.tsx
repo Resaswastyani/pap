@@ -5,7 +5,7 @@ import { MENU_KEYS } from '@/lib/menus'
 import type { UserProfile } from '@/lib/users'
 import { MeetingPage } from './meeting-page'
 import { PlanningPage } from './planning-page'
-import { getRecaptchaToken, loadRecaptcha, RECAPTCHA_V2_SITE_KEY } from './recaptcha'
+import { getCaptchaConfig, getRecaptchaToken, loadRecaptcha } from './recaptcha'
 import { RolesPage } from './roles-page'
 import { UsersPage } from './users-page'
 import { Bell, CalendarDays, ChevronDown, ChevronRight, ClipboardList, Factory, LayoutDashboard, Menu, Moon, MoreHorizontal, PackageCheck, Search, Settings, Sun, Users, X, LogOut, CheckCircle2, Clock3, AlertCircle, BarChart3, UserRound, FileText, Wrench, Handshake, UserCheck, ListChecks, UserCog, ShieldCheck, Eye, EyeOff } from 'lucide-react'
@@ -60,9 +60,9 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
 
   useEffect(() => {
     if (!challenge || !challengeRef.current || widgetId.current !== null) return
-    loadRecaptcha().then((grecaptcha) => {
+    Promise.all([loadRecaptcha(), getCaptchaConfig()]).then(([grecaptcha, { v2SiteKey }]) => {
       if (!challengeRef.current || widgetId.current !== null) return
-      widgetId.current = grecaptcha.render(challengeRef.current, { sitekey: RECAPTCHA_V2_SITE_KEY, callback: setV2Token, 'expired-callback': () => setV2Token('') })
+      widgetId.current = grecaptcha.render(challengeRef.current, { sitekey: v2SiteKey, callback: setV2Token, 'expired-callback': () => setV2Token('') })
     }).catch((e: Error) => setError(e.message))
   }, [challenge])
 
@@ -74,7 +74,7 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
       const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...credentials, captchaToken, captchaV2Token: challenge ? v2Token : undefined }) })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
-        if (json.captcha === 'challenge' && RECAPTCHA_V2_SITE_KEY) setChallenge(true)
+        if (json.captcha === 'challenge' && (await getCaptchaConfig()).v2SiteKey) setChallenge(true)
         if (challenge && widgetId.current !== null) {
           window.grecaptcha?.reset(widgetId.current)
           setV2Token('')

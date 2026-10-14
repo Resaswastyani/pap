@@ -1,6 +1,6 @@
 // Verifikasi reCAPTCHA di server.
 // v3 (tak terlihat) memberi skor; bila skor rendah, user diminta menyelesaikan puzzle v2.
-// Bila RECAPTCHA_SECRET_KEY kosong (mis. di lokal), pengecekan dilewati.
+// Bila RECAPTCHA_SITE_KEY / RECAPTCHA_SECRET_KEY kosong (mis. di lokal), pengecekan dilewati.
 
 const VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
 const MIN_SCORE = Number(process.env.RECAPTCHA_MIN_SCORE || 0.5)
@@ -16,17 +16,24 @@ async function verify(secret: string, token: string, ip: string | null) {
   return (await res.json()) as VerifyResponse
 }
 
-export const captchaEnabled = () => !!process.env.RECAPTCHA_SECRET_KEY
-const challengeEnabled = () => !!process.env.RECAPTCHA_V2_SECRET_KEY
+const captchaEnabled = () => !!(process.env.RECAPTCHA_SITE_KEY && process.env.RECAPTCHA_SECRET_KEY)
+const challengeEnabled = () => !!(process.env.RECAPTCHA_V2_SITE_KEY && process.env.RECAPTCHA_V2_SECRET_KEY)
+
+// Site key aman dikirim ke browser; secret key tetap hanya di server
+export function captchaConfig() {
+  return {
+    siteKey: captchaEnabled() ? process.env.RECAPTCHA_SITE_KEY! : '',
+    v2SiteKey: captchaEnabled() && challengeEnabled() ? process.env.RECAPTCHA_V2_SITE_KEY! : '',
+  }
+}
 
 export async function checkCaptcha(input: { token?: unknown; v2Token?: unknown }, ip: string | null): Promise<CaptchaResult> {
-  const secret = process.env.RECAPTCHA_SECRET_KEY
-  if (!secret) return { ok: true }
+  if (!captchaEnabled()) return { ok: true }
+  const secret = process.env.RECAPTCHA_SECRET_KEY!
 
   // Puzzle v2 yang sudah diselesaikan cukup dicek success-nya
-  const v2Secret = process.env.RECAPTCHA_V2_SECRET_KEY
-  if (v2Secret && typeof input.v2Token === 'string' && input.v2Token) {
-    const result = await verify(v2Secret, input.v2Token, ip)
+  if (challengeEnabled() && typeof input.v2Token === 'string' && input.v2Token) {
+    const result = await verify(process.env.RECAPTCHA_V2_SECRET_KEY!, input.v2Token, ip)
     return result.success ? { ok: true } : { ok: false, challenge: true, error: 'Verifikasi captcha gagal. Coba lagi.' }
   }
 
