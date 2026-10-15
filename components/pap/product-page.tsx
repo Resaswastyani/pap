@@ -1,16 +1,22 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Download, ExternalLink, FileText, ImageIcon, Package, Pencil, Plus, Printer, Search, Trash2, Upload } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, ExternalLink, FileText, ImageIcon, Package, Pencil, Plus, Printer, Search, Trash2, Upload } from 'lucide-react'
 import { PRODUCT_FILE_ACCEPT, PRODUCT_FILE_MAX_BYTES } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
+import { AccurateSyncBar, formatNumber, formatRupiah } from './accurate'
 import { api, Field, formatDate, formatSize, Modal, Notice } from './ui'
 
 export type Product = {
   id: number
-  customer_id: number
-  customer_name: string
+  customer_id: number | null
+  customer_name: string | null
   customer_no: string | null
+  accurate_item_id: number | null
+  last_order: string | null
+  customer_count: number
+  stock: number | null
+  unit: string | null
   kode: string | null
   nama: string
   jenis: string | null
@@ -24,6 +30,8 @@ export type Product = {
   updated_at: string
   file_count: number
 }
+type Buyer = { id: number; name: string; customer_no: string | null; order_count: number; last_order: string | null }
+type OrderLine = { number: string | null; trans_date: string | null; status: string | null; customer_id: number | null; customer_name: string | null; quantity: number | null; unit: string | null; unit_price: number | null; notes: string | null }
 type ProductFile = { id: number; name: string; mime: string; size: number; uploaded_by_name: string; created_at: string }
 type CustomerOption = { id: number; name: string; customer_no: string | null; bill_city: string | null }
 
@@ -64,7 +72,7 @@ function printSpecSheet(item: Product, files: ProductFile[]) {
 .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:12px}.head img{height:44px}ul{margin:0;padding-left:18px}
 @media print{body{margin:12mm}}</style></head><body>
 <div class="head"><div><h1>${esc(item.nama)}</h1><div>${esc(item.customer_name)}${item.kode ? ` · ${esc(item.kode)}` : ''}</div></div><img src="/logo-pap.png" alt=""></div>
-<div class="meta"><div><span>Customer</span>${esc(item.customer_name)}${item.customer_no ? ` (${esc(item.customer_no)})` : ''}</div><div><span>Jenis</span>${esc(item.jenis) || '—'}</div>
+<div class="meta"><div><span>Customer utama</span>${esc(item.customer_name) || '—'}${item.customer_no ? ` (${esc(item.customer_no)})` : ''}</div><div><span>Jenis</span>${esc(item.jenis) || '—'}</div>
 <div><span>Kode barang</span>${esc(item.kode) || '—'}</div><div><span>Diperbarui</span>${esc(formatDate(item.updated_at, true))}${item.updated_by_name ? ` oleh ${esc(item.updated_by_name)}` : ''}</div></div>
 ${section('Spesifikasi', item.spesifikasi)}${section('Keterangan bahan', item.bahan)}${section('Keterangan lain', item.keterangan)}
 <h3>Lampiran desain</h3><div class="box">${files.length ? `<ul>${files.map((f) => `<li>${esc(f.name)}</li>`).join('')}</ul>` : '<i>Tidak ada lampiran</i>'}</div>
@@ -83,27 +91,36 @@ export function ProductPage({ user, focusId }: { user: UserProfile; focusId?: nu
   const [q, setQ] = useState('')
   const [jenis, setJenis] = useState('')
   const [status, setStatus] = useState('aktif')
+  const [incomplete, setIncomplete] = useState(false)
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [pageSize, setPageSize] = useState(50)
   const [form, setForm] = useState<Product | 'new' | null>(null)
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams()
+      const params = new URLSearchParams({ page: String(page) })
       if (q.trim()) params.set('q', q.trim())
       if (jenis) params.set('jenis', jenis)
       if (status) params.set('status', status)
-      const res = await api<{ items: Product[]; jenis: string[]; canManage: boolean }>(`/api/products?${params}`)
+      if (incomplete) params.set('lengkap', '0')
+      const res = await api<{ items: Product[]; jenis: string[]; canManage: boolean; total: number; pageSize: number }>(`/api/products?${params}`)
       setItems(res.items)
       setJenisList(res.jenis)
       setCanManage(res.canManage)
+      setTotal(res.total)
+      setPageSize(res.pageSize)
       setError('')
     } catch (e) {
       setError((e as Error).message)
     } finally {
       setLoading(false)
     }
-  }, [q, jenis, status])
+  }, [q, jenis, status, incomplete, page])
+  useEffect(() => setPage(1), [q, jenis, status, incomplete])
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   useEffect(() => {
     const timer = setTimeout(load, q ? 300 : 0)
@@ -121,13 +138,14 @@ export function ProductPage({ user, focusId }: { user: UserProfile; focusId?: nu
         <div>
           <p className="pap-eyebrow">PRODUK</p>
           <h1>Data Produk</h1>
-          <span>Spesifikasi, keterangan bahan, dan desain produk tiap customer. Acuan Marketing, PPIC, Produksi, dan Purchasing.</span>
+          <span>Produk dari barang yang dipesan customer di Accurate (Sales Order). Lengkapi spesifikasi, bahan, dan desain sebagai acuan PPIC & Produksi.</span>
         </div>
         {canManage && <button className="pap-primary-button" onClick={() => setForm('new')}><Plus /> Tambah produk</button>}
       </div>
+      <AccurateSyncBar entities={['sales-order', 'sales-order-items']} canSync={canManage || user.role.isAdmin} onSynced={load} />
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       <div className="pap-table-card">
-        <div className="pap-card-head"><div><h2>Daftar produk</h2><p>{user.division.name} · klik produk untuk melihat spesifikasi & desain</p></div></div>
+        <div className="pap-card-head"><div><h2>Daftar produk ({total})</h2><p>Diurutkan dari pesanan terakhir · klik produk untuk melihat spesifikasi, desain, dan riwayat pesanan</p></div></div>
         <div className="pap-filters">
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari produk, kode, customer, bahan..." /></label>
           <select className="pap-select" value={jenis} onChange={(e) => setJenis(e.target.value)} aria-label="Filter jenis">
@@ -139,26 +157,35 @@ export function ProductPage({ user, focusId }: { user: UserProfile; focusId?: nu
             <option value="nonaktif">Produk nonaktif</option>
             <option value="">Semua status</option>
           </select>
+          <label className="pap-check"><input type="checkbox" checked={incomplete} onChange={(e) => setIncomplete(e.target.checked)} /> Belum ada spesifikasi / desain</label>
         </div>
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Produk</th><th>Customer</th><th>Jenis</th><th>Desain</th><th>Diperbarui</th></tr></thead>
+            <thead><tr><th>Produk</th><th>Customer</th><th>Jenis</th><th className="pap-num">Stok</th><th>Pesanan terakhir</th><th>Desain</th></tr></thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
-                  <td><div className="pap-cell-title">{item.nama}</div><div className="pap-cell-sub">{item.kode ?? 'Tanpa kode'}{item.status === 'nonaktif' && <span className="pap-chip">nonaktif</span>}</div></td>
-                  <td>{item.customer_name}</td>
+                  <td><div className="pap-cell-title">{item.nama}</div><div className="pap-cell-sub">{item.kode ?? 'Tanpa kode'}{item.accurate_item_id ? <span className="pap-chip">Accurate</span> : <span className="pap-chip">Manual</span>}{item.status === 'nonaktif' && <span className="pap-chip">nonaktif</span>}</div></td>
+                  <td>{item.customer_name ?? <span className="pap-muted">—</span>}{item.customer_count > 1 && <div className="pap-cell-sub">+{item.customer_count - 1} customer lain</div>}</td>
                   <td>{item.jenis ?? '—'}</td>
-                  <td className="pap-nowrap">{item.file_count ? <><FileText className="pap-inline-icon" /> {item.file_count} file</> : <span className="pap-muted">—</span>}</td>
-                  <td className="pap-nowrap">{formatDate(item.updated_at, true)}</td>
+                  <td className="pap-num pap-nowrap">{item.stock === null ? '—' : `${formatNumber(item.stock)} ${item.unit ?? ''}`}</td>
+                  <td className="pap-nowrap">{item.last_order ? formatDate(item.last_order) : <span className="pap-muted">—</span>}</td>
+                  <td className="pap-nowrap">{item.file_count ? <><FileText className="pap-inline-icon" /> {item.file_count}</> : <span className="pap-muted">{item.spesifikasi ? '—' : 'Belum lengkap'}</span>}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {!loading && !items.length && <div className="pap-empty">Belum ada produk{q || jenis ? ' yang cocok dengan filter' : ''}.</div>}
+          {!loading && !items.length && <div className="pap-empty">{q || jenis || incomplete ? 'Tidak ada produk yang cocok dengan filter.' : 'Belum ada produk. Klik "Sinkron sekarang" untuk mengambil dari Sales Order Accurate.'}</div>}
           {loading && !items.length && <div className="pap-empty">Memuat produk...</div>}
         </div>
+        {total > pageSize && (
+          <div className="pap-pager">
+            <span>{(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} dari {total}</span>
+            <button className="pap-icon-button" aria-label="Sebelumnya" disabled={page <= 1} onClick={() => setPage((v) => v - 1)}><ChevronLeft /></button>
+            <button className="pap-icon-button" aria-label="Berikutnya" disabled={page >= pageCount} onClick={() => setPage((v) => v + 1)}><ChevronRight /></button>
+          </div>
+        )}
       </div>
       {form && (
         <ProductForm
@@ -218,7 +245,7 @@ function CustomerSelect({ value, onChange }: { value: CustomerOption | null; onC
 
 export function ProductForm({ initial, customer, jenisList = JENIS_DEFAULT, onClose, onSaved }: { initial: Product | null; customer?: CustomerOption; jenisList?: string[]; onClose: () => void; onSaved: (message: string, id?: number) => void }) {
   const [selected, setSelected] = useState<CustomerOption | null>(
-    customer ?? (initial ? { id: initial.customer_id, name: initial.customer_name, customer_no: initial.customer_no, bill_city: null } : null),
+    customer ?? (initial?.customer_id ? { id: initial.customer_id, name: initial.customer_name ?? '', customer_no: initial.customer_no, bill_city: null } : null),
   )
   const [values, setValues] = useState({
     nama: initial?.nama ?? '',
@@ -236,7 +263,7 @@ export function ProductForm({ initial, customer, jenisList = JENIS_DEFAULT, onCl
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!selected) return setError('Pilih customer terlebih dahulu.')
+    if (!initial && !selected) return setError('Pilih customer terlebih dahulu.')
     setSaving(true)
     setError('')
     try {
@@ -245,7 +272,7 @@ export function ProductForm({ initial, customer, jenisList = JENIS_DEFAULT, onCl
         onSaved('Produk diperbarui.')
         return
       }
-      const res = await api<{ item: Product }>('/api/products', { method: 'POST', json: { ...values, customer_id: selected.id } })
+      const res = await api<{ item: Product }>('/api/products', { method: 'POST', json: { ...values, customer_id: selected!.id } })
       const failed = await uploadFiles(res.item.id, files)
       onSaved(failed.length ? `Produk dibuat, tetapi ${failed.length} desain gagal diunggah: ${failed.join(' ')}` : 'Produk ditambahkan.', res.item.id)
     } catch (err) {
@@ -259,14 +286,14 @@ export function ProductForm({ initial, customer, jenisList = JENIS_DEFAULT, onCl
     <Modal
       wide
       title={initial ? 'Edit produk' : 'Tambah produk'}
-      subtitle={selected ? selected.name : 'Data produk untuk acuan PPIC & Produksi'}
+      subtitle={selected ? selected.name : initial ? initial.kode ?? '' : 'Data produk untuk acuan PPIC & Produksi'}
       onClose={onClose}
       footer={<><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="product-form" className="pap-primary-button" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan produk'}</button></>}
     >
       <form id="product-form" className="pap-form-grid" onSubmit={submit}>
         {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <Field label="Customer" full>
-          {initial || customer ? <input className="pap-input" value={selected?.name ?? ''} disabled /> : <CustomerSelect value={selected} onChange={setSelected} />}
+          {initial || customer ? <input className="pap-input" value={selected?.name ?? 'Dari Sales Order Accurate'} disabled /> : <CustomerSelect value={selected} onChange={setSelected} />}
         </Field>
         <Field label="Nama produk"><input className="pap-input" required maxLength={255} value={values.nama} onChange={set('nama')} placeholder="Contoh: Kantong HD 30x45 cetak 2 warna" /></Field>
         <Field label="Kode barang Accurate (opsional)"><input className="pap-input" maxLength={80} value={values.kode} onChange={set('kode')} placeholder="Contoh: BRG-00123" /></Field>
@@ -323,15 +350,19 @@ export function ProductForm({ initial, customer, jenisList = JENIS_DEFAULT, onCl
 export function ProductDetail({ id, onClose, onEdit, onChanged, onDeleted }: { id: number; onClose: () => void; onEdit: (item: Product) => void; onChanged: () => void; onDeleted: () => void }) {
   const [item, setItem] = useState<Product | null>(null)
   const [files, setFiles] = useState<ProductFile[]>([])
+  const [orders, setOrders] = useState<OrderLine[]>([])
+  const [buyers, setBuyers] = useState<Buyer[]>([])
   const [canManage, setCanManage] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
   const load = useCallback(async () => {
     try {
-      const res = await api<{ item: Product; files: ProductFile[]; canManage: boolean }>(`/api/products/${id}`)
+      const res = await api<{ item: Product; files: ProductFile[]; orders: OrderLine[]; buyers: Buyer[]; canManage: boolean }>(`/api/products/${id}`)
       setItem(res.item)
       setFiles(res.files)
+      setOrders(res.orders)
+      setBuyers(res.buyers)
       setCanManage(res.canManage)
     } catch (e) {
       setError((e as Error).message)
@@ -365,11 +396,11 @@ export function ProductDetail({ id, onClose, onEdit, onChanged, onDeleted }: { i
     <Modal
       wide
       title={item.nama}
-      subtitle={`${item.customer_name}${item.kode ? ` · ${item.kode}` : ''}`}
+      subtitle={[item.kode, item.customer_name].filter(Boolean).join(' · ')}
       onClose={onClose}
       footer={
         <>
-          {canManage && <button className="pap-btn danger" disabled={busy} onClick={() => window.confirm(`Hapus produk "${item.nama}" beserta desainnya?`) && run(async () => { await api(`/api/products/${item.id}`, { method: 'DELETE' }); onDeleted() })}><Trash2 /> Hapus</button>}
+          {canManage && !item.accurate_item_id && <button className="pap-btn danger" disabled={busy} onClick={() => window.confirm(`Hapus produk "${item.nama}" beserta desainnya?`) && run(async () => { await api(`/api/products/${item.id}`, { method: 'DELETE' }); onDeleted() })}><Trash2 /> Hapus</button>}
           <span className="pap-spacer" />
           <button className="pap-btn" onClick={() => printSpecSheet(item, files)}><Printer /> Cetak spesifikasi</button>
           {canManage && <button className="pap-btn" onClick={() => onEdit(item)}><Pencil /> Edit</button>}
@@ -380,10 +411,13 @@ export function ProductDetail({ id, onClose, onEdit, onChanged, onDeleted }: { i
       <div className="pap-detail-badges">
         <span className={`pap-status ${item.status === 'aktif' ? 'success' : 'neutral'}`}>{item.status === 'aktif' ? 'Aktif' : 'Nonaktif'}</span>
         {item.jenis && <span className="pap-status info">{item.jenis}</span>}
+        <span className="pap-status neutral">{item.accurate_item_id ? 'Barang Accurate' : 'Produk manual'}</span>
       </div>
       <dl className="pap-detail-grid">
-        <div><dt>Customer</dt><dd>{item.customer_name}{item.customer_no ? ` (${item.customer_no})` : ''}</dd></div>
+        <div><dt>Customer utama</dt><dd>{item.customer_name ?? '—'}{item.customer_no ? ` (${item.customer_no})` : ''}</dd></div>
         <div><dt>Kode barang</dt><dd>{item.kode ?? '—'}</dd></div>
+        <div><dt>Stok (fisik)</dt><dd>{item.stock === null ? '—' : `${formatNumber(item.stock)} ${item.unit ?? ''}`}</dd></div>
+        <div><dt>Pesanan terakhir</dt><dd>{item.last_order ? formatDate(item.last_order) : '—'}</dd></div>
         <div><dt>Dibuat</dt><dd>{item.created_by_name} · {formatDate(item.created_at, true)}</dd></div>
         <div><dt>Diperbarui</dt><dd>{item.updated_by_name ?? item.created_by_name} · {formatDate(item.updated_at, true)}</dd></div>
       </dl>
@@ -427,6 +461,29 @@ export function ProductDetail({ id, onClose, onEdit, onChanged, onDeleted }: { i
           </div>
         )}
       </section>
+      {buyers.length > 0 && (
+        <section className="pap-detail-section">
+          <h3>Customer pemesan ({buyers.length})</h3>
+          <div className="pap-participants">
+            {buyers.map((b) => <span key={b.id} className="pap-participant"><strong>{b.name}</strong><small>{b.order_count}× pesan · terakhir {formatDate(b.last_order)}</small></span>)}
+          </div>
+        </section>
+      )}
+      {orders.length > 0 && (
+        <section className="pap-detail-section">
+          <h3>Riwayat pesanan (Sales Order)</h3>
+          <div className="pap-table-wrap pap-compact-table">
+            <table>
+              <thead><tr><th>No. SO</th><th>Tanggal</th><th>Customer</th><th className="pap-num">Jumlah</th><th className="pap-num">Harga</th><th>Status</th></tr></thead>
+              <tbody>
+                {orders.map((o, i) => (
+                  <tr key={i}><td className="pap-nowrap">{o.number ?? '—'}</td><td className="pap-nowrap">{formatDate(o.trans_date)}</td><td>{o.customer_name ?? '—'}</td><td className="pap-num pap-nowrap">{formatNumber(o.quantity)} {o.unit ?? ''}</td><td className="pap-num pap-nowrap">{formatRupiah(o.unit_price)}</td><td>{o.status ?? '—'}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
       <p className="pap-hint"><Package className="pap-inline-icon" /> Klik ikon printer pada desain untuk membuka file dan mencetaknya sebagai acuan produksi.</p>
     </Modal>
   )

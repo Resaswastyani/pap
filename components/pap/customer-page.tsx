@@ -33,7 +33,7 @@ type Customer = {
   crm_status: CrmStatus
 }
 type Invoice = { accurate_id: number; number: string | null; trans_date: string | null; total_amount: number | null; status: string | null }
-type CustomerProduct = { id: number; kode: string | null; nama: string; jenis: string | null; status: string; file_count: number }
+type CustomerProduct = { id: number; kode: string | null; nama: string; jenis: string | null; status: string; file_count: number; last_order: string | null }
 
 const CRM_LABEL: Record<CrmStatus, string> = {
   pelanggan: 'Pelanggan',
@@ -111,7 +111,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
         </div>
         {canManage && <button className="pap-primary-button" onClick={() => setForm('new')}><Plus /> Tambah customer</button>}
       </div>
-      <AccurateSyncBar entities={['customer', 'sales-invoice']} canSync={canManage || user.role.isAdmin} onSynced={load} />
+      <AccurateSyncBar entities={['customer', 'sales-invoice', 'customer-detail']} canSync={canManage || user.role.isAdmin} onSynced={load} />
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       <div className="pap-stat-grid four">
         {stats.map(([key, label, value, note, Icon, tone]) => (
@@ -297,7 +297,7 @@ function CustomerDetail({ id, onClose, onEdit, onChanged }: { id: number; onClos
               <li key={p.id}>
                 <button onClick={() => setProductId(p.id)}>
                   <FileText />
-                  <span className="pap-linked-main"><strong>{p.nama}</strong><small>{[p.kode, p.jenis, `${p.file_count} desain`].filter(Boolean).join(' · ')}</small></span>
+                  <span className="pap-linked-main"><strong>{p.nama}</strong><small>{[p.kode, p.jenis, p.last_order ? `dipesan ${formatDate(p.last_order)}` : null, `${p.file_count} desain`].filter(Boolean).join(' · ')}</small></span>
                   {p.status === 'nonaktif' && <span className="pap-status neutral">Nonaktif</span>}
                   <ChevronRight />
                 </button>

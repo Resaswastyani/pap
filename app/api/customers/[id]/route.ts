@@ -2,6 +2,7 @@ import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
+import { PRODUCT_OF_CUSTOMER } from '@/lib/products'
 import { canManageCustomer, canManageProduct, canViewCustomers, canViewProducts, loadCustomer, readCustomerInput, refreshCustomerFromAccurate, requireMenu, saveCustomerToAccurate, upsertLocalCustomer, type CustomerInput } from '@/lib/customers'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -20,10 +21,13 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
         [customer.accurate_id],
       )
     : [[]]
+  // Produk yang pernah dipesan customer ini (Sales Order Accurate) + produk manual miliknya
   const [products] = await db.query<RowDataPacket[]>(
-    `SELECT p.id, p.kode, p.nama, p.jenis, p.status, p.updated_at, (SELECT COUNT(*) FROM customer_product_files f WHERE f.product_id = p.id) AS file_count
-     FROM customer_products p WHERE p.customer_id = ? ORDER BY p.status, p.nama`,
-    [customer.id],
+    `SELECT p.id, p.kode, p.nama, p.jenis, p.status, p.updated_at, (SELECT COUNT(*) FROM customer_product_files f WHERE f.product_id = p.id) AS file_count,
+       (SELECT MAX(so.trans_date) FROM accurate_sales_order_items soi JOIN accurate_sales_orders so ON so.accurate_id = soi.so_accurate_id
+        WHERE soi.item_accurate_id = p.accurate_item_id AND so.customer_accurate_id = ?) AS last_order
+     FROM customer_products p WHERE ${PRODUCT_OF_CUSTOMER} ORDER BY p.status, (last_order IS NULL), last_order DESC, p.nama LIMIT 100`,
+    [customer.accurate_id, customer.id, customer.id],
   )
   return NextResponse.json({
     item: { ...customer, order_count: Number(customer.order_count), total_amount: Number(customer.total_amount) },

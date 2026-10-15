@@ -77,6 +77,16 @@ export async function accurateDatabase(force = false) {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+// Batas Accurate: 8 proses paralel & 8 request/detik per token. Jaga jarak antar request ±150 ms (≈6,5/detik).
+const MIN_GAP_MS = 150
+let nextSlot = 0
+async function throttle() {
+  const now = Date.now()
+  const wait = Math.max(0, nextSlot - now)
+  nextSlot = Math.max(now, nextSlot) + MIN_GAP_MS
+  if (wait) await sleep(wait)
+}
+
 type Params = Record<string, string | number | boolean | undefined | null>
 
 // Panggil API data: path seperti "/api/customer/list.do"
@@ -85,6 +95,7 @@ export async function accurate<T = unknown>(path: string, options: { method?: 'G
   const url = new URL(`${host}/accurate${path}`)
   for (const [key, value] of Object.entries(options.params ?? {})) if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value))
   for (let attempt = 0; ; attempt++) {
+    await throttle()
     const res = await fetch(url, {
       method: options.method ?? 'GET',
       headers: { ...authHeaders(), ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
@@ -93,9 +104,9 @@ export async function accurate<T = unknown>(path: string, options: { method?: 'G
       redirect: 'follow', // Accurate membalas 308 bila host database pindah
       signal: AbortSignal.timeout(20000),
     })
-    // Batas pemanggilan: tunggu lalu ulangi (maks 3x)
-    if (res.status === 429 && attempt < 3) {
-      await sleep(1000 * (attempt + 1))
+    // Batas pemanggilan terlampaui (mis. ada proses lain memakai token yang sama): tunggu lalu ulangi (maks 4x)
+    if (res.status === 429 && attempt < 4) {
+      await sleep(1500 * (attempt + 1))
       continue
     }
     return parse<T>(res)
