@@ -2,7 +2,7 @@ import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
-import { canManageCustomer, canManageProduct, canViewCustomers, canViewProducts, loadCustomer, readCustomerInput, requireMenu, saveCustomerToAccurate, upsertLocalCustomer } from '@/lib/customers'
+import { canManageCustomer, canManageProduct, canViewCustomers, canViewProducts, loadCustomer, readCustomerInput, refreshCustomerFromAccurate, requireMenu, saveCustomerToAccurate, upsertLocalCustomer, type CustomerInput } from '@/lib/customers'
 
 type Ctx = { params: Promise<{ id: string }> }
 const customerId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Customer tidak ditemukan.')
@@ -11,7 +11,9 @@ const customerId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, '
 export const GET = handle(async (_request: Request, ctx: Ctx) => {
   const user = await requireUser()
   requireMenu(user, canViewCustomers(user) || canViewProducts(user))
-  const customer = await loadCustomer(await customerId(ctx))
+  let customer = await loadCustomer(await customerId(ctx))
+  // Ambil detail terbaru (termasuk alamat) dari Accurate setiap kali customer dibuka
+  if (await refreshCustomerFromAccurate(customer.accurate_id)) customer = await loadCustomer(customer.id)
   const [invoices] = customer.accurate_id
     ? await db.query<RowDataPacket[]>(
         'SELECT accurate_id, number, trans_date, total_amount, status FROM accurate_sales_invoices WHERE customer_accurate_id = ? ORDER BY trans_date DESC, accurate_id DESC LIMIT 20',
@@ -35,9 +37,12 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
 export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
   if (!canManageCustomer(user)) fail(403, 'Anda tidak punya akses untuk mengedit customer.')
-  const customer = await loadCustomer(await customerId(ctx))
+  const id = await customerId(ctx)
   const input = readCustomerInput(await readJson(request))
-  const saved = await saveCustomerToAccurate(input, customer.accurate_id)
+  // Bandingkan dengan data terbaru dari Accurate; hanya field yang berubah yang dikirim
+  await refreshCustomerFromAccurate((await loadCustomer(id)).accurate_id)
+  const customer = await loadCustomer(id)
+  const saved = await saveCustomerToAccurate(input, customer.accurate_id, customer as Partial<CustomerInput>)
   await upsertLocalCustomer(input, saved.accurateId, saved.customerNo ?? customer.customer_no)
   return NextResponse.json({ item: await loadCustomer(customer.id) })
 })

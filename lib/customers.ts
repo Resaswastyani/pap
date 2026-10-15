@@ -1,6 +1,7 @@
 import type { RowDataPacket } from 'mysql2'
 import { fail, str } from '@/lib/api'
 import { accurate, accurateEnabled } from '@/lib/accurate'
+import { storeCustomerRow } from '@/lib/accurate-sync'
 import { db } from '@/lib/db'
 import { PERMISSIONS } from '@/lib/permissions'
 import { can, type UserProfile } from '@/lib/users'
@@ -68,23 +69,35 @@ export type CustomerInput = {
   notes: string | null
 }
 
-// Simpan ke Accurate dulu (sumber data utama), lalu salin ke database PAP-MS
-export async function saveCustomerToAccurate(input: CustomerInput, accurateId: number | null) {
+// Nama field PAP-MS -> nama field Accurate
+const ACCURATE_FIELD: Record<keyof CustomerInput, string> = {
+  name: 'name',
+  email: 'email',
+  mobile_phone: 'mobilePhone',
+  work_phone: 'workPhone',
+  bill_street: 'billStreet',
+  bill_city: 'billCity',
+  bill_province: 'billProvince',
+  bill_zip: 'billZipCode',
+  npwp_no: 'npwpNo',
+  notes: 'notes',
+}
+
+// Simpan ke Accurate dulu (sumber data utama), lalu salin ke database PAP-MS.
+// Saat edit, hanya field yang berubah yang dikirim agar data lain di Accurate tidak tertimpa.
+export async function saveCustomerToAccurate(input: CustomerInput, accurateId: number | null, previous?: Partial<CustomerInput>) {
   if (!accurateEnabled()) fail(400, 'Integrasi Accurate belum dikonfigurasi, data customer belum bisa disimpan.')
-  const body: Record<string, unknown> = {
-    name: input.name,
-    email: input.email ?? '',
-    mobilePhone: input.mobile_phone ?? '',
-    workPhone: input.work_phone ?? '',
-    billStreet: input.bill_street ?? '',
-    billCity: input.bill_city ?? '',
-    billProvince: input.bill_province ?? '',
-    billZipCode: input.bill_zip ?? '',
-    npwpNo: input.npwp_no ?? '',
-    notes: input.notes ?? '',
+  const body: Record<string, unknown> = {}
+  for (const [key, field] of Object.entries(ACCURATE_FIELD) as [keyof CustomerInput, string][]) {
+    const value = input[key] ?? ''
+    if (!accurateId || (previous?.[key] ?? '') !== value) body[field] = value
   }
-  if (accurateId) body.id = accurateId
-  else body.transDate = accurateToday()
+  if (accurateId) {
+    if (!Object.keys(body).length) return { accurateId, customerNo: null }
+    body.id = accurateId
+  } else {
+    body.transDate = accurateToday()
+  }
   let res
   try {
     res = await accurate<unknown>('/api/customer/save.do', { method: 'POST', body })
@@ -95,6 +108,20 @@ export async function saveCustomerToAccurate(input: CustomerInput, accurateId: n
   const id = Number(saved?.id ?? accurateId)
   if (!id) fail(502, 'Accurate tidak mengembalikan ID customer.')
   return { accurateId: id, customerNo: (saved?.customerNo as string) ?? null }
+}
+
+// Ambil detail terbaru dari Accurate (alamat tidak tersedia di daftar) lalu perbarui salinan PAP-MS.
+// Gagal tidak menghentikan proses: data lokal tetap ditampilkan.
+export async function refreshCustomerFromAccurate(accurateId: number | null) {
+  if (!accurateId || !accurateEnabled()) return false
+  try {
+    const res = await accurate<Record<string, unknown>>('/api/customer/detail.do', { params: { id: accurateId } })
+    await storeCustomerRow(res.d)
+    return true
+  } catch (error) {
+    console.warn('[customer detail]', (error as Error).message)
+    return false
+  }
 }
 
 function accurateToday() {

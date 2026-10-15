@@ -6,12 +6,15 @@ import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatNumber } from './accurate'
 import { api, formatDate, Notice } from './ui'
 
-type StockItem = { accurate_id: number; item_no: string | null; name: string; item_type: string | null; category: string | null; unit: string | null; quantity: number | null; min_quantity: number | null; synced_at: string }
+type StockItem = { accurate_id: number; item_no: string | null; name: string; item_type: string | null; category: string | null; unit: string | null; quantity: number | null; quantity_on_hand: number | null; min_quantity: number | null; synced_at: string }
 type Summary = { total: number; low: number; empty: number; synced_at: string | null }
 
+// Status memakai stok fisik; bila fisik ada tapi semua sudah dipesan, tandai 'Terpesan'
 function stockState(item: StockItem) {
-  if (item.quantity !== null && item.quantity <= 0) return { label: 'Habis', tone: 'danger' }
-  if (item.min_quantity && item.quantity !== null && item.quantity <= item.min_quantity) return { label: 'Menipis', tone: 'warning' }
+  const fisik = item.quantity_on_hand ?? item.quantity
+  if (fisik !== null && fisik <= 0) return { label: 'Habis', tone: 'danger' }
+  if (item.min_quantity && fisik !== null && fisik <= item.min_quantity) return { label: 'Menipis', tone: 'warning' }
+  if (item.quantity !== null && item.quantity <= 0) return { label: 'Terpesan semua', tone: 'info' }
   return { label: 'Aman', tone: 'success' }
 }
 
@@ -54,7 +57,7 @@ export function StockPage({ user }: { user: UserProfile }) {
   const stats: [string, number, string, typeof Boxes, string, () => void][] = [
     ['Barang persediaan', summary.total, summary.synced_at ? `Data per ${formatDate(summary.synced_at, true)}` : 'Belum sinkron', Boxes, 'stat-1', () => setLow(false)],
     ['Stok menipis', summary.low, 'Di bawah stok minimum', AlertTriangle, 'stat-2', () => setLow(true)],
-    ['Stok habis', summary.empty, 'Jumlah 0 atau minus', PackageX, 'stat-2', () => setLow(false)],
+    ['Stok habis', summary.empty, 'Stok fisik 0 atau minus', PackageX, 'stat-2', () => setLow(false)],
   ]
 
   return (
@@ -66,7 +69,7 @@ export function StockPage({ user }: { user: UserProfile }) {
           <span>Stok barang dari Accurate Online untuk perencanaan bahan baku, produksi, dan pembelian.</span>
         </div>
       </div>
-      <AccurateSyncBar entities={['item']} canSync={user.menus.includes('stok')} onSynced={load} />
+      <AccurateSyncBar entities={['item', 'stock']} canSync={user.menus.includes('stok')} onSynced={load} />
       <div className="pap-stat-grid">
         {stats.map(([label, value, note, Icon, tone, onClick]) => (
           <button key={label} className="pap-stat-card pap-stat-button" onClick={onClick}>
@@ -76,7 +79,7 @@ export function StockPage({ user }: { user: UserProfile }) {
         ))}
       </div>
       <div className="pap-table-card">
-        <div className="pap-card-head"><div><h2>Daftar stok</h2><p>Jumlah stok mengikuti Accurate (semua gudang).</p></div></div>
+        <div className="pap-card-head"><div><h2>Daftar stok</h2><p>Stok fisik = jumlah di gudang. Tersedia dijual = stok fisik dikurangi pesanan yang belum dikirim. Semua gudang.</p></div></div>
         <div className="pap-filters">
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama atau kode barang..." /></label>
           <select className="pap-select" value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Filter kategori">
@@ -89,7 +92,7 @@ export function StockPage({ user }: { user: UserProfile }) {
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Barang</th><th>Kategori</th><th className="pap-num">Stok</th><th className="pap-num">Minimum</th><th>Status</th></tr></thead>
+            <thead><tr><th>Barang</th><th>Kategori</th><th className="pap-num">Stok fisik</th><th className="pap-num">Tersedia dijual</th><th className="pap-num">Minimum</th><th>Status</th></tr></thead>
             <tbody>
               {items.map((item) => {
                 const state = stockState(item)
@@ -97,7 +100,8 @@ export function StockPage({ user }: { user: UserProfile }) {
                   <tr key={item.accurate_id}>
                     <td><div className="pap-cell-title">{item.name}</div><div className="pap-cell-sub">{item.item_no ?? '—'}</div></td>
                     <td>{item.category ?? '—'}</td>
-                    <td className="pap-num pap-nowrap"><strong>{formatNumber(item.quantity)}</strong> {item.unit ?? ''}</td>
+                    <td className="pap-num pap-nowrap"><strong>{formatNumber(item.quantity_on_hand)}</strong> {item.unit ?? ''}</td>
+                    <td className="pap-num pap-nowrap">{formatNumber(item.quantity)} {item.unit ?? ''}</td>
                     <td className="pap-num pap-nowrap">{item.min_quantity ? `${formatNumber(item.min_quantity)} ${item.unit ?? ''}` : '—'}</td>
                     <td><span className={`pap-status ${state.tone}`}>{state.label}</span></td>
                   </tr>

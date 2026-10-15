@@ -4,10 +4,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react'
 import { api, formatDate, Notice } from './ui'
 
-type SyncEntity = 'customer' | 'sales-invoice' | 'item'
+type SyncEntity = 'customer' | 'sales-invoice' | 'item' | 'stock'
 type SyncRow = { entity: SyncEntity; last_success: string | null; status: 'ok' | 'berjalan' | 'gagal'; message: string | null; updated_at: string }
 
-const LABEL: Record<SyncEntity, string> = { customer: 'Customer', 'sales-invoice': 'Faktur penjualan', item: 'Stok barang' }
+const LABEL: Record<SyncEntity, string> = { customer: 'Customer', 'sales-invoice': 'Faktur penjualan', item: 'Data barang', stock: 'Stok fisik' }
 
 export const formatRupiah = (value: number | null | undefined) =>
   value === null || value === undefined ? '—' : `Rp ${Math.round(value).toLocaleString('id-ID')}`

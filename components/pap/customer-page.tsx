@@ -137,12 +137,11 @@ export function CustomerPage({ user }: { user: UserProfile }) {
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Customer</th><th>Kota</th><th>Kontak</th><th>Transaksi</th><th>Status</th><th>Produk</th></tr></thead>
+            <thead><tr><th>Customer</th><th>Kontak</th><th>Transaksi</th><th>Status</th><th>Produk</th></tr></thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
                   <td><div className="pap-cell-title">{item.name}</div><div className="pap-cell-sub">{item.customer_no ?? 'Belum ada nomor'}{item.category ? ` · ${item.category}` : ''}</div></td>
-                  <td>{item.bill_city ?? '—'}</td>
                   <td><div className="pap-cell-sub">{item.mobile_phone ?? item.work_phone ?? '—'}</div><div className="pap-cell-sub">{item.email ?? ''}</div></td>
                   <td className="pap-nowrap">{item.order_count ? <><strong>{item.order_count}×</strong> · {formatDate(item.last_order)}</> : <span className="pap-muted">Belum ada</span>}</td>
                   <td><CrmBadge value={item.crm_status} /></td>
