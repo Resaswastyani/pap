@@ -415,3 +415,56 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
 .pap-file-list a.pap-icon-button { display:grid; place-items:center; color:var(--pap-text); }
 .pap-file-list a.pap-icon-button svg { width:15px; height:15px; }
 .pap-filters .pap-check { white-space:nowrap; font-size:12px; }
+
+/* Jadwal Produksi: daftar tahap, editor jadwal, jadwal per mesin */
+.pap-flag { color:#e2502f; margin-right:4px; }
+.pap-stage-list { display:flex; flex-direction:column; gap:10px; margin:0; padding:0; list-style:none; }
+.pap-stage { display:flex; flex-direction:column; gap:10px; padding:12px 14px; border:1px solid var(--pap-border); border-left:4px solid #c8cbd8; border-radius:12px; }
+.pap-stage.berjalan { border-left-color:#7c5cfc; }
+.pap-stage.selesai { border-left-color:#1db98a; }
+.pap-stage.dilewati { opacity:.6; }
+.pap-stage-top { display:flex; align-items:flex-start; gap:10px; }
+.pap-stage-no { display:grid; place-items:center; flex:none; width:24px; height:24px; border-radius:50%; background:rgb(124 92 252 / .12); color:#7050e7; font-size:11px; font-weight:800; }
+.pap-stage-main { display:flex; flex:1; flex-direction:column; gap:2px; min-width:0; }
+.pap-stage-main strong { font-size:13px; }
+.pap-stage-main small { color:var(--pap-muted); font-size:11.5px; }
+.pap-stage-progress { display:grid; grid-template-columns:minmax(120px,1fr) 42px 140px minmax(140px,1.4fr) auto; align-items:center; gap:10px; }
+.pap-stage-progress input[type=range] { width:100%; accent-color:#7c5cfc; }
+.pap-stage-pct { font-size:12px; font-weight:800; text-align:right; font-variant-numeric:tabular-nums; }
+.pap-stage-editor { display:flex; flex-direction:column; gap:12px; }
+.pap-stage-edit { padding:12px; border:1px solid var(--pap-border); border-radius:12px; background:rgb(124 92 252 / .03); }
+.pap-stage-edit-head { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.pap-stage-edit-head .pap-input { flex:1; max-width:260px; }
+.pap-stage-edit-head .pap-icon-button { display:grid; place-items:center; background:transparent; color:var(--pap-text); cursor:pointer; }
+.pap-stage-edit-head .pap-icon-button:disabled { opacity:.35; cursor:not-allowed; }
+.pap-stage-edit-head svg { width:15px; height:15px; }
+.pap-stage-edit-grid { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:10px; }
+.pap-stage-edit-grid label { display:flex; flex-direction:column; gap:5px; color:var(--pap-muted); font-size:11px; font-weight:700; }
+.pap-stage-edit-grid label.full { grid-column:1 / -1; }
+.pap-spec-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:10px; }
+.pap-spec-grid > div > span { display:block; margin-bottom:4px; color:var(--pap-muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+.pap-spec-grid p { margin:0; font-size:13px; }
+
+.pap-machine-schedule { padding:0 22px 22px; border-top:1px solid var(--pap-border); }
+.pap-gantt { display:grid; grid-template-columns:180px repeat(7, minmax(110px, 1fr)); overflow-x:auto; border:1px solid var(--pap-border); border-radius:12px; transition:opacity .2s; }
+.pap-gantt.loading { opacity:.6; }
+.pap-gantt-row { display:contents; }
+.pap-gantt-head { position:sticky; top:0; padding:8px; border-bottom:1px solid var(--pap-border); background:rgb(124 92 252 / .05); color:var(--pap-muted); font-size:11px; font-weight:800; text-align:center; }
+.pap-gantt-head:first-child { text-align:left; }
+.pap-gantt-head.today, .pap-gantt-cell.today { background:rgb(124 92 252 / .08); }
+.pap-gantt-machine { display:flex; flex-direction:column; justify-content:center; gap:2px; padding:8px 10px; border-bottom:1px solid var(--pap-border); border-right:1px solid var(--pap-border); }
+.pap-gantt-machine strong { font-size:12px; }
+.pap-gantt-machine small { color:var(--pap-muted); font-size:10.5px; }
+.pap-gantt-cell { display:flex; flex-direction:column; gap:3px; min-height:58px; padding:4px; border-bottom:1px solid var(--pap-border); border-right:1px solid var(--pap-border); }
+.pap-gantt-chip { overflow:hidden; padding:4px 6px; border:0; border-left:3px solid #7c5cfc; border-radius:6px; background:rgb(124 92 252 / .12); color:var(--pap-text); font-size:10.5px; text-align:left; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+.pap-gantt-chip b { font-weight:800; }
+.pap-gantt-chip.berjalan { border-left-color:#f5b43c; background:rgb(245 180 60 / .16); }
+.pap-gantt-chip.selesai { border-left-color:#1db98a; background:rgb(29 185 138 / .12); }
+.pap-gantt-chip.priority { box-shadow:inset 0 0 0 1px #ef5a3c; }
+@media (max-width:800px) {
+  .pap-stage-progress { grid-template-columns:1fr 42px; }
+  .pap-stage-progress .pap-select, .pap-stage-progress .pap-input, .pap-stage-progress .pap-primary-button { grid-column:1 / -1; }
+  .pap-stage-edit-grid, .pap-spec-grid { grid-template-columns:1fr; }
+  .pap-machine-schedule { padding:0 12px 16px; }
+  .pap-gantt { grid-template-columns:130px repeat(7, 120px); }
+}

@@ -1,6 +1,7 @@
 import type { RowDataPacket } from 'mysql2'
 import { accurate, accurateDateTime, accurateEnabled, fromAccurateDate } from '@/lib/accurate'
 import { db } from '@/lib/db'
+import { syncProductionJobs } from '@/lib/production'
 
 // Sinkronisasi data Accurate -> database PAP-MS.
 // - Inkremental memakai filter lastUpdate (hanya data yang berubah sejak sinkron terakhir)
@@ -9,10 +10,10 @@ import { db } from '@/lib/db'
 // Daftar (list.do): customer, sales-invoice, sales-order, item, stock (stok fisik)
 // Detail (per data): sales-order-items (baris barang SO -> Data Produk), customer-detail (alamat customer)
 type ListEntity = 'customer' | 'sales-invoice' | 'sales-order' | 'item' | 'stock'
-type DetailEntity = 'sales-order-items' | 'customer-detail'
+type DetailEntity = 'sales-order-items' | 'customer-detail' | 'item-detail'
 export type SyncEntity = ListEntity | DetailEntity
 // Urutan: data kecil & inkremental dulu, stok (selalu penuh, paling lama) terakhir
-export const SYNC_ENTITIES: SyncEntity[] = ['customer', 'sales-invoice', 'sales-order', 'sales-order-items', 'customer-detail', 'item', 'stock']
+export const SYNC_ENTITIES: SyncEntity[] = ['customer', 'sales-invoice', 'sales-order', 'sales-order-items', 'customer-detail', 'item', 'item-detail', 'stock']
 
 const PATHS: Record<ListEntity, string> = {
   customer: '/api/customer/list.do',
@@ -32,7 +33,7 @@ const nameOf = (v: unknown) => (v && typeof v === 'object' ? str((v as Row).name
 const idOf = (v: unknown) => (v && typeof v === 'object' ? num((v as Row).id) : num(v))
 
 const FIELDS: Record<ListEntity, string> = {
-  'sales-order': 'id,number,transDate,customer,totalAmount,statusName,lastUpdate',
+  'sales-order': 'id,number,transDate,shipDate,customer,totalAmount,statusName,lastUpdate',
   customer: 'id,customerNo,name,email,mobilePhone,workPhone,billStreet,billCity,billProvince,billZipCode,npwpNo,suspended,category,notes,lastUpdate',
   'sales-invoice': 'id,number,transDate,customer,totalAmount,statusName,lastUpdate',
   item: 'id,no,name,itemType,itemCategory,unit1,availableToSell,balance,quantity,minimumQuantity,suspended,lastUpdate',
@@ -82,13 +83,14 @@ async function saveInvoices(rows: Row[]) {
 async function saveItems(rows: Row[]) {
   if (!rows.length) return
   await db.query(
-    `INSERT INTO accurate_items (accurate_id, item_no, name, item_type, category, unit, quantity, min_quantity, suspended)
+    `INSERT INTO accurate_items (accurate_id, item_no, name, item_type, category, unit, quantity, min_quantity, suspended, last_update)
      VALUES ?
      ON DUPLICATE KEY UPDATE item_no = VALUES(item_no), name = VALUES(name), item_type = VALUES(item_type), category = VALUES(category),
-       unit = VALUES(unit), quantity = VALUES(quantity), min_quantity = VALUES(min_quantity), suspended = VALUES(suspended), synced_at = NOW()`,
+       unit = VALUES(unit), quantity = VALUES(quantity), min_quantity = VALUES(min_quantity), suspended = VALUES(suspended),
+       last_update = VALUES(last_update), synced_at = NOW()`,
     [rows.map((row) => [
       num(row.id), str(row.no, 80), str(row.name) ?? '(tanpa nama)', str(row.itemType, 40), nameOf(row.itemCategory), nameOf(row.unit1),
-      num(row.availableToSell ?? row.balance ?? row.quantity), num(row.minimumQuantity), row.suspended === true ? 1 : 0,
+      num(row.availableToSell ?? row.balance ?? row.quantity), num(row.minimumQuantity), row.suspended === true ? 1 : 0, str(row.lastUpdate, 20),
     ])],
   )
 }
@@ -106,11 +108,11 @@ async function saveStock(rows: Row[]) {
 async function saveSalesOrders(rows: Row[]) {
   if (!rows.length) return
   await db.query(
-    `INSERT INTO accurate_sales_orders (accurate_id, number, trans_date, customer_accurate_id, total_amount, status, last_update)
+    `INSERT INTO accurate_sales_orders (accurate_id, number, trans_date, ship_date, customer_accurate_id, total_amount, status, last_update)
      VALUES ?
-     ON DUPLICATE KEY UPDATE number = VALUES(number), trans_date = VALUES(trans_date), customer_accurate_id = VALUES(customer_accurate_id),
+     ON DUPLICATE KEY UPDATE number = VALUES(number), trans_date = VALUES(trans_date), ship_date = VALUES(ship_date), customer_accurate_id = VALUES(customer_accurate_id),
        total_amount = VALUES(total_amount), status = VALUES(status), last_update = VALUES(last_update)`,
-    [rows.map((row) => [num(row.id), str(row.number, 80), fromAccurateDate(row.transDate), idOf(row.customer), num(row.totalAmount), str(row.statusName, 80), str(row.lastUpdate, 20)])],
+    [rows.map((row) => [num(row.id), str(row.number, 80), fromAccurateDate(row.transDate), fromAccurateDate(row.shipDate), idOf(row.customer), num(row.totalAmount), str(row.statusName, 80), str(row.lastUpdate, 20)])],
   )
 }
 
@@ -219,9 +221,32 @@ async function syncCustomerDetails(deadline: number) {
   return { saved, done: saved === pending.length && pending.length < 400 }
 }
 
+// Tanda "Diproduksi" & "Bahan Baku" (Barang & Jasa > Umum > Tipe Persediaan) hanya ada di detail.do barang
+async function syncItemDetails(deadline: number) {
+  const [pending] = await db.query<(RowDataPacket & { accurate_id: number; last_update: string | null })[]>(
+    `SELECT accurate_id, last_update FROM accurate_items
+     WHERE item_type = 'INVENTORY' AND suspended = 0 AND (detail_synced_update IS NULL OR detail_synced_update <> COALESCE(last_update, ''))
+     ORDER BY accurate_id DESC LIMIT 400`,
+  )
+  let saved = 0
+  await eachParallel(pending, 4, deadline, async (item) => {
+    const res = await accurate<Row>('/api/item/detail.do', { params: { id: item.accurate_id } }).catch(() => null)
+    if (!res?.d) return
+    await db.query('UPDATE accurate_items SET item_produced = ?, material_produced = ?, detail_synced_update = ? WHERE accurate_id = ?', [
+      res.d.itemProduced === true ? 1 : 0,
+      res.d.materialProduced === true ? 1 : 0,
+      item.last_update ?? '',
+      item.accurate_id,
+    ])
+    saved++
+  })
+  return { saved, done: saved === pending.length && pending.length < 400 }
+}
+
 const DETAIL_TASKS: Record<DetailEntity, (deadline: number) => Promise<{ saved: number; done: boolean }>> = {
   'sales-order-items': syncSalesOrderItems,
   'customer-detail': syncCustomerDetails,
+  'item-detail': syncItemDetails,
 }
 
 async function runDetailTask(entity: DetailEntity, deadline: number) {
@@ -303,6 +328,12 @@ export async function syncAll(budgetMs = 45_000, only?: SyncEntity[]) {
     } catch (error) {
       results.push({ entity, saved: 0, done: false, error: (error as Error).message })
     }
+  }
+  // Pesanan berisi barang "Diproduksi" -> job jadwal produksi (cepat, hanya query database)
+  try {
+    await syncProductionJobs()
+  } catch (error) {
+    console.error('[production jobs]', error)
   }
   return results
 }
