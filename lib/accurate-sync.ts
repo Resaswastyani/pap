@@ -11,7 +11,8 @@ import { db } from '@/lib/db'
 type ListEntity = 'customer' | 'sales-invoice' | 'sales-order' | 'item' | 'stock'
 type DetailEntity = 'sales-order-items' | 'customer-detail'
 export type SyncEntity = ListEntity | DetailEntity
-export const SYNC_ENTITIES: SyncEntity[] = ['customer', 'sales-invoice', 'sales-order', 'item', 'stock', 'sales-order-items', 'customer-detail']
+// Urutan: data kecil & inkremental dulu, stok (selalu penuh, paling lama) terakhir
+export const SYNC_ENTITIES: SyncEntity[] = ['customer', 'sales-invoice', 'sales-order', 'sales-order-items', 'customer-detail', 'item', 'stock']
 
 const PATHS: Record<ListEntity, string> = {
   customer: '/api/customer/list.do',
