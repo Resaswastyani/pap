@@ -11,7 +11,13 @@ export const PERMISSIONS = {
   meetingViewAll: 'meeting.view_all',
   meetingCreate: 'meeting.create',
   meetingManage: 'meeting.manage',
+  customerManage: 'customer.manage',
+  productManage: 'product.manage',
 } as const
+
+// Lampiran produk (desain): PDF & gambar, maks 4 MB per file (batas request Vercel 4,5 MB; diunggah satu per satu)
+export const PRODUCT_FILE_MAX_BYTES = 4 * 1024 * 1024
+export const PRODUCT_FILE_ACCEPT = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'] as const
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
 

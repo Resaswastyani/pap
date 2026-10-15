@@ -374,3 +374,44 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
   .pap-push-banner-actions { flex-direction:row; width:100%; }
   .pap-push-banner-actions > * { flex:1; }
 }
+
+/* Integrasi Accurate: bar status sinkronisasi */
+.pap-sync-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 16px; margin-bottom:16px; padding:12px 16px; border:1px solid var(--pap-border); border-radius:14px; background:var(--pap-surface); box-shadow:var(--pap-shadow); }
+.pap-sync-items { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; }
+.pap-sync-title { padding:3px 9px; border-radius:99px; background:rgb(29 185 138 / .12); color:#0f9c74; font-size:11px; font-weight:800; letter-spacing:.04em; }
+.pap-sync-item { display:inline-flex; align-items:center; gap:6px; color:var(--pap-muted); font-size:12px; }
+.pap-sync-item svg { width:14px; height:14px; color:#1db98a; }
+.pap-sync-item.error, .pap-sync-item.error svg { color:#dc2626; }
+.pap-sync-bar .pap-btn { min-height:34px; }
+.pap-sync-msg { flex-basis:100%; }
+.pap-spin { animation:pap-spin 1s linear infinite; }
+@keyframes pap-spin { to { transform:rotate(360deg); } }
+
+/* Kartu statistik yang bisa diklik sebagai filter */
+.pap-stat-button { width:100%; font:inherit; color:inherit; text-align:left; cursor:pointer; transition:border-color .15s, box-shadow .15s; }
+.pap-stat-button:hover { border-color:rgb(124 92 252 / .45); }
+.pap-stat-button.active { border-color:#7c5cfc; box-shadow:0 0 0 3px rgb(124 92 252 / .14); }
+
+/* Paginasi tabel */
+.pap-pager { display:flex; align-items:center; justify-content:flex-end; gap:8px; padding:12px 22px; border-top:1px solid var(--pap-border); color:var(--pap-muted); font-size:12px; }
+.pap-pager .pap-icon-button { display:grid; place-items:center; background:transparent; color:var(--pap-text); cursor:pointer; }
+.pap-pager .pap-icon-button:disabled { opacity:.4; cursor:not-allowed; }
+.pap-pager svg { width:15px; height:15px; }
+
+/* Kolom angka & tabel ringkas di dalam modal */
+.pap-table-wrap th.pap-num, .pap-table-wrap td.pap-num { text-align:right; font-variant-numeric:tabular-nums; }
+.pap-compact-table { border:1px solid var(--pap-border); border-radius:10px; }
+.pap-compact-table table { min-width:480px; }
+.pap-compact-table th, .pap-compact-table td { padding:9px 12px; }
+
+/* Pilih customer dengan pencarian */
+.pap-combo { position:relative; }
+.pap-combo-list { position:absolute; top:calc(100% + 4px); right:0; left:0; z-index:5; max-height:240px; margin:0; padding:4px; overflow:auto; border:1px solid var(--pap-border); border-radius:10px; background:var(--pap-surface); box-shadow:0 12px 30px rgb(0 0 0 / .14); list-style:none; }
+.pap-combo-list button { display:flex; flex-direction:column; width:100%; padding:8px 10px; border:0; border-radius:8px; background:transparent; color:var(--pap-text); text-align:left; cursor:pointer; }
+.pap-combo-list button:hover { background:rgb(124 92 252 / .08); }
+.pap-combo-list strong { font-size:13px; }
+.pap-combo-list small { color:var(--pap-muted); font-size:11px; }
+.pap-combo-empty { padding:10px; color:var(--pap-muted); font-size:12px; }
+.pap-file-list a.pap-icon-button { display:grid; place-items:center; color:var(--pap-text); }
+.pap-file-list a.pap-icon-button svg { width:15px; height:15px; }
+.pap-filters .pap-check { white-space:nowrap; font-size:12px; }

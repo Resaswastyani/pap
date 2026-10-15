@@ -3,6 +3,8 @@
 export const MENU_KEYS = {
   Dashboard: 'dashboard',
   Customer: 'customer',
+  'Data Produk': 'produk',
+  Stok: 'stok',
   Quotation: 'quotation',
   'Surat Berita Kerja': 'sbk',
   'Jadwal Produksi': 'jadwal-produksi',
