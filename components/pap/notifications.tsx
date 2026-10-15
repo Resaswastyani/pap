@@ -1,25 +1,27 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bell, BellRing, CalendarClock, CalendarDays, CheckCircle2, ClipboardCheck, ClipboardList, Smartphone, X } from 'lucide-react'
+import { Bell, BellRing, CalendarClock, CalendarDays, CheckCircle2, ClipboardCheck, ClipboardList, MapPin, PhoneCall, Smartphone, UserPlus, X } from 'lucide-react'
 import { api } from './ui'
 
-export type NotificationTarget = { meetingId?: number | null; planningId?: number | null }
+export type NotificationTarget = { meetingId?: number | null; planningId?: number | null; prospectId?: number | null; visitId?: number | null }
 
 type Item = {
   id: number
-  type: 'meeting_baru' | 'meeting_diubah' | 'meeting_reminder' | 'planning_pic' | 'planning_baru' | 'sistem'
+  type: 'meeting_baru' | 'meeting_diubah' | 'meeting_reminder' | 'planning_pic' | 'planning_baru' | 'sistem' | 'prospek_baru' | 'visit_reminder' | 'followup_due'
   title: string
   body: string | null
   meeting_id: number | null
   planning_id: number | null
+  prospect_id: number | null
+  visit_id: number | null
   read_at: string | null
   created_at: string
 }
 
 const POLL_MS = 30_000
 const TOAST_MS = 15_000
-const ICONS = { meeting_baru: CalendarDays, meeting_diubah: CalendarDays, meeting_reminder: CalendarClock, planning_pic: ClipboardList, planning_baru: ClipboardCheck, sistem: BellRing }
+const ICONS = { meeting_baru: CalendarDays, meeting_diubah: CalendarDays, meeting_reminder: CalendarClock, planning_pic: ClipboardList, planning_baru: ClipboardCheck, sistem: BellRing, prospek_baru: UserPlus, visit_reminder: MapPin, followup_due: PhoneCall }
 
 // Dipanggil setelah aksi yang mungkin membuat notifikasi (lihat api() di ui.tsx) agar lonceng langsung diperbarui
 export const REFRESH_EVENT = 'pap-notif-refresh'
@@ -83,7 +85,7 @@ async function showOsNotification(item: Item) {
     tag: `pap-${item.id}`,
     icon: '/icon-192.png',
     badge: '/notification-badge.png',
-    data: { meetingId: item.meeting_id, planningId: item.planning_id },
+    data: { meetingId: item.meeting_id, planningId: item.planning_id, prospectId: item.prospect_id, visitId: item.visit_id },
     requireInteraction: item.type === 'meeting_reminder',
   }
   try {
@@ -197,7 +199,7 @@ export function NotificationCenter({ userId, onOpen }: { userId: number; onOpen:
     if (!item.read_at) markRead({ ids: [item.id] })
     dismissToast(item.id)
     setOpen(false)
-    onOpen({ meetingId: item.meeting_id, planningId: item.planning_id })
+    onOpen({ meetingId: item.meeting_id, planningId: item.planning_id, prospectId: item.prospect_id, visitId: item.visit_id })
   }
 
   async function enableOs() {

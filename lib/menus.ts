@@ -2,6 +2,8 @@
 // menu fitur dibuka lewat permission (lihat PERMISSION_MENUS)
 export const MENU_KEYS = {
   Dashboard: 'dashboard',
+  Prospek: 'prospek',
+  'Jadwal Visit': 'visit',
   Customer: 'customer',
   'Data Produk': 'produk',
   Stok: 'stok',

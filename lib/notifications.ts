@@ -3,8 +3,10 @@ import { db } from '@/lib/db'
 import { pushToUsers } from '@/lib/push'
 
 export const REMINDER_MINUTES = 15
+// Sales butuh waktu perjalanan: reminder visit dikirim 60 menit sebelumnya
+export const VISIT_REMINDER_MINUTES = 60
 
-export type NotificationType = 'meeting_baru' | 'meeting_diubah' | 'meeting_reminder' | 'planning_pic' | 'planning_baru' | 'sistem'
+export type NotificationType = 'meeting_baru' | 'meeting_diubah' | 'meeting_reminder' | 'planning_pic' | 'planning_baru' | 'sistem' | 'prospek_baru' | 'visit_reminder' | 'followup_due'
 
 type NotificationInput = {
   type: NotificationType
@@ -12,6 +14,8 @@ type NotificationInput = {
   body?: string | null
   meetingId?: number | null
   planningId?: number | null
+  prospectId?: number | null
+  visitId?: number | null
   // Kunci unik per user; notifikasi dengan kunci sama tidak dibuat dua kali
   refKey: string
 }
@@ -24,8 +28,8 @@ export async function notify(userIds: number[], input: NotificationInput, conn: 
   const created: number[] = []
   for (const userId of new Set(userIds)) {
     const [result] = await conn.query<ResultSetHeader>(
-      'INSERT IGNORE INTO notifications (user_id, type, title, body, meeting_id, planning_id, ref_key) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [userId, input.type, input.title.slice(0, 200), input.body?.slice(0, 500) ?? null, input.meetingId ?? null, input.planningId ?? null, input.refKey.slice(0, 120)],
+      'INSERT IGNORE INTO notifications (user_id, type, title, body, meeting_id, planning_id, prospect_id, visit_id, ref_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, input.type, input.title.slice(0, 200), input.body?.slice(0, 500) ?? null, input.meetingId ?? null, input.planningId ?? null, input.prospectId ?? null, input.visitId ?? null, input.refKey.slice(0, 120)],
     )
     if (result.affectedRows) created.push(userId)
   }
@@ -63,6 +67,45 @@ export async function createDueReminders(userId?: number) {
       refKey: `reminder:${meeting.id}:${meeting.waktu}`,
     })))
   }
+  created.push(...(await createMarketingReminders(userId)))
   await pushToUsers(created)
+  return created
+}
+
+// Reminder marketing: visit terjadwal yang mulai dalam VISIT_REMINDER_MINUTES menit (ke sales),
+// dan follow-up prospek yang sudah jatuh tempo (ke sales / pembuat prospek).
+async function createMarketingReminders(userId?: number) {
+  const created: number[] = []
+  const [visits] = await db.query<(RowDataPacket & { id: number; jadwal: string; sales_id: number; target: string | null; alamat: string | null })[]>(
+    `SELECT v.id, v.jadwal, v.sales_id, v.alamat, COALESCE(p.nama_usaha, c.name) AS target FROM visits v
+     LEFT JOIN prospects p ON p.id = v.prospect_id LEFT JOIN customers c ON c.id = v.customer_id
+     WHERE v.status = 'terjadwal' AND v.jadwal > NOW() AND v.jadwal <= NOW() + INTERVAL ? MINUTE ${userId ? 'AND v.sales_id = ?' : ''}`,
+    userId ? [VISIT_REMINDER_MINUTES, userId] : [VISIT_REMINDER_MINUTES],
+  )
+  for (const visit of visits) {
+    created.push(...(await notify([visit.sales_id], {
+      type: 'visit_reminder',
+      title: `Visit segera: ${visit.target ?? 'jadwal visit'}`,
+      body: [formatWaktu(visit.jadwal), visit.alamat].filter(Boolean).join(' · '),
+      visitId: visit.id,
+      refKey: `visit:${visit.id}:${visit.jadwal}`,
+    })))
+  }
+  // Hanya follow-up yang jatuh tempo dalam 24 jam terakhir, agar data lama tidak membanjiri notifikasi
+  const [due] = await db.query<(RowDataPacket & { id: number; nama_usaha: string; next_followup_at: string; owner: number })[]>(
+    `SELECT p.id, p.nama_usaha, p.next_followup_at, COALESCE(IF(p.status = 'handover', p.maintenance_to, NULL), p.assigned_to, p.created_by) AS owner
+     FROM prospects p WHERE p.status <> 'gagal' AND p.next_followup_at <= NOW() AND p.next_followup_at > NOW() - INTERVAL 1 DAY
+     ${userId ? 'HAVING owner = ?' : ''}`,
+    userId ? [userId] : [],
+  )
+  for (const p of due) {
+    created.push(...(await notify([p.owner], {
+      type: 'followup_due',
+      title: `Waktunya follow-up: ${p.nama_usaha}`,
+      body: `Jadwal follow-up ${formatWaktu(p.next_followup_at)}`,
+      prospectId: p.id,
+      refKey: `followup:${p.id}:${p.next_followup_at}`,
+    })))
+  }
   return created
 }

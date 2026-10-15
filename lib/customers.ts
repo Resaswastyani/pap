@@ -39,10 +39,10 @@ export const CUSTOMER_SELECT = `SELECT c.id, c.accurate_id, c.customer_no, c.nam
     FROM accurate_sales_invoices GROUP BY customer_accurate_id
   ) s ON s.customer_accurate_id = c.accurate_id`
 
-// Edit customer (tersimpan ke Accurate): permission customer.manage, atau divisi Marketing
-export const canManageCustomer = (user: UserProfile) => can(user, PERMISSIONS.customerManage) || user.division.code === 'marketing'
-// Kelola data produk & desain: permission product.manage, atau divisi Marketing / PPIC
-export const canManageProduct = (user: UserProfile) => can(user, PERMISSIONS.productManage) || ['marketing', 'ppic'].includes(user.division.code)
+// Edit customer (tersimpan ke Accurate): permission customer.manage, atau divisi Marketing (semua sub-divisi)
+export const canManageCustomer = (user: UserProfile) => can(user, PERMISSIONS.customerManage) || user.division.code.startsWith('marketing')
+// Kelola data produk & desain: permission product.manage, atau divisi Marketing / PPIC / Tim Desain
+export const canManageProduct = (user: UserProfile) => can(user, PERMISSIONS.productManage) || user.division.code.startsWith('marketing') || ['ppic', 'tim_desain'].includes(user.division.code)
 
 export const canViewCustomers = (user: UserProfile) => user.menus.includes('customer')
 export const canViewProducts = (user: UserProfile) => user.menus.includes('produk') || user.menus.includes('customer')

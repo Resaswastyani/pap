@@ -33,7 +33,7 @@ export type Product = {
 type Buyer = { id: number; name: string; customer_no: string | null; order_count: number; last_order: string | null }
 type OrderLine = { number: string | null; trans_date: string | null; status: string | null; customer_id: number | null; customer_name: string | null; quantity: number | null; unit: string | null; unit_price: number | null; notes: string | null }
 type ProductFile = { id: number; name: string; mime: string; size: number; uploaded_by_name: string; created_at: string }
-type CustomerOption = { id: number; name: string; customer_no: string | null; bill_city: string | null }
+export type CustomerOption = { id: number; name: string; customer_no: string | null; bill_city: string | null }
 
 const JENIS_DEFAULT = ['HD', 'PP', 'PE', 'Mika rigid', 'Plastik laundry', 'Lainnya']
 const ACCEPT = PRODUCT_FILE_ACCEPT.join(',')
@@ -209,7 +209,7 @@ export function ProductPage({ user, focusId }: { user: UserProfile; focusId?: nu
 }
 
 // Pilih customer dengan pencarian (data customer hasil sinkron Accurate)
-function CustomerSelect({ value, onChange }: { value: CustomerOption | null; onChange: (c: CustomerOption) => void }) {
+export function CustomerSelect({ value, onChange }: { value: CustomerOption | null; onChange: (c: CustomerOption) => void }) {
   const [term, setTerm] = useState('')
   const [options, setOptions] = useState<CustomerOption[]>([])
   const [open, setOpen] = useState(false)

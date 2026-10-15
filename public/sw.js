@@ -35,8 +35,8 @@ async function showPending() {
         tag: `pap-${item.id}`,
         renotify: true,
         vibrate: [200, 100, 200],
-        requireInteraction: item.type === 'meeting_reminder',
-        data: { meetingId: item.meeting_id, planningId: item.planning_id },
+        requireInteraction: item.type === 'meeting_reminder' || item.type === 'visit_reminder',
+        data: { meetingId: item.meeting_id, planningId: item.planning_id, prospectId: item.prospect_id, visitId: item.visit_id },
       }),
     ),
   )
@@ -50,13 +50,15 @@ self.addEventListener('notificationclick', (event) => {
   const params = new URLSearchParams()
   if (data.meetingId) params.set('meeting', data.meetingId)
   else if (data.planningId) params.set('planning', data.planningId)
+  else if (data.visitId) params.set('visit', data.visitId)
+  else if (data.prospectId) params.set('prospek', data.prospectId)
   const url = `/${params.size ? `?${params}` : ''}`
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       const client = clients.find((c) => new URL(c.url).origin === self.location.origin)
       if (client) {
-        client.postMessage({ type: 'pap-open', meetingId: data.meetingId, planningId: data.planningId })
+        client.postMessage({ type: 'pap-open', meetingId: data.meetingId, planningId: data.planningId, prospectId: data.prospectId, visitId: data.visitId })
         return client.focus()
       }
       return self.clients.openWindow(url)
