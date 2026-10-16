@@ -18,6 +18,7 @@ export const MENU_KEYS = {
   Planning: 'planning',
   'Progress Kerja': 'progress-kerja',
   Meeting: 'meeting',
+  'Master Data': 'master-data',
   'Manajemen User': 'users',
   'Manajemen Role': 'roles',
   Pengaturan: 'pengaturan',

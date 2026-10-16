@@ -22,7 +22,7 @@ export const canManageProduction = (user: UserProfile) => can(user, PERMISSIONS.
 export const canProgressProduction = (user: UserProfile) => canManageProduction(user) || can(user, PERMISSIONS.productionProgress) || user.division.code === 'produksi'
 export const canViewProduction = (user: UserProfile) => user.menus.includes('jadwal-produksi')
 // Data mesin: PPIC & Teknik
-export const canManageMachines = (user: UserProfile) => canManageProduction(user) || user.division.code === 'teknik'
+export const canManageMachines = (user: UserProfile) => user.role.isAdmin || canManageProduction(user) || user.division.code === 'teknik'
 
 // Tahap bawaan dari nama barang: "POLOS" tanpa cetak, "ROL" tanpa bag making
 export function defaultStages(itemName: string) {
