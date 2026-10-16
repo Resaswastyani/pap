@@ -564,3 +564,35 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
   .pap-visit-actions { grid-column:1 / -1; justify-content:flex-end; }
   .pap-stepper button.fail { margin-left:0; }
 }
+
+/* Lupa password: link di form login + halaman bantuan */
+.pap-forgot-link { display:block; width:max-content; margin:10px 0 0 auto; color:#0096cf; font-size:12px; font-weight:700; text-decoration:none; }
+.pap-forgot-link:hover { text-decoration:underline; }
+.pap-forgot { grid-template-columns:1fr; justify-items:center; }
+.pap-auth .pap-forgot-card { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:clamp(24px,5vw,64px); width:min(920px,100%); padding:clamp(28px,4vw,48px); }
+.pap-forgot-logo { display:block; width:150px; height:auto; margin-bottom:28px; }
+.pap-forgot-head h1 { margin:0; font-size:clamp(28px,3.4vw,40px); font-weight:500; letter-spacing:-.03em; }
+.pap-forgot-note { display:inline-block; margin:14px 0 0; padding:6px 12px; border:1px solid var(--pap-border); border-radius:999px; color:var(--pap-muted); font-size:12px; font-weight:600; }
+.pap-forgot-body { align-self:center; color:var(--pap-text); font-size:14px; line-height:1.7; }
+.pap-forgot-body p { margin:0 0 12px; }
+.pap-forgot-body a:not(.pap-primary-button):not(.pap-forgot-back) { color:#0096cf; font-weight:700; overflow-wrap:anywhere; }
+.pap-forgot-email { display:inline-block; max-width:100%; }
+.pap-forgot-actions { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:16px; margin-top:24px; }
+.pap-forgot-actions .pap-primary-button { text-decoration:none; }
+.pap-forgot-back { color:#0096cf; font-size:13px; font-weight:700; text-decoration:none; }
+.pap-forgot-back:hover { text-decoration:underline; }
+.pap-forgot-alt { margin-top:18px !important; color:var(--pap-muted); font-size:12px; }
+@media (max-width:720px) { .pap-auth .pap-forgot-card { grid-template-columns:1fr; } .pap-forgot-logo { width:130px; margin-bottom:20px; } .pap-forgot-actions { flex-direction:column-reverse; align-items:stretch; } .pap-forgot-actions .pap-primary-button { justify-content:center; } .pap-forgot-back { text-align:center; } }
+
+/* Log aktivitas Manajemen User */
+.pap-users-actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.pap-activity-table td { vertical-align:top; }
+.pap-activity-changes { margin:6px 0 0; padding-left:16px; color:var(--pap-muted); font-size:11px; line-height:1.6; }
+.pap-activity-changes strong { color:var(--pap-text); font-weight:600; }
+.pap-activity-device { display:flex; align-items:center; gap:6px; white-space:nowrap; }
+.pap-activity-device svg { width:15px; flex:none; color:var(--pap-muted); }
+.pap-activity-filter { display:inline-flex; align-items:center; gap:6px; border:0; cursor:pointer; }
+.pap-activity-filter svg { width:12px; }
+.pap-activity-notice { padding:0 22px 12px; }
+.pap-activity-more { display:flex; justify-content:center; padding:16px; border-top:1px solid var(--pap-border); }
+.pap-activity-table td:nth-child(5) { min-width:280px; }
