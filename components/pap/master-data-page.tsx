@@ -188,8 +188,8 @@ function DesignLibrary() {
       <div className="pap-table-card">
         <div className="pap-filters">
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari brand, nama file, customer..." /></label>
-          <select className="pap-select" value={bulan} onChange={(e) => setBulan(e.target.value)} aria-label="Filter bulan">
-            <option value="">Semua bulan</option>
+          <select className="pap-select" value={bulan} onChange={(e) => setBulan(e.target.value)} aria-label="Filter bulan atau kategori">
+            <option value="">Semua bulan / kategori</option>
             {(data?.months ?? []).map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
           <select className="pap-select" value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Jenis file">

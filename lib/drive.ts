@@ -52,7 +52,15 @@ async function storedAuth() {
 }
 
 // Akun yang dipakai membaca Drive: akun Google (bila terhubung) diutamakan, lalu service account
-export async function driveAccount(): Promise<{ mode: 'oauth' | 'service'; email: string; connectedAt?: string; connectedBy?: string | null } | null> {
+type DriveAccountInfo = { mode: 'oauth' | 'service'; email: string; connectedAt?: string; connectedBy?: string | null }
+const accountCache = globalThis as unknown as { papDriveAccount?: { value: DriveAccountInfo | null; exp: number } }
+export async function driveAccount(): Promise<DriveAccountInfo | null> {
+  if (accountCache.papDriveAccount && accountCache.papDriveAccount.exp > Date.now()) return accountCache.papDriveAccount.value
+  const value = await loadDriveAccount()
+  accountCache.papDriveAccount = { value, exp: Date.now() + 60_000 }
+  return value
+}
+async function loadDriveAccount(): Promise<DriveAccountInfo | null> {
   if (oauthClient()) {
     const auth = await storedAuth()
     if (auth) return { mode: 'oauth', email: auth.email, connectedAt: auth.connected_at, connectedBy: auth.connected_name }
@@ -100,6 +108,7 @@ export async function connectDriveAccount(code: string, redirectUri: string, use
      ON DUPLICATE KEY UPDATE email = VALUES(email), refresh_token = VALUES(refresh_token), connected_by = VALUES(connected_by), connected_at = NOW()`,
     [email, encrypt(json.refresh_token), userId],
   )
+  accountCache.papDriveAccount = undefined
   globalForDrive.papDriveToken = { token: json.access_token, exp: Date.now() + Number(json.expires_in ?? 3600) * 1000, key: `oauth:${email}` }
   // Folder yang sebelumnya gagal (belum punya akses) dipindai ulang
   await db.query('UPDATE drive_roots SET last_error = NULL')
@@ -110,6 +119,7 @@ export async function connectDriveAccount(code: string, redirectUri: string, use
 export async function disconnectDriveAccount() {
   const auth = await storedAuth()
   await db.query('DELETE FROM drive_auth WHERE id = 1')
+  accountCache.papDriveAccount = undefined
   globalForDrive.papDriveToken = undefined
   // Cabut izin di sisi Google juga (abaikan bila gagal)
   if (auth) await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(decrypt(auth.refresh_token))}`, { method: 'POST' }).catch(() => {})
@@ -211,90 +221,124 @@ type FolderRow = RowDataPacket & { id: string; root_id: number; name: string; pa
 
 // Folder dipindai ulang tiap RESCAN_HOURS jam; folder baru dipindai secepatnya.
 const RESCAN_HOURS = 6
+// Jumlah folder yang dipindai bersamaan (batas Google Drive API cukup longgar)
+const PARALLEL = 6
+const LABELS_VERSION = 2
 
-// Penelusuran bertahap (BFS) dalam batas waktu; sisa folder dilanjutkan pada putaran berikutnya.
-// Struktur Cetak: Cetak 2026 / <bulan> / <brand/customer> / file. Struktur logo: PAP logo desain / <brand> / file.
+// Nama folder bulan (Indonesia / Inggris, mis. "january", "Maret", "Agustus", "Oct")
+const MONTHS = new Set([
+  'januari', 'january', 'jan', 'februari', 'february', 'feb', 'maret', 'march', 'mar', 'april', 'apr', 'mei', 'may', 'juni', 'june', 'jun',
+  'juli', 'july', 'jul', 'agustus', 'august', 'agu', 'aug', 'ags', 'september', 'sept', 'sep', 'oktober', 'october', 'okt', 'oct',
+  'november', 'nov', 'desember', 'december', 'des', 'dec',
+])
+const isMonth = (name: string) => MONTHS.has(name.trim().toLowerCase().replace(/\s+\d{4}$/, ''))
+
+// Label folder anak. Struktur Cetak di Drive tidak seragam:
+//   Cetak 2026 / Oktober / NT laundry / file      (bulan lalu brand)
+//   Cetak 2024 / ons laundry / file               (langsung brand)
+//   Cetak 2025 / campuran keduanya
+// Folder dianggap "bulan" hanya bila namanya nama bulan; selain itu folder brand/customer.
+// Logo: PAP logo desain / <kategori: LAUNDRY, BERAS, UMUM> / <brand> / file (kategori disimpan di kolom bulan).
+function childLabels(folder: FolderRow, name: string) {
+  if (folder.kategori === 'logo') {
+    return { bulan: folder.depth === 0 ? name : folder.bulan, brand: folder.depth === 0 ? null : folder.brand ?? name }
+  }
+  const month = !folder.brand && isMonth(name)
+  return { bulan: folder.bulan ?? (month ? name : null), brand: folder.brand ?? (month ? null : name) }
+}
+
+async function scanFolder(folder: FolderRow) {
+  const [[{ scanStart }]] = await db.query<(RowDataPacket & { scanStart: string })[]>('SELECT NOW() AS scanStart')
+  const children = await listChildren(folder.id)
+  if (folder.depth === 0) await db.query('UPDATE drive_roots SET last_error = NULL WHERE id = ?', [folder.root_id])
+
+  const subfolders: unknown[][] = []
+  const fileRows: unknown[][] = []
+  for (const item of children) {
+    const isShortcut = item.mimeType === SHORTCUT && item.shortcutDetails
+    const id = isShortcut ? item.shortcutDetails!.targetId : item.id
+    const mime = isShortcut ? item.shortcutDetails!.targetMimeType : item.mimeType
+    if (mime === FOLDER) {
+      const { bulan, brand } = childLabels(folder, item.name)
+      subfolders.push([id, folder.root_id, folder.id, item.name.slice(0, 255), (folder.path ? `${folder.path} / ${item.name}` : item.name).slice(0, 1000), folder.depth + 1, bulan?.slice(0, 60) ?? null, brand?.slice(0, 255) ?? null, LABELS_VERSION])
+    } else {
+      // File di luar folder brand (langsung di root/bulan/kategori): nama file dipakai sebagai brand
+      const brand = folder.brand ?? baseName(item.name)
+      fileRows.push([id, folder.root_id, folder.id, item.name.slice(0, 255), mime.slice(0, 150), item.size ? Number(item.size) : null, toWib(item.modifiedTime),
+        item.hasThumbnail ? 1 : 0, item.webViewLink ?? null, folder.bulan, brand.slice(0, 255), scanStart])
+    }
+  }
+  if (subfolders.length) {
+    await db.query(
+      `INSERT INTO drive_folders (id, root_id, parent_id, name, path, depth, bulan, brand, labels_v) VALUES ?
+       ON DUPLICATE KEY UPDATE parent_id = VALUES(parent_id), name = VALUES(name), path = VALUES(path), depth = VALUES(depth), bulan = VALUES(bulan), brand = VALUES(brand)`,
+      [subfolders],
+    )
+  }
+  if (fileRows.length) {
+    await db.query(
+      `INSERT INTO drive_files (id, root_id, folder_id, name, mime, size, modified_at, has_thumbnail, web_link, bulan, brand, synced_at) VALUES ?
+       ON DUPLICATE KEY UPDATE folder_id = VALUES(folder_id), name = VALUES(name), mime = VALUES(mime), size = VALUES(size), modified_at = VALUES(modified_at),
+         has_thumbnail = VALUES(has_thumbnail), web_link = VALUES(web_link), bulan = VALUES(bulan),
+         customer_id = IF(customer_manual = 1 OR brand <=> VALUES(brand), customer_id, NULL), brand = VALUES(brand), synced_at = VALUES(synced_at)`,
+      [fileRows],
+    )
+  }
+  // File / subfolder yang sudah tidak ada di Drive dihapus dari daftar
+  await db.query('DELETE FROM drive_files WHERE folder_id = ? AND synced_at < ?', [folder.id, scanStart])
+  const keep = subfolders.map((x) => x[0] as string)
+  const [gone] = await db.query<(RowDataPacket & { id: string })[]>(
+    `SELECT id FROM drive_folders WHERE parent_id = ? ${keep.length ? 'AND id NOT IN (?)' : ''}`,
+    keep.length ? [folder.id, keep] : [folder.id],
+  )
+  if (gone.length) await removeFolders(gone.map((g) => g.id))
+  await db.query('UPDATE drive_folders SET scanned_at = NOW() WHERE id = ?', [folder.id])
+  return fileRows.length
+}
+
+// Penelusuran bertahap (BFS, beberapa folder sekaligus) dalam batas waktu; sisa dilanjutkan putaran berikutnya.
+// Urutan: folder dangkal dulu (agar label induk benar), tahun terbaru lebih dulu.
 export async function syncDrive(budgetMs = 25_000) {
   const started = Date.now()
   await db.query(
-    `INSERT IGNORE INTO drive_folders (id, root_id, parent_id, name, path, depth) SELECT folder_id, id, NULL, label, '', 0 FROM drive_roots WHERE aktif = 1`,
+    `INSERT IGNORE INTO drive_folders (id, root_id, parent_id, name, path, depth, labels_v) SELECT folder_id, id, NULL, label, '', 0, ${LABELS_VERSION} FROM drive_roots WHERE aktif = 1`,
   )
+  // Label versi lama (folder pertama selalu dianggap bulan): pindai ulang semua folder sekali
+  await db.query('UPDATE drive_folders SET scanned_at = NULL, labels_v = ? WHERE labels_v < ?', [LABELS_VERSION, LABELS_VERSION])
   let folders = 0
   let files = 0
   const errors: string[] = []
-  while (Date.now() - started < budgetMs) {
-    const [[folder]] = await db.query<FolderRow[]>(
+  // Sisakan waktu untuk satu batch terakhir + pencocokan customer
+  while (Date.now() - started < budgetMs - 4_000) {
+    const [batch] = await db.query<FolderRow[]>(
       `SELECT f.*, r.kategori FROM drive_folders f JOIN drive_roots r ON r.id = f.root_id AND r.aktif = 1
        WHERE f.scanned_at IS NULL OR f.scanned_at < NOW() - INTERVAL ? HOUR
-       ORDER BY (f.scanned_at IS NOT NULL), f.scanned_at, f.depth LIMIT 1`,
-      [RESCAN_HOURS],
+       ORDER BY (f.scanned_at IS NOT NULL), f.depth, r.sort_order, f.scanned_at LIMIT ?`,
+      [RESCAN_HOURS, PARALLEL],
     )
-    if (!folder) break
-    const [[{ scanStart }]] = await db.query<(RowDataPacket & { scanStart: string })[]>('SELECT NOW() AS scanStart')
-    let children: DriveItem[]
-    try {
-      children = await listChildren(folder.id)
-      if (folder.depth === 0) await db.query('UPDATE drive_roots SET last_error = NULL WHERE id = ?', [folder.root_id])
-    } catch (error) {
-      const message = error instanceof DriveError && (error.status === 404 || error.status === 403)
-        ? `Tidak punya akses ke folder "${folder.path || folder.name}". Bagikan folder ke ${(await driveAccount())?.email ?? "akun Google yang terhubung"}.`
-        : (error as Error).message
-      errors.push(message)
-      if (folder.depth === 0) await db.query('UPDATE drive_roots SET last_error = ? WHERE id = ?', [message.slice(0, 500), folder.root_id])
-      await db.query('UPDATE drive_folders SET scanned_at = NOW() WHERE id = ?', [folder.id])
-      if (!(error instanceof DriveError)) break
-      continue
-    }
-
-    const subfolders: unknown[][] = []
-    const fileRows: unknown[][] = []
-    for (const item of children) {
-      const isShortcut = item.mimeType === SHORTCUT && item.shortcutDetails
-      const id = isShortcut ? item.shortcutDetails!.targetId : item.id
-      const mime = isShortcut ? item.shortcutDetails!.targetMimeType : item.mimeType
-      if (mime === FOLDER) {
-        const bulan = folder.kategori === 'cetak' ? (folder.depth === 0 ? item.name : folder.bulan) : null
-        const brand = folder.kategori === 'cetak' ? (folder.depth === 1 ? item.name : folder.brand) : (folder.depth === 0 ? item.name : folder.brand)
-        subfolders.push([id, folder.root_id, folder.id, item.name.slice(0, 255), (folder.path ? `${folder.path} / ${item.name}` : item.name).slice(0, 1000), folder.depth + 1, bulan, brand])
-      } else {
-        // File tanpa folder brand (langsung di folder bulan/root): pakai nama file sebagai brand
-        const brand = folder.brand ?? (folder.kategori === 'cetak' && folder.depth <= 1 ? baseName(item.name) : folder.kategori === 'logo' && folder.depth === 0 ? baseName(item.name) : null)
-        fileRows.push([id, folder.root_id, folder.id, item.name.slice(0, 255), mime.slice(0, 150), item.size ? Number(item.size) : null, toWib(item.modifiedTime),
-          item.hasThumbnail ? 1 : 0, item.webViewLink ?? null, folder.bulan, brand?.slice(0, 255) ?? null, scanStart])
+    if (!batch.length) break
+    let fatal = false
+    await Promise.all(batch.map(async (folder) => {
+      try {
+        files += await scanFolder(folder)
+        folders++
+      } catch (error) {
+        const message = error instanceof DriveError && (error.status === 404 || error.status === 403)
+          ? `Tidak punya akses ke folder "${folder.path || folder.name}". Bagikan folder ke ${(await driveAccount())?.email ?? 'akun Google yang terhubung'}.`
+          : (error as Error).message
+        errors.push(message)
+        if (folder.depth === 0) await db.query('UPDATE drive_roots SET last_error = ? WHERE id = ?', [message.slice(0, 500), folder.root_id])
+        await db.query('UPDATE drive_folders SET scanned_at = NOW() WHERE id = ?', [folder.id])
+        if (!(error instanceof DriveError)) fatal = true
       }
-    }
-    if (subfolders.length) {
-      await db.query(
-        `INSERT INTO drive_folders (id, root_id, parent_id, name, path, depth, bulan, brand) VALUES ?
-         ON DUPLICATE KEY UPDATE parent_id = VALUES(parent_id), name = VALUES(name), path = VALUES(path), depth = VALUES(depth), bulan = VALUES(bulan), brand = VALUES(brand)`,
-        [subfolders],
-      )
-    }
-    if (fileRows.length) {
-      await db.query(
-        `INSERT INTO drive_files (id, root_id, folder_id, name, mime, size, modified_at, has_thumbnail, web_link, bulan, brand, synced_at) VALUES ?
-         ON DUPLICATE KEY UPDATE folder_id = VALUES(folder_id), name = VALUES(name), mime = VALUES(mime), size = VALUES(size), modified_at = VALUES(modified_at),
-           has_thumbnail = VALUES(has_thumbnail), web_link = VALUES(web_link), bulan = VALUES(bulan), brand = VALUES(brand), synced_at = VALUES(synced_at)`,
-        [fileRows],
-      )
-    }
-    // File / subfolder yang sudah tidak ada di Drive dihapus dari daftar
-    await db.query('DELETE FROM drive_files WHERE folder_id = ? AND synced_at < ?', [folder.id, scanStart])
-    const keep = subfolders.map((s) => s[0] as string)
-    const [gone] = await db.query<(RowDataPacket & { id: string })[]>(
-      `SELECT id FROM drive_folders WHERE parent_id = ? ${keep.length ? 'AND id NOT IN (?)' : ''}`,
-      keep.length ? [folder.id, keep] : [folder.id],
-    )
-    if (gone.length) await removeFolders(gone.map((g) => g.id))
-    await db.query('UPDATE drive_folders SET scanned_at = NOW() WHERE id = ?', [folder.id])
-    folders++
-    files += fileRows.length
+    }))
+    if (fatal) break
   }
   await matchCustomers()
   const [[pending]] = await db.query<(RowDataPacket & { n: number })[]>(
     `SELECT COUNT(*) AS n FROM drive_folders f JOIN drive_roots r ON r.id = f.root_id AND r.aktif = 1 WHERE f.scanned_at IS NULL`,
   )
-  return { folders, files, pending: Number(pending.n), errors }
+  return { folders, files, pending: Number(pending.n), errors: [...new Set(errors)] }
 }
 
 async function removeFolders(ids: string[]) {
