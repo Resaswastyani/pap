@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { canManageCustomer, saveCustomerToAccurate, upsertLocalCustomer } from '@/lib/customers'
 import { db } from '@/lib/db'
+import { attachRequestsToCustomer } from '@/lib/requests'
 import { canEditProspect, CLOSED_STATUS, loadProspect, logActivity, PIPELINE, requireMarketing, type ProspectStatus } from '@/lib/marketing'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -42,6 +43,8 @@ export const POST = handle(async (request: Request, { params }: Ctx) => {
   const status = prospect.status as ProspectStatus
   const advance = !CLOSED_STATUS.includes(status) && PIPELINE.indexOf(status) < PIPELINE.indexOf('order_pertama')
   await db.query('UPDATE prospects SET customer_id = ?, status = ? WHERE id = ?', [customerId, advance ? 'order_pertama' : status, prospect.id])
+  // Request sample/desain prospek (termasuk produk hasil desain) ikut pindah ke customer
+  await attachRequestsToCustomer(prospect.id, customerId)
   await logActivity(db, {
     prospectId: prospect.id, customerId, userId: user.id, jenis: 'status',
     hasil: body.create ? 'Customer baru dibuat di Accurate dari data prospek' : 'Dihubungkan ke customer Accurate',

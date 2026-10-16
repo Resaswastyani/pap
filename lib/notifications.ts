@@ -6,7 +6,7 @@ export const REMINDER_MINUTES = 15
 // Sales butuh waktu perjalanan: reminder visit dikirim 60 menit sebelumnya
 export const VISIT_REMINDER_MINUTES = 60
 
-export type NotificationType = 'meeting_baru' | 'meeting_diubah' | 'meeting_reminder' | 'planning_pic' | 'planning_baru' | 'sistem' | 'prospek_baru' | 'visit_reminder' | 'followup_due'
+export type NotificationType = 'meeting_baru' | 'meeting_diubah' | 'meeting_reminder' | 'planning_pic' | 'planning_baru' | 'sistem' | 'prospek_baru' | 'visit_reminder' | 'followup_due' | 'sample_update' | 'desain_update'
 
 type NotificationInput = {
   type: NotificationType
@@ -16,6 +16,8 @@ type NotificationInput = {
   planningId?: number | null
   prospectId?: number | null
   visitId?: number | null
+  sampleId?: number | null
+  designId?: number | null
   // Kunci unik per user; notifikasi dengan kunci sama tidak dibuat dua kali
   refKey: string
 }
@@ -28,8 +30,8 @@ export async function notify(userIds: number[], input: NotificationInput, conn: 
   const created: number[] = []
   for (const userId of new Set(userIds)) {
     const [result] = await conn.query<ResultSetHeader>(
-      'INSERT IGNORE INTO notifications (user_id, type, title, body, meeting_id, planning_id, prospect_id, visit_id, ref_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [userId, input.type, input.title.slice(0, 200), input.body?.slice(0, 500) ?? null, input.meetingId ?? null, input.planningId ?? null, input.prospectId ?? null, input.visitId ?? null, input.refKey.slice(0, 120)],
+      'INSERT IGNORE INTO notifications (user_id, type, title, body, meeting_id, planning_id, prospect_id, visit_id, sample_id, design_id, ref_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, input.type, input.title.slice(0, 200), input.body?.slice(0, 500) ?? null, input.meetingId ?? null, input.planningId ?? null, input.prospectId ?? null, input.visitId ?? null, input.sampleId ?? null, input.designId ?? null, input.refKey.slice(0, 120)],
     )
     if (result.affectedRows) created.push(userId)
   }

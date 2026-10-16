@@ -10,7 +10,7 @@ export const GET = handle(async () => {
   const user = await requireUser()
   await createDueReminders(user.id)
   const [items] = await db.query<RowDataPacket[]>(
-    `SELECT id, type, title, body, meeting_id, planning_id, prospect_id, visit_id, read_at, created_at
+    `SELECT id, type, title, body, meeting_id, planning_id, prospect_id, visit_id, sample_id, design_id, read_at, created_at
      FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 30`,
     [user.id],
   )

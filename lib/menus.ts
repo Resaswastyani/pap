@@ -4,6 +4,8 @@ export const MENU_KEYS = {
   Dashboard: 'dashboard',
   Prospek: 'prospek',
   'Jadwal Visit': 'visit',
+  'Request Sample': 'sample',
+  'Request Desain': 'desain',
   Customer: 'customer',
   'Data Produk': 'produk',
   Stok: 'stok',
