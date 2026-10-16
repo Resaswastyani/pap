@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { Camera, CheckCircle2, Crosshair, ExternalLink, MapPin, MessageCircle, Pencil, Trash2, XCircle } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Camera, CheckCircle2, Crosshair, Download, ExternalLink, FileText, Link2, MapPin, MessageCircle, Paperclip, Pencil, Plus, Trash2, X, XCircle } from 'lucide-react'
 import { CustomerSelect, type CustomerOption } from './product-page'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { api, Field, formatDate, formatSize, Modal, Notice } from './ui'
 
 // ---- Konstanta bersama halaman Prospek & Jadwal Visit ----
 export type ProspectStatus = 'baru' | 'dihubungi' | 'janji_temu' | 'visit' | 'penawaran' | 'order_pertama' | 'handover' | 'gagal'
@@ -224,6 +224,122 @@ async function compressPhoto(file: File) {
   }
 }
 
+// ---- Lampiran laporan visit: link & file ----
+export const VISIT_FILE_ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx'
+type PendingLink = { url: string; name: string }
+type VisitAttachment = { id: number; kind: 'file' | 'link'; name: string; url: string | null; mime: string | null; size: number | null; uploaded_by: number; created_at: string; uploaded_by_name: string }
+
+const normalizeUrl = (value: string) => (/^https?:\/\//i.test(value.trim()) ? value.trim() : `https://${value.trim()}`)
+
+// Isian link + file yang belum dikirim (dipakai di form check-in)
+function AttachmentEditor({ links, files, onLinks, onFiles }: { links: PendingLink[]; files: File[]; onLinks: (l: PendingLink[]) => void; onFiles: (f: File[]) => void }) {
+  const [url, setUrl] = useState('')
+  const [name, setName] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+  const addLink = () => {
+    if (!url.trim()) return
+    onLinks([...links, { url: normalizeUrl(url), name: name.trim() }])
+    setUrl('')
+    setName('')
+  }
+  return (
+    <div className="pap-attach-editor">
+      <div className="pap-attach-row">
+        <input className="pap-input" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Tempel link (Google Drive, katalog, foto, dll.)" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLink() } }} />
+        <input className="pap-input" value={name} maxLength={255} onChange={(e) => setName(e.target.value)} placeholder="Judul link (opsional)" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLink() } }} />
+        <button type="button" className="pap-btn" disabled={!url.trim()} onClick={addLink}><Link2 /> Tambah link</button>
+      </div>
+      <div className="pap-attach-row">
+        <button type="button" className="pap-btn" onClick={() => fileRef.current?.click()}><Paperclip /> Tambah file</button>
+        <small className="pap-muted">PDF, gambar, Word, Excel, PowerPoint. Maks 4 MB per file.</small>
+        <input ref={fileRef} type="file" multiple hidden accept={VISIT_FILE_ACCEPT} onChange={(e) => { onFiles([...files, ...(e.target.files ?? [])]); e.target.value = '' }} />
+      </div>
+      {(links.length > 0 || files.length > 0) && (
+        <ul className="pap-attach-pending">
+          {links.map((l, i) => <li key={`l${i}`}><Link2 /><span>{l.name || l.url}</span><button type="button" aria-label="Hapus link" onClick={() => onLinks(links.filter((_, j) => j !== i))}><X /></button></li>)}
+          {files.map((f, i) => <li key={`f${i}`} className={f.size > 4 * 1024 * 1024 ? 'too-big' : ''}><FileText /><span>{f.name} · {formatSize(f.size)}{f.size > 4 * 1024 * 1024 ? ' · terlalu besar' : ''}</span><button type="button" aria-label="Hapus file" onClick={() => onFiles(files.filter((_, j) => j !== i))}><X /></button></li>)}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+async function uploadVisitFile(visitId: number, file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  await api(`/api/visits/${visitId}/attachments`, { method: 'POST', body: form })
+}
+
+// Daftar lampiran di detail visit + tambah link/file setelah check-in
+function VisitAttachments({ visitId, canAdd, currentUserId, isAdmin }: { visitId: number; canAdd: boolean; currentUserId: number; isAdmin: boolean }) {
+  const [items, setItems] = useState<VisitAttachment[]>([])
+  const [adding, setAdding] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [url, setUrl] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+  const load = useCallback(() => {
+    api<{ items: VisitAttachment[] }>(`/api/visits/${visitId}/attachments`).then((r) => setItems(r.items)).catch((e) => setError(e.message))
+  }, [visitId])
+  useEffect(load, [load])
+  async function run(task: () => Promise<unknown>) {
+    setBusy(true)
+    setError('')
+    try {
+      await task()
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const addLink = () => run(async () => {
+    const form = new FormData()
+    form.append('url', normalizeUrl(url))
+    form.append('log', '1')
+    await api(`/api/visits/${visitId}/attachments`, { method: 'POST', body: form })
+    setUrl('')
+    setAdding(false)
+  })
+  if (!items.length && !canAdd) return null
+  return (
+    <section className="pap-detail-section">
+      <div className="pap-section-head">
+        <h3>Lampiran laporan ({items.length})</h3>
+        {canAdd && (
+          <div className="pap-inline-actions">
+            <button className="pap-btn" disabled={busy} onClick={() => setAdding((v) => !v)}><Plus /> Link</button>
+            <button className="pap-btn" disabled={busy} onClick={() => fileRef.current?.click()}><Paperclip /> File</button>
+            <input ref={fileRef} type="file" multiple hidden accept={VISIT_FILE_ACCEPT} onChange={(e) => { const list = [...(e.target.files ?? [])]; e.target.value = ''; run(async () => { for (const f of list) await uploadVisitFile(visitId, f) }) }} />
+          </div>
+        )}
+      </div>
+      {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      {adding && (
+        <div className="pap-attach-row">
+          <input className="pap-input" inputMode="url" autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Tempel link" onKeyDown={(e) => { if (e.key === 'Enter' && url.trim()) addLink() }} />
+          <button className="pap-primary-button" disabled={busy || !url.trim()} onClick={addLink}>Simpan link</button>
+        </div>
+      )}
+      <ul className="pap-file-list">
+        {items.map((a) => (
+          <li key={a.id}>
+            {a.kind === 'link' ? <Link2 /> : <FileText />}
+            <div>
+              <a href={a.kind === 'link' ? a.url! : `/api/visits/attachments/${a.id}`} target="_blank" rel="noreferrer">{a.name}</a>
+              <span>{a.kind === 'link' ? a.url : formatSize(a.size)} · {a.uploaded_by_name} · {formatDate(a.created_at, true)}</span>
+            </div>
+            {a.kind === 'file' && <a className="pap-icon-button" href={`/api/visits/attachments/${a.id}?download=1`} aria-label={`Unduh ${a.name}`}><Download /></a>}
+            {(a.uploaded_by === currentUserId || isAdmin) && <button className="pap-icon-button" aria-label={`Hapus ${a.name}`} onClick={() => window.confirm(`Hapus lampiran ${a.name}?`) && run(() => api(`/api/visits/attachments/${a.id}`, { method: 'DELETE' }))}><Trash2 /></button>}
+          </li>
+        ))}
+      </ul>
+      {!items.length && <p className="pap-muted">Belum ada lampiran.</p>}
+    </section>
+  )
+}
+
 type GeoState = { status: 'idle' | 'loading' | 'ok' | 'error'; lat?: number; lng?: number; accuracy?: number; message?: string }
 
 // ---- Check-in di lokasi: GPS + foto + laporan hasil ----
@@ -232,6 +348,8 @@ export function CheckinForm({ visit, onClose, onSaved }: { visit: Visit; onClose
   const [geo, setGeo] = useState<GeoState>({ status: 'idle' })
   const [photo, setPhoto] = useState('')
   const [values, setValues] = useState({ status: 'selesai', hasil: '', prospect_status: '', next_followup_at: nowInput(3, 10) })
+  const [links, setLinks] = useState<PendingLink[]>([])
+  const [files, setFiles] = useState<File[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
@@ -264,8 +382,14 @@ export function CheckinForm({ visit, onClose, onSaved }: { visit: Visit; onClose
     setSaving(true)
     setError('')
     try {
-      await api(`/api/visits/${visit.id}/checkin`, { method: 'POST', json: { ...values, lat: geo.lat, lng: geo.lng, accuracy: geo.accuracy, foto: photo || undefined } })
-      onSaved('Check-in & laporan visit tersimpan.')
+      if (!values.hasil.trim() && !links.length && !files.length) throw new Error('Isi laporan hasil kunjungan: catatan, link, atau file.')
+      const tooBig = files.find((f) => f.size > 4 * 1024 * 1024)
+      if (tooBig) throw new Error(`${tooBig.name} lebih dari 4 MB. Kompres dulu atau kirim sebagai link Google Drive.`)
+      await api(`/api/visits/${visit.id}/checkin`, { method: 'POST', json: { ...values, lat: geo.lat, lng: geo.lng, accuracy: geo.accuracy, foto: photo || undefined, links, file_count: files.length } })
+      // File diunggah satu per satu setelah check-in tersimpan (batas ukuran request)
+      const failed: string[] = []
+      for (const file of files) await uploadVisitFile(visit.id, file).catch((err: Error) => failed.push(err.message))
+      onSaved(failed.length ? `Check-in tersimpan, tetapi ${failed.length} file gagal diunggah (${failed.join('; ')}). Tambahkan lagi dari detail visit.` : 'Check-in & laporan visit tersimpan.')
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -319,7 +443,11 @@ export function CheckinForm({ visit, onClose, onSaved }: { visit: Visit; onClose
             </select>
           </Field>
         ) : <span />}
-        <Field label="Laporan hasil kunjungan" full><textarea className="pap-input" rows={4} required maxLength={5000} value={values.hasil} onChange={set('hasil')} placeholder="Siapa yang ditemui, kebutuhan, respon, sampel yang diberikan, rencana selanjutnya..." /></Field>
+        <Field label="Catatan hasil kunjungan" full hint="Isi catatan, link, atau file — minimal salah satu."><textarea className="pap-input" rows={3} maxLength={5000} value={values.hasil} onChange={set('hasil')} placeholder="Siapa yang ditemui, kebutuhan, respon, sampel yang diberikan, rencana selanjutnya..." /></Field>
+        <div className="pap-field full">
+          <span>Lampiran laporan (link / file)</span>
+          <AttachmentEditor links={links} files={files} onLinks={setLinks} onFiles={setFiles} />
+        </div>
         <Field label="Follow-up berikutnya (opsional)" full><input className="pap-input" type="datetime-local" value={values.next_followup_at} onChange={set('next_followup_at')} /></Field>
       </form>
     </Modal>
@@ -406,6 +534,7 @@ export function VisitDetail({ visit, currentUserId, canSupervise, isAdmin, onClo
         </section>
       )}
       {!visit.checkin_at && visit.hasil && <section className="pap-detail-section"><h3>Catatan</h3><p className="pap-prewrap">{visit.hasil}</p></section>}
+      <VisitAttachments visitId={visit.id} canAdd={visit.status !== 'batal' && (visit.sales_id === currentUserId || visit.created_by === currentUserId || canSupervise)} currentUserId={currentUserId} isAdmin={isAdmin} />
     </Modal>
   )
 }

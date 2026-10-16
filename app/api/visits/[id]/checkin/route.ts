@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
-import { CLOSED_STATUS, loadVisit, logActivity, parseDateTime, PIPELINE, PROSPECT_STATUS, requireMarketing, VISIT_PHOTO_MAX_BYTES, type ProspectStatus } from '@/lib/marketing'
+import { CLOSED_STATUS, loadVisit, logActivity, parseDateTime, PIPELINE, PROSPECT_STATUS, requireMarketing, VISIT_PHOTO_MAX_BYTES, readLink, type ProspectStatus } from '@/lib/marketing'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -16,8 +16,11 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   const body = await readJson(request)
 
   const status = body.status === 'tidak_bertemu' ? 'tidak_bertemu' : 'selesai'
+  // Laporan bisa berupa catatan, link, dan/atau file (file diunggah setelah check-in; fileCount = jumlah yang akan diunggah)
   const hasil = str(body.hasil, 5000)
-  if (!hasil) fail(400, 'Isi hasil kunjungan.')
+  const links = (Array.isArray(body.links) ? body.links : []).slice(0, 10).map((l: { url?: unknown; name?: unknown }) => readLink(l?.url, l?.name))
+  const fileCount = Math.max(0, int(body.file_count) ?? 0)
+  if (!hasil && !links.length && !fileCount) fail(400, 'Isi laporan hasil kunjungan: catatan, link, atau file.')
   const lat = Number(body.lat)
   const lng = Number(body.lng)
   const hasLocation = Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && !(lat === 0 && lng === 0)
@@ -40,8 +43,11 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   await db.query(
     `UPDATE visits SET status = ?, checkin_at = NOW(), checkin_lat = ?, checkin_lng = ?, checkin_accuracy = ?, foto = ?, foto_mime = ?, hasil = ?, next_followup_at = ?
      WHERE id = ? AND status = 'terjadwal'`,
-    [status, hasLocation ? lat : null, hasLocation ? lng : null, accuracy, foto, fotoMime, hasil, nextFollowup, visit.id],
+    [status, hasLocation ? lat : null, hasLocation ? lng : null, accuracy, foto, fotoMime, hasil || null, nextFollowup, visit.id],
   )
+  for (const link of links) {
+    await db.query("INSERT INTO visit_attachments (visit_id, kind, name, url, uploaded_by) VALUES (?, 'link', ?, ?, ?)", [visit.id, link.name, link.url, user.id])
+  }
 
   // Prospek: status naik ke "Sudah visit" (atau status pilihan sales), follow-up berikutnya ikut tersimpan
   let statusFrom: string | null = null
@@ -60,7 +66,12 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   }
   await logActivity(db, {
     prospectId: visit.prospect_id, customerId: visit.customer_id, visitId: visit.id, userId: user.id, jenis: 'visit',
-    hasil: `${status === 'tidak_bertemu' ? 'Visit — tidak bertemu' : 'Visit selesai'}: ${hasil}`, statusFrom, statusTo,
+    hasil: [
+      `${status === 'tidak_bertemu' ? 'Visit — tidak bertemu' : 'Visit selesai'}: ${hasil || 'laporan berupa lampiran'}`,
+      ...links.map((l) => `Link: ${l.name} — ${l.url}`),
+      fileCount ? `${fileCount} file lampiran` : '',
+    ].filter(Boolean).join('\n'),
+    statusFrom, statusTo,
   })
   return NextResponse.json({ ok: true })
 })

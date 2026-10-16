@@ -187,3 +187,41 @@ export async function logActivity(
   )
   if (input.prospectId) await conn.query('UPDATE prospects SET last_activity_at = NOW() WHERE id = ?', [input.prospectId])
 }
+
+// ---- Lampiran laporan visit: file (PDF, gambar, Office) dan link ----
+export const VISIT_FILE_MAX_BYTES = 4 * 1024 * 1024 // batas request Vercel 4,5 MB, diunggah satu per satu
+export const VISIT_FILE_ACCEPT = [
+  'application/pdf', 'image/jpeg', 'image/png', 'image/webp',
+  'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+]
+
+export function validVisitFile(value: unknown) {
+  if (!(value instanceof File) || !value.size) return fail(400, 'File wajib dipilih.')
+  if (!VISIT_FILE_ACCEPT.includes(value.type)) fail(400, `${value.name}: format harus PDF, gambar, Word, Excel, atau PowerPoint.`)
+  if (value.size > VISIT_FILE_MAX_BYTES) fail(400, `${value.name}: ukuran maksimal 4 MB.`)
+  return value
+}
+
+// Link laporan (Google Drive, katalog, foto online, ...): hanya http/https
+export function readLink(url: unknown, name?: unknown) {
+  const text = str(url, 1000)
+  let parsed: URL
+  try {
+    parsed = new URL(text)
+  } catch {
+    return fail(400, `Link tidak valid: ${text || '(kosong)'}`)
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) fail(400, 'Link harus diawali http:// atau https://')
+  return { url: parsed.toString(), name: str(name, 255) || parsed.hostname + parsed.pathname.replace(/\/$/, '') }
+}
+
+export async function loadVisitAttachments(visitId: number) {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT a.id, a.kind, a.name, a.url, a.mime, a.size, a.uploaded_by, a.created_at, u.name AS uploaded_by_name
+     FROM visit_attachments a JOIN users u ON u.id = a.uploaded_by WHERE a.visit_id = ? ORDER BY a.id`,
+    [visitId],
+  )
+  return rows
+}

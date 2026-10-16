@@ -641,3 +641,16 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
   .pap-master-title { width:100%; margin-bottom:2px; }
   .pap-design-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; padding:12px; }
 }
+
+/* Lampiran laporan visit */
+.pap-attach-editor { display:flex; flex-direction:column; gap:8px; }
+.pap-attach-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:8px; }
+.pap-attach-row .pap-input { flex:1 1 200px; }
+.pap-attach-row small { font-size:11px; }
+.pap-attach-pending { display:flex; flex-direction:column; gap:6px; margin:0; padding:0; list-style:none; }
+.pap-attach-pending li { display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--pap-border); border-radius:10px; font-size:12px; }
+.pap-attach-pending li.too-big { border-color:rgb(239 68 68 / .45); color:#dc2626; }
+.pap-attach-pending li > svg { flex:none; width:15px; height:15px; color:#7c5cfc; }
+.pap-attach-pending li span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pap-attach-pending li button { display:grid; place-items:center; width:24px; height:24px; padding:0; border:0; border-radius:6px; background:transparent; color:var(--pap-muted); cursor:pointer; }
+.pap-attach-pending li button svg { width:14px; height:14px; }
