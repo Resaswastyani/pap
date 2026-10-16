@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CalendarDays, CheckCircle2, ClipboardList, Clock3, ExternalLink, FileText, Link2, Paperclip, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react'
-import { FILE_ACCEPT, FILE_MAX_BYTES, PERMISSIONS, PLANNING_STATUS, type PlanningStatus } from '@/lib/permissions'
+import { FILE_MAX_BYTES, PERMISSIONS, PLANNING_STATUS, type PlanningStatus } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
+import { prepareFiles } from './attachments'
 import { api, Field, formatDate, formatSize, Modal, Notice, Progress, StatusBadge, UserPicker, type UserOption } from './ui'
 
 type Division = { id: number; code: string; name: string }
@@ -36,12 +37,10 @@ type ProgressNote = { id: number; progress: number; status: PlanningStatus; cata
 type Summary = { total: number; belum_mulai: number; berjalan: number; selesai: number }
 export type PendingAttachment = { kind: 'file'; file: File } | { kind: 'link'; name: string; url: string }
 
-const ACCEPT = Object.keys(FILE_ACCEPT).join(',') + ',' + Object.values(FILE_ACCEPT).join(',')
 const has = (user: UserProfile, permission: string) => user.role.isSuperAdmin || user.permissions.includes(permission as never)
 
 function validateFile(file: File) {
-  if (!(file.type in FILE_ACCEPT)) return `${file.name}: format harus gambar, PDF, atau Word.`
-  if (file.size > FILE_MAX_BYTES) return `${file.name}: ukuran maksimal 5 MB.`
+  if (file.size > FILE_MAX_BYTES) return `${file.name}: ukuran maksimal 2 MB.`
   return ''
 }
 
@@ -328,18 +327,22 @@ export function AttachmentPicker({ onAdd, onError, busy, label = 'Lampiran (opsi
         <span className="pap-attach-label">{label}</span>
         <label className={`pap-btn ${busy ? 'disabled' : ''}`}>
           <Upload /> Upload file
-          <input type="file" hidden accept={ACCEPT} multiple disabled={busy} onChange={(e) => {
-            for (const file of Array.from(e.target.files ?? [])) {
+          <input type="file" hidden multiple disabled={busy} onChange={async (e) => {
+            const list = Array.from(e.target.files ?? [])
+            e.target.value = ''
+            // Foto besar diperkecil otomatis; file lain > 2 MB ditolak
+            const { ok, errors } = await prepareFiles(list)
+            for (const file of ok) {
               const problem = validateFile(file)
               if (problem) onError(problem)
               else onAdd({ kind: 'file', file })
             }
-            e.target.value = ''
+            if (errors.length) onError(errors.join(' '))
           }} />
         </label>
         <button type="button" className="pap-btn" onClick={() => setLinkOpen((v) => !v)} disabled={busy}><Link2 /> Tambah link</button>
       </div>
-      <small className="pap-hint">Gambar (JPG, PNG, WEBP, GIF), PDF, atau Word (.doc/.docx), maks. 5 MB per file.</small>
+      <small className="pap-hint">Semua format file, maks. 2 MB per file.</small>
       {linkOpen && (
         <div className="pap-link-row">
           <input className="pap-input" placeholder="Nama link (opsional)" value={link.name} onChange={(e) => setLink((v) => ({ ...v, name: e.target.value }))} />

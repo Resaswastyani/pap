@@ -20,10 +20,10 @@ export const GET = handle(async (request: Request, ctx: Ctx) => {
   const file = await loadFile(ctx, true)
   await loadMeeting(user, file.meeting_id)
   if (file.type === 'link') return NextResponse.redirect(file.url!)
-  const inline = new URL(request.url).searchParams.get('download') !== '1' && /^(image\/|application\/pdf)/.test(file.mime ?? '')
+  const inline = new URL(request.url).searchParams.get('download') !== '1' && /^(image\/(jpeg|png|webp|gif)|application\/pdf)$/.test(file.mime ?? '')
   return new Response(new Uint8Array(file.data as Buffer), {
     headers: {
-      'Content-Type': file.mime ?? 'application/octet-stream',
+      'Content-Type': inline ? file.mime! : 'application/octet-stream',
       'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(file.name)}`,
       'Cache-Control': 'private, max-age=300',
       'X-Content-Type-Options': 'nosniff',

@@ -35,6 +35,10 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
   try {
     await conn.beginTransaction()
     const keep = stages.map((s) => s.id).filter(Boolean)
+    await conn.query(
+      `DELETE FROM note_attachments WHERE owner_type = 'stage' AND owner_id IN (SELECT id FROM production_stages WHERE job_id = ?${keep.length ? ' AND id NOT IN (?)' : ''})`,
+      keep.length ? [job.id, keep] : [job.id],
+    )
     await conn.query(`DELETE FROM production_stages WHERE job_id = ?${keep.length ? ' AND id NOT IN (?)' : ''}`, keep.length ? [job.id, keep] : [job.id])
     for (const s of stages) {
       if (s.id) {

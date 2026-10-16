@@ -17,7 +17,8 @@ export type ActivityAction = keyof typeof ACTIVITY_ACTIONS
 
 export const ACTIVITY_MODULES = [
   'Autentikasi', 'Manajemen User', 'Manajemen Role', 'Planning', 'Meeting', 'Prospek', 'Jadwal Visit',
-  'Customer', 'Data Produk', 'Jadwal Produksi', 'Data Mesin', 'Accurate',
+  'Request Sample', 'Request Desain', 'Quotation', 'HPP', 'Repeat Order', 'Customer', 'Data Produk', 'Master Data',
+  'Jadwal Produksi', 'Data Mesin', 'Catatan', 'Accurate',
 ] as const
 
 export type ActivityChange = { field: string; from: string | null; to: string | null }

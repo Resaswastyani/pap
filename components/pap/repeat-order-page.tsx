@@ -5,6 +5,7 @@ import { AlertTriangle, CalendarClock, CalendarPlus, ChevronLeft, ChevronRight, 
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { nowInput, toInputDateTime, VisitForm, WaButton, type MarketingUser } from './marketing'
+import { AttachmentInput, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
 import { api, formatDate, Modal, Notice } from './ui'
 
 type Status = 'waktunya' | 'berisiko' | 'nonaktif' | 'aman'
@@ -17,7 +18,7 @@ type Row = {
   order_count: number; first_order: string; last_order: string; total_amount: number; interval_hari: number; hari_sejak: number; perkiraan_order: string
   hari_terlambat: number; status: Status
 }
-type Activity = { id: number; jenis: string; hasil: string | null; created_at: string; user_name: string }
+type Activity = { id: number; jenis: string; hasil: string | null; created_at: string; user_name: string; attachments?: NoteAttachment[] }
 type Invoice = { number: string | null; trans_date: string; total_amount: number; status: string | null }
 const JENIS: Record<string, string> = { whatsapp: 'WhatsApp', telepon: 'Telepon', email: 'Email', visit: 'Visit', meeting: 'Meeting', catatan: 'Catatan', handover: 'PIC', status: 'Status' }
 
@@ -160,6 +161,7 @@ function RepeatDetail({ id, user, users, onClose, onChanged }: { id: number; use
   const [busy, setBusy] = useState(false)
   const [visit, setVisit] = useState(false)
   const [values, setValues] = useState({ jenis: 'whatsapp', hasil: '', next_followup_at: '' })
+  const [attachments, setAttachments] = useState<PendingAttachments>(emptyAttachments)
   const load = useCallback(async () => {
     try {
       const res = await api<{ item: Row; activities: Activity[]; invoices: Invoice[]; canAssign: boolean }>(`/api/repeat-order/${id}`)
@@ -178,10 +180,15 @@ function RepeatDetail({ id, user, users, onClose, onChanged }: { id: number; use
     setBusy(true)
     setError('')
     try {
-      await api(`/api/repeat-order/${id}`, { method: 'POST', json })
-      setValues((v) => ({ ...v, hasil: '' }))
+      const res = await api<{ id?: number }>(`/api/repeat-order/${id}`, { method: 'POST', json })
+      // Lampiran hanya untuk catatan follow-up (bukan ganti PIC)
+      const failed = res.id && 'hasil' in json ? await uploadNoteAttachments('activity', res.id, attachments) : []
+      if ('hasil' in json) {
+        setValues((v) => ({ ...v, hasil: '' }))
+        setAttachments(emptyAttachments())
+      }
       await load()
-      onChanged(text)
+      onChanged(failed.length ? `${text} Sebagian lampiran gagal: ${failed.join(' ')}` : text)
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -218,14 +225,15 @@ function RepeatDetail({ id, user, users, onClose, onChanged }: { id: number; use
 
         <section className="pap-detail-section">
           <h3>Catat follow-up</h3>
-          <form className="pap-activity-form" onSubmit={(e) => { e.preventDefault(); post(values, 'Follow-up customer dicatat.') }}>
+          <form className="pap-activity-form" onSubmit={(e) => { e.preventDefault(); post({ ...values, lampiran: pendingCount(attachments) }, 'Follow-up customer dicatat.') }}>
             <div className="pap-activity-row two">
               <select className="pap-select" value={values.jenis} onChange={(e) => setValues((v) => ({ ...v, jenis: e.target.value }))} aria-label="Jenis follow-up">
                 <option value="whatsapp">WhatsApp</option><option value="telepon">Telepon</option><option value="visit">Visit</option><option value="email">Email</option><option value="catatan">Catatan</option>
               </select>
               <label className="pap-activity-date"><span>Follow-up berikutnya</span><input className="pap-input" type="datetime-local" value={values.next_followup_at} onChange={(e) => setValues((v) => ({ ...v, next_followup_at: e.target.value }))} /></label>
             </div>
-            <textarea className="pap-input" rows={2} required maxLength={5000} value={values.hasil} onChange={(e) => setValues((v) => ({ ...v, hasil: e.target.value }))} placeholder="Hasil: stok customer, rencana order, keluhan, minta penawaran baru, dll." />
+            <textarea className="pap-input" rows={2} maxLength={5000} value={values.hasil} onChange={(e) => setValues((v) => ({ ...v, hasil: e.target.value }))} placeholder="Hasil (opsional bila ada lampiran): stok customer, rencana order, keluhan, minta penawaran baru, dll." />
+            <div className="pap-note-attach"><AttachmentInput value={attachments} onChange={setAttachments} /></div>
             <div className="pap-inline-actions"><span className="pap-spacer" /><button className="pap-primary-button" disabled={busy}><PhoneCall /> Simpan follow-up</button></div>
           </form>
         </section>
@@ -237,6 +245,7 @@ function RepeatDetail({ id, user, users, onClose, onChanged }: { id: number; use
               <li key={a.id} className={`pap-note-item act-${a.jenis}`}>
                 <div className="pap-note-head"><span className="pap-note-progress">{JENIS[a.jenis] ?? a.jenis}</span><span className="pap-note-meta"><strong>{a.user_name}</strong> · {formatDate(a.created_at, true)}</span></div>
                 {a.hasil && <p className="pap-prewrap">{a.hasil}</p>}
+                <NoteFiles items={a.attachments} currentUserId={user.id} isAdmin={user.role.isAdmin} onChanged={load} />
               </li>
             ))}
           </ol>

@@ -1,4 +1,4 @@
-import type { RowDataPacket } from 'mysql2'
+import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { fail, int, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import type { UserProfile } from '@/lib/users'
@@ -184,26 +184,20 @@ export async function logActivity(
   conn: Queryable,
   input: { prospectId?: number | null; customerId?: number | null; visitId?: number | null; userId: number; jenis: string; hasil?: string | null; statusFrom?: string | null; statusTo?: string | null },
 ) {
-  await conn.query(
+  const [result] = await conn.query<ResultSetHeader>(
     'INSERT INTO marketing_activities (prospect_id, customer_id, visit_id, user_id, jenis, hasil, status_from, status_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     [input.prospectId ?? null, input.customerId ?? null, input.visitId ?? null, input.userId, input.jenis, input.hasil ?? null, input.statusFrom ?? null, input.statusTo ?? null],
   )
   if (input.prospectId) await conn.query('UPDATE prospects SET last_activity_at = NOW() WHERE id = ?', [input.prospectId])
+  return result.insertId
 }
 
-// ---- Lampiran laporan visit: file (PDF, gambar, Office) dan link ----
-export const VISIT_FILE_MAX_BYTES = 4 * 1024 * 1024 // batas request Vercel 4,5 MB, diunggah satu per satu
-export const VISIT_FILE_ACCEPT = [
-  'application/pdf', 'image/jpeg', 'image/png', 'image/webp',
-  'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-]
+// ---- Lampiran laporan visit: semua format file (maks 2 MB, diunggah satu per satu) dan link ----
+export const VISIT_FILE_MAX_BYTES = 2 * 1024 * 1024
 
 export function validVisitFile(value: unknown) {
   if (!(value instanceof File) || !value.size) return fail(400, 'File wajib dipilih.')
-  if (!VISIT_FILE_ACCEPT.includes(value.type)) fail(400, `${value.name}: format harus PDF, gambar, Word, Excel, atau PowerPoint.`)
-  if (value.size > VISIT_FILE_MAX_BYTES) fail(400, `${value.name}: ukuran maksimal 4 MB.`)
+  if (value.size > VISIT_FILE_MAX_BYTES) fail(400, `${value.name}: ukuran maksimal 2 MB.`)
   return value
 }
 

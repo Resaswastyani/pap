@@ -106,13 +106,22 @@ const RESOURCES: Record<string, Resource> = {
   roles: { module: 'Manajemen Role', noun: 'role', table: 'roles' },
   planning: { module: 'Planning', noun: 'planning', table: 'plannings', files: 'planning_files' },
   meetings: { module: 'Meeting', noun: 'meeting', table: 'meetings', files: 'meeting_files' },
-  prospects: { module: 'Prospek', noun: 'prospek', table: 'prospects' },
-  visits: { module: 'Jadwal Visit', noun: 'visit', table: 'visits' },
+  prospects: { module: 'Prospek', noun: 'prospek', table: 'prospects', files: 'prospect_attachments' },
+  visits: { module: 'Jadwal Visit', noun: 'visit', table: 'visits', files: 'visit_attachments' },
   customers: { module: 'Customer', noun: 'customer', table: 'customers' },
   products: { module: 'Data Produk', noun: 'produk', table: 'customer_products', files: 'customer_product_files' },
   production: { module: 'Jadwal Produksi', noun: 'job produksi', table: 'production_jobs' },
   machines: { module: 'Data Mesin', noun: 'mesin', table: 'machines' },
   accurate: { module: 'Accurate', noun: 'data Accurate' },
+  samples: { module: 'Request Sample', noun: 'request sample', table: 'sample_requests', files: 'sample_attachments' },
+  designs: { module: 'Request Desain', noun: 'request desain', table: 'design_requests', files: 'design_request_files' },
+  quotations: { module: 'Quotation', noun: 'quotation', table: 'quotations' },
+  'repeat-order': { module: 'Repeat Order', noun: 'customer', table: 'customers' },
+  hpp: { module: 'HPP', noun: 'parameter HPP' },
+  'hpp/materials': { module: 'HPP', noun: 'bahan baku', table: 'raw_materials' },
+  master: { module: 'Master Data', noun: 'master data' },
+  'master/packaging': { module: 'Master Data', noun: 'jenis packaging', table: 'packaging_types' },
+  'master/designs': { module: 'Master Data', noun: 'file desain', table: 'drive_files' },
 }
 
 type Plan = {
@@ -122,6 +131,7 @@ type Plan = {
   table?: string
   id?: string
   always?: boolean // tetap dicatat walau baris utamanya tidak berubah (mis. data di tabel anak)
+  snapshot?: () => Promise<Record<string, unknown> | null> // pengganti baca baris tabel (mis. pengaturan key-value)
   describe: (label: string, body: Fields, changes: ActivityChange[]) => string
 }
 type Fields = Record<string, string>
@@ -130,15 +140,30 @@ const VERB: Record<string, string> = { create: 'Menambah', update: 'Mengubah', d
 const changed = (changes: ActivityChange[]) => (changes.length ? ` (${changes.slice(0, 4).map((c) => c.field.toLowerCase()).join(', ')}${changes.length > 4 ? ', ...' : ''})` : '')
 
 function planFor(method: string, path: string): Plan | null {
-  const [res, a, b] = path.replace(/^\/api\//, '').split('/')
+  const segs = path.replace(/^\/api\//, '').split('/')
+  // Lampiran catatan: /api/notes/{jenis}/{id}/attachments dan /api/notes/attachments/{id}
+  if (segs[0] === 'notes') {
+    const NOTE_LABEL: Record<string, string> = { activity: 'follow-up', request_log: 'status request', stage: 'tahap produksi', job: 'job produksi' }
+    const note = { module: 'Catatan', entityType: 'lampiran catatan' }
+    if (segs[1] === 'attachments' && /^\d+$/.test(segs[2] ?? '') && method === 'DELETE')
+      return { ...note, action: 'delete', table: 'note_attachments', id: segs[2], describe: (l) => `Menghapus lampiran catatan ${l}` }
+    if (/^\d+$/.test(segs[2] ?? '') && segs[3] === 'attachments' && method === 'POST')
+      return { ...note, action: 'upload', describe: (_l, f) => `Mengunggah lampiran${f.file ? ` ${f.file}` : f.url ? ` ${f.url}` : ''} ke catatan ${NOTE_LABEL[segs[1]] ?? segs[1]} #${segs[2]}` }
+    return null
+  }
+  // Sub-koleksi bertingkat, mis. /api/hpp/materials/3 atau /api/master/packaging/5
+  const nested = RESOURCES[`${segs[0]}/${segs[1]}`] ? 1 : 0
+  const res = nested ? `${segs[0]}/${segs[1]}` : segs[0]
+  const [a, b] = segs.slice(1 + nested)
   const r = RESOURCES[res]
   if (!r) return null // notifikasi, push, auth (dicatat sendiri), cron, dll.
   const isId = (v?: string) => !!v && /^\d+$/.test(v)
   const base = { module: r.module, entityType: r.noun }
 
-  if (a === 'files' && isId(b) && method === 'DELETE' && r.files)
+  const isFiles = (v?: string) => v === 'files' || v === 'attachments'
+  if (isFiles(a) && isId(b) && method === 'DELETE' && r.files)
     return { ...base, action: 'delete', entityType: 'lampiran', table: r.files, id: b, describe: (l) => `Menghapus lampiran ${l} dari ${r.noun}` }
-  if (isId(a) && b === 'files' && method === 'POST')
+  if (isId(a) && isFiles(b) && method === 'POST')
     return { ...base, action: 'upload', table: r.table, id: a, describe: (l, f) => `Mengunggah lampiran${f.file ? ` ${f.file}` : f.url ? ` ${f.url}` : ''} ke ${r.noun} ${l}` }
   if (res === 'planning' && isId(a) && b === 'progress')
     return { ...base, action: 'update', always: true, table: r.table, id: a, describe: (l, f) => `Memperbarui progress planning ${l}${f.progress ? ` menjadi ${f.progress}%` : ''}` }
@@ -156,6 +181,16 @@ function planFor(method: string, path: string): Plan | null {
     return { ...base, action: 'import', describe: () => 'Mengimpor data prospek' }
   if (res === 'visits' && isId(a) && b === 'checkin')
     return { ...base, action: 'checkin', table: r.table, id: a, describe: (l) => `Check-in visit ${l}` }
+  if (['samples', 'designs', 'quotations'].includes(res) && isId(a) && b === 'status')
+    return { ...base, action: 'update', always: true, table: r.table, id: a, describe: (l, f) => `Mengubah status ${r.noun} ${l}${f.status ? ` menjadi ${f.status}` : ''}` }
+  if (res === 'repeat-order' && isId(a) && !b)
+    return { ...base, action: 'update', always: true, table: r.table, id: a, describe: (l, f) => (f.hasil ? `Mencatat follow up repeat order${f.jenis ? ` (${f.jenis})` : ''} customer ${l}` : `Mengubah PIC repeat order customer ${l}`) }
+  if (res === 'hpp' && !a)
+    return { ...base, action: 'update', snapshot: settingsSnapshot, describe: (_l, _f, c) => `Mengubah parameter HPP / data dokumen${changed(c)}` }
+  if (res === 'master' && a === 'drive' && b === 'oauth')
+    return { ...base, action: 'update', always: true, describe: () => 'Memutus koneksi akun Google Drive desain' }
+  if (res === 'master' && a === 'drive')
+    return { ...base, action: 'sync', describe: () => 'Menyinkronkan folder Google Drive desain' }
   if (res === 'accurate' && a === 'sync')
     return { ...base, action: 'sync', describe: (_l, f) => `Menjalankan sinkron data Accurate${f.entity ? ` (${f.entity})` : ''}` }
 
@@ -166,7 +201,17 @@ function planFor(method: string, path: string): Plan | null {
 }
 
 const SKIP_COLS = new Set(['id', 'created_at', 'updated_at', 'synced_at', 'raw', 'data', 'foto', 'password_hash', 'last_update', 'items_synced_update', 'detail_synced_update', 'created_by', 'updated_by', 'uploaded_by'])
-const LABEL_COLS = ['judul', 'nama_usaha', 'nama', 'name', 'item_name', 'tahap', 'tujuan']
+const LABEL_COLS = ['judul', 'nama_usaha', 'nama_produk', 'nama', 'kepada', 'name', 'item_name', 'tahap', 'tujuan']
+
+// Parameter HPP & data dokumen disimpan sebagai baris key-value
+async function settingsSnapshot() {
+  try {
+    const [rows] = await db.query<RowDataPacket[]>("SELECT `key`, value FROM app_settings WHERE `key` LIKE 'hpp.%' OR `key` LIKE 'doc.%'")
+    return Object.fromEntries(rows.map((row) => [row.key, row.value]))
+  } catch {
+    return null
+  }
+}
 
 async function loadRow(table: string | undefined, id: string | number | undefined | null) {
   if (!table || id == null) return null
@@ -187,7 +232,7 @@ function rowLabel(row: RowDataPacket | null, id: string | number | null | undefi
 const humanize = (col: string) => col.replace(/_id$/, '').replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
 const show = (v: unknown) => (v == null || v === '' ? null : String(v instanceof Date ? v.toISOString() : v).slice(0, 120))
 
-function diffRows(before: RowDataPacket | null, after: RowDataPacket | null): ActivityChange[] {
+function diffRows(before: Record<string, unknown> | null, after: Record<string, unknown> | null): ActivityChange[] {
   if (!before || !after) return []
   return Object.keys(after)
     .filter((k) => !SKIP_COLS.has(k) && !Buffer.isBuffer(after[k]) && show(before[k]) !== show(after[k]))
@@ -217,7 +262,7 @@ export async function withActivity(request: Request | null, run: () => Promise<R
   const path = new URL(request.url).pathname
   const plan = planFor(request.method, path)
   const fields = plan ? await readFields(request.clone()) : {}
-  const before = plan && plan.action !== 'create' ? await loadRow(plan.table, plan.id) : null
+  const before = !plan || plan.action === 'create' ? null : plan.snapshot ? await plan.snapshot() : await loadRow(plan.table, plan.id)
 
   const response = await store.run(ctx, run)
   if (!plan || ctx.logged || response.status >= 400) return response
@@ -226,9 +271,9 @@ export async function withActivity(request: Request | null, run: () => Promise<R
     const actor = ctx.actor ?? (await getCurrentUser())
     let id: string | number | null | undefined = plan.id
     if (plan.action === 'create' && !id) id = (await response.clone().json().catch(() => null))?.id ?? null
-    const after = plan.action === 'delete' ? null : await loadRow(plan.table, id)
+    const after = plan.action === 'delete' ? null : plan.snapshot ? await plan.snapshot() : await loadRow(plan.table, id)
     const changes = plan.action === 'update' ? diffRows(before, after) : []
-    const label = rowLabel(after ?? before, id) || fields.judul || fields.nama || fields.name || ''
+    const label = (plan.snapshot ? '' : rowLabel((after ?? before) as RowDataPacket | null, id)) || fields.judul || fields.nama || fields.name || ''
     // Ubah tanpa perubahan data apa pun (mis. simpan ulang form yang sama) tidak dicatat
     if (plan.action === 'update' && !plan.always && before && after && !changes.length) return response
     await insertLog(request, actor ? { id: actor.id, name: actor.name } : { id: null, name: 'Tidak diketahui' }, {

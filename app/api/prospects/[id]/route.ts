@@ -1,6 +1,7 @@
 import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
+import { withNoteAttachments } from '@/lib/attachments'
 import { db } from '@/lib/db'
 import {
   canEditProspect, canSupervise, loadProspect, loadProspectProducts, readProspectProducts, saveProspectProducts, logActivity, parseDateTime, PROSPECT_STATUS, readProspectInput, requireMarketing,
@@ -21,8 +22,9 @@ export const GET = handle(async (_request: Request, { params }: Ctx) => {
      FROM marketing_activities a JOIN users u ON u.id = a.user_id WHERE a.prospect_id = ? ORDER BY a.id DESC LIMIT 200`,
     [prospect.id],
   )
+  const notes = await withNoteAttachments('activity', activities as (RowDataPacket & { id: number })[])
   const [visits] = await db.query<RowDataPacket[]>(`${VISIT_SELECT} WHERE v.prospect_id = ? ORDER BY v.jadwal DESC`, [prospect.id])
-  return NextResponse.json({ item: { ...prospect, products: await loadProspectProducts(prospect.id) }, activities, visits: visits.map(serializeVisit), canEdit: canEditProspect(user, prospect as never), canSupervise: canSupervise(user) })
+  return NextResponse.json({ item: { ...prospect, products: await loadProspectProducts(prospect.id) }, activities: notes, visits: visits.map(serializeVisit), canEdit: canEditProspect(user, prospect as never), canSupervise: canSupervise(user) })
 })
 
 // Ubah data prospek, sales/maintenance, status, atau jadwal follow-up (field yang dikirim saja)
@@ -113,6 +115,7 @@ export const DELETE = handle(async (_request: Request, { params }: Ctx) => {
   requireMarketing(user, 'prospek')
   const prospect = await loadProspect(Number((await params).id), user)
   if (!canSupervise(user) && prospect.created_by !== user.id) fail(403, 'Hanya pembuat prospek atau Lead yang dapat menghapus.')
+  await db.query("DELETE na FROM note_attachments na JOIN marketing_activities a ON a.id = na.owner_id AND na.owner_type = 'activity' WHERE a.prospect_id = ?", [prospect.id])
   await db.query('DELETE FROM prospects WHERE id = ?', [prospect.id])
   return NextResponse.json({ ok: true })
 })

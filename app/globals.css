@@ -805,3 +805,14 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
   .pap-print-bar { display:none; }
   .pap-sheet { max-width:none; padding:0; box-shadow:none; }
 }
+
+/* Lampiran di bawah catatan */
+.pap-note-files { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 0; padding:0; list-style:none; }
+.pap-note-files li { display:inline-flex; align-items:center; gap:5px; max-width:100%; padding:4px 8px; border:1px solid var(--pap-border); border-radius:8px; background:var(--pap-bg); font-size:11px; }
+.pap-note-files svg { width:13px; height:13px; flex:none; color:var(--pap-muted); }
+.pap-note-files a { overflow:hidden; color:#0096cf; font-weight:600; text-overflow:ellipsis; white-space:nowrap; }
+.pap-note-files small { color:var(--pap-muted); }
+.pap-note-files button { display:grid; place-items:center; padding:0; border:0; background:transparent; color:var(--pap-muted); cursor:pointer; }
+.pap-note-attach { margin-top:8px; }
+.pap-stage-attach .pap-detail-section { margin-top:10px; padding:10px 0 0; border-top:1px dashed var(--pap-border); }
+.pap-stage-attach .pap-detail-section h3 { font-size:12px; }
