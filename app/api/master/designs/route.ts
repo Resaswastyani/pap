@@ -2,7 +2,7 @@ import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { handle, int, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
-import { driveEnabled, driveServiceEmail, driveStatus } from '@/lib/drive'
+import { driveAccount, driveStatus, oauthConfigured } from '@/lib/drive'
 import { canManageMaster, DESIGN_KIND_SQL, requireMaster } from '@/lib/master'
 
 const PAGE_SIZE = 60
@@ -62,7 +62,11 @@ export const GET = handle(async (request: Request) => {
     pageSize: PAGE_SIZE,
     months: sortMonths(months.map((m) => m.bulan)),
     roots: await driveStatus(),
-    drive: { enabled: driveEnabled(), serviceEmail: canManageMaster(user) ? driveServiceEmail() : null },
+    drive: await (async () => {
+      const account = await driveAccount()
+      const admin = canManageMaster(user)
+      return { enabled: !!account, mode: account?.mode ?? null, email: admin ? account?.email ?? null : null, connectedAt: admin ? account?.connectedAt ?? null : null, oauthReady: admin && oauthConfigured() }
+    })(),
     canManage: canManageMaster(user),
   })
 })

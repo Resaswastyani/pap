@@ -121,6 +121,16 @@ export function AppShell() {
     const visitId = Number(params.get('visit')) || null
     const sampleId = Number(params.get('sample')) || null
     const designId = Number(params.get('desain')) || null
+    // Kembali dari halaman izin Google (Hubungkan akun Google di Master Data)
+    const drive = params.get('drive')
+    if (drive) {
+      try {
+        sessionStorage.setItem('pap-drive-result', drive)
+        localStorage.setItem('pap-master-tab', 'desain')
+      } catch {}
+      setActive('Master Data')
+      window.history.replaceState(null, '', window.location.pathname)
+    }
     if (meetingId || planningId || prospectId || visitId || sampleId || designId) {
       openRef.current({ meetingId, planningId, prospectId, visitId, sampleId, designId })
       window.history.replaceState(null, '', window.location.pathname)

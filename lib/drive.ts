@@ -1,12 +1,13 @@
-import { createSign } from 'node:crypto'
+import { createCipheriv, createDecipheriv, createHash, createSign, randomBytes } from 'node:crypto'
 import type { RowDataPacket } from 'mysql2'
 import { db } from '@/lib/db'
 
-// Google Drive (baca saja) memakai service account, tanpa library tambahan.
-// Env GOOGLE_SERVICE_ACCOUNT_JSON = isi file kunci JSON service account (boleh di-base64).
-// Folder Drive harus dibagikan ke email service account (client_email) sebagai "Viewer",
-// atau diset "Siapa saja yang memiliki link".
+// Google Drive (baca saja), tanpa library tambahan. Dua cara akses (pilih salah satu):
+// 1. Akun Google (OAuth): admin klik "Hubungkan akun Google" lalu login dengan akun yang menerima share folder
+//    (mis. resaarrazy@gmail.com). Env: GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET.
+// 2. Service account: env GOOGLE_SERVICE_ACCOUNT_JSON; folder dibagikan ke client_email service account.
 
+const SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
 type ServiceAccount = { client_email: string; private_key: string }
 
 function serviceAccount(): ServiceAccount | null {
@@ -20,34 +21,137 @@ function serviceAccount(): ServiceAccount | null {
   }
 }
 
-export const driveEnabled = () => !!serviceAccount()
-export const driveServiceEmail = () => serviceAccount()?.client_email ?? null
+const oauthClient = () => {
+  const id = process.env.GOOGLE_OAUTH_CLIENT_ID?.trim()
+  const secret = process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim()
+  return id && secret ? { id, secret } : null
+}
+export const oauthConfigured = () => !!oauthClient()
 
-const b64url = (value: string | Buffer) => Buffer.from(value).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
-const globalForDrive = globalThis as unknown as { papDriveToken?: { token: string; exp: number } }
+// ---- Refresh token terenkripsi (kunci turunan AUTH_SECRET) ----
+const cryptoKey = () => createHash('sha256').update(`${process.env.AUTH_SECRET ?? ''}:google-drive`).digest()
+function encrypt(text: string) {
+  const iv = randomBytes(12)
+  const cipher = createCipheriv('aes-256-gcm', cryptoKey(), iv)
+  const data = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()])
+  return [iv, cipher.getAuthTag(), data].map((b) => b.toString('base64')).join('.')
+}
+function decrypt(value: string) {
+  const [iv, tag, data] = value.split('.').map((p) => Buffer.from(p, 'base64'))
+  const decipher = createDecipheriv('aes-256-gcm', cryptoKey(), iv)
+  decipher.setAuthTag(tag)
+  return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8')
+}
 
-async function accessToken() {
-  const cached = globalForDrive.papDriveToken
-  if (cached && cached.exp > Date.now() + 60_000) return cached.token
+type AuthRow = RowDataPacket & { email: string; refresh_token: string; connected_at: string; connected_name: string | null }
+async function storedAuth() {
+  const [[row]] = await db.query<AuthRow[]>(
+    'SELECT a.email, a.refresh_token, a.connected_at, u.name AS connected_name FROM drive_auth a LEFT JOIN users u ON u.id = a.connected_by WHERE a.id = 1',
+  )
+  return row ?? null
+}
+
+// Akun yang dipakai membaca Drive: akun Google (bila terhubung) diutamakan, lalu service account
+export async function driveAccount(): Promise<{ mode: 'oauth' | 'service'; email: string; connectedAt?: string; connectedBy?: string | null } | null> {
+  if (oauthClient()) {
+    const auth = await storedAuth()
+    if (auth) return { mode: 'oauth', email: auth.email, connectedAt: auth.connected_at, connectedBy: auth.connected_name }
+  }
   const sa = serviceAccount()
-  if (!sa) throw new Error('Google Drive belum dikonfigurasi (GOOGLE_SERVICE_ACCOUNT_JSON).')
-  const now = Math.floor(Date.now() / 1000)
-  const unsigned = `${b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))}.${b64url(JSON.stringify({
-    iss: sa.client_email,
-    scope: 'https://www.googleapis.com/auth/drive.readonly',
-    aud: 'https://oauth2.googleapis.com/token',
-    iat: now,
-    exp: now + 3600,
-  }))}`
-  const signature = b64url(createSign('RSA-SHA256').update(unsigned).sign(sa.private_key))
+  return sa ? { mode: 'service', email: sa.client_email } : null
+}
+export const driveEnabled = async () => !!(await driveAccount())
+
+// ---- Alur "Hubungkan akun Google" ----
+export function driveAuthUrl(redirectUri: string, state: string) {
+  const client = oauthClient()
+  if (!client) throw new Error('GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET belum diisi.')
+  const url = new URL('https://accounts.google.com/o/oauth2/v2/auth')
+  url.search = new URLSearchParams({
+    client_id: client.id,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: `openid email ${SCOPE}`,
+    access_type: 'offline', // agar mendapat refresh token
+    prompt: 'consent',
+    include_granted_scopes: 'true',
+    state,
+  }).toString()
+  return url.toString()
+}
+
+export async function connectDriveAccount(code: string, redirectUri: string, userId: number) {
+  const client = oauthClient()
+  if (!client) throw new Error('Login Google belum dikonfigurasi.')
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: `${unsigned}.${signature}` }),
+    body: new URLSearchParams({ code, client_id: client.id, client_secret: client.secret, redirect_uri: redirectUri, grant_type: 'authorization_code' }),
   })
   const json = await res.json().catch(() => ({}))
-  if (!res.ok || !json.access_token) throw new Error(`Login service account Google gagal: ${json.error_description ?? json.error ?? res.status}`)
-  globalForDrive.papDriveToken = { token: json.access_token, exp: Date.now() + Number(json.expires_in ?? 3600) * 1000 }
+  if (!res.ok) throw new Error(`Login Google gagal: ${json.error_description ?? json.error ?? res.status}`)
+  if (!String(json.scope ?? '').includes(SCOPE)) throw new Error('Izin "Lihat file Google Drive" tidak dicentang. Ulangi dan centang izin tersebut.')
+  if (!json.refresh_token) throw new Error('Google tidak memberikan refresh token. Ulangi Hubungkan akun Google.')
+  // id_token berisi email akun yang login
+  const payload = JSON.parse(Buffer.from(String(json.id_token ?? '').split('.')[1] ?? '', 'base64url').toString('utf8') || '{}')
+  const email = String(payload.email ?? 'akun Google')
+  await db.query(
+    `INSERT INTO drive_auth (id, email, refresh_token, connected_by, connected_at) VALUES (1, ?, ?, ?, NOW())
+     ON DUPLICATE KEY UPDATE email = VALUES(email), refresh_token = VALUES(refresh_token), connected_by = VALUES(connected_by), connected_at = NOW()`,
+    [email, encrypt(json.refresh_token), userId],
+  )
+  globalForDrive.papDriveToken = { token: json.access_token, exp: Date.now() + Number(json.expires_in ?? 3600) * 1000, key: `oauth:${email}` }
+  // Folder yang sebelumnya gagal (belum punya akses) dipindai ulang
+  await db.query('UPDATE drive_roots SET last_error = NULL')
+  await db.query('UPDATE drive_folders SET scanned_at = NULL WHERE depth = 0')
+  return email
+}
+
+export async function disconnectDriveAccount() {
+  const auth = await storedAuth()
+  await db.query('DELETE FROM drive_auth WHERE id = 1')
+  globalForDrive.papDriveToken = undefined
+  // Cabut izin di sisi Google juga (abaikan bila gagal)
+  if (auth) await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(decrypt(auth.refresh_token))}`, { method: 'POST' }).catch(() => {})
+}
+
+const b64url = (value: string | Buffer) => Buffer.from(value).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
+const globalForDrive = globalThis as unknown as { papDriveToken?: { token: string; exp: number; key: string } }
+
+async function accessToken() {
+  const account = await driveAccount()
+  if (!account) throw new Error('Google Drive belum terhubung.')
+  const key = `${account.mode}:${account.email}`
+  const cached = globalForDrive.papDriveToken
+  if (cached && cached.key === key && cached.exp > Date.now() + 60_000) return cached.token
+
+  let body: URLSearchParams
+  if (account.mode === 'oauth') {
+    const client = oauthClient()!
+    const auth = (await storedAuth())!
+    body = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: decrypt(auth.refresh_token), client_id: client.id, client_secret: client.secret })
+  } else {
+    const sa = serviceAccount()!
+    const now = Math.floor(Date.now() / 1000)
+    const unsigned = `${b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))}.${b64url(JSON.stringify({
+      iss: sa.client_email,
+      scope: SCOPE,
+      aud: 'https://oauth2.googleapis.com/token',
+      iat: now,
+      exp: now + 3600,
+    }))}`
+    const signature = b64url(createSign('RSA-SHA256').update(unsigned).sign(sa.private_key))
+    body = new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: `${unsigned}.${signature}` })
+  }
+  const res = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok || !json.access_token) {
+    if (account.mode === 'oauth' && json.error === 'invalid_grant') {
+      throw new Error(`Akses Google ${account.email} sudah kedaluwarsa atau dicabut. Admin perlu klik "Hubungkan akun Google" lagi.`)
+    }
+    throw new Error(`Login Google gagal: ${json.error_description ?? json.error ?? res.status}`)
+  }
+  globalForDrive.papDriveToken = { token: json.access_token, exp: Date.now() + Number(json.expires_in ?? 3600) * 1000, key }
   return json.access_token as string
 }
 
@@ -133,7 +237,7 @@ export async function syncDrive(budgetMs = 25_000) {
       if (folder.depth === 0) await db.query('UPDATE drive_roots SET last_error = NULL WHERE id = ?', [folder.root_id])
     } catch (error) {
       const message = error instanceof DriveError && (error.status === 404 || error.status === 403)
-        ? `Tidak punya akses ke folder "${folder.path || folder.name}". Bagikan folder ke ${driveServiceEmail()}.`
+        ? `Tidak punya akses ke folder "${folder.path || folder.name}". Bagikan folder ke ${(await driveAccount())?.email ?? "akun Google yang terhubung"}.`
         : (error as Error).message
       errors.push(message)
       if (folder.depth === 0) await db.query('UPDATE drive_roots SET last_error = ? WHERE id = ?', [message.slice(0, 500), folder.root_id])

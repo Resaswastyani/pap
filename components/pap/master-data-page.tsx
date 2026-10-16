@@ -55,7 +55,7 @@ type DesignFile = {
   root_label: string; tahun: number | null; customer_name: string | null; customer_no: string | null
 }
 type Root = { id: number; label: string; kategori: 'logo' | 'cetak'; tahun: number | null; folder_id: string; aktif: number; last_error: string | null; files: number; last_scan: string | null; pending: number }
-type DesignResponse = { items: DesignFile[]; total: number; pageSize: number; months: string[]; roots: Root[]; drive: { enabled: boolean; serviceEmail: string | null }; canManage: boolean }
+type DesignResponse = { items: DesignFile[]; total: number; pageSize: number; months: string[]; roots: Root[]; drive: { enabled: boolean; mode: 'oauth' | 'service' | null; email: string | null; connectedAt: string | null; oauthReady: boolean }; canManage: boolean }
 
 const ext = (name: string) => name.split('.').pop()?.toUpperCase() ?? ''
 const thumbUrl = (id: string, size = 400) => `/api/master/designs/${encodeURIComponent(id)}/thumb?s=${size}`
@@ -81,6 +81,27 @@ function DesignLibrary() {
   const [message, setMessage] = useState('')
   const [syncing, setSyncing] = useState(false)
   const [open, setOpen] = useState<DesignFile | null>(null)
+
+  useEffect(() => {
+    let result: string | null = null
+    try {
+      result = sessionStorage.getItem('pap-drive-result')
+      sessionStorage.removeItem('pap-drive-result')
+    } catch {}
+    if (result?.startsWith('ok:')) setMessage(`Google Drive terhubung dengan akun ${result.slice(3)}. Klik "Sinkron Google Drive" untuk mengambil desain.`)
+    else if (result?.startsWith('error:')) setError(result.slice(6))
+  }, [])
+
+  async function disconnect() {
+    if (!window.confirm('Putuskan akun Google? Desain yang sudah tersinkron tetap ada, tetapi tidak diperbarui sampai akun dihubungkan lagi.')) return
+    try {
+      await api('/api/master/drive/oauth', { method: 'DELETE' })
+      setMessage('Akun Google diputuskan.')
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -134,11 +155,22 @@ function DesignLibrary() {
         </div>
         {data?.canManage && data.drive.enabled && <button className="pap-btn" onClick={sync} disabled={syncing}><RefreshCw className={syncing ? 'pap-spin' : ''} /> {syncing ? 'Menyinkronkan...' : 'Sinkron Google Drive'}</button>}
       </div>
-      {data && !data.drive.enabled && (
-        <Notice>Google Drive belum terhubung. {data.canManage ? 'Isi GOOGLE_SERVICE_ACCOUNT_JSON di environment server (lihat panduan dari tim IT), lalu klik Sinkron.' : 'Hubungi Admin.'}</Notice>
-      )}
-      {data?.canManage && data.drive.serviceEmail && (
-        <p className="pap-hint pap-drive-hint">Folder Drive harus dibagikan (Viewer) ke <b>{data.drive.serviceEmail}</b>. Terakhir disinkron: {lastScan ? formatDate(lastScan, true) : 'belum pernah'}.</p>
+      {data && !data.drive.enabled && !data.canManage && <Notice>Google Drive belum terhubung. Hubungi Admin.</Notice>}
+      {data?.canManage && (
+        <div className={`pap-drive-account ${data.drive.enabled ? 'on' : ''}`}>
+          <div>
+            <strong>{data.drive.enabled ? `Terhubung: ${data.drive.email}` : 'Google Drive belum terhubung'}</strong>
+            <span>
+              {data.drive.enabled
+                ? `${data.drive.mode === 'oauth' ? 'Akun Google' : 'Service account'}${data.drive.connectedAt ? ` · sejak ${formatDate(data.drive.connectedAt, true)}` : ''} · terakhir disinkron ${lastScan ? formatDate(lastScan, true) : 'belum pernah'}. Folder desain harus dibagikan ke akun ini.`
+                : data.drive.oauthReady
+                  ? 'Klik "Hubungkan akun Google" lalu login dengan akun yang menerima share folder desain (mis. resaarrazy@gmail.com).'
+                  : 'Isi GOOGLE_OAUTH_CLIENT_ID dan GOOGLE_OAUTH_CLIENT_SECRET di environment server (Vercel), lalu redeploy.'}
+            </span>
+          </div>
+          {data.drive.oauthReady && <a className={data.drive.enabled ? 'pap-btn' : 'pap-primary-button'} href="/api/master/drive/oauth">{data.drive.mode === 'oauth' ? 'Ganti akun' : 'Hubungkan akun Google'}</a>}
+          {data.drive.mode === 'oauth' && <button className="pap-btn danger" onClick={disconnect}>Putuskan</button>}
+        </div>
       )}
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}

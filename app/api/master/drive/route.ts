@@ -9,6 +9,6 @@ export const maxDuration = 60
 export const POST = handle(async () => {
   const user = await requireUser()
   if (!canManageMaster(user)) fail(403, 'Hanya Admin / Super Admin yang dapat menyinkronkan Google Drive.')
-  if (!driveEnabled()) fail(400, 'Google Drive belum dikonfigurasi. Isi GOOGLE_SERVICE_ACCOUNT_JSON di environment server.')
+  if (!(await driveEnabled())) fail(400, 'Google Drive belum terhubung. Klik "Hubungkan akun Google" terlebih dahulu.')
   return NextResponse.json(await syncDrive(25_000))
 })

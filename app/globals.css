@@ -715,3 +715,9 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
 .pap-activity-notice { padding:0 22px 12px; }
 .pap-activity-more { display:flex; justify-content:center; padding:16px; border-top:1px solid var(--pap-border); }
 .pap-activity-table td:nth-child(5) { min-width:280px; }
+
+.pap-drive-account { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:-6px 0 16px; padding:12px 14px; border:1px dashed rgb(239 90 60 / .45); border-radius:12px; background:rgb(239 90 60 / .04); }
+.pap-drive-account.on { border-style:solid; border-color:rgb(29 185 138 / .45); background:rgb(29 185 138 / .05); }
+.pap-drive-account > div { display:flex; flex:1 1 320px; flex-direction:column; gap:3px; min-width:0; font-size:12px; }
+.pap-drive-account span { color:var(--pap-muted); }
+.pap-drive-account a { text-decoration:none; }
