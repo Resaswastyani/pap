@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { KeyRound, Pencil, Plus, Search, ShieldCheck, Trash2 } from 'lucide-react'
+import { History, KeyRound, List, Pencil, Plus, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { api, Field, formatDate, Modal, Notice, PasswordInput } from './ui'
+import { UserActivityLog } from './user-activity'
 
 type Division = { id: number; code: string; name: string; has_levels: boolean }
 type Role = { id: number; code: string; name: string; description: string | null; is_super_admin: boolean }
@@ -36,6 +37,8 @@ export function UsersPage({ user }: { user: UserProfile }) {
   const [division, setDivision] = useState('')
   const [form, setForm] = useState<ManagedUser | 'new' | null>(null)
   const [permUser, setPermUser] = useState<ManagedUser | null>(null)
+  const [tab, setTab] = useState<'users' | 'activity'>('users')
+  const [logUser, setLogUser] = useState<{ id: number; name: string } | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -82,11 +85,18 @@ export function UsersPage({ user }: { user: UserProfile }) {
           <h1>Manajemen User</h1>
           <span>Kelola akun, divisi, role, dan permission khusus per user.</span>
         </div>
-        <button className="pap-primary-button" onClick={() => setForm('new')}><Plus /> Tambah user</button>
+        <div className="pap-users-actions">
+          <div className="pap-segmented" role="tablist" aria-label="Tampilan manajemen user">
+            <button role="tab" aria-selected={tab === 'users'} className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}><List /> Daftar user</button>
+            <button role="tab" aria-selected={tab === 'activity'} className={tab === 'activity' ? 'active' : ''} onClick={() => setTab('activity')}><History /> Log aktivitas</button>
+          </div>
+          {tab === 'users' && <button className="pap-primary-button" onClick={() => setForm('new')}><Plus /> Tambah user</button>}
+        </div>
       </div>
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
-      <div className="pap-table-card">
+      {tab === 'activity' && <UserActivityLog filterUser={logUser} onClearUser={() => setLogUser(null)} />}
+      {tab === 'users' && <div className="pap-table-card">
         <div className="pap-card-head"><div><h2>Daftar user</h2><p>{items.length} akun · {items.filter((i) => i.is_active).length} aktif</p></div></div>
         <div className="pap-filters">
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama atau email..." /></label>
@@ -113,6 +123,7 @@ export function UsersPage({ user }: { user: UserProfile }) {
                     <div className="pap-row-actions">
                       <button className="pap-icon-button" title="Edit user" aria-label={`Edit ${item.name}`} onClick={() => setForm(item)}><Pencil /></button>
                       <button className="pap-icon-button" title="Permission user" aria-label={`Permission ${item.name}`} onClick={() => setPermUser(item)}><KeyRound /></button>
+                      <button className="pap-icon-button" title="Riwayat aktivitas" aria-label={`Riwayat aktivitas ${item.name}`} onClick={() => { setLogUser({ id: item.id, name: item.name }); setTab('activity') }}><History /></button>
                       {item.id !== user.id && <button className="pap-icon-button danger" title="Hapus user" aria-label={`Hapus ${item.name}`} onClick={() => remove(item)}><Trash2 /></button>}
                     </div>
                   </td>
@@ -122,7 +133,7 @@ export function UsersPage({ user }: { user: UserProfile }) {
           </table>
           {!visible.length && <div className="pap-empty">Tidak ada user yang cocok.</div>}
         </div>
-      </div>
+      </div>}
       {form && (
         <UserForm
           actor={user}

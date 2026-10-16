@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
 import { NextResponse } from 'next/server'
+import { insertLog } from '@/lib/activity'
 import { createSession } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { checkCaptcha } from '@/lib/recaptcha'
@@ -21,12 +22,17 @@ export async function POST(request: Request) {
   try {
     const user = await findUserByEmail(email)
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+      await insertLog(request, { id: user?.id ?? null, name: user?.name ?? email }, { module: 'Autentikasi', action: 'login_failed', entity: { type: 'user', id: user?.id ?? null, label: email }, description: user ? 'Login gagal: password salah' : `Login gagal: email ${email} tidak terdaftar` })
       return NextResponse.json({ error: 'Email atau password salah.' }, { status: 401 })
     }
-    if (!user.is_active) return NextResponse.json({ error: 'Akun dinonaktifkan. Hubungi admin.' }, { status: 403 })
+    if (!user.is_active) {
+      await insertLog(request, { id: user.id, name: user.name }, { module: 'Autentikasi', action: 'login_failed', entity: { type: 'user', id: user.id, label: email }, description: 'Login ditolak: akun dinonaktifkan' })
+      return NextResponse.json({ error: 'Akun dinonaktifkan. Hubungi admin.' }, { status: 403 })
+    }
 
     await db.query('UPDATE users SET last_login_at = NOW() WHERE id = ?', [user.id])
     await createSession({ id: user.id })
+    await insertLog(request, { id: user.id, name: user.name }, { module: 'Autentikasi', action: 'login', entity: { type: 'user', id: user.id, label: email }, description: 'Login ke sistem' })
     return NextResponse.json({ user: await toProfile(user) })
   } catch (error) {
     console.error('[auth/login]', error)

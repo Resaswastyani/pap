@@ -1,5 +1,6 @@
 import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
+import { logUserActivity, type ActivityChange } from '@/lib/activity'
 import { assertCanTouchSuperAdmin, loadPermissions } from '@/lib/admin'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
@@ -11,10 +12,10 @@ type Override = 'inherit' | 'allow' | 'deny'
 async function loadTarget(ctx: Ctx) {
   const id = int((await ctx.params).id) ?? fail(404, 'User tidak ditemukan.')
   const [rows] = await db.query<RowDataPacket[]>(
-    'SELECT u.id, u.name, u.role_id, r.name AS role_name, r.is_super_admin FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?',
+    'SELECT u.id, u.name, u.email, u.role_id, r.name AS role_name, r.is_super_admin FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?',
     [id],
   )
-  return (rows[0] as { id: number; name: string; role_id: number; role_name: string; is_super_admin: number }) ?? fail(404, 'User tidak ditemukan.')
+  return (rows[0] as { id: number; name: string; email: string; role_id: number; role_name: string; is_super_admin: number }) ?? fail(404, 'User tidak ditemukan.')
 }
 
 // Permission user: bawaan role + override per user
@@ -42,6 +43,8 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
   const body = await readJson(request)
   const overrides = (body.overrides ?? {}) as Record<string, Override>
   const permissions = await loadPermissions()
+  const [previous] = await db.query<RowDataPacket[]>('SELECT permission_id, allowed FROM user_permissions WHERE user_id = ?', [target.id])
+  const beforeMap = new Map<number, Override>(previous.map((row) => [row.permission_id, row.allowed ? 'allow' : 'deny']))
 
   const conn = await db.getConnection()
   try {
@@ -60,5 +63,14 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
   } finally {
     conn.release()
   }
+
+  const LABEL: Record<Override, string> = { inherit: 'Ikuti role', allow: 'Izinkan', deny: 'Cabut' }
+  const changes: ActivityChange[] = permissions.flatMap((permission) => {
+    const from = beforeMap.get(permission.id) ?? 'inherit'
+    const value = overrides[permission.code]
+    const to: Override = value === 'allow' || value === 'deny' ? value : 'inherit'
+    return from === to ? [] : [{ field: permission.name, from: LABEL[from], to: LABEL[to] }]
+  })
+  if (changes.length) await logUserActivity(request, actor, { action: 'permission', target, description: `Mengubah ${changes.length} permission user ${target.name}`, changes })
   return NextResponse.json({ ok: true })
 })
