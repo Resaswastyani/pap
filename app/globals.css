@@ -564,3 +564,12 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
   .pap-visit-actions { grid-column:1 / -1; justify-content:flex-end; }
   .pap-stepper button.fail { margin-left:0; }
 }
+
+/* Prospek: kebutuhan dari Data Produk */
+.pap-need-picker { display:flex; flex-direction:column; gap:8px; }
+.pap-need-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.pap-need-chip { display:inline-flex; align-items:center; gap:6px; padding:5px 6px 5px 10px; border-radius:99px; background:rgb(124 92 252 / .12); color:#7050e7; font-size:12px; font-weight:700; }
+.pap-need-chip button { display:grid; place-items:center; width:18px; height:18px; padding:0; border:0; border-radius:50%; background:rgb(124 92 252 / .18); color:#7050e7; font-size:13px; line-height:1; cursor:pointer; }
+.pap-need-jenis { display:flex; flex-wrap:wrap; align-items:center; gap:6px; color:var(--pap-muted); font-size:11px; font-weight:700; }
+.pap-need-jenis button { padding:4px 10px; border:1px dashed var(--pap-border); border-radius:99px; background:transparent; color:var(--pap-text); font-size:11px; cursor:pointer; }
+.pap-need-jenis button:hover { border-color:#7c5cfc; color:#7050e7; }

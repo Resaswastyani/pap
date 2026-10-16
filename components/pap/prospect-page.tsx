@@ -347,7 +347,9 @@ function ProspectForm({ initial, users, sources, canSupervise, onClose, onSaved 
             {sources.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </Field>
-        <Field label="Kebutuhan / produk diminati" full><input className="pap-input" maxLength={500} value={values.kebutuhan} onChange={set('kebutuhan')} placeholder="Contoh: kantong laundry HD 40x60 cetak 1 warna" /></Field>
+        <Field label="Kebutuhan / produk diminati" full hint="Pilih dari Data Produk atau jenis produk, lalu tambah ukuran/catatan bila perlu. Bisa lebih dari satu.">
+          <ProductNeedPicker value={values.kebutuhan} onChange={(kebutuhan) => setValues((v) => ({ ...v, kebutuhan }))} />
+        </Field>
         <Field label="Estimasi order"><input className="pap-input" maxLength={150} value={values.estimasi_order} onChange={set('estimasi_order')} placeholder="Contoh: 200 kg / bulan" /></Field>
         <Field label="Follow-up berikutnya"><input className="pap-input" type="datetime-local" value={values.next_followup_at} onChange={set('next_followup_at')} /></Field>
         {canSupervise && (
@@ -362,6 +364,78 @@ function ProspectForm({ initial, users, sources, canSupervise, onClose, onSaved 
         <datalist id="pap-sektor">{['Laundry', 'F&B / Kuliner', 'Retail / Toko', 'Minimarket', 'Garmen / Konveksi', 'Farmasi', 'Bakery', 'Frozen food', 'Distributor', 'Pabrik'].map((s) => <option key={s} value={s} />)}</datalist>
       </form>
     </Modal>
+  )
+}
+
+// ---- Kebutuhan prospek: ambil dari master Data Produk (atau jenis produk), tetap bisa diketik bebas ----
+type ProductOption = { id: number; nama: string; jenis: string | null; spesifikasi: string | null; bahan: string | null; customer_name: string | null }
+const splitNeeds = (text: string) => text.split(/\s*;\s*/).map((t) => t.trim()).filter(Boolean)
+
+function ProductNeedPicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [term, setTerm] = useState('')
+  const [open, setOpen] = useState(false)
+  const [options, setOptions] = useState<ProductOption[]>([])
+  const [jenisList, setJenisList] = useState<string[]>([])
+  const needs = splitNeeds(value)
+
+  useEffect(() => {
+    if (!open) return
+    const timer = setTimeout(() => {
+      api<{ items: ProductOption[]; jenis: string[] }>(`/api/products?status=aktif&q=${encodeURIComponent(term)}`)
+        .then((res) => {
+          // Produk sama dipesan banyak customer: tampilkan satu per nama
+          const seen = new Set<string>()
+          setOptions(res.items.filter((p) => !seen.has(p.nama.toLowerCase()) && seen.add(p.nama.toLowerCase())).slice(0, 15))
+          setJenisList(res.jenis)
+        })
+        .catch(() => {})
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [term, open])
+
+  const add = (text: string) => {
+    const clean = text.trim().replace(/;/g, ',')
+    if (!clean || needs.some((n) => n.toLowerCase() === clean.toLowerCase())) return
+    onChange([...needs, clean].join('; ').slice(0, 500))
+    setTerm('')
+  }
+  const remove = (i: number) => onChange(needs.filter((_, idx) => idx !== i).join('; '))
+  const label = (p: ProductOption) => [p.nama, p.spesifikasi].filter(Boolean).join(' · ')
+
+  return (
+    <div className="pap-need-picker">
+      {needs.length > 0 && (
+        <div className="pap-need-chips">
+          {needs.map((n, i) => <span key={n} className="pap-need-chip">{n}<button type="button" aria-label={`Hapus ${n}`} onClick={() => remove(i)}>×</button></span>)}
+        </div>
+      )}
+      <div className="pap-combo">
+        <input
+          className="pap-input"
+          value={term}
+          placeholder="Cari di Data Produk atau ketik kebutuhan, tekan Enter..."
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onChange={(e) => setTerm(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(term) } }}
+        />
+        {open && (
+          <ul className="pap-combo-list">
+            {term.trim() && <li><button type="button" onMouseDown={() => add(term)}><strong>Tambah "{term.trim()}"</strong><small>Ketik bebas (produk baru / custom)</small></button></li>}
+            {options.map((p) => (
+              <li key={p.id}><button type="button" onMouseDown={() => add(label(p))}><strong>{p.nama}</strong><small>{[p.jenis, p.spesifikasi, p.bahan].filter(Boolean).join(' · ') || 'Data Produk'}</small></button></li>
+            ))}
+            {!options.length && !term.trim() && <li className="pap-combo-empty">Ketik untuk mencari produk.</li>}
+          </ul>
+        )}
+      </div>
+      {jenisList.length > 0 && (
+        <div className="pap-need-jenis">
+          <span>Jenis:</span>
+          {jenisList.map((j) => <button key={j} type="button" onClick={() => add(['HD', 'PP', 'PE'].includes(j) ? `Kantong ${j}` : j)}>{j}</button>)}
+        </div>
+      )}
+    </div>
   )
 }
 
