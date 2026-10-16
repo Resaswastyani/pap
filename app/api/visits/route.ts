@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import {
-  canSupervise, loadProspect, logActivity, MARKETING_DIVISIONS, parseDateTime, PIPELINE, requireMarketing, requireMarketingUser,
+  canSupervise, isMarketing, loadProspect, logActivity, MARKETING_DIVISIONS, parseDateTime, PIPELINE, requireMarketing, requireMarketingUser,
   serializeVisit, VISIT_SELECT, VISIT_TYPES, visitScope, type ProspectStatus,
 } from '@/lib/marketing'
 import { formatWaktu, notify } from '@/lib/notifications'
@@ -62,7 +62,9 @@ export const POST = handle(async (request: Request) => {
   const jadwal = parseDateTime(body.jadwal, 'Jadwal visit', true)!
   const jenis = str(body.jenis, 20) || 'visit'
   if (!(jenis in VISIT_TYPES)) fail(400, 'Jenis visit tidak valid.')
-  const salesId = canSupervise(user) ? (await requireMarketingUser(body.sales_id, 'Sales'))?.id ?? user.id : user.id
+  // Supervisor memilih sales; bila kosong, dirinya sendiri hanya jika ia orang marketing (bukan admin/IT)
+  const chosen = canSupervise(user) ? (await requireMarketingUser(body.sales_id, 'Sales'))?.id ?? null : null
+  const salesId = chosen ?? (isMarketing(user) || user.division.code === 'general_manager' ? user.id : fail(400, 'Pilih sales yang akan melakukan visit.'))
 
   let prospect: RowDataPacket | null = null
   let customer: (RowDataPacket & { id: number; name: string; bill_street: string | null; bill_city: string | null }) | null = null

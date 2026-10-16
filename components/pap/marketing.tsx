@@ -132,7 +132,8 @@ export function VisitForm({ initial, prospect, users, canSupervise, currentUserI
     jadwal: initial ? toInputDateTime(initial.jadwal) : nowInput(1, 10),
     tujuan: initial?.tujuan ?? '',
     alamat: initial?.alamat ?? (prospect ? [prospect.alamat, prospect.kota].filter(Boolean).join(', ') : ''),
-    sales_id: String(initial?.sales_id ?? prospect?.assigned_to ?? currentUserId),
+    // Default: sales prospek, lalu user yang login bila ia termasuk daftar sales; selain itu wajib dipilih
+    sales_id: String(initial?.sales_id ?? prospect?.assigned_to ?? (users.some((u) => u.id === currentUserId) ? currentUserId : '')),
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -189,7 +190,8 @@ export function VisitForm({ initial, prospect, users, canSupervise, currentUserI
         <Field label="Jadwal"><input className="pap-input" type="datetime-local" required value={values.jadwal} onChange={set('jadwal')} /></Field>
         {canSupervise && (
           <Field label="Sales" full>
-            <select className="pap-select" value={values.sales_id} onChange={set('sales_id')}>
+            <select className="pap-select" required value={values.sales_id} onChange={set('sales_id')}>
+              <option value="" disabled>Pilih sales yang akan visit</option>
               {users.map((u) => <option key={u.id} value={u.id}>{u.name} · {u.division_name}</option>)}
             </select>
           </Field>
