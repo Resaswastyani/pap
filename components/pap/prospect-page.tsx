@@ -1,13 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, FlaskConical, Package, Palette, CalendarClock, CalendarPlus, ChevronLeft, ChevronRight, Columns3, Handshake, LayoutList, Link2, Mail, MapPin, Pencil, Phone, Plus, Search, Send, Trash2, Upload, UserPlus } from 'lucide-react'
+import { AlertTriangle, FileText, FlaskConical, Package, Palette, CalendarClock, CalendarPlus, ChevronLeft, ChevronRight, Columns3, Handshake, LayoutList, Link2, Mail, MapPin, Pencil, Phone, Plus, Search, Send, Trash2, Upload, UserPlus } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { CustomerSelect, type CustomerOption } from './product-page'
 import {
   CheckinForm, nowInput, PIPELINE, PROSPECT_LABEL, ProspectBadge, toInputDateTime, VisitBadge, VisitDetail, VisitForm, WaButton,
   type MarketingUser, type ProspectStatus, type Visit,
 } from './marketing'
+import { QuotationForm } from './quotation-page'
 import { DesignForm, SampleForm } from './request-page'
 import { api, Field, formatDate, Modal, Notice } from './ui'
 
@@ -460,7 +461,7 @@ function ProspectDetail({ id, user, users, onClose, onEdit, onChanged, onDeleted
   const [canSupervise, setCanSupervise] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
-  const [panel, setPanel] = useState<'' | 'visit' | 'handover' | 'customer' | 'sample' | 'desain'>('')
+  const [panel, setPanel] = useState<'' | 'visit' | 'handover' | 'customer' | 'sample' | 'desain' | 'quotation'>('')
   const [visitDetail, setVisitDetail] = useState<Visit | null>(null)
   const [checkin, setCheckin] = useState<Visit | null>(null)
   const [editVisit, setEditVisit] = useState<Visit | null>(null)
@@ -577,6 +578,7 @@ function ProspectDetail({ id, user, users, onClose, onEdit, onChanged, onDeleted
         <div className="pap-inline-actions pap-wrap">
           <WaButton phone={item.telepon} text={greeting} />
           {canEdit && <button className="pap-btn" onClick={() => setPanel(panel === 'visit' ? '' : 'visit')}><CalendarPlus /> Jadwalkan visit</button>}
+          {canEdit && user.menus.includes('quotation') && <button className="pap-btn" onClick={() => setPanel('quotation')}><FileText /> Buat penawaran</button>}
           {canEdit && user.menus.includes('sample') && <button className="pap-btn" onClick={() => setPanel('sample')}><FlaskConical /> Request sample</button>}
           {canEdit && user.menus.includes('desain') && <button className="pap-btn" onClick={() => setPanel('desain')}><Palette /> Request desain</button>}
           {canEdit && ['order_pertama', 'penawaran', 'handover', 'visit'].includes(item.status) && <button className="pap-btn" onClick={() => setPanel(panel === 'customer' ? '' : 'customer')}><Link2 /> {item.customer_id ? 'Ganti customer' : 'Jadikan customer'}</button>}
@@ -629,6 +631,7 @@ function ProspectDetail({ id, user, users, onClose, onEdit, onChanged, onDeleted
           onSaved={(text) => { setPanel(''); changed(text) }}
         />
       )}
+      {panel === 'quotation' && <QuotationForm prefill={{ prospect: item }} onClose={() => setPanel('')} onSaved={(text) => { setPanel(''); changed(`${text} Buka menu Quotation untuk mencetak & mengirim.`) }} />}
       {panel === 'sample' && <SampleForm prospect={item} onClose={() => setPanel('')} onSaved={(text) => { setPanel(''); changed(text) }} />}
       {panel === 'desain' && <DesignForm prospect={item} onClose={() => setPanel('')} onSaved={(text) => { setPanel(''); changed(text) }} />}
       {visitDetail && !checkin && !editVisit && (

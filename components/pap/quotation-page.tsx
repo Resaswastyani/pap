@@ -1,0 +1,437 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Ban, CheckCircle2, Copy, FileText, MessageCircle, Pencil, Plus, Printer, Search, Send, Trash2, TrendingUp, XCircle } from 'lucide-react'
+import type { UserProfile } from '@/lib/users'
+import { rupiah, type HppModel } from '@/lib/hpp-calc'
+import { CalcFields, CalcSummary, calcResult, emptyCalc, useHppData, type CalcValues, type HppData } from './hpp-page'
+import { ProspectSelect, waLink, type ProspectOption } from './marketing'
+import { CustomerSelect, type CustomerOption } from './product-page'
+import { api, Field, formatDate, Modal, Notice } from './ui'
+
+type Status = 'draft' | 'dikirim' | 'diterima' | 'ditolak' | 'batal'
+const STATUS_LABEL: Record<Status, string> = { draft: 'Draft', dikirim: 'Dikirim', diterima: 'Diterima', ditolak: 'Ditolak', batal: 'Batal' }
+const STATUS_TONE: Record<Status, string> = { draft: 'neutral', dikirim: 'info', diterima: 'success', ditolak: 'danger', batal: 'neutral' }
+const Badge = ({ s }: { s: Status }) => <span className={`pap-status ${STATUS_TONE[s]}`}>{STATUS_LABEL[s]}</span>
+
+type Quotation = {
+  id: number; nomor: string; prospect_id: number | null; customer_id: number | null; kepada: string; kontak: string | null; telepon: string | null
+  alamat: string | null; tanggal: string; berlaku_hari: number; berlaku_sampai: string; status: Status; pakai_ppn: boolean; ppn_persen: number
+  subtotal: number; ppn: number; total: number; syarat: string | null; catatan: string | null; alasan: string | null; created_by: number
+  created_name: string; sent_at: string | null; created_at: string; prospect_name: string | null; customer_no: string | null; item_count: number
+}
+type Item = {
+  id: number; product_id: number | null; nama_produk: string; spesifikasi: string | null; material_id: number | null; material_name: string | null
+  model: HppModel; panjang_cm: number | null; lebar_cm: number | null; gusset_cm: number | null; tebal_mikron: number | null; jumlah_warna: number
+  qty: number; satuan: string; berat_gram: number | null; hpp_per_kg: number | null; hpp_satuan: number | null; harga_satuan: number; subtotal: number
+  hpp_detail: { pewarna?: { persen: number } | null } | null
+}
+type Prefill = { prospect?: { id: number; nama_usaha: string; kontak_nama: string | null; telepon: string | null; alamat: string | null; kota: string | null; products?: { product_id: number | null; label: string }[] } }
+
+const today = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+export function QuotationPage({ user }: { user: UserProfile }) {
+  const [items, setItems] = useState<Quotation[]>([])
+  const [summary, setSummary] = useState<Partial<Record<Status, { n: number; total: number }>>>({})
+  const [canWrite, setCanWrite] = useState(false)
+  const [seesAll, setSeesAll] = useState(false)
+  const [status, setStatus] = useState('')
+  const [q, setQ] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [form, setForm] = useState<{ edit?: Quotation & { items: Item[] }; copy?: Quotation & { items: Item[] } } | null>(null)
+  const [detailId, setDetailId] = useState<number | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (status) params.set('status', status)
+      if (q.trim()) params.set('q', q.trim())
+      const res = await api<{ items: Quotation[]; summary: typeof summary; canWrite: boolean; seesAll: boolean }>(`/api/quotations?${params}`)
+      setItems(res.items)
+      setSummary(res.summary)
+      setCanWrite(res.canWrite)
+      setSeesAll(res.seesAll)
+      setError('')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }, [status, q])
+  useEffect(() => {
+    const t = setTimeout(load, q ? 300 : 0)
+    return () => clearTimeout(t)
+  }, [load, q])
+  const flash = (text: string) => { setMessage(text); setTimeout(() => setMessage(''), 5000); load() }
+  const sum = (s: Status) => summary[s] ?? { n: 0, total: 0 }
+  const closed = sum('diterima').n + sum('ditolak').n
+
+  return (
+    <>
+      <div className="pap-page-heading">
+        <div>
+          <p className="pap-eyebrow">MARKETING</p>
+          <h1>Quotation</h1>
+          <span>Surat penawaran harga ke prospek / customer, dengan HPP otomatis dari Tabel HPP. Bisa dicetak / disimpan PDF dan dikirim lewat WhatsApp.</span>
+        </div>
+        {canWrite && <button className="pap-primary-button" onClick={() => setForm({})}><Plus /> Buat penawaran</button>}
+      </div>
+      {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
+      <div className="pap-stat-grid four">
+        <div className="pap-stat-card"><div><span>Draft</span><strong>{sum('draft').n}</strong><small className="neutral">Belum dikirim</small></div><div className="pap-stat-icon stat-1"><FileText /></div></div>
+        <div className="pap-stat-card"><div><span>Menunggu jawaban</span><strong>{sum('dikirim').n}</strong><small className="neutral">{rupiah(sum('dikirim').total)}</small></div><div className="pap-stat-icon stat-1"><Send /></div></div>
+        <div className="pap-stat-card"><div><span>Diterima</span><strong>{sum('diterima').n}</strong><small className="neutral">{rupiah(sum('diterima').total)}</small></div><div className="pap-stat-icon stat-0"><CheckCircle2 /></div></div>
+        <div className="pap-stat-card"><div><span>Win rate</span><strong>{closed ? `${Math.round((sum('diterima').n / closed) * 100)}%` : '—'}</strong><small className="neutral">dari {closed} penawaran selesai</small></div><div className="pap-stat-icon stat-0"><TrendingUp /></div></div>
+      </div>
+      <div className="pap-table-card">
+        <div className="pap-card-head"><div><h2>Daftar penawaran</h2><p>{seesAll ? 'Semua penawaran.' : 'Penawaran yang Anda buat.'}</p></div></div>
+        <div className="pap-filters">
+          <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor, nama usaha, kontak..." /></label>
+          <select className="pap-select" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter status">
+            <option value="">Semua status</option>
+            {Object.entries(STATUS_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+        </div>
+        {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        <div className="pap-table-wrap">
+          <table>
+            <thead><tr><th>Nomor</th><th>Kepada</th><th>Tanggal</th><th>Berlaku s/d</th><th className="pap-num">Total</th><th>Sales</th><th>Status</th></tr></thead>
+            <tbody>
+              {items.map((x) => (
+                <tr key={x.id} className="pap-row-link" onClick={() => setDetailId(x.id)}>
+                  <td><div className="pap-cell-title">{x.nomor}</div><div className="pap-cell-sub">{x.item_count} produk</div></td>
+                  <td><div className="pap-cell-title">{x.kepada}</div><div className="pap-cell-sub">{x.kontak ?? (x.prospect_name ? 'Prospek' : x.customer_no ?? '')}</div></td>
+                  <td>{formatDate(x.tanggal)}</td>
+                  <td className={x.status === 'dikirim' && x.berlaku_sampai < today() ? 'pap-followup overdue' : ''}>{formatDate(x.berlaku_sampai)}</td>
+                  <td className="pap-num">{rupiah(x.total)}</td>
+                  <td>{x.created_name}</td>
+                  <td><Badge s={x.status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!loading && !items.length && <div className="pap-empty">{q || status ? 'Tidak ada penawaran yang cocok.' : 'Belum ada penawaran. Klik "Buat penawaran".'}</div>}
+          {loading && !items.length && <div className="pap-empty">Memuat...</div>}
+        </div>
+      </div>
+      {form && <QuotationForm edit={form.edit} copy={form.copy} onClose={() => setForm(null)} onSaved={(text, id) => { setForm(null); flash(text); setDetailId(id) }} />}
+      {detailId && (
+        <QuotationDetail
+          id={detailId}
+          onClose={() => setDetailId(null)}
+          onChanged={flash}
+          onEdit={(qt) => { setDetailId(null); setForm({ edit: qt }) }}
+          onCopy={(qt) => { setDetailId(null); setForm({ copy: qt }) }}
+          onDeleted={() => { setDetailId(null); flash('Penawaran dihapus.') }}
+        />
+      )}
+    </>
+  )
+}
+
+// ---------------- Form penawaran ----------------
+type FormItem = { key: string; product_id: number | null; nama_produk: string; spesifikasi: string; specTouched: boolean; calc: CalcValues; qty: string; harga_satuan: string }
+let seq = 0
+const autoSpec = (c: CalcValues, data: HppData) => {
+  const bahan = data.materials.find((m) => String(m.id) === c.material_id)?.kode
+  const ukuran = c.panjang_cm && c.lebar_cm ? `${c.lebar_cm}${c.model === 'gusset' && c.gusset_cm ? `+${c.gusset_cm}` : ''} x ${c.panjang_cm} cm` : ''
+  const warna = Number(c.jumlah_warna) > 0 ? `cetak ${c.jumlah_warna} warna` : 'polos'
+  return [bahan, ukuran, c.tebal_mikron && `${c.tebal_mikron} mikron`, warna].filter(Boolean).join(' · ')
+}
+const fromItem = (it: Item): FormItem => ({
+  key: `q${++seq}`, product_id: it.product_id, nama_produk: it.nama_produk, spesifikasi: it.spesifikasi ?? '', specTouched: true,
+  calc: {
+    model: it.model, material_id: it.material_id ? String(it.material_id) : '', pewarna_id: '', pewarna_persen: '',
+    panjang_cm: it.panjang_cm?.toString() ?? '', lebar_cm: it.lebar_cm?.toString() ?? '', gusset_cm: it.gusset_cm?.toString() ?? '',
+    tebal_mikron: it.tebal_mikron?.toString() ?? '', jumlah_warna: String(it.jumlah_warna), satuan: it.satuan === 'kg' ? 'kg' : 'pcs',
+  },
+  qty: String(it.qty), harga_satuan: String(it.harga_satuan),
+})
+
+export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?: Quotation & { items: Item[] }; copy?: Quotation & { items: Item[] }; prefill?: Prefill; onClose: () => void; onSaved: (message: string, id: number) => void }) {
+  const { data, error: loadError } = useHppData()
+  const base = edit ?? copy
+  const pp = prefill?.prospect
+  const [mode, setMode] = useState<'prospek' | 'customer'>(base?.customer_id && !base.prospect_id ? 'customer' : 'prospek')
+  const [prospect, setProspect] = useState<ProspectOption | null>(null)
+  const [customer, setCustomer] = useState<CustomerOption | null>(null)
+  const [target, setTarget] = useState({ prospect_id: base?.prospect_id ?? pp?.id ?? null, customer_id: base?.customer_id ?? null })
+  const [values, setValues] = useState({
+    kepada: base?.kepada ?? pp?.nama_usaha ?? '', kontak: base?.kontak ?? pp?.kontak_nama ?? '', telepon: base?.telepon ?? pp?.telepon ?? '',
+    alamat: base?.alamat ?? [pp?.alamat, pp?.kota].filter(Boolean).join(', '), tanggal: edit?.tanggal ?? today(), berlaku_hari: String(base?.berlaku_hari ?? 14),
+    syarat: base?.syarat ?? '', catatan: base?.catatan ?? '', pakai_ppn: base ? base.pakai_ppn : true,
+  })
+  const [items, setItems] = useState<FormItem[]>(() => (base ? base.items.map(fromItem) : []))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const set = (k: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [k]: e.target.value }))
+
+  // Data HPP termuat: isi syarat default & produk dari prospek (bila form baru)
+  useEffect(() => {
+    if (!data) return
+    setValues((v) => ({ ...v, syarat: v.syarat || data.doc.syarat || '' }))
+    if (!base && !items.length) {
+      const list = pp?.products?.length ? pp.products : [{ product_id: null, label: '' }]
+      setItems(list.map((p) => ({ key: `q${++seq}`, product_id: p.product_id, nama_produk: p.label, spesifikasi: '', specTouched: false, calc: emptyCalc(data.materials), qty: '', harga_satuan: '' })))
+    }
+  }, [data]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const update = (key: string, patch: Partial<FormItem>) => setItems((list) => list.map((it) => {
+    if (it.key !== key) return it
+    const next = { ...it, ...patch, calc: patch.calc ? { ...it.calc, ...patch.calc } : it.calc }
+    if (!next.specTouched && data) next.spesifikasi = autoSpec(next.calc, data)
+    return next
+  }))
+  const rows = useMemo(() => (data ? items.map((it) => ({ it, r: calcResult(it.calc, data) })) : []), [items, data])
+  const subtotal = rows.reduce((n, { it }) => n + (Number(it.qty) || 0) * (Number(it.harga_satuan) || 0), 0)
+  const ppnPersen = data?.params.ppn_persen ?? 11
+  const ppn = values.pakai_ppn ? Math.round(subtotal * ppnPersen) / 100 : 0
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    setError('')
+    try {
+      const payload = {
+        ...values, ...target, berlaku_hari: Number(values.berlaku_hari) || 14,
+        items: items.map((it) => ({ product_id: it.product_id, nama_produk: it.nama_produk, spesifikasi: it.spesifikasi, ...it.calc, qty: it.qty, harga_satuan: it.harga_satuan })),
+      }
+      if (edit) {
+        await api(`/api/quotations/${edit.id}`, { method: 'PATCH', json: payload })
+        onSaved('Penawaran diperbarui.', edit.id)
+      } else {
+        const res = await api<{ id: number; nomor: string }>('/api/quotations', { method: 'POST', json: payload })
+        onSaved(`Penawaran ${res.nomor} disimpan sebagai draft.`, res.id)
+      }
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function pickProspect(p: ProspectOption) {
+    setProspect(p)
+    setTarget({ prospect_id: p.id, customer_id: null })
+    api<{ item: { nama_usaha: string; kontak_nama: string | null; telepon: string | null; alamat: string | null; kota: string | null } }>(`/api/prospects/${p.id}`).then(({ item }) => {
+      setValues((v) => ({ ...v, kepada: item.nama_usaha, kontak: item.kontak_nama ?? '', telepon: item.telepon ?? '', alamat: [item.alamat, item.kota].filter(Boolean).join(', ') }))
+    }).catch(() => setValues((v) => ({ ...v, kepada: p.nama_usaha })))
+  }
+  function pickCustomer(c: CustomerOption) {
+    setCustomer(c)
+    setTarget({ prospect_id: null, customer_id: c.id })
+    const full = c as CustomerOption & { mobile_phone?: string | null; bill_street?: string | null }
+    setValues((v) => ({ ...v, kepada: c.name, telepon: full.mobile_phone ?? '', alamat: [full.bill_street, c.bill_city].filter(Boolean).join(', ') }))
+  }
+
+  return (
+    <Modal
+      title={edit ? `Edit ${edit.nomor}` : copy ? `Revisi dari ${copy.nomor}` : 'Buat penawaran'}
+      subtitle="HPP dihitung otomatis dari Tabel HPP; harga jual Anda tentukan sendiri."
+      wide
+      onClose={onClose}
+      footer={<><span className="pap-quote-total">Total: <b>{rupiah(subtotal + ppn)}</b></span><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="quotation-form" className="pap-primary-button" disabled={saving || !data}>{saving ? 'Menyimpan...' : 'Simpan draft'}</button></>}
+    >
+      {(error || loadError) && <Notice onClose={() => setError('')}>{error || loadError}</Notice>}
+      {!data ? <p className="pap-muted">Memuat Tabel HPP...</p> : (
+        <form id="quotation-form" className="pap-form-grid" onSubmit={submit}>
+          {!pp && (
+            <div className="pap-field full">
+              <span>Untuk</span>
+              <div className="pap-target-picker">
+                <div className="pap-segmented">
+                  <button type="button" className={mode === 'prospek' ? 'active' : ''} onClick={() => setMode('prospek')}>Prospek</button>
+                  <button type="button" className={mode === 'customer' ? 'active' : ''} onClick={() => setMode('customer')}>Customer</button>
+                </div>
+                {mode === 'prospek' ? <ProspectSelect value={prospect} onChange={pickProspect} /> : <CustomerSelect value={customer} onChange={pickCustomer} />}
+                {base && !prospect && !customer && <small className="pap-muted">Tetap: {base.prospect_name ?? base.kepada}</small>}
+              </div>
+            </div>
+          )}
+          <Field label="Kepada (nama usaha)"><input className="pap-input" required maxLength={200} value={values.kepada} onChange={set('kepada')} /></Field>
+          <Field label="Up. (nama kontak)"><input className="pap-input" maxLength={150} value={values.kontak} onChange={set('kontak')} /></Field>
+          <Field label="Telepon / WA"><input className="pap-input" maxLength={40} value={values.telepon} onChange={set('telepon')} /></Field>
+          <Field label="Alamat"><input className="pap-input" maxLength={500} value={values.alamat} onChange={set('alamat')} /></Field>
+          <Field label="Tanggal"><input className="pap-input" type="date" required value={values.tanggal} onChange={set('tanggal')} /></Field>
+          <Field label="Berlaku (hari)"><input className="pap-input" type="number" min={1} max={365} value={values.berlaku_hari} onChange={set('berlaku_hari')} /></Field>
+
+          <div className="pap-field full">
+            <span>Produk ({items.length})</span>
+            <div className="pap-quote-items">
+              {rows.map(({ it, r }, i) => {
+                const harga = Number(it.harga_satuan) || 0
+                // Untung di atas HPP (sama dengan cara harga saran dihitung: HPP x (1 + margin%))
+                const margin = r.hpp_satuan && harga ? ((harga - r.hpp_satuan) / r.hpp_satuan) * 100 : null
+                return (
+                  <div key={it.key} className="pap-quote-item">
+                    <div className="pap-sample-item-head">
+                      <b>{i + 1}</b>
+                      <input className="pap-input" required maxLength={255} value={it.nama_produk} onChange={(e) => update(it.key, { nama_produk: e.target.value })} placeholder="Nama produk, mis. Kantong laundry HD" aria-label={`Nama produk ${i + 1}`} />
+                      <button type="button" className="pap-icon-button" aria-label={`Hapus produk ${i + 1}`} onClick={() => setItems((l) => l.filter((x) => x.key !== it.key))}><Trash2 /></button>
+                    </div>
+                    <CalcFields compact data={data} values={it.calc} onChange={(patch) => update(it.key, { calc: patch as CalcValues })} />
+                    <label className="pap-quote-spec"><span>Spesifikasi (dicetak di penawaran)</span><input className="pap-input" maxLength={1000} value={it.spesifikasi} onChange={(e) => update(it.key, { spesifikasi: e.target.value, specTouched: true })} /></label>
+                    <CalcSummary result={r} satuan={it.calc.satuan} />
+                    <div className="pap-quote-price">
+                      <label><span>Jumlah ({it.calc.satuan})</span><input className="pap-input" inputMode="decimal" required value={it.qty} onChange={(e) => update(it.key, { qty: e.target.value })} placeholder="10000" /></label>
+                      <label><span>Harga / {it.calc.satuan} (Rp)</span><input className="pap-input" inputMode="decimal" required value={it.harga_satuan} onChange={(e) => update(it.key, { harga_satuan: e.target.value })} /></label>
+                      {r.harga_saran !== null && <button type="button" className="pap-btn" onClick={() => update(it.key, { harga_satuan: String(r.harga_saran) })}>Pakai harga saran</button>}
+                      <div className="pap-quote-line">
+                        <small>Subtotal</small><b>{rupiah((Number(it.qty) || 0) * harga)}</b>
+                        {margin !== null && <small className={margin < 0 ? 'pap-text-danger' : margin < 10 ? 'pap-text-warn' : 'pap-text-ok'}>Untung {margin.toFixed(1)}% di atas HPP{margin < 0 ? ' (rugi!)' : ''}</small>}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+              <button type="button" className="pap-btn pap-add-item" onClick={() => setItems((l) => [...l, { key: `q${++seq}`, product_id: null, nama_produk: '', spesifikasi: '', specTouched: false, calc: emptyCalc(data.materials), qty: '', harga_satuan: '' }])}><Plus /> Tambah produk</button>
+            </div>
+          </div>
+
+          <div className="pap-quote-totals full">
+            <label className="pap-check"><input type="checkbox" checked={values.pakai_ppn} onChange={(e) => setValues((v) => ({ ...v, pakai_ppn: e.target.checked }))} /><span>Kenakan PPN {ppnPersen}%</span></label>
+            <dl><dt>Subtotal</dt><dd>{rupiah(subtotal)}</dd>{values.pakai_ppn && <><dt>PPN {ppnPersen}%</dt><dd>{rupiah(ppn)}</dd></>}<dt className="grand">Total</dt><dd className="grand">{rupiah(subtotal + ppn)}</dd></dl>
+          </div>
+          <Field label="Syarat & ketentuan (dicetak)" full><textarea className="pap-input" rows={4} maxLength={5000} value={values.syarat} onChange={set('syarat')} /></Field>
+          <Field label="Catatan internal (tidak dicetak)" full><textarea className="pap-input" rows={2} maxLength={5000} value={values.catatan} onChange={set('catatan')} /></Field>
+        </form>
+      )}
+    </Modal>
+  )
+}
+
+// ---------------- Detail penawaran ----------------
+function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: {
+  id: number; onClose: () => void; onChanged: (m: string) => void
+  onEdit: (q: Quotation & { items: Item[] }) => void; onCopy: (q: Quotation & { items: Item[] }) => void; onDeleted: () => void
+}) {
+  const [item, setItem] = useState<Quotation | null>(null)
+  const [rows, setRows] = useState<Item[]>([])
+  const [canEdit, setCanEdit] = useState(false)
+  const [canWrite, setCanWrite] = useState(false)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const load = useCallback(async () => {
+    try {
+      const res = await api<{ item: Quotation; items: Item[]; canEdit: boolean; canWrite: boolean }>(`/api/quotations/${id}`)
+      setItem(res.item)
+      setRows(res.items)
+      setCanEdit(res.canEdit)
+      setCanWrite(res.canWrite)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }, [id])
+  useEffect(() => { load() }, [load])
+
+  async function status(to: Status, needReason = false) {
+    let alasan = ''
+    if (needReason) {
+      alasan = window.prompt(to === 'ditolak' ? 'Alasan ditolak customer (harga, spek, waktu, dll.):' : 'Alasan dibatalkan:') ?? ''
+      if (!alasan.trim()) return
+    }
+    setBusy(true)
+    try {
+      await api(`/api/quotations/${id}/status`, { method: 'POST', json: { status: to, alasan } })
+      await load()
+      onChanged(`Penawaran ditandai ${STATUS_LABEL[to].toLowerCase()}.`)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  async function remove() {
+    if (!window.confirm('Hapus draft penawaran ini?')) return
+    try {
+      await api(`/api/quotations/${id}`, { method: 'DELETE' })
+      onDeleted()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+  if (!item) return <Modal title="Penawaran" onClose={onClose}>{error ? <Notice>{error}</Notice> : <p className="pap-muted">Memuat...</p>}</Modal>
+  const printUrl = `/cetak/quotation/${item.id}`
+  const waText = `Halo${item.kontak ? ` ${item.kontak}` : ''}, berikut penawaran harga dari PT. Pandawa Amerta Packindo no. ${item.nomor} senilai ${rupiah(item.total)}, berlaku s/d ${formatDate(item.berlaku_sampai)}. File PDF penawaran kami lampirkan. Terima kasih.`
+  const full = { ...item, items: rows }
+  const hppTotal = rows.reduce((n, r) => n + (r.hpp_satuan ?? 0) * r.qty, 0)
+  const margin = hppTotal ? ((item.subtotal - hppTotal) / hppTotal) * 100 : null
+
+  return (
+    <Modal
+      title={`${item.nomor} · ${item.kepada}`}
+      subtitle={`${formatDate(item.tanggal)} · berlaku s/d ${formatDate(item.berlaku_sampai)} · ${item.created_name}`}
+      wide
+      onClose={onClose}
+      footer={<>
+        {item.status === 'draft' && canEdit && <button className="pap-btn danger" onClick={remove}><Trash2 /> Hapus</button>}
+        {['draft', 'dikirim'].includes(item.status) && canWrite && <button className="pap-btn danger" disabled={busy} onClick={() => status('batal', true)}><Ban /> Batalkan</button>}
+        <span className="pap-spacer" />
+        {canWrite && <button className="pap-btn" onClick={() => onCopy(full)}><Copy /> Buat revisi</button>}
+        {item.status === 'draft' && canEdit && <button className="pap-btn" onClick={() => onEdit(full)}><Pencil /> Edit</button>}
+        <a className="pap-btn" href={printUrl} target="_blank" rel="noreferrer"><Printer /> Cetak / PDF</a>
+      </>}
+    >
+      {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      <div className="pap-detail-badges"><Badge s={item.status} />{item.prospect_name && <span className="pap-status neutral">Prospek: {item.prospect_name}</span>}{item.customer_no && <span className="pap-status neutral">Customer {item.customer_no}</span>}</div>
+
+      {item.status === 'draft' && canWrite && (
+        <div className="pap-inline-panel">
+          <strong>Kirim penawaran ke customer</strong>
+          <p className="pap-muted">1) Klik <b>Cetak / PDF</b> lalu simpan sebagai PDF. 2) Kirim lewat WhatsApp/email. 3) Tandai terkirim — status prospek otomatis menjadi &quot;Penawaran&quot;.</p>
+          <div className="pap-inline-actions pap-wrap">
+            {waLink(item.telepon, waText) && <a className="pap-btn pap-wa" href={waLink(item.telepon, waText)!} target="_blank" rel="noreferrer"><MessageCircle /> Buka WhatsApp</a>}
+            <span className="pap-spacer" />
+            <button className="pap-primary-button" disabled={busy} onClick={() => status('dikirim')}><Send /> Tandai terkirim</button>
+          </div>
+        </div>
+      )}
+      {item.status === 'dikirim' && canWrite && (
+        <div className="pap-inline-panel">
+          <strong>Jawaban customer</strong>
+          <div className="pap-inline-actions pap-wrap">
+            {waLink(item.telepon, `Halo${item.kontak ? ` ${item.kontak}` : ''}, menindaklanjuti penawaran kami no. ${item.nomor}. Apakah ada pertanyaan atau bisa kami bantu proses ordernya?`) && <a className="pap-btn pap-wa" href={waLink(item.telepon, `Halo${item.kontak ? ` ${item.kontak}` : ''}, menindaklanjuti penawaran kami no. ${item.nomor}. Apakah ada pertanyaan atau bisa kami bantu proses ordernya?`)!} target="_blank" rel="noreferrer"><MessageCircle /> Follow-up WA</a>}
+            <span className="pap-spacer" />
+            <button className="pap-btn danger" disabled={busy} onClick={() => status('ditolak', true)}><XCircle /> Ditolak</button>
+            <button className="pap-primary-button" disabled={busy} onClick={() => status('diterima')}><CheckCircle2 /> Diterima / deal</button>
+          </div>
+        </div>
+      )}
+      {item.alasan && <Notice>Alasan {STATUS_LABEL[item.status].toLowerCase()}: {item.alasan}</Notice>}
+
+      <dl className="pap-detail-grid">
+        <div><dt>Kepada</dt><dd>{item.kepada}{item.kontak ? ` · up. ${item.kontak}` : ''}</dd></div>
+        <div><dt>Telepon / alamat</dt><dd>{[item.telepon, item.alamat].filter(Boolean).join(' · ') || '—'}</dd></div>
+      </dl>
+      <div className="pap-table-wrap pap-sample-table">
+        <table>
+          <thead><tr><th>#</th><th>Produk</th><th className="pap-num">Jumlah</th><th className="pap-num">Harga</th><th className="pap-num">Subtotal</th><th className="pap-num">HPP / satuan</th></tr></thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={r.id}>
+                <td>{i + 1}</td>
+                <td><div className="pap-cell-title">{r.nama_produk}</div>{r.spesifikasi && <div className="pap-cell-sub">{r.spesifikasi}</div>}</td>
+                <td className="pap-num">{r.qty.toLocaleString('id-ID')} {r.satuan}</td>
+                <td className="pap-num">{rupiah(r.harga_satuan, r.harga_satuan % 1 ? 2 : 0)}</td>
+                <td className="pap-num">{rupiah(r.subtotal)}</td>
+                <td className="pap-num pap-muted">{rupiah(r.hpp_satuan, 2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="pap-quote-totals">
+        <span className="pap-muted">{margin !== null ? `Perkiraan untung ${margin.toFixed(1)}% di atas HPP (HPP saat penawaran dibuat, internal)` : ''}</span>
+        <dl><dt>Subtotal</dt><dd>{rupiah(item.subtotal)}</dd>{item.pakai_ppn && <><dt>PPN {item.ppn_persen}%</dt><dd>{rupiah(item.ppn)}</dd></>}<dt className="grand">Total</dt><dd className="grand">{rupiah(item.total)}</dd></dl>
+      </div>
+      {item.syarat && <section className="pap-detail-section"><h3>Syarat & ketentuan</h3><p className="pap-prewrap">{item.syarat}</p></section>}
+      {item.catatan && <section className="pap-detail-section"><h3>Catatan internal</h3><p className="pap-prewrap">{item.catatan}</p></section>}
+    </Modal>
+  )
+}

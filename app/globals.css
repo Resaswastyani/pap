@@ -727,3 +727,81 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
 .pap-policy-card h2 { margin:22px 0 6px; font-size:16px; }
 .pap-policy-card p, .pap-policy-card li { color:var(--pap-text); font-size:13.5px; }
 .pap-policy-card ul { margin:6px 0 0; padding-left:20px; }
+
+/* Tabel HPP & Quotation */
+.pap-page-tabs { display:flex; flex-wrap:wrap; margin-bottom:16px; }
+.pap-row-muted td { opacity:.55; }
+.pap-trend { display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:700; }
+.pap-trend svg { width:14px; height:14px; }
+.pap-trend.up { color:#dc2626; }
+.pap-trend.down { color:#0f9c74; }
+.pap-settings-card { margin-bottom:20px; }
+.pap-settings-body { padding:0 22px 18px; }
+.pap-settings-foot { display:flex; justify-content:flex-end; padding:14px 22px; border-top:1px solid var(--pap-border); }
+.pap-calc-grid { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:10px; }
+.pap-calc-grid label { display:flex; flex-direction:column; gap:4px; color:var(--pap-muted); font-size:11px; font-weight:700; }
+.pap-calc-grid.compact { grid-template-columns:repeat(5, minmax(0,1fr)); }
+.pap-calc-result { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.pap-calc-result > div { display:flex; flex-direction:column; gap:1px; min-width:104px; padding:8px 10px; border-radius:10px; background:var(--pap-bg); }
+.pap-calc-result span { color:var(--pap-muted); font-size:10.5px; font-weight:700; }
+.pap-calc-result b { font-size:13px; font-variant-numeric:tabular-nums; }
+.pap-calc-result small { color:var(--pap-muted); font-size:10.5px; }
+.pap-calc-result .hl { background:rgb(124 92 252 / .1); }
+.pap-calc-result .ok { background:rgb(29 185 138 / .12); }
+.pap-calc-warn { flex-basis:100%; margin:0; color:#b47908; font-size:11.5px; }
+.pap-quote-items { display:flex; flex-direction:column; gap:12px; }
+.pap-quote-item { display:flex; flex-direction:column; gap:10px; padding:14px; border:1px solid var(--pap-border); border-radius:12px; background:var(--pap-surface); }
+.pap-quote-spec { display:flex; flex-direction:column; gap:4px; color:var(--pap-muted); font-size:11px; font-weight:700; }
+.pap-quote-price { display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px; }
+.pap-quote-price label { display:flex; flex-direction:column; gap:4px; width:170px; color:var(--pap-muted); font-size:11px; font-weight:700; }
+.pap-quote-line { display:flex; flex-direction:column; align-items:flex-end; gap:1px; margin-left:auto; }
+.pap-quote-line small { color:var(--pap-muted); font-size:11px; }
+.pap-quote-line b { font-size:15px; }
+.pap-text-warn { color:#b47908 !important; }
+.pap-text-ok { color:#0f9c74 !important; }
+.pap-quote-totals { display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:12px; margin-top:12px; }
+.pap-quote-totals dl { display:grid; grid-template-columns:auto auto; gap:4px 24px; min-width:260px; margin:0 0 0 auto; font-size:13px; }
+.pap-quote-totals dt { color:var(--pap-muted); }
+.pap-quote-totals dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; }
+.pap-quote-totals .grand { padding-top:6px; border-top:1px solid var(--pap-border); color:var(--pap-text); font-size:15px; font-weight:800; }
+.pap-quote-total { font-size:13px; }
+@media (max-width:800px) {
+  .pap-calc-grid, .pap-calc-grid.compact { grid-template-columns:1fr 1fr; }
+  .pap-quote-price label { width:calc(50% - 5px); }
+  .pap-quote-line { margin-left:0; align-items:flex-start; }
+}
+
+/* Surat penawaran (halaman cetak) */
+.pap-print { min-height:100vh; padding:24px 16px 48px; background:#e9eaf0; color:#111; }
+.pap-print-error { padding:40px; font-family:sans-serif; }
+.pap-print-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; max-width:794px; margin:0 auto 14px; font-size:13px; color:#333; }
+.pap-sheet { max-width:794px; margin:0 auto; padding:48px 56px; background:#fff; box-shadow:0 6px 30px rgb(0 0 0 / .12); font-size:12.5px; line-height:1.5; }
+.pap-sheet-head { display:flex; align-items:center; gap:18px; padding-bottom:14px; border-bottom:3px double #1f2a5a; }
+.pap-sheet-head img { width:120px; height:auto; }
+.pap-sheet-head h1 { margin:0; font-size:20px; color:#1f2a5a; }
+.pap-sheet-head p { margin:1px 0 0; color:#444; font-size:11.5px; }
+.pap-sheet-title { margin:22px 0 14px; text-align:center; font-size:15px; letter-spacing:.06em; text-decoration:underline; }
+.pap-sheet-meta { margin-bottom:14px; border-collapse:collapse; }
+.pap-sheet-meta td { padding:1px 12px 1px 0; vertical-align:top; }
+.pap-sheet-items { width:100%; margin:10px 0; border-collapse:collapse; }
+.pap-sheet-items th, .pap-sheet-items td { padding:7px 8px; border:1px solid #9aa0b4; vertical-align:top; }
+.pap-sheet-items th { background:#eef0f7; font-size:11.5px; }
+.pap-sheet-items .r { text-align:right; white-space:nowrap; }
+.pap-sheet-items .c { text-align:center; }
+.pap-sheet-items .spec { margin-top:2px; color:#444; font-size:11.5px; }
+.pap-sheet-items tfoot td { font-weight:600; }
+.pap-sheet-items tr.grand td { background:#eef0f7; font-size:13.5px; font-weight:800; }
+.pap-sheet-note { margin:0 0 8px; color:#444; font-style:italic; }
+.pap-sheet h3 { margin:14px 0 4px; font-size:12.5px; }
+.pap-sheet ol { margin:0; padding-left:18px; }
+.pap-sheet .pre { margin:0; white-space:pre-wrap; }
+.pap-sheet-sign { width:240px; margin:28px 0 0 auto; text-align:center; }
+.pap-sheet-sign p { margin:0; }
+.pap-sheet-sign .space { height:72px; }
+@media print {
+  @page { size:A4; margin:14mm 14mm; }
+  html, body { background:#fff !important; }
+  .pap-print { padding:0; background:#fff; }
+  .pap-print-bar { display:none; }
+  .pap-sheet { max-width:none; padding:0; box-shadow:none; }
+}

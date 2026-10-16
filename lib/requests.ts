@@ -276,7 +276,7 @@ export async function attachRequestsToCustomer(prospectId: number, customerId: n
   )
 }
 
-export async function setNomor(table: 'sample_requests' | 'design_requests', prefix: string, id: number) {
+export async function setNomor(table: 'sample_requests' | 'design_requests' | 'quotations', prefix: string, id: number) {
   await db.query(`UPDATE ${table} SET nomor = CONCAT(?, DATE_FORMAT(NOW(), '%y%m'), '-', LPAD(id, 4, '0')) WHERE id = ?`, [`${prefix}-`, id])
   const [[row]] = await db.query<(RowDataPacket & { nomor: string })[]>(`SELECT nomor FROM ${table} WHERE id = ?`, [id])
   return row.nomor
