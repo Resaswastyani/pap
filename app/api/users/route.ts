@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
+import { logUserActivity, userSnapshot } from '@/lib/activity'
 import { assertCanTouchSuperAdmin, loadRole, validEmail, validPassword } from '@/lib/admin'
 import { fail, handle, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
@@ -33,5 +34,7 @@ export const POST = handle(async (request: Request) => {
     'INSERT INTO users (name, email, password_hash, role_id, division_id, is_active) VALUES (?, ?, ?, ?, ?, ?)',
     [name, email, await bcrypt.hash(password, 10), role.id, divisionId, body.is_active === false ? 0 : 1],
   )
+  const created = await userSnapshot(result.insertId)
+  if (created) await logUserActivity(request, actor, { action: 'create', target: created, description: `Menambah user ${created.name} (${created.role} · ${created.division}, ${created.is_active ? 'aktif' : 'nonaktif'})` })
   return NextResponse.json({ id: result.insertId }, { status: 201 })
 })

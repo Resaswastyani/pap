@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
+import { diffSnapshots, logUserActivity, userSnapshot } from '@/lib/activity'
 import { assertCanTouchSuperAdmin, loadRole, validEmail, validPassword } from '@/lib/admin'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
@@ -20,6 +21,8 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   const target = await loadTarget(ctx)
   assertCanTouchSuperAdmin(actor, target)
   const body = await readJson(request)
+  const before = await userSnapshot(target.id)
+  let passwordChanged = false
   const sets: string[] = []
   const args: unknown[] = []
 
@@ -29,7 +32,7 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
     sets.push('name = ?'), args.push(name)
   }
   if ('email' in body) sets.push('email = ?'), args.push(validEmail(body.email))
-  if (typeof body.password === 'string' && body.password) sets.push('password_hash = ?'), args.push(await bcrypt.hash(validPassword(body.password), 10))
+  if (typeof body.password === 'string' && body.password) sets.push('password_hash = ?'), args.push(await bcrypt.hash(validPassword(body.password), 10)), (passwordChanged = true)
   if ('division_id' in body) sets.push('division_id = ?'), args.push(await assertDivision(body.division_id))
   if ('role_id' in body) {
     const role = await loadRole(body.role_id)
@@ -43,19 +46,28 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   }
   if (!sets.length) fail(400, 'Tidak ada perubahan.')
   await db.query(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, [...args, target.id])
+
+  const after = await userSnapshot(target.id)
+  if (before && after) {
+    const changes = diffSnapshots(before, after)
+    if (changes.length) await logUserActivity(request, actor, { action: 'update', target: after, description: `Mengubah ${changes.map((c) => c.field.toLowerCase()).join(', ')} user ${after.name}`, changes })
+    if (passwordChanged) await logUserActivity(request, actor, { action: 'password', target: after, description: target.id === actor.id ? 'Mengganti password akun sendiri' : `Mengganti password user ${after.name}` })
+  }
   return NextResponse.json({ ok: true })
 })
 
-export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
+export const DELETE = handle(async (request: Request, ctx: Ctx) => {
   const actor = await requireUser(PERMISSIONS.usersManage)
   const target = await loadTarget(ctx)
   assertCanTouchSuperAdmin(actor, target)
   if (target.id === actor.id) fail(400, 'Anda tidak dapat menghapus akun sendiri.')
+  const before = await userSnapshot(target.id)
   try {
     await db.query('DELETE FROM users WHERE id = ?', [target.id])
   } catch (error) {
     if ((error as { code?: string }).code === 'ER_ROW_IS_REFERENCED_2') fail(409, 'User sudah punya data planning. Nonaktifkan akun ini sebagai gantinya.')
     throw error
   }
+  if (before) await logUserActivity(request, actor, { action: 'delete', target: before, description: `Menghapus user ${before.name} (${before.role} · ${before.division})` })
   return NextResponse.json({ ok: true })
 })

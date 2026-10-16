@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { setActivityActor, withActivity } from '@/lib/activity'
 import type { PermissionCode } from '@/lib/permissions'
 import { can, getCurrentUser, type UserProfile } from '@/lib/users'
 
@@ -15,13 +16,15 @@ export const fail = (status: number, message: string): never => {
 export async function requireUser(...permissions: PermissionCode[]) {
   const user = await getCurrentUser()
   if (!user) fail(401, 'Sesi berakhir. Silakan masuk kembali.')
+  setActivityActor(user!)
   for (const permission of permissions) if (!can(user!, permission)) fail(403, 'Anda tidak punya akses untuk aksi ini.')
   return user as UserProfile
 }
 
-// Bungkus handler route: ApiError jadi respons JSON, error lain jadi 500
+// Bungkus handler route: ApiError jadi respons JSON, error lain jadi 500.
+// Aksi tambah/ubah/hapus yang berhasil otomatis dicatat ke log aktivitas.
 export function handle<A extends unknown[]>(fn: (...args: A) => Promise<Response>) {
-  return async (...args: A) => {
+  return async (...args: A) => withActivity(args[0] instanceof Request ? args[0] : null, async () => {
     try {
       return await fn(...args)
     } catch (error) {
@@ -31,7 +34,7 @@ export function handle<A extends unknown[]>(fn: (...args: A) => Promise<Response
       console.error('[api]', error)
       return NextResponse.json({ error: 'Terjadi kesalahan pada server.' }, { status: 500 })
     }
-  }
+  })
 }
 
 export async function readJson(request: Request) {
