@@ -137,23 +137,24 @@ function SalesPicker({ users, selected, lockedId, onChange }: { users: Marketing
 }
 
 // ---- Form jadwal visit (baru / jadwal ulang) ----
-export function VisitForm({ initial, prospect, users, canSupervise, currentUserId, onClose, onSaved }: {
+export function VisitForm({ initial, prospect, customer, users, canSupervise, currentUserId, onClose, onSaved }: {
   initial?: Visit | null
   prospect?: { id: number; nama_usaha: string; alamat: string | null; kota: string | null; assigned_to?: number | null } | null
+  customer?: (CustomerOption & { alamat?: string | null }) | null
   users: MarketingUser[]
   canSupervise: boolean
   currentUserId: number
   onClose: () => void
   onSaved: (message: string) => void
 }) {
-  const [target, setTarget] = useState<'prospek' | 'customer'>(initial?.customer_id ? 'customer' : 'prospek')
+  const [target, setTarget] = useState<'prospek' | 'customer'>(initial?.customer_id || customer ? 'customer' : 'prospek')
   const [pickedProspect, setPickedProspect] = useState<ProspectOption | null>(prospect ? { id: prospect.id, nama_usaha: prospect.nama_usaha, kota: prospect.kota, alamat: prospect.alamat, kontak_nama: null, status: 'baru' } : null)
-  const [pickedCustomer, setPickedCustomer] = useState<CustomerOption | null>(null)
+  const [pickedCustomer, setPickedCustomer] = useState<CustomerOption | null>(customer ?? null)
   const [values, setValues] = useState({
     jenis: initial?.jenis ?? 'visit',
     jadwal: initial ? toInputDateTime(initial.jadwal) : nowInput(1, 10),
     tujuan: initial?.tujuan ?? '',
-    alamat: initial?.alamat ?? (prospect ? [prospect.alamat, prospect.kota].filter(Boolean).join(', ') : ''),
+    alamat: initial?.alamat ?? (prospect ? [prospect.alamat, prospect.kota].filter(Boolean).join(', ') : customer ? [customer.alamat, customer.bill_city].filter(Boolean).join(', ') : ''),
     // Default: sales prospek, lalu user yang login bila ia termasuk daftar sales; selain itu wajib dipilih
   })
   // Sales yang ikut (bisa lebih dari satu). Default: sales visit lama / sales prospek / user login bila ia sales
@@ -191,13 +192,13 @@ export function VisitForm({ initial, prospect, users, canSupervise, currentUserI
   return (
     <Modal
       title={initial ? 'Jadwal ulang visit' : 'Jadwalkan visit'}
-      subtitle={initial?.target_name ?? prospect?.nama_usaha}
+      subtitle={initial?.target_name ?? prospect?.nama_usaha ?? customer?.name}
       onClose={onClose}
       footer={<><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="visit-form" className="pap-primary-button" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan'}</button></>}
     >
       <form id="visit-form" className="pap-form-grid" onSubmit={submit}>
         {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
-        {!initial && !prospect && (
+        {!initial && !prospect && !customer && (
           <>
             <Field label="Yang dikunjungi" full>
               <div className="pap-segmented">

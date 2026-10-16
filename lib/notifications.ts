@@ -6,7 +6,7 @@ export const REMINDER_MINUTES = 15
 // Sales butuh waktu perjalanan: reminder visit dikirim 60 menit sebelumnya
 export const VISIT_REMINDER_MINUTES = 60
 
-export type NotificationType = 'meeting_baru' | 'meeting_diubah' | 'meeting_reminder' | 'planning_pic' | 'planning_baru' | 'sistem' | 'prospek_baru' | 'visit_reminder' | 'followup_due' | 'sample_update' | 'desain_update'
+export type NotificationType = 'meeting_baru' | 'meeting_diubah' | 'meeting_reminder' | 'planning_pic' | 'planning_baru' | 'sistem' | 'prospek_baru' | 'visit_reminder' | 'followup_due' | 'sample_update' | 'desain_update' | 'repeat_order'
 
 type NotificationInput = {
   type: NotificationType
@@ -18,6 +18,7 @@ type NotificationInput = {
   visitId?: number | null
   sampleId?: number | null
   designId?: number | null
+  customerId?: number | null
   // Kunci unik per user; notifikasi dengan kunci sama tidak dibuat dua kali
   refKey: string
 }
@@ -30,8 +31,8 @@ export async function notify(userIds: number[], input: NotificationInput, conn: 
   const created: number[] = []
   for (const userId of new Set(userIds)) {
     const [result] = await conn.query<ResultSetHeader>(
-      'INSERT IGNORE INTO notifications (user_id, type, title, body, meeting_id, planning_id, prospect_id, visit_id, sample_id, design_id, ref_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [userId, input.type, input.title.slice(0, 200), input.body?.slice(0, 500) ?? null, input.meetingId ?? null, input.planningId ?? null, input.prospectId ?? null, input.visitId ?? null, input.sampleId ?? null, input.designId ?? null, input.refKey.slice(0, 120)],
+      'INSERT IGNORE INTO notifications (user_id, type, title, body, meeting_id, planning_id, prospect_id, visit_id, sample_id, design_id, customer_id, ref_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, input.type, input.title.slice(0, 200), input.body?.slice(0, 500) ?? null, input.meetingId ?? null, input.planningId ?? null, input.prospectId ?? null, input.visitId ?? null, input.sampleId ?? null, input.designId ?? null, input.customerId ?? null, input.refKey.slice(0, 120)],
     )
     if (result.affectedRows) created.push(userId)
   }
@@ -107,6 +108,47 @@ async function createMarketingReminders(userId?: number) {
       body: `Jadwal follow-up ${formatWaktu(p.next_followup_at)}`,
       prospectId: p.id,
       refKey: `followup:${p.id}:${p.next_followup_at}`,
+    })))
+  }
+  created.push(...(await createRepeatOrderReminders(userId)))
+  return created
+}
+
+// Repeat order (ke PIC Marketing Maintenance):
+//  - jadwal follow-up customer yang jatuh tempo (24 jam terakhir)
+//  - customer memasuki perkiraan waktu order berikutnya (sekali per siklus order)
+async function createRepeatOrderReminders(userId?: number) {
+  const created: number[] = []
+  const [due] = await db.query<(RowDataPacket & { id: number; name: string; next_followup_at: string; maintenance_to: number })[]>(
+    `SELECT id, name, next_followup_at, maintenance_to FROM customers
+     WHERE maintenance_to IS NOT NULL AND next_followup_at <= NOW() AND next_followup_at > NOW() - INTERVAL 1 DAY ${userId ? 'AND maintenance_to = ?' : ''}`,
+    userId ? [userId] : [],
+  )
+  for (const c of due) {
+    created.push(...(await notify([c.maintenance_to], {
+      type: 'repeat_order',
+      title: `Waktunya follow-up customer: ${c.name}`,
+      body: `Jadwal follow-up ${formatWaktu(c.next_followup_at)}`,
+      customerId: c.id,
+      refKey: `cust-followup:${c.id}:${c.next_followup_at}`,
+    })))
+  }
+  const [reorder] = await db.query<(RowDataPacket & { id: number; name: string; maintenance_to: number; perkiraan: string; order_count: number })[]>(
+    `SELECT c.id, c.name, c.maintenance_to, s.order_count, DATE_ADD(s.last_order, INTERVAL s.interval_hari DAY) AS perkiraan FROM customers c
+     JOIN (SELECT customer_accurate_id, COUNT(*) AS order_count, MAX(trans_date) AS last_order,
+             IF(COUNT(*) > 1, GREATEST(7, ROUND(DATEDIFF(MAX(trans_date), MIN(trans_date)) / (COUNT(*) - 1))), 30) AS interval_hari
+           FROM accurate_sales_invoices WHERE trans_date IS NOT NULL GROUP BY customer_accurate_id) s ON s.customer_accurate_id = c.accurate_id
+     WHERE c.maintenance_to IS NOT NULL ${userId ? 'AND c.maintenance_to = ?' : ''}
+     HAVING perkiraan BETWEEN CURDATE() - INTERVAL 3 DAY AND CURDATE() + INTERVAL 3 DAY`,
+    userId ? [userId] : [],
+  )
+  for (const c of reorder) {
+    created.push(...(await notify([c.maintenance_to], {
+      type: 'repeat_order',
+      title: `Waktunya repeat order: ${c.name}`,
+      body: `Perkiraan order berikutnya ${formatWaktu(String(c.perkiraan).slice(0, 10))} (${c.order_count}x order). Hubungi customer.`,
+      customerId: c.id,
+      refKey: `reorder:${c.id}:${String(c.perkiraan).slice(0, 10)}`,
     })))
   }
   return created

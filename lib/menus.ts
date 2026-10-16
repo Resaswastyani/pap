@@ -11,6 +11,7 @@ export const MENU_KEYS = {
   Stok: 'stok',
   Quotation: 'quotation',
   'Tabel HPP': 'hpp',
+  'Repeat Order': 'repeat-order',
   'Surat Berita Kerja': 'sbk',
   'Jadwal Produksi': 'jadwal-produksi',
   'Data Mesin': 'data-mesin',
