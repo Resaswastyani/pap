@@ -1,11 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Ban, CheckCircle2, Copy, FileText, MessageCircle, Pencil, Plus, Printer, Search, Send, Trash2, TrendingUp, XCircle } from 'lucide-react'
+import { Ban, CheckCircle2, Copy, FileText, MessageCircle, Pencil, Plus, Printer, Receipt, Search, Send, Trash2, TrendingUp, Truck, Wallet, XCircle } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { rupiah, type HppModel } from '@/lib/hpp-calc'
 import { CalcFields, CalcSummary, calcResult, emptyCalc, useHppData, type CalcValues, type HppData } from './hpp-page'
 import { ProspectSelect, waLink, type ProspectOption } from './marketing'
+import { PaymentForm } from './payment-page'
 import { CustomerSelect, type CustomerOption } from './product-page'
 import { api, Field, formatDate, Modal, Notice } from './ui'
 
@@ -19,6 +20,8 @@ type Quotation = {
   alamat: string | null; tanggal: string; berlaku_hari: number; berlaku_sampai: string; status: Status; pakai_ppn: boolean; ppn_persen: number
   subtotal: number; ppn: number; total: number; syarat: string | null; catatan: string | null; alasan: string | null; created_by: number
   created_name: string; sent_at: string | null; created_at: string; prospect_name: string | null; customer_no: string | null; item_count: number
+  order_nomor: string | null; proforma_nomor: string | null; tanggal_kirim: string | null; dp_persen: number | null; expedition_id: number | null
+  expedition_name: string | null; expedition_estimasi: string | null; ongkir: number | null; catatan_order: string | null; terbayar: number
 }
 type Item = {
   id: number; product_id: number | null; nama_produk: string; spesifikasi: string | null; material_id: number | null; material_name: string | null
@@ -403,6 +406,7 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
           </div>
         </div>
       )}
+      {item.status === 'diterima' && <OrderPanel item={item} canWrite={canWrite} onSaved={async (t) => { await load(); onChanged(t) }} />}
       {item.alasan && <Notice>Alasan {STATUS_LABEL[item.status].toLowerCase()}: {item.alasan}</Notice>}
 
       <dl className="pap-detail-grid">
@@ -433,5 +437,83 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
       {item.syarat && <section className="pap-detail-section"><h3>Syarat & ketentuan</h3><p className="pap-prewrap">{item.syarat}</p></section>}
       {item.catatan && <section className="pap-detail-section"><h3>Catatan internal</h3><p className="pap-prewrap">{item.catatan}</p></section>}
     </Modal>
+  )
+}
+
+// ---------------- Surat Order, Proforma Invoice, pembayaran ----------------
+type Expedition = { id: number; nama: string; tujuan: string; tarif_per_kg: number | null; estimasi_hari: string | null; aktif: number }
+
+function OrderPanel({ item, canWrite, onSaved }: { item: Quotation; canWrite: boolean; onSaved: (m: string) => void }) {
+  const [editing, setEditing] = useState(!item.order_nomor)
+  const [paying, setPaying] = useState(false)
+  const [expeditions, setExpeditions] = useState<Expedition[]>([])
+  const [v, setV] = useState({
+    tanggal_kirim: item.tanggal_kirim ?? '', dp_persen: item.dp_persen?.toString() ?? '50', expedition_id: item.expedition_id ? String(item.expedition_id) : '',
+    ongkir: item.ongkir?.toString() ?? '', catatan_order: item.catatan_order ?? '',
+  })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  useEffect(() => { if (editing) api<{ items: Expedition[] }>('/api/expeditions').then((r) => setExpeditions(r.items.filter((e) => e.aktif))).catch(() => {}) }, [editing])
+  const set = (k: keyof typeof v) => (e: { target: { value: string } }) => setV((x) => ({ ...x, [k]: e.target.value }))
+  const grand = item.total + (item.ongkir ?? 0)
+  const sisa = Math.max(0, grand - item.terbayar)
+  const dp = item.dp_persen ? Math.round((grand * item.dp_persen) / 100) : null
+  async function save(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      await api(`/api/quotations/${item.id}/order`, { method: 'POST', json: v })
+      setEditing(false)
+      onSaved('Data surat order & proforma disimpan.')
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="pap-inline-panel pap-order-panel">
+      <strong><Receipt className="pap-inline-icon" /> Order: {item.order_nomor ? `${item.order_nomor} · ${item.proforma_nomor}` : 'buat Surat Order & Proforma Invoice'}</strong>
+      {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      {editing && canWrite ? (
+        <form className="pap-form-grid" onSubmit={save}>
+          <Field label="Rencana tanggal kirim"><input className="pap-input" type="date" value={v.tanggal_kirim} onChange={set('tanggal_kirim')} /></Field>
+          <Field label="DP (%)"><input className="pap-input" inputMode="decimal" value={v.dp_persen} onChange={set('dp_persen')} placeholder="50" /></Field>
+          <Field label="Ekspedisi" hint="Diurutkan termurah per rute. Kelola di Master Data → Ekspedisi.">
+            <select className="pap-select" value={v.expedition_id} onChange={set('expedition_id')}>
+              <option value="">— Diambil sendiri / belum ditentukan —</option>
+              {expeditions.map((e) => <option key={e.id} value={e.id}>{e.tujuan} · {e.nama}{e.tarif_per_kg ? ` · ${rupiah(e.tarif_per_kg)}/kg` : ''}{e.estimasi_hari ? ` · ${e.estimasi_hari} hari` : ''}</option>)}
+            </select>
+          </Field>
+          <Field label="Ongkir (Rp, opsional)"><input className="pap-input" inputMode="numeric" value={v.ongkir} onChange={set('ongkir')} /></Field>
+          <Field label="Catatan order (dicetak)" full><textarea className="pap-input" rows={2} maxLength={5000} value={v.catatan_order} onChange={set('catatan_order')} placeholder="Mis. desain final DSN-..., packing per 100 pcs, special request" /></Field>
+          <div className="pap-inline-actions full">{item.order_nomor && <button type="button" className="pap-btn" onClick={() => setEditing(false)}>Batal</button>}<button className="pap-primary-button" disabled={busy}>{busy ? 'Menyimpan...' : item.order_nomor ? 'Simpan' : 'Buat surat order'}</button></div>
+        </form>
+      ) : (
+        <>
+          <dl className="pap-detail-grid">
+            <div><dt>Tanggal kirim</dt><dd>{formatDate(item.tanggal_kirim)}</dd></div>
+            <div><dt>Ekspedisi</dt><dd>{item.expedition_name ? <><Truck className="pap-inline-icon" /> {item.expedition_name}{item.expedition_estimasi ? ` (${item.expedition_estimasi} hari)` : ''}</> : '—'}</dd></div>
+            <div><dt>Total + ongkir</dt><dd>{rupiah(grand)}{dp ? ` · DP ${item.dp_persen}% = ${rupiah(dp)}` : ''}</dd></div>
+            <div><dt>Sudah dibayar (diverifikasi)</dt><dd className={sisa > 0 ? 'pap-text-warn' : 'pap-text-ok'}>{rupiah(item.terbayar)}{sisa > 0 ? ` · sisa ${rupiah(sisa)}` : ' · LUNAS'}</dd></div>
+          </dl>
+          <div className="pap-inline-actions pap-wrap">
+            {canWrite && <button className="pap-btn" onClick={() => setEditing(true)}><Pencil /> Ubah data order</button>}
+            <span className="pap-spacer" />
+            <a className="pap-btn" href={`/cetak/quotation/${item.id}?jenis=order`} target="_blank" rel="noreferrer"><Printer /> Surat Order</a>
+            <a className="pap-btn" href={`/cetak/quotation/${item.id}?jenis=proforma`} target="_blank" rel="noreferrer"><Printer /> Proforma Invoice</a>
+            {sisa > 0 && <button className="pap-primary-button" onClick={() => setPaying(true)}><Wallet /> Konfirmasi pembayaran</button>}
+          </div>
+        </>
+      )}
+      {paying && (
+        <PaymentForm
+          preset={{ quotation_id: item.id, pembayar: item.kepada, nomor: item.order_nomor ?? item.nomor, sisa, dp: item.terbayar === 0 ? dp : null }}
+          onClose={() => setPaying(false)}
+          onSaved={(t) => { setPaying(false); onSaved(t) }}
+        />
+      )}
+    </div>
   )
 }

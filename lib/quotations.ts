@@ -23,14 +23,18 @@ export function quotationScope(user: UserProfile) {
 
 export const QUOTATION_SELECT = `SELECT q.*, u.name AS created_name, p.nama_usaha AS prospect_name, p.status AS prospect_status, c.customer_no,
   (SELECT COUNT(*) FROM quotation_items i WHERE i.quotation_id = q.id) AS item_count,
-  DATE_ADD(q.tanggal, INTERVAL q.berlaku_hari DAY) AS berlaku_sampai
-  FROM quotations q JOIN users u ON u.id = q.created_by
+  DATE_ADD(q.tanggal, INTERVAL q.berlaku_hari DAY) AS berlaku_sampai,
+  e.nama AS expedition_name, e.estimasi_hari AS expedition_estimasi,
+  (SELECT COALESCE(SUM(pc.nominal), 0) FROM payment_confirmations pc WHERE pc.quotation_id = q.id AND pc.status = 'diterima') AS terbayar
+  FROM quotations q JOIN users u ON u.id = q.created_by LEFT JOIN expeditions e ON e.id = q.expedition_id
   LEFT JOIN prospects p ON p.id = q.prospect_id LEFT JOIN customers c ON c.id = q.customer_id`
 
 const toNumbers = (q: RowDataPacket): RowDataPacket => ({
   ...q,
   subtotal: Number(q.subtotal), ppn: Number(q.ppn), total: Number(q.total), ppn_persen: Number(q.ppn_persen),
   item_count: Number(q.item_count ?? 0), pakai_ppn: !!q.pakai_ppn,
+  ongkir: q.ongkir === null || q.ongkir === undefined ? null : Number(q.ongkir), dp_persen: q.dp_persen === null || q.dp_persen === undefined ? null : Number(q.dp_persen),
+  terbayar: Number(q.terbayar ?? 0),
 }) as RowDataPacket
 
 export async function loadQuotation(id: number, user: UserProfile) {

@@ -59,28 +59,6 @@ async function uploadFiles(productId: number, files: File[]) {
   return failed
 }
 
-const esc = (value: string | null | undefined) => (value ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
-
-// Lembar spesifikasi siap cetak untuk arsip produksi
-function printSpecSheet(item: Product, files: ProductFile[]) {
-  const win = window.open('', '_blank')
-  if (!win) return
-  const section = (title: string, value: string | null) => `<h3>${title}</h3><div class="box">${value ? esc(value).replace(/\n/g, '<br>') : '<i>—</i>'}</div>`
-  win.document.write(`<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Spesifikasi ${esc(item.nama)}</title>
-<style>body{font:13px/1.5 system-ui,sans-serif;color:#111;margin:32px}h1{margin:0;font-size:20px}h3{margin:18px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#555}
-.meta{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 24px;margin-top:14px}.meta div span{display:block;color:#666;font-size:11px}.box{padding:10px 12px;border:1px solid #ccc;border-radius:6px;min-height:28px}
-.head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:12px}.head img{height:44px}ul{margin:0;padding-left:18px}
-@media print{body{margin:12mm}}</style></head><body>
-<div class="head"><div><h1>${esc(item.nama)}</h1><div>${esc(item.customer_name)}${item.kode ? ` · ${esc(item.kode)}` : ''}</div></div><img src="/logo-pap.png" alt=""></div>
-<div class="meta"><div><span>Customer utama</span>${esc(item.customer_name) || '—'}${item.customer_no ? ` (${esc(item.customer_no)})` : ''}</div><div><span>Jenis</span>${esc(item.jenis) || '—'}</div>
-<div><span>Kode barang</span>${esc(item.kode) || '—'}</div><div><span>Diperbarui</span>${esc(formatDate(item.updated_at, true))}${item.updated_by_name ? ` oleh ${esc(item.updated_by_name)}` : ''}</div></div>
-${section('Spesifikasi', item.spesifikasi)}${section('Keterangan bahan', item.bahan)}${section('Keterangan lain', item.keterangan)}
-<h3>Lampiran desain</h3><div class="box">${files.length ? `<ul>${files.map((f) => `<li>${esc(f.name)}</li>`).join('')}</ul>` : '<i>Tidak ada lampiran</i>'}</div>
-<p style="margin-top:24px;color:#777;font-size:11px">Dicetak dari PAP-MS · ${esc(new Date().toLocaleString('id-ID'))}</p>
-<script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`)
-  win.document.close()
-}
-
 export function ProductPage({ user, focusId }: { user: UserProfile; focusId?: number | null }) {
   const [items, setItems] = useState<Product[]>([])
   const [jenisList, setJenisList] = useState<string[]>(JENIS_DEFAULT)
@@ -402,7 +380,7 @@ export function ProductDetail({ id, onClose, onEdit, onChanged, onDeleted }: { i
         <>
           {canManage && !item.accurate_item_id && <button className="pap-btn danger" disabled={busy} onClick={() => window.confirm(`Hapus produk "${item.nama}" beserta desainnya?`) && run(async () => { await api(`/api/products/${item.id}`, { method: 'DELETE' }); onDeleted() })}><Trash2 /> Hapus</button>}
           <span className="pap-spacer" />
-          <button className="pap-btn" onClick={() => printSpecSheet(item, files)}><Printer /> Cetak spesifikasi</button>
+          <a className="pap-btn" href={`/cetak/produk/${item.id}`} target="_blank" rel="noreferrer"><Printer /> Dokumen spek / PDF</a>
           {canManage && <button className="pap-btn" onClick={() => onEdit(item)}><Pencil /> Edit</button>}
         </>
       }

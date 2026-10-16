@@ -14,6 +14,7 @@ export const MENU_KEYS = {
   'Repeat Order': 'repeat-order',
   'KPI Marketing': 'kpi',
   'Kalender Konten': 'konten',
+  Pembayaran: 'pembayaran',
   'Surat Berita Kerja': 'sbk',
   'Jadwal Produksi': 'jadwal-produksi',
   'Data Mesin': 'data-mesin',

@@ -1,20 +1,22 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, ChevronLeft, ChevronRight, Cog, Database, ExternalLink, FileImage, FileText, FolderOpen, Image as ImageIcon, Layers, Package, Pencil, Plus, RefreshCw, Search, Trash2, Users } from 'lucide-react'
+import { AlertCircle, ChevronLeft, ChevronRight, Cog, Database, ExternalLink, FileImage, FileText, FolderOpen, Image as ImageIcon, Layers, Package, Pencil, Plus, RefreshCw, Search, Trash2, Truck, Users } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { CustomerPage } from './customer-page'
+import { ExpeditionList } from './expedition-list'
 import { MachinePage } from './machine-page'
 import { CustomerSelect, ProductPage, type CustomerOption } from './product-page'
 import { api, Field, formatDate, formatSize, Modal, Notice } from './ui'
 
-type Tab = 'desain' | 'packaging' | 'produk' | 'customer' | 'mesin'
+type Tab = 'desain' | 'packaging' | 'produk' | 'customer' | 'mesin' | 'ekspedisi'
 const TABS: { key: Tab; label: string; icon: typeof Database; menu?: string }[] = [
   { key: 'desain', label: 'Logo & Desain', icon: ImageIcon },
   { key: 'packaging', label: 'Produk Packaging', icon: Layers },
   { key: 'produk', label: 'Data Produk', icon: Package, menu: 'produk' },
   { key: 'customer', label: 'Customer', icon: Users, menu: 'customer' },
   { key: 'mesin', label: 'Data Mesin', icon: Cog, menu: 'data-mesin' },
+  { key: 'ekspedisi', label: 'Ekspedisi', icon: Truck },
 ]
 
 export function MasterDataPage({ user }: { user: UserProfile }) {
@@ -44,6 +46,7 @@ export function MasterDataPage({ user }: { user: UserProfile }) {
       {tab === 'produk' && <ProductPage user={user} />}
       {tab === 'customer' && <CustomerPage user={user} />}
       {tab === 'mesin' && <MachinePage user={user} />}
+      {tab === 'ekspedisi' && <ExpeditionList />}
     </>
   )
 }
