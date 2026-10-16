@@ -79,7 +79,7 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   } else if (finalFileId) {
     productId = await publishDesignToProduct(item as RowDataPacket, finalFileId, user.id)
   }
-  await logRequest({ designId: item.id, userId: user.id, from, to, catatan: note })
+  const logId = await logRequest({ designId: item.id, userId: user.id, from, to, catatan: note })
   if (item.prospect_id && ['review', 'disetujui', 'revisi'].includes(to)) {
     await logActivity(db, { prospectId: item.prospect_id, userId: user.id, jenis: 'catatan', hasil: `Desain ${item.nomor}: ${DESIGN_STATUS[to]}${note ? ` — ${note}` : ''}` })
   }
@@ -100,5 +100,5 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
     designId: item.id,
     refKey: `desain:${item.id}:${to}:${Date.now()}`,
   })
-  return NextResponse.json({ ok: true, productId })
+  return NextResponse.json({ ok: true, productId, logId })
 })

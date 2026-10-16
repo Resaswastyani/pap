@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, ArrowDown, ArrowUp, CalendarClock, ChevronLeft, ChevronRight, ClipboardList, Cog, ExternalLink, Factory, FileText, Flag, List, Loader2, Plus, Printer, Search, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatNumber } from './accurate'
+import { AttachmentPanel } from './attachments'
 import { api, formatDate, Modal, Notice, Progress, type UserOption } from './ui'
 
 type JobStatus = 'menunggu' | 'dijadwalkan' | 'berjalan' | 'selesai' | 'batal'
@@ -190,7 +191,7 @@ export function ProductionPage({ user, focusId }: { user: UserProfile; focusId?:
           </>
         )}
       </div>
-      {detailId && <JobDetail id={detailId} onClose={() => setDetailId(null)} onChanged={reloadAll} />}
+      {detailId && <JobDetail id={detailId} user={user} onClose={() => setDetailId(null)} onChanged={reloadAll} />}
     </>
   )
 }
@@ -297,7 +298,7 @@ ${block('Spesifikasi', product?.spesifikasi)}${block('Keterangan bahan', product
   win.document.close()
 }
 
-function JobDetail({ id, onClose, onChanged }: { id: number; onClose: () => void; onChanged: () => void }) {
+function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserProfile; onClose: () => void; onChanged: () => void }) {
   const [job, setJob] = useState<Job | null>(null)
   const [stages, setStages] = useState<Stage[]>([])
   const [product, setProduct] = useState<ProductInfo | null>(null)
@@ -446,7 +447,7 @@ function JobDetail({ id, onClose, onChanged }: { id: number; onClose: () => void
           </div>
         ) : (
           <ol className="pap-stage-list">
-            {stages.map((s) => <StageRow key={`${s.id}-${s.status}-${s.progress}`} stage={s} canProgress={can.progress && job.status !== 'batal'} busy={busy} run={run} />)}
+            {stages.map((s) => <StageRow key={`${s.id}-${s.status}-${s.progress}`} stage={s} user={user} canProgress={can.progress && job.status !== 'batal'} busy={busy} run={run} />)}
           </ol>
         )}
       </section>
@@ -481,11 +482,12 @@ function JobDetail({ id, onClose, onChanged }: { id: number; onClose: () => void
           </div>
         ) : <p className="pap-prewrap">{job.catatan || <span className="pap-muted">Tidak ada catatan.</span>}</p>}
       </section>
+      <AttachmentPanel title="Lampiran catatan PPIC" basePath={`/api/notes/job/${job.id}/attachments`} fileBase="/api/notes/attachments" canAdd={can.manage} currentUserId={user.id} isAdmin={user.role.isAdmin} />
     </Modal>
   )
 }
 
-function StageRow({ stage, canProgress, busy, run }: { stage: Stage; canProgress: boolean; busy: boolean; run: (action: () => Promise<unknown>, text?: string) => Promise<void> }) {
+function StageRow({ stage, user, canProgress, busy, run }: { stage: Stage; user: UserProfile; canProgress: boolean; busy: boolean; run: (action: () => Promise<unknown>, text?: string) => Promise<void> }) {
   const [progress, setProgress] = useState(stage.progress)
   const [status, setStatus] = useState<StageStatus>(stage.status)
   const [catatan, setCatatan] = useState(stage.catatan ?? '')
@@ -525,6 +527,9 @@ function StageRow({ stage, canProgress, busy, run }: { stage: Stage; canProgress
           {stage.catatan && <p className="pap-hint">{stage.catatan}</p>}
         </>
       )}
+      <div className="pap-stage-attach">
+        <AttachmentPanel title="Lampiran catatan tahap" basePath={`/api/notes/stage/${stage.id}/attachments`} fileBase="/api/notes/attachments" canAdd={canProgress} currentUserId={user.id} isAdmin={user.role.isAdmin} />
+      </div>
     </li>
   )
 }

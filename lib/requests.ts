@@ -3,6 +3,7 @@ import { fail, int, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canSupervise, isMarketing, loadProspect } from '@/lib/marketing'
 import { notify, type NotificationType } from '@/lib/notifications'
+import { withNoteAttachments } from '@/lib/attachments'
 import { pushToUsers } from '@/lib/push'
 import type { UserProfile } from '@/lib/users'
 
@@ -71,9 +72,10 @@ export async function notifyRequest(
 }
 
 export async function logRequest(input: { sampleId?: number; designId?: number; userId: number; from?: string | null; to?: string | null; catatan?: string | null }) {
-  await db.query('INSERT INTO request_logs (sample_id, design_id, user_id, status_from, status_to, catatan) VALUES (?, ?, ?, ?, ?, ?)', [
+  const [result] = await db.query<ResultSetHeader>('INSERT INTO request_logs (sample_id, design_id, user_id, status_from, status_to, catatan) VALUES (?, ?, ?, ?, ?, ?)', [
     input.sampleId ?? null, input.designId ?? null, input.userId, input.from ?? null, input.to ?? null, input.catatan ?? null,
   ])
+  return result.insertId
 }
 
 export async function loadLogs(column: 'sample_id' | 'design_id', id: number) {
@@ -83,7 +85,7 @@ export async function loadLogs(column: 'sample_id' | 'design_id', id: number) {
      WHERE l.${column} = ? ORDER BY l.id DESC`,
     [id],
   )
-  return rows
+  return withNoteAttachments('request_log', rows as (RowDataPacket & { id: number })[])
 }
 
 // ---------- Target (prospek / customer) & produk acuan ----------
@@ -130,7 +132,8 @@ export async function loadSample(id: number, user: UserProfile) {
   return rows[0] ?? fail(404, 'Request sample tidak ditemukan.')
 }
 
-// Satu request sample berisi 1..20 produk; spek tiap produk opsional (hanya nama yang wajib)
+// Satu request sample berisi 1..20 produk custom (tidak diambil dari Data Produk / Accurate);
+// spek tiap produk opsional, hanya nama yang wajib
 export type SampleItem = {
   product_id: number | null; nama_produk: string; jenis: string | null; ukuran: string | null; ketebalan: string | null
   bahan: string | null; warna_cetak: string | null; jumlah: string | null; catatan: string | null
@@ -144,7 +147,7 @@ export function readSampleRequest(body: Record<string, unknown>) {
     const opt = (key: string, max = 255) => str(raw?.[key], max) || null
     const nama_produk = str(raw?.nama_produk, 255) || fail(400, `Nama produk sample ke-${i + 1} wajib diisi.`)
     return {
-      product_id: int(raw?.product_id),
+      product_id: null,
       nama_produk,
       jenis: opt('jenis', 80),
       ukuran: opt('ukuran', 150),
@@ -225,8 +228,8 @@ export function readDesignBrief(body: Record<string, unknown>) {
   if (!judul) fail(400, 'Nama produk / desain wajib diisi.')
   const brief = str(body.brief, 10000)
   if (!brief) fail(400, 'Brief desain wajib diisi.')
-  const opt = (key: string, max = 255) => str(body[key], max) || null
-  return { judul, brief, jenis: opt('jenis', 80), ukuran: opt('ukuran', 150), warna_cetak: opt('warna_cetak', 255), deadline: optDate(body.deadline, 'deadline') }
+  // Jenis, ukuran, dan warna cetak tidak lagi diisi di request desain (kolom lama tetap ada untuk data lama)
+  return { judul, brief, jenis: null, ukuran: null, warna_cetak: null, deadline: optDate(body.deadline, 'deadline') }
 }
 
 export function designTodoSql(user: UserProfile) {

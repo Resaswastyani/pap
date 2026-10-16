@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, CheckCircle2, Crosshair, Download, ExternalLink, FileText, Link2, MapPin, MessageCircle, Paperclip, Pencil, Plus, Trash2, X, XCircle } from 'lucide-react'
 import { CustomerSelect, type CustomerOption } from './product-page'
+import { prepareFiles } from './attachments'
 import { api, Field, formatDate, formatSize, Modal, Notice } from './ui'
 
 // ---- Konstanta bersama halaman Prospek & Jadwal Visit ----
@@ -251,7 +252,6 @@ async function compressPhoto(file: File) {
 }
 
 // ---- Lampiran laporan visit: link & file ----
-export const VISIT_FILE_ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx'
 type PendingLink = { url: string; name: string }
 type VisitAttachment = { id: number; kind: 'file' | 'link'; name: string; url: string | null; mime: string | null; size: number | null; uploaded_by: number; created_at: string; uploaded_by_name: string }
 
@@ -277,13 +277,13 @@ function AttachmentEditor({ links, files, onLinks, onFiles }: { links: PendingLi
       </div>
       <div className="pap-attach-row">
         <button type="button" className="pap-btn" onClick={() => fileRef.current?.click()}><Paperclip /> Tambah file</button>
-        <small className="pap-muted">PDF, gambar, Word, Excel, PowerPoint. Maks 4 MB per file.</small>
-        <input ref={fileRef} type="file" multiple hidden accept={VISIT_FILE_ACCEPT} onChange={(e) => { onFiles([...files, ...(e.target.files ?? [])]); e.target.value = '' }} />
+        <small className="pap-muted">Semua format file, maks 2 MB per file. Foto besar diperkecil otomatis.</small>
+        <input ref={fileRef} type="file" multiple hidden onChange={async (e) => { const list = [...(e.target.files ?? [])]; e.target.value = ''; const { ok, errors } = await prepareFiles(list); onFiles([...files, ...ok]); if (errors.length) window.alert(errors.join(' ')) }} />
       </div>
       {(links.length > 0 || files.length > 0) && (
         <ul className="pap-attach-pending">
           {links.map((l, i) => <li key={`l${i}`}><Link2 /><span>{l.name || l.url}</span><button type="button" aria-label="Hapus link" onClick={() => onLinks(links.filter((_, j) => j !== i))}><X /></button></li>)}
-          {files.map((f, i) => <li key={`f${i}`} className={f.size > 4 * 1024 * 1024 ? 'too-big' : ''}><FileText /><span>{f.name} · {formatSize(f.size)}{f.size > 4 * 1024 * 1024 ? ' · terlalu besar' : ''}</span><button type="button" aria-label="Hapus file" onClick={() => onFiles(files.filter((_, j) => j !== i))}><X /></button></li>)}
+          {files.map((f, i) => <li key={`f${i}`} className={f.size > 2 * 1024 * 1024 ? 'too-big' : ''}><FileText /><span>{f.name} · {formatSize(f.size)}{f.size > 2 * 1024 * 1024 ? ' · terlalu besar' : ''}</span><button type="button" aria-label="Hapus file" onClick={() => onFiles(files.filter((_, j) => j !== i))}><X /></button></li>)}
         </ul>
       )}
     </div>
@@ -337,7 +337,7 @@ function VisitAttachments({ visitId, canAdd, currentUserId, isAdmin }: { visitId
           <div className="pap-inline-actions">
             <button className="pap-btn" disabled={busy} onClick={() => setAdding((v) => !v)}><Plus /> Link</button>
             <button className="pap-btn" disabled={busy} onClick={() => fileRef.current?.click()}><Paperclip /> File</button>
-            <input ref={fileRef} type="file" multiple hidden accept={VISIT_FILE_ACCEPT} onChange={(e) => { const list = [...(e.target.files ?? [])]; e.target.value = ''; run(async () => { for (const f of list) await uploadVisitFile(visitId, f) }) }} />
+            <input ref={fileRef} type="file" multiple hidden onChange={(e) => { const list = [...(e.target.files ?? [])]; e.target.value = ''; run(async () => { const { ok, errors } = await prepareFiles(list); for (const f of ok) await uploadVisitFile(visitId, f); if (errors.length) throw new Error(errors.join(' ')) }) }} />
           </div>
         )}
       </div>
@@ -409,8 +409,8 @@ export function CheckinForm({ visit, onClose, onSaved }: { visit: Visit; onClose
     setError('')
     try {
       if (!values.hasil.trim() && !links.length && !files.length) throw new Error('Isi laporan hasil kunjungan: catatan, link, atau file.')
-      const tooBig = files.find((f) => f.size > 4 * 1024 * 1024)
-      if (tooBig) throw new Error(`${tooBig.name} lebih dari 4 MB. Kompres dulu atau kirim sebagai link Google Drive.`)
+      const tooBig = files.find((f) => f.size > 2 * 1024 * 1024)
+      if (tooBig) throw new Error(`${tooBig.name} lebih dari 2 MB. Kompres dulu atau kirim sebagai link Google Drive.`)
       await api(`/api/visits/${visit.id}/checkin`, { method: 'POST', json: { ...values, lat: geo.lat, lng: geo.lng, accuracy: geo.accuracy, foto: photo || undefined, links, file_count: files.length } })
       // File diunggah satu per satu setelah check-in tersimpan (batas ukuran request)
       const failed: string[] = []

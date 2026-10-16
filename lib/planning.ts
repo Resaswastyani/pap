@@ -2,7 +2,7 @@ import type { RowDataPacket } from 'mysql2'
 import { fail } from '@/lib/api'
 import { db } from '@/lib/db'
 import { formatWaktu, notify } from '@/lib/notifications'
-import { FILE_ACCEPT, FILE_MAX_BYTES, PERMISSIONS, type PlanningStatus } from '@/lib/permissions'
+import { FILE_MAX_BYTES, PERMISSIONS, type PlanningStatus } from '@/lib/permissions'
 import { can, type UserProfile } from '@/lib/users'
 
 export type PlanningRow = RowDataPacket & {
@@ -153,8 +153,7 @@ export async function loadNote(noteId: number) {
 // Validasi lampiran (dipakai lampiran planning & catatan progress)
 export function validUpload(value: unknown) {
   if (!(value instanceof File) || !value.size) return fail(400, 'File wajib dipilih.')
-  if (!(value.type in FILE_ACCEPT)) fail(400, `${value.name}: format harus gambar (JPG/PNG/WEBP/GIF), PDF, atau Word.`)
-  if (value.size > FILE_MAX_BYTES) fail(400, `${value.name}: ukuran maksimal 5 MB.`)
+  if (value.size > FILE_MAX_BYTES) fail(400, `${value.name}: ukuran maksimal 2 MB.`)
   return value
 }
 

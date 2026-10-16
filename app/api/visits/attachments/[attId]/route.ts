@@ -21,12 +21,12 @@ export const GET = handle(async (request: Request, ctx: Ctx) => {
   requireMarketing(user, 'visit')
   const row = await load(ctx, user)
   if (row.kind === 'link') return NextResponse.redirect(row.url!)
-  const download = new URL(request.url).searchParams.get('download') === '1'
+  const inline = new URL(request.url).searchParams.get('download') !== '1' && /^(image\/(jpeg|png|webp|gif)|application\/pdf)$/.test(row.mime ?? '')
   return new NextResponse(new Uint8Array(row.data!), {
     headers: {
-      'Content-Type': row.mime ?? 'application/octet-stream',
+      'Content-Type': inline ? row.mime! : 'application/octet-stream',
       'Content-Length': String(row.size ?? row.data!.length),
-      'Content-Disposition': `${download || !/^(image\/|application\/pdf)/.test(row.mime ?? '') ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(row.name)}`,
+      'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(row.name)}`,
       'Cache-Control': 'private, max-age=300',
       'X-Content-Type-Options': 'nosniff',
     },

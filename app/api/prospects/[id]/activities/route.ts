@@ -14,18 +14,18 @@ export const POST = handle(async (request: Request, { params }: Ctx) => {
   const body = await readJson(request)
   const jenis = str(body.jenis, 20)
   if (!(jenis in ACTIVITY_TYPES)) fail(400, 'Jenis aktivitas tidak valid.')
-  const hasil = str(body.hasil, 5000)
-  if (!hasil) fail(400, 'Isi hasil follow-up.')
+  const hasil = str(body.hasil, 5000) || null
+  if (!hasil && !(Number(body.lampiran) > 0)) fail(400, 'Isi catatan follow-up atau tambahkan lampiran.')
   const next = str(body.status, 30) as ProspectStatus
   const changeStatus = next && next !== prospect.status
   if (changeStatus && !(next in PROSPECT_STATUS)) fail(400, 'Status prospek tidak valid.')
   if (changeStatus && next === 'gagal' && !str(body.alasan_gagal, 500)) fail(400, 'Isi alasan prospek gagal.')
   const nextFollowup = parseDateTime(body.next_followup_at, 'Jadwal follow-up')
 
-  await logActivity(db, { prospectId: prospect.id, userId: user.id, jenis, hasil, statusFrom: changeStatus ? prospect.status : null, statusTo: changeStatus ? next : null })
+  const id = await logActivity(db, { prospectId: prospect.id, userId: user.id, jenis, hasil, statusFrom: changeStatus ? prospect.status : null, statusTo: changeStatus ? next : null })
   await db.query(
     `UPDATE prospects SET next_followup_at = ?, status = ?, alasan_gagal = ? WHERE id = ?`,
     [nextFollowup, changeStatus ? next : prospect.status, changeStatus ? (next === 'gagal' ? str(body.alasan_gagal, 500) : null) : prospect.alasan_gagal, prospect.id],
   )
-  return NextResponse.json({ ok: true }, { status: 201 })
+  return NextResponse.json({ ok: true, id }, { status: 201 })
 })

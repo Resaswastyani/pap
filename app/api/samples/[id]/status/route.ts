@@ -71,7 +71,7 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   }
 
   await db.query(`UPDATE sample_requests SET ${sets.join(', ')} WHERE id = ? AND status = ?`, [...values, item.id, from])
-  await logRequest({ sampleId: item.id, userId: user.id, from, to, catatan: note })
+  const logId = await logRequest({ sampleId: item.id, userId: user.id, from, to, catatan: note })
   if (item.prospect_id && ['dikirim', 'disetujui', 'revisi'].includes(to)) {
     await logActivity(db, { prospectId: item.prospect_id, userId: user.id, jenis: 'catatan', hasil: `Sample ${item.nomor} ${SAMPLE_STATUS[to].toLowerCase()}${note ? `: ${note}` : ''}` })
   }
@@ -96,5 +96,5 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
     sampleId: item.id,
     refKey: `sample:${item.id}:${to}:${Date.now()}`,
   })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, logId })
 })

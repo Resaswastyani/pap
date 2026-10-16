@@ -10,6 +10,7 @@ import {
 } from './marketing'
 import { QuotationForm } from './quotation-page'
 import { DesignForm, SampleForm } from './request-page'
+import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
 import { api, Field, formatDate, Modal, Notice } from './ui'
 
 export type Prospect = {
@@ -44,7 +45,7 @@ export type Prospect = {
   next_visit: string | null
   products?: NeedItem[]
 }
-type Activity = { id: number; jenis: string; hasil: string | null; status_from: ProspectStatus | null; status_to: ProspectStatus | null; created_at: string; user_name: string }
+type Activity = { id: number; jenis: string; hasil: string | null; status_from: ProspectStatus | null; status_to: ProspectStatus | null; created_at: string; user_name: string; attachments?: NoteAttachment[] }
 type ListResponse = {
   items: Prospect[]
   total: number
@@ -592,6 +593,8 @@ function ProspectDetail({ id, user, users, onClose, onEdit, onChanged, onDeleted
 
         {canEdit && <ActivityForm prospect={item} onSaved={(text) => changed(text)} />}
 
+        <AttachmentPanel basePath={`/api/prospects/${item.id}/attachments`} fileBase="/api/prospects/attachments" canAdd={canEdit} currentUserId={user.id} isAdmin={user.role.isAdmin} />
+
         {visits.length > 0 && (
           <section className="pap-detail-section">
             <h3>Visit ({visits.length})</h3>
@@ -614,6 +617,7 @@ function ProspectDetail({ id, user, users, onClose, onEdit, onChanged, onDeleted
                   <span className="pap-note-meta"><strong>{a.user_name}</strong> · {formatDate(a.created_at, true)}</span>
                 </div>
                 {a.hasil && <p className="pap-prewrap">{a.hasil}</p>}
+                <NoteFiles items={a.attachments} currentUserId={user.id} isAdmin={user.role.isAdmin} onChanged={load} />
               </li>
             ))}
           </ol>
@@ -655,6 +659,7 @@ function ProspectDetail({ id, user, users, onClose, onEdit, onChanged, onDeleted
 // Log follow-up: jenis kontak, hasil, status baru (opsional), follow-up berikutnya
 function ActivityForm({ prospect, onSaved }: { prospect: Prospect; onSaved: (message: string) => void }) {
   const [values, setValues] = useState({ jenis: 'whatsapp', hasil: '', status: '', next_followup_at: nowInput(3, 10), alasan_gagal: '' })
+  const [attachments, setAttachments] = useState<PendingAttachments>(emptyAttachments)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const set = (key: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [key]: e.target.value }))
@@ -666,9 +671,11 @@ function ActivityForm({ prospect, onSaved }: { prospect: Prospect; onSaved: (mes
     setSaving(true)
     setError('')
     try {
-      await api(`/api/prospects/${prospect.id}/activities`, { method: 'POST', json: values })
+      const res = await api<{ id: number }>(`/api/prospects/${prospect.id}/activities`, { method: 'POST', json: { ...values, lampiran: pendingCount(attachments) } })
+      const failed = await uploadNoteAttachments('activity', res.id, attachments)
       setValues((v) => ({ ...v, hasil: '', alasan_gagal: '' }))
-      onSaved('Follow-up dicatat.')
+      setAttachments(emptyAttachments())
+      onSaved(failed.length ? `Follow-up dicatat. Sebagian lampiran gagal: ${failed.join(' ')}` : 'Follow-up dicatat.')
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -695,7 +702,8 @@ function ActivityForm({ prospect, onSaved }: { prospect: Prospect; onSaved: (mes
           </select>
           <label className="pap-activity-date"><span>Follow-up berikutnya</span><input className="pap-input" type="datetime-local" value={values.next_followup_at} onChange={set('next_followup_at')} /></label>
         </div>
-        <textarea className="pap-input" rows={2} required maxLength={5000} value={values.hasil} onChange={set('hasil')} placeholder="Hasil follow-up: respon, kebutuhan, harga yang diminta, minta sampel, dll." />
+        <textarea className="pap-input" rows={2} maxLength={5000} value={values.hasil} onChange={set('hasil')} placeholder="Hasil follow-up (opsional bila ada lampiran): respon, kebutuhan, harga yang diminta, minta sampel, dll." />
+        <div className="pap-note-attach"><AttachmentInput value={attachments} onChange={setAttachments} /></div>
         {values.status === 'gagal' && <input className="pap-input" required maxLength={500} value={values.alasan_gagal} onChange={set('alasan_gagal')} placeholder="Alasan gagal" />}
         <div className="pap-inline-actions"><span className="pap-spacer" /><button type="submit" className="pap-primary-button" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan follow-up'}</button></div>
       </form>
