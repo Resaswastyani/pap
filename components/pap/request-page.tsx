@@ -25,7 +25,7 @@ const JENIS = ['HD', 'PP', 'PE', 'Mika rigid', 'Plastik laundry', 'Lainnya']
 const Badge = ({ tone, label }: { tone: string; label: string }) => <span className={`pap-status ${tone}`}>{label}</span>
 
 type Log = { id: number; status_from: string | null; status_to: string | null; catatan: string | null; created_at: string; user_name: string; division_name: string }
-type PrefillProspect = { id: number; nama_usaha: string; kota: string | null; alamat: string | null; kontak_nama: string | null; kebutuhan?: string | null }
+type PrefillProspect = { id: number; nama_usaha: string; kota: string | null; alamat: string | null; kontak_nama: string | null; kebutuhan?: string | null; products?: { product_id: number | null; label: string; jenis?: string | null; spesifikasi?: string | null; bahan?: string | null }[] }
 
 // Langkah alur (stepper) dengan status batal/revisi ditandai
 function Track<T extends string>({ flow, labels, status }: { flow: T[]; labels: Record<T, string>; status: T }) {
@@ -120,7 +120,11 @@ type Sample = {
   nama_produk: string; jenis: string | null; ukuran: string | null; ketebalan: string | null; bahan: string | null; warna_cetak: string | null
   jumlah: string | null; spesifikasi: string | null; special_request: string | null; tenggat: string | null; status: SampleStatus
   jadwal_produksi: string | null; pengiriman: string | null; feedback: string | null; revisi_ke: number; requested_by: number
-  requested_name: string; target_name: string | null; customer_no: string | null; product_name: string | null; created_at: string
+  requested_name: string; target_name: string | null; customer_no: string | null; product_name: string | null; created_at: string; item_count: number
+}
+type SampleItemRow = {
+  id: number; product_id: number | null; nama_produk: string; jenis: string | null; ukuran: string | null; ketebalan: string | null
+  bahan: string | null; warna_cetak: string | null; jumlah: string | null; catatan: string | null; product_name: string | null
 }
 type SampleRoles = { canRequest: boolean; ppic: boolean; produksi: boolean; isRequester?: boolean }
 
@@ -190,7 +194,7 @@ export function SamplePage({ user, focusId }: { user: UserProfile; focusId?: num
               {items.map((s) => (
                 <tr key={s.id} className="pap-row-link" onClick={() => setDetailId(s.id)}>
                   <td><div className="pap-cell-title">{s.nomor}</div>{s.revisi_ke > 0 && <div className="pap-cell-sub">Revisi {s.revisi_ke}</div>}</td>
-                  <td><div className="pap-cell-title">{s.nama_produk}</div><div className="pap-cell-sub">{[s.jenis, s.ukuran, s.jumlah].filter(Boolean).join(' · ')}</div></td>
+                  <td><div className="pap-cell-title">{s.nama_produk}</div><div className="pap-cell-sub">{s.item_count > 1 ? `${s.item_count} produk` : [s.jenis, s.ukuran, s.jumlah].filter(Boolean).join(' · ')}</div></td>
                   <td>{s.target_name ?? '—'}</td>
                   <td>{s.requested_name}<div className="pap-cell-sub">{formatDate(s.created_at)}</div></td>
                   <td className={s.tenggat && s.tenggat < new Date().toISOString().slice(0, 10) && !['disetujui', 'batal', 'dikirim'].includes(s.status) ? 'pap-followup overdue' : ''}>{formatDate(s.tenggat)}</td>
@@ -227,18 +231,35 @@ function RequestFilters({ status, setStatus, q, setQ, counts, summary, labels, o
   )
 }
 
-// Form pengajuan sample baru, atau ajukan ulang dengan spek revisi (resubmit)
-export function SampleForm({ prospect, resubmit, onClose, onSaved }: { prospect?: PrefillProspect | null; resubmit?: Sample; onClose: () => void; onSaved: (message: string, id: number) => void }) {
+// Form pengajuan sample baru, atau ajukan ulang dengan spek revisi (resubmit).
+// Satu request bisa berisi beberapa produk; produk diambil dari produk diminati prospek
+// (atau Data Produk customer), spek tiap produk opsional.
+type SampleItemForm = {
+  key: string; product_id: number | null; nama_produk: string; jenis: string; ukuran: string; ketebalan: string
+  bahan: string; warna_cetak: string; jumlah: string; catatan: string
+}
+type CandidateProduct = { product_id: number | null; label: string; jenis?: string | null; spesifikasi?: string | null; bahan?: string | null }
+let itemSeq = 0
+const newItem = (src: Partial<SampleItemForm> = {}): SampleItemForm => ({
+  key: `i${++itemSeq}`, product_id: null, nama_produk: '', jenis: '', ukuran: '', ketebalan: '', bahan: '', warna_cetak: '', jumlah: '', catatan: '', ...src,
+})
+const fromCandidate = (c: CandidateProduct) => newItem({ product_id: c.product_id, nama_produk: c.label, jenis: c.jenis ?? '', bahan: c.bahan ?? '', catatan: c.spesifikasi ?? '' })
+
+export function SampleForm({ prospect, resubmit, resubmitItems, onClose, onSaved }: {
+  prospect?: PrefillProspect | null
+  resubmit?: Sample
+  resubmitItems?: SampleItemRow[]
+  onClose: () => void
+  onSaved: (message: string, id: number) => void
+}) {
   const [target, setTarget] = useState<{ prospect_id: number | null; customer_id: number | null }>({ prospect_id: prospect?.id ?? null, customer_id: null })
-  const [product, setProduct] = useState<ProductRef | null>(null)
+  const [candidates, setCandidates] = useState<CandidateProduct[]>(prospect?.products ?? [])
+  const [items, setItems] = useState<SampleItemForm[]>(() =>
+    resubmitItems?.length
+      ? resubmitItems.map((r) => newItem({ product_id: r.product_id, nama_produk: r.nama_produk, jenis: r.jenis ?? '', ukuran: r.ukuran ?? '', ketebalan: r.ketebalan ?? '', bahan: r.bahan ?? '', warna_cetak: r.warna_cetak ?? '', jumlah: r.jumlah ?? '', catatan: r.catatan ?? '' }))
+      : (prospect?.products ?? []).map(fromCandidate),
+  )
   const [values, setValues] = useState({
-    nama_produk: resubmit?.nama_produk ?? prospect?.kebutuhan?.split(';')[0]?.trim() ?? '',
-    jenis: resubmit?.jenis ?? '',
-    ukuran: resubmit?.ukuran ?? '',
-    ketebalan: resubmit?.ketebalan ?? '',
-    bahan: resubmit?.bahan ?? '',
-    warna_cetak: resubmit?.warna_cetak ?? '',
-    jumlah: resubmit?.jumlah ?? '',
     tenggat: resubmit?.tenggat ?? '',
     spesifikasi: resubmit?.spesifikasi ?? '',
     special_request: resubmit?.special_request ?? '',
@@ -248,20 +269,45 @@ export function SampleForm({ prospect, resubmit, onClose, onSaved }: { prospect?
   const [error, setError] = useState('')
   const set = (key: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [key]: e.target.value }))
 
-  function pickProduct(p: ProductRef | null) {
-    setProduct(p)
-    if (p) setValues((v) => ({ ...v, nama_produk: p.nama, jenis: p.jenis ?? v.jenis, bahan: p.bahan ?? v.bahan, spesifikasi: p.spesifikasi ?? v.spesifikasi }))
-  }
+  // Prospek/customer dipilih di form: ambil produk diminati prospek, atau Data Produk milik customer
+  useEffect(() => {
+    if (prospect || resubmit) return
+    let cancelled = false
+    const pick = (list: CandidateProduct[]) => {
+      if (cancelled) return
+      setCandidates(list)
+      setItems(list.map(fromCandidate))
+    }
+    if (target.prospect_id) {
+      api<{ item: { products?: CandidateProduct[] } }>(`/api/prospects/${target.prospect_id}`).then((r) => pick(r.item.products ?? [])).catch(() => pick([]))
+    } else if (target.customer_id) {
+      api<{ items: ProductRef[] }>(`/api/products?customer=${target.customer_id}&status=aktif`)
+        .then((r) => {
+          if (cancelled) return
+          setCandidates(r.items.map((p) => ({ product_id: p.id, label: p.nama, jenis: p.jenis, spesifikasi: p.spesifikasi, bahan: p.bahan })))
+          setItems([])
+        })
+        .catch(() => pick([]))
+    } else pick([])
+    return () => { cancelled = true }
+  }, [target.prospect_id, target.customer_id, prospect, resubmit])
+
+  const isChosen = (c: CandidateProduct) => items.some((i) => (c.product_id ? i.product_id === c.product_id : i.nama_produk === c.label))
+  const toggle = (c: CandidateProduct) => setItems((list) => (isChosen(c) ? list.filter((i) => !(c.product_id ? i.product_id === c.product_id : i.nama_produk === c.label)) : [...list, fromCandidate(c)]))
+  const update = (key: string, patch: Partial<SampleItemForm>) => setItems((list) => list.map((i) => (i.key === key ? { ...i, ...patch } : i)))
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     setError('')
     try {
+      if (!items.length) throw new Error('Pilih atau tambahkan minimal satu produk sample.')
+      const payload = { ...values, items: items.map(({ key: _key, ...rest }) => rest) }
       if (resubmit) {
-        await api(`/api/samples/${resubmit.id}/status`, { method: 'POST', json: { ...values, status: 'diajukan' } })
+        await api(`/api/samples/${resubmit.id}/status`, { method: 'POST', json: { ...payload, status: 'diajukan' } })
         onSaved('Sample diajukan ulang ke PPIC dengan spek revisi.', resubmit.id)
       } else {
-        const res = await api<{ id: number; nomor: string }>('/api/samples', { method: 'POST', json: { ...values, ...target, product_id: product?.id ?? null } })
+        const res = await api<{ id: number; nomor: string }>('/api/samples', { method: 'POST', json: { ...payload, ...target } })
         onSaved(`Request sample ${res.nomor} terkirim ke PPIC.`, res.id)
       }
     } catch (err) {
@@ -270,28 +316,74 @@ export function SampleForm({ prospect, resubmit, onClose, onSaved }: { prospect?
       setSaving(false)
     }
   }
+  const hasTarget = !!(target.prospect_id || target.customer_id)
+
   return (
     <Modal
       title={resubmit ? `Ajukan ulang ${resubmit.nomor}` : 'Request sample'}
       subtitle={resubmit ? `Revisi dari customer: ${resubmit.feedback ?? '—'}` : 'Dikirim ke PPIC untuk dijadwalkan produksi'}
       wide
       onClose={onClose}
-      footer={<><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="sample-form" className="pap-primary-button" disabled={saving}><Send /> {saving ? 'Mengirim...' : resubmit ? 'Ajukan ulang' : 'Kirim ke PPIC'}</button></>}
+      footer={<><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="sample-form" className="pap-primary-button" disabled={saving}><Send /> {saving ? 'Mengirim...' : resubmit ? 'Ajukan ulang' : `Kirim ke PPIC (${items.length} produk)`}</button></>}
     >
       <form id="sample-form" className="pap-form-grid" onSubmit={submit}>
         {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         {!resubmit && <Field label="Untuk" full><TargetPicker prospect={prospect} onChange={setTarget} /></Field>}
-        {!resubmit && <Field label="Produk acuan" full hint="Pilih bila sample mengikuti produk yang sudah ada; spek terisi otomatis."><ProductRefSelect value={product} onChange={pickProduct} /></Field>}
-        <Field label="Nama produk sample" full><input className="pap-input" required maxLength={255} value={values.nama_produk} onChange={set('nama_produk')} placeholder="Contoh: Kantong laundry HD cetak logo" /></Field>
-        <Field label="Jenis"><input className="pap-input" list="pap-jenis-sample" maxLength={80} value={values.jenis} onChange={set('jenis')} /></Field>
-        <Field label="Ukuran"><input className="pap-input" maxLength={150} value={values.ukuran} onChange={set('ukuran')} placeholder="Contoh: 40 x 60 cm" /></Field>
-        <Field label="Ketebalan"><input className="pap-input" maxLength={80} value={values.ketebalan} onChange={set('ketebalan')} placeholder="Contoh: 0,04 mm / 40 mikron" /></Field>
-        <Field label="Bahan"><input className="pap-input" maxLength={255} value={values.bahan} onChange={set('bahan')} placeholder="Contoh: HDPE murni" /></Field>
-        <Field label="Warna / cetak"><input className="pap-input" maxLength={255} value={values.warna_cetak} onChange={set('warna_cetak')} placeholder="Contoh: putih, cetak 1 warna 1 sisi" /></Field>
-        <Field label="Jumlah sample"><input className="pap-input" maxLength={80} value={values.jumlah} onChange={set('jumlah')} placeholder="Contoh: 50 pcs" /></Field>
-        <Field label="Dibutuhkan tanggal"><input className="pap-input" type="date" value={values.tenggat} onChange={set('tenggat')} /></Field>
-        <Field label="Spesifikasi lain" full><textarea className="pap-input" rows={2} maxLength={5000} value={values.spesifikasi} onChange={set('spesifikasi')} placeholder="Model (gusset/jinjing/roll), seal, lubang, dll." /></Field>
-        <Field label="Special request customer" full><textarea className="pap-input" rows={2} maxLength={5000} value={values.special_request} onChange={set('special_request')} /></Field>
+
+        {!resubmit && hasTarget && (
+          <div className="pap-field full">
+            <span>{target.prospect_id ? 'Produk yang diminati prospek' : 'Produk customer di Data Produk'}</span>
+            {candidates.length ? (
+              <div className="pap-candidates">
+                {candidates.map((c) => (
+                  <label key={`${c.product_id ?? 'x'}-${c.label}`} className={`pap-candidate ${isChosen(c) ? 'on' : ''}`}>
+                    <input type="checkbox" checked={isChosen(c)} onChange={() => toggle(c)} />
+                    <span><strong>{c.label}</strong><small>{c.product_id ? [c.jenis, c.bahan].filter(Boolean).join(' · ') || 'Data Produk' : 'Teks bebas (belum ada di Data Produk)'}</small></span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <small>{target.prospect_id ? 'Prospek ini belum punya produk diminati. Tambahkan produk di bawah, atau isi dulu di data prospek.' : 'Belum ada produk untuk customer ini. Tambahkan produk di bawah.'}</small>
+            )}
+          </div>
+        )}
+
+        <div className="pap-field full">
+          <span>Produk sample ({items.length})</span>
+          <div className="pap-sample-items">
+            {items.map((it, index) => (
+              <div key={it.key} className="pap-sample-item">
+                <div className="pap-sample-item-head">
+                  <b>{index + 1}</b>
+                  <input className="pap-input" required maxLength={255} value={it.nama_produk} onChange={(e) => update(it.key, { nama_produk: e.target.value })} placeholder="Nama produk sample" aria-label={`Nama produk ${index + 1}`} />
+                  <button type="button" className="pap-icon-button" aria-label={`Hapus produk ${index + 1}`} onClick={() => setItems((list) => list.filter((i) => i.key !== it.key))}><Trash2 /></button>
+                </div>
+                {!it.product_id && (
+                  <div className="pap-sample-ref"><ProductRefSelect value={null} onChange={(p) => p && update(it.key, { product_id: p.id, nama_produk: it.nama_produk || p.nama, jenis: it.jenis || (p.jenis ?? ''), bahan: it.bahan || (p.bahan ?? ''), catatan: it.catatan || (p.spesifikasi ?? '') })} /></div>
+                )}
+                {it.product_id && <small className="pap-muted">Terhubung ke Data Produk <button type="button" className="pap-link-button" onClick={() => update(it.key, { product_id: null })}>lepas</button></small>}
+                <details className="pap-sample-spec" open={!!(it.ukuran || it.ketebalan || it.warna_cetak || it.jumlah)}>
+                  <summary>Spek produk (opsional)</summary>
+                  <div className="pap-sample-spec-grid">
+                    <input className="pap-input" list="pap-jenis-sample" maxLength={80} value={it.jenis} onChange={(e) => update(it.key, { jenis: e.target.value })} placeholder="Jenis (HD/PE/PP...)" aria-label="Jenis" />
+                    <input className="pap-input" maxLength={150} value={it.ukuran} onChange={(e) => update(it.key, { ukuran: e.target.value })} placeholder="Ukuran, mis. 40 x 60 cm" aria-label="Ukuran" />
+                    <input className="pap-input" maxLength={80} value={it.ketebalan} onChange={(e) => update(it.key, { ketebalan: e.target.value })} placeholder="Ketebalan, mis. 40 mikron" aria-label="Ketebalan" />
+                    <input className="pap-input" maxLength={255} value={it.bahan} onChange={(e) => update(it.key, { bahan: e.target.value })} placeholder="Bahan, mis. HDPE" aria-label="Bahan" />
+                    <input className="pap-input" maxLength={255} value={it.warna_cetak} onChange={(e) => update(it.key, { warna_cetak: e.target.value })} placeholder="Warna / cetak" aria-label="Warna / cetak" />
+                    <input className="pap-input" maxLength={80} value={it.jumlah} onChange={(e) => update(it.key, { jumlah: e.target.value })} placeholder="Jumlah, mis. 50 pcs" aria-label="Jumlah" />
+                    <input className="pap-input full" maxLength={1000} value={it.catatan} onChange={(e) => update(it.key, { catatan: e.target.value })} placeholder="Catatan / spek lain (model, seal, lubang...)" aria-label="Catatan produk" />
+                  </div>
+                </details>
+              </div>
+            ))}
+            <button type="button" className="pap-btn pap-add-item" onClick={() => setItems((list) => [...list, newItem()])}><Plus /> Tambah produk lain</button>
+          </div>
+        </div>
+
+        <Field label="Dibutuhkan tanggal (opsional)"><input className="pap-input" type="date" value={values.tenggat} onChange={set('tenggat')} /></Field>
+        <span />
+        <Field label="Catatan umum (opsional)" full><textarea className="pap-input" rows={2} maxLength={5000} value={values.spesifikasi} onChange={set('spesifikasi')} /></Field>
+        <Field label="Special request customer (opsional)" full><textarea className="pap-input" rows={2} maxLength={5000} value={values.special_request} onChange={set('special_request')} /></Field>
         {resubmit && <Field label="Catatan untuk PPIC" full><input className="pap-input" maxLength={1000} value={values.catatan} onChange={set('catatan')} placeholder="Apa yang berubah dari sample sebelumnya" /></Field>}
         <datalist id="pap-jenis-sample">{JENIS.map((j) => <option key={j} value={j} />)}</datalist>
       </form>
@@ -301,6 +393,7 @@ export function SampleForm({ prospect, resubmit, onClose, onSaved }: { prospect?
 
 function SampleDetail({ id, user, onClose, onChanged }: { id: number; user: UserProfile; onClose: () => void; onChanged: (message: string) => void }) {
   const [item, setItem] = useState<Sample | null>(null)
+  const [items, setItems] = useState<SampleItemRow[]>([])
   const [logs, setLogs] = useState<Log[]>([])
   const [roles, setRoles] = useState<SampleRoles>({ canRequest: false, ppic: false, produksi: false })
   const [error, setError] = useState('')
@@ -312,8 +405,9 @@ function SampleDetail({ id, user, onClose, onChanged }: { id: number; user: User
 
   const load = useCallback(async () => {
     try {
-      const res = await api<{ item: Sample; logs: Log[]; roles: SampleRoles }>(`/api/samples/${id}`)
+      const res = await api<{ item: Sample; items: SampleItemRow[]; logs: Log[]; roles: SampleRoles }>(`/api/samples/${id}`)
       setItem(res.item)
+      setItems(res.items)
       setLogs(res.logs)
       setRoles(res.roles)
       setJadwal(res.item.jadwal_produksi ?? res.item.tenggat ?? '')
@@ -410,24 +504,34 @@ function SampleDetail({ id, user, onClose, onChanged }: { id: number; user: User
           </div>
         )}
 
+        <section className="pap-detail-section pap-sample-table">
+          <h3>Produk sample ({items.length})</h3>
+          <div className="pap-table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Produk</th><th>Jenis</th><th>Ukuran</th><th>Ketebalan</th><th>Bahan</th><th>Warna / cetak</th><th>Jumlah</th></tr></thead>
+              <tbody>
+                {items.map((it, i) => (
+                  <tr key={it.id}>
+                    <td>{i + 1}</td>
+                    <td><div className="pap-cell-title">{it.nama_produk}</div>{it.product_name && <div className="pap-cell-sub">Data Produk: {it.product_name}</div>}{it.catatan && <div className="pap-cell-sub pap-prewrap">{it.catatan}</div>}</td>
+                    <td>{it.jenis ?? '—'}</td><td>{it.ukuran ?? '—'}</td><td>{it.ketebalan ?? '—'}</td><td>{it.bahan ?? '—'}</td><td>{it.warna_cetak ?? '—'}</td><td>{it.jumlah ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
         <dl className="pap-detail-grid">
-          <div><dt>Jenis</dt><dd>{item.jenis ?? '—'}</dd></div>
-          <div><dt>Ukuran</dt><dd>{item.ukuran ?? '—'}</dd></div>
-          <div><dt>Ketebalan</dt><dd>{item.ketebalan ?? '—'}</dd></div>
-          <div><dt>Bahan</dt><dd>{item.bahan ?? '—'}</dd></div>
-          <div><dt>Warna / cetak</dt><dd>{item.warna_cetak ?? '—'}</dd></div>
-          <div><dt>Jumlah</dt><dd>{item.jumlah ?? '—'}</dd></div>
           <div><dt>Dibutuhkan</dt><dd>{formatDate(item.tenggat)}</dd></div>
           <div><dt>Jadwal produksi</dt><dd>{formatDate(item.jadwal_produksi)}</dd></div>
-          {item.product_name && <div><dt>Produk acuan</dt><dd>{item.product_name}</dd></div>}
           {item.pengiriman && <div><dt>Pengiriman</dt><dd>{item.pengiriman}</dd></div>}
-          {item.spesifikasi && <div className="full"><dt>Spesifikasi lain</dt><dd className="pap-prewrap">{item.spesifikasi}</dd></div>}
+          {item.spesifikasi && <div className="full"><dt>Catatan umum</dt><dd className="pap-prewrap">{item.spesifikasi}</dd></div>}
           {item.special_request && <div className="full"><dt>Special request</dt><dd className="pap-prewrap">{item.special_request}</dd></div>}
           {item.feedback && s !== 'revisi' && <div className="full"><dt>Tanggapan customer</dt><dd className="pap-prewrap">{item.feedback}</dd></div>}
         </dl>
         <Timeline logs={logs} labels={SAMPLE_LABEL} />
       </Modal>
-      {resubmit && <SampleForm resubmit={item} onClose={() => setResubmit(false)} onSaved={(text) => { setResubmit(false); load(); onChanged(text) }} />}
+      {resubmit && <SampleForm resubmit={item} resubmitItems={items} onClose={() => setResubmit(false)} onSaved={(text) => { setResubmit(false); load(); onChanged(text) }} />}
     </>
   )
 }

@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import {
-  canEditProspect, canSupervise, loadProspect, logActivity, parseDateTime, PROSPECT_STATUS, readProspectInput, requireMarketing,
+  canEditProspect, canSupervise, loadProspect, loadProspectProducts, readProspectProducts, saveProspectProducts, logActivity, parseDateTime, PROSPECT_STATUS, readProspectInput, requireMarketing,
   requireMarketingUser, serializeVisit, VISIT_SELECT, type ProspectStatus,
 } from '@/lib/marketing'
 import { notify } from '@/lib/notifications'
@@ -22,7 +22,7 @@ export const GET = handle(async (_request: Request, { params }: Ctx) => {
     [prospect.id],
   )
   const [visits] = await db.query<RowDataPacket[]>(`${VISIT_SELECT} WHERE v.prospect_id = ? ORDER BY v.jadwal DESC`, [prospect.id])
-  return NextResponse.json({ item: prospect, activities, visits: visits.map(serializeVisit), canEdit: canEditProspect(user, prospect as never), canSupervise: canSupervise(user) })
+  return NextResponse.json({ item: { ...prospect, products: await loadProspectProducts(prospect.id) }, activities, visits: visits.map(serializeVisit), canEdit: canEditProspect(user, prospect as never), canSupervise: canSupervise(user) })
 })
 
 // Ubah data prospek, sales/maintenance, status, atau jadwal follow-up (field yang dikirim saja)
@@ -39,6 +39,11 @@ export const PATCH = handle(async (request: Request, { params }: Ctx) => {
 
   if (body.nama_usaha !== undefined) {
     const input = readProspectInput(body)
+    const products = readProspectProducts(body)
+    if (products) {
+      input.kebutuhan = products.map((p) => p.label).join('; ').slice(0, 500) || null
+      await saveProspectProducts(prospect.id, products)
+    }
     for (const [key, value] of Object.entries(input)) {
       sets.push(`${key} = ?`)
       values.push(value)

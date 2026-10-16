@@ -20,7 +20,7 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
   requireMarketing(user, 'visit')
   const visit = await visitOf(ctx, user)
-  if (![visit.sales_id, visit.created_by].includes(user.id) && !canSupervise(user)) fail(403, 'Hanya sales yang visit yang dapat menambah lampiran.')
+  if (![...visit.sales_ids, visit.created_by].includes(user.id) && !canSupervise(user)) fail(403, 'Hanya sales yang visit yang dapat menambah lampiran.')
   if (visit.status === 'batal') fail(400, 'Visit ini sudah dibatalkan.')
   const form = await request.formData().catch(() => fail(400, 'Data upload tidak valid.'))
   const fileValue = form.get('file')

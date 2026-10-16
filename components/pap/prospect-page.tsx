@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, FlaskConical, Palette, CalendarClock, CalendarPlus, ChevronLeft, ChevronRight, Columns3, Handshake, LayoutList, Link2, Mail, MapPin, Pencil, Phone, Plus, Search, Send, Trash2, Upload, UserPlus } from 'lucide-react'
+import { AlertTriangle, FlaskConical, Package, Palette, CalendarClock, CalendarPlus, ChevronLeft, ChevronRight, Columns3, Handshake, LayoutList, Link2, Mail, MapPin, Pencil, Phone, Plus, Search, Send, Trash2, Upload, UserPlus } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { CustomerSelect, type CustomerOption } from './product-page'
 import {
@@ -41,6 +41,7 @@ export type Prospect = {
   customer_no: string | null
   activity_count: number
   next_visit: string | null
+  products?: NeedItem[]
 }
 type Activity = { id: number; jenis: string; hasil: string | null; status_from: ProspectStatus | null; status_to: ProspectStatus | null; created_at: string; user_name: string }
 type ListResponse = {
@@ -293,6 +294,8 @@ function ProspectForm({ initial, users, sources, canSupervise, onClose, onSaved 
     assigned_to: String(initial?.assigned_to ?? ''),
     next_followup_at: initial ? toInputDateTime(initial.next_followup_at) : nowInput(1, 10),
   })
+  // Produk diminati: terhubung ke Data Produk (product_id) atau teks bebas
+  const [products, setProducts] = useState<NeedItem[]>(() => initial?.products ?? splitNeeds(initial?.kebutuhan ?? '').map((label) => ({ product_id: null, label })))
   const [duplicate, setDuplicate] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -304,7 +307,7 @@ function ProspectForm({ initial, users, sources, canSupervise, onClose, onSaved 
     setSaving(true)
     setError('')
     try {
-      const payload = { ...values, assigned_to: canSupervise ? values.assigned_to || null : undefined, force }
+      const payload = { ...values, products, assigned_to: canSupervise ? values.assigned_to || null : undefined, force }
       if (initial) {
         await api(`/api/prospects/${initial.id}`, { method: 'PATCH', json: payload })
         onSaved('Prospek diperbarui.')
@@ -349,7 +352,7 @@ function ProspectForm({ initial, users, sources, canSupervise, onClose, onSaved 
           </select>
         </Field>
         <Field label="Kebutuhan / produk diminati" full hint="Pilih dari Data Produk atau jenis produk, lalu tambah ukuran/catatan bila perlu. Bisa lebih dari satu.">
-          <ProductNeedPicker value={values.kebutuhan} onChange={(kebutuhan) => setValues((v) => ({ ...v, kebutuhan }))} />
+          <ProductNeedPicker value={products} onChange={setProducts} />
         </Field>
         <Field label="Estimasi order"><input className="pap-input" maxLength={150} value={values.estimasi_order} onChange={set('estimasi_order')} placeholder="Contoh: 200 kg / bulan" /></Field>
         <Field label="Follow-up berikutnya"><input className="pap-input" type="datetime-local" value={values.next_followup_at} onChange={set('next_followup_at')} /></Field>
@@ -371,13 +374,14 @@ function ProspectForm({ initial, users, sources, canSupervise, onClose, onSaved 
 // ---- Kebutuhan prospek: ambil dari master Data Produk (atau jenis produk), tetap bisa diketik bebas ----
 type ProductOption = { id: number; nama: string; jenis: string | null; spesifikasi: string | null; bahan: string | null; customer_name: string | null }
 const splitNeeds = (text: string) => text.split(/\s*;\s*/).map((t) => t.trim()).filter(Boolean)
+export type NeedItem = { product_id: number | null; label: string; jenis?: string | null; spesifikasi?: string | null; bahan?: string | null }
 
-function ProductNeedPicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function ProductNeedPicker({ value, onChange }: { value: NeedItem[]; onChange: (value: NeedItem[]) => void }) {
   const [term, setTerm] = useState('')
   const [open, setOpen] = useState(false)
   const [options, setOptions] = useState<ProductOption[]>([])
   const [jenisList, setJenisList] = useState<string[]>([])
-  const needs = splitNeeds(value)
+  const needs = value
 
   useEffect(() => {
     if (!open) return
@@ -394,20 +398,19 @@ function ProductNeedPicker({ value, onChange }: { value: string; onChange: (valu
     return () => clearTimeout(timer)
   }, [term, open])
 
-  const add = (text: string) => {
+  const add = (text: string, product?: ProductOption) => {
     const clean = text.trim().replace(/;/g, ',')
-    if (!clean || needs.some((n) => n.toLowerCase() === clean.toLowerCase())) return
-    onChange([...needs, clean].join('; ').slice(0, 500))
+    if (!clean || needs.some((n) => n.label.toLowerCase() === clean.toLowerCase())) return
+    onChange([...needs, { product_id: product?.id ?? null, label: clean, jenis: product?.jenis, spesifikasi: product?.spesifikasi, bahan: product?.bahan }])
     setTerm('')
   }
-  const remove = (i: number) => onChange(needs.filter((_, idx) => idx !== i).join('; '))
-  const label = (p: ProductOption) => [p.nama, p.spesifikasi].filter(Boolean).join(' · ')
+  const remove = (i: number) => onChange(needs.filter((_, idx) => idx !== i))
 
   return (
     <div className="pap-need-picker">
       {needs.length > 0 && (
         <div className="pap-need-chips">
-          {needs.map((n, i) => <span key={n} className="pap-need-chip">{n}<button type="button" aria-label={`Hapus ${n}`} onClick={() => remove(i)}>×</button></span>)}
+          {needs.map((n, i) => <span key={n.label} className={`pap-need-chip ${n.product_id ? '' : 'free'}`} title={n.product_id ? 'Terhubung ke Data Produk' : 'Teks bebas (belum ada di Data Produk)'}>{n.product_id ? <Package className="pap-inline-icon" /> : null}{n.label}<button type="button" aria-label={`Hapus ${n.label}`} onClick={() => remove(i)}>×</button></span>)}
         </div>
       )}
       <div className="pap-combo">
@@ -424,7 +427,7 @@ function ProductNeedPicker({ value, onChange }: { value: string; onChange: (valu
           <ul className="pap-combo-list">
             {term.trim() && <li><button type="button" onMouseDown={() => add(term)}><strong>Tambah "{term.trim()}"</strong><small>Ketik bebas (produk baru / custom)</small></button></li>}
             {options.map((p) => (
-              <li key={p.id}><button type="button" onMouseDown={() => add(label(p))}><strong>{p.nama}</strong><small>{[p.jenis, p.spesifikasi, p.bahan].filter(Boolean).join(' · ') || 'Data Produk'}</small></button></li>
+              <li key={p.id}><button type="button" onMouseDown={() => add(p.nama, p)}><strong>{p.nama}</strong><small>{[p.jenis, p.spesifikasi, p.bahan].filter(Boolean).join(' · ') || 'Data Produk'}</small></button></li>
             ))}
             {!options.length && !term.trim() && <li className="pap-combo-empty">Ketik untuk mencari produk.</li>}
           </ul>
@@ -550,7 +553,7 @@ function ProspectDetail({ id, user, users, onClose, onEdit, onChanged, onDeleted
           <div><dt>Kontak</dt><dd>{item.kontak_nama ?? '—'}{item.kontak_jabatan ? ` · ${item.kontak_jabatan}` : ''}</dd></div>
           <div><dt>Telepon / email</dt><dd>{item.telepon ? <a href={`tel:+${item.telepon}`}><Phone className="pap-inline-icon" /> +{item.telepon}</a> : '—'}{item.email && <><br /><a href={`mailto:${item.email}`}><Mail className="pap-inline-icon" /> {item.email}</a></>}</dd></div>
           <div><dt>Alamat</dt><dd>{[item.alamat, item.kota].filter(Boolean).join(', ') || '—'}</dd></div>
-          <div><dt>Kebutuhan</dt><dd>{item.kebutuhan ?? '—'}{item.estimasi_order && <><br /><small className="pap-muted">Estimasi: {item.estimasi_order}</small></>}</dd></div>
+          <div><dt>Kebutuhan</dt><dd>{item.products?.length ? <span className="pap-need-chips">{item.products.map((p) => <span key={p.label} className={`pap-need-chip ${p.product_id ? '' : 'free'}`}>{p.product_id ? <Package className="pap-inline-icon" /> : null}{p.label}</span>)}</span> : item.kebutuhan ?? '—'}{item.estimasi_order && <><br /><small className="pap-muted">Estimasi: {item.estimasi_order}</small></>}</dd></div>
           <div>
             <dt>Sales</dt>
             <dd>

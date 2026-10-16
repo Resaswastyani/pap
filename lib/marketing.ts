@@ -139,18 +139,19 @@ export async function requireMarketingUser(value: unknown, label: string) {
 
 export const VISIT_SELECT = `SELECT v.id, v.prospect_id, v.customer_id, v.sales_id, v.jenis, v.jadwal, v.tujuan, v.alamat, v.status,
   v.checkin_at, v.checkin_lat, v.checkin_lng, v.checkin_accuracy, (v.foto IS NOT NULL) AS has_foto, v.hasil, v.next_followup_at,
-  v.created_by, v.created_at, us.name AS sales_name, uc.name AS created_name,
+  v.created_by, v.created_at, uc.name AS created_name,
+  (SELECT GROUP_CONCAT(su.name ORDER BY su.id = v.sales_id DESC, su.name SEPARATOR ', ') FROM visit_sales vs JOIN users su ON su.id = vs.user_id WHERE vs.visit_id = v.id) AS sales_name,
+  (SELECT GROUP_CONCAT(vs.user_id ORDER BY vs.user_id = v.sales_id DESC, vs.user_id) FROM visit_sales vs WHERE vs.visit_id = v.id) AS sales_ids,
   COALESCE(p.nama_usaha, c.name) AS target_name, COALESCE(p.telepon, c.mobile_phone) AS target_phone,
   p.kontak_nama, p.status AS prospect_status, c.customer_no
   FROM visits v
-  JOIN users us ON us.id = v.sales_id
   JOIN users uc ON uc.id = v.created_by
   LEFT JOIN prospects p ON p.id = v.prospect_id
   LEFT JOIN customers c ON c.id = v.customer_id`
 
 export function visitScope(user: UserProfile) {
   if (canSupervise(user)) return { sql: '1 = 1', params: [] as number[] }
-  return { sql: '(v.sales_id = ? OR v.created_by = ?)', params: [user.id, user.id] }
+  return { sql: '(v.created_by = ? OR EXISTS (SELECT 1 FROM visit_sales vs WHERE vs.visit_id = v.id AND vs.user_id = ?))', params: [user.id, user.id] }
 }
 
 export async function loadVisit(id: number, user: UserProfile) {
@@ -164,12 +165,14 @@ export type VisitRow = {
   id: number; prospect_id: number | null; customer_id: number | null; sales_id: number; jenis: string; jadwal: string; tujuan: string | null
   alamat: string | null; status: VisitStatus; checkin_at: string | null; checkin_lat: number | null; checkin_lng: number | null
   checkin_accuracy: number | null; has_foto: boolean; hasil: string | null; next_followup_at: string | null; created_by: number
-  sales_name: string; target_name: string | null; prospect_status: string | null
+  sales_name: string; sales_ids: number[]; target_name: string | null; prospect_status: string | null
 }
 
 export const serializeVisit = (v: RowDataPacket): VisitRow => ({
   ...v,
   has_foto: !!Number(v.has_foto),
+  sales_ids: String(v.sales_ids ?? v.sales_id).split(',').map(Number).filter(Boolean),
+  sales_name: v.sales_name ?? '',
   checkin_lat: v.checkin_lat === null ? null : Number(v.checkin_lat),
   checkin_lng: v.checkin_lng === null ? null : Number(v.checkin_lng),
 }) as VisitRow
@@ -222,6 +225,70 @@ export async function loadVisitAttachments(visitId: number) {
     `SELECT a.id, a.kind, a.name, a.url, a.mime, a.size, a.uploaded_by, a.created_at, u.name AS uploaded_by_name
      FROM visit_attachments a JOIN users u ON u.id = a.uploaded_by WHERE a.visit_id = ? ORDER BY a.id`,
     [visitId],
+  )
+  return rows
+}
+
+// ---- Sales yang ikut visit (bisa lebih dari satu; sales pertama = PIC utama) ----
+export const MAX_VISIT_SALES = 10
+
+// Staff otomatis ikut sebagai PIC utama dan boleh mengajak sales lain; Lead/GM/admin bebas memilih.
+export async function readVisitSales(body: Record<string, unknown>, user: UserProfile) {
+  const raw = Array.isArray(body.sales_ids) ? body.sales_ids : body.sales_id !== undefined && body.sales_id !== '' ? [body.sales_id] : []
+  const ids: number[] = []
+  for (const value of raw.slice(0, MAX_VISIT_SALES)) {
+    const sales = await requireMarketingUser(value, 'Sales')
+    if (sales && !ids.includes(sales.id)) ids.push(sales.id)
+  }
+  if (!canSupervise(user)) return [user.id, ...ids.filter((id) => id !== user.id)].slice(0, MAX_VISIT_SALES)
+  if (!ids.length) {
+    if (isMarketing(user) || user.division.code === 'general_manager') return [user.id]
+    fail(400, 'Pilih sales yang akan melakukan visit.')
+  }
+  return ids
+}
+
+export async function saveVisitSales(visitId: number, ids: number[]) {
+  await db.query('DELETE FROM visit_sales WHERE visit_id = ?', [visitId])
+  await db.query('INSERT INTO visit_sales (visit_id, user_id) VALUES ?', [ids.map((id) => [visitId, id])])
+  await db.query('UPDATE visits SET sales_id = ? WHERE id = ?', [ids[0], visitId])
+}
+
+// ---- Produk diminati prospek: dari Data Produk (product_id) atau teks bebas ----
+export type ProspectProduct = { product_id: number | null; label: string }
+
+// body.products = [{ product_id, label }] (null = tidak dikirim, data lama tidak diubah)
+export function readProspectProducts(body: Record<string, unknown>): ProspectProduct[] | null {
+  if (!Array.isArray(body.products)) return null
+  const list: ProspectProduct[] = []
+  for (const raw of body.products.slice(0, 30) as { product_id?: unknown; label?: unknown }[]) {
+    const label = str(raw?.label, 255)
+    if (label && !list.some((p) => p.label.toLowerCase() === label.toLowerCase())) list.push({ product_id: int(raw?.product_id), label })
+  }
+  return list
+}
+
+export async function saveProspectProducts(prospectId: number, products: ProspectProduct[]) {
+  await db.query('DELETE FROM prospect_products WHERE prospect_id = ?', [prospectId])
+  if (!products.length) return
+  // product_id yang tidak ada di Data Produk disimpan sebagai teks bebas
+  const ids = products.map((p) => p.product_id).filter((id): id is number => !!id)
+  const valid = new Set<number>()
+  if (ids.length) {
+    const [rows] = await db.query<(RowDataPacket & { id: number })[]>('SELECT id FROM customer_products WHERE id IN (?)', [ids])
+    for (const r of rows) valid.add(r.id)
+  }
+  await db.query('INSERT INTO prospect_products (prospect_id, product_id, label, sort_order) VALUES ?', [
+    products.map((p, i) => [prospectId, p.product_id && valid.has(p.product_id) ? p.product_id : null, p.label, i + 1]),
+  ])
+}
+
+export async function loadProspectProducts(prospectId: number) {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT pp.product_id, pp.label, cp.nama, cp.jenis, cp.spesifikasi, cp.bahan
+     FROM prospect_products pp LEFT JOIN customer_products cp ON cp.id = pp.product_id
+     WHERE pp.prospect_id = ? ORDER BY pp.sort_order, pp.id`,
+    [prospectId],
   )
   return rows
 }

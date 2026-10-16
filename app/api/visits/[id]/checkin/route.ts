@@ -11,7 +11,7 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
   requireMarketing(user, 'visit')
   const visit = await loadVisit(int((await ctx.params).id) ?? 0, user)
-  if (visit.sales_id !== user.id && !user.role.isAdmin) fail(403, 'Hanya sales yang dijadwalkan yang dapat check-in.')
+  if (!visit.sales_ids.includes(user.id) && !user.role.isAdmin) fail(403, 'Hanya sales yang dijadwalkan yang dapat check-in.')
   if (visit.status !== 'terjadwal') fail(400, 'Visit ini sudah dilaporkan.')
   const body = await readJson(request)
 

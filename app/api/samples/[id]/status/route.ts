@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { canSupervise, logActivity } from '@/lib/marketing'
 import { formatWaktu } from '@/lib/notifications'
 import {
-  divisionUsers, isPPIC, isProduksi, loadSample, logRequest, notifyRequest, optDate, readSampleSpec, requireRequestMenu,
+  divisionUsers, isPPIC, isProduksi, loadSample, logRequest, notifyRequest, optDate, readSampleRequest, requireRequestMenu, saveSampleItems,
   SAMPLE_STATUS, type SampleStatus,
 } from '@/lib/requests'
 
@@ -59,11 +59,10 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
     values.push(catatan)
   } else if (to === 'diajukan') {
     if (!requester) fail(403, 'Hanya sales yang mengajukan yang dapat mengajukan ulang.')
-    const spec = readSampleSpec(body)
-    for (const [key, value] of Object.entries(spec)) {
-      sets.push(`${key} = ?`)
-      values.push(value)
-    }
+    const spec = readSampleRequest(body)
+    await saveSampleItems(item.id, spec.items)
+    sets.push('nama_produk = ?', 'spesifikasi = ?', 'special_request = ?', 'tenggat = ?')
+    values.push(spec.nama_produk, spec.spesifikasi, spec.special_request, spec.tenggat)
     sets.push('revisi_ke = revisi_ke + 1', 'jadwal_produksi = NULL', 'pengiriman = NULL')
     note = `Diajukan ulang (revisi ${Number(item.revisi_ke) + 1})${catatan ? `: ${catatan}` : ''}`
   } else if (to === 'batal') {

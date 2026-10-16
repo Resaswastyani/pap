@@ -4,7 +4,7 @@ import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import {
   canSupervise, isMarketing, logActivity, MARKETING_DIVISIONS, parseDateTime, PROSPECT_SELECT, PROSPECT_SOURCES, PROSPECT_STATUS,
-  prospectScope, readProspectInput, requireMarketing, requireMarketingUser,
+  prospectScope, readProspectInput, readProspectProducts, saveProspectProducts, requireMarketing, requireMarketingUser,
 } from '@/lib/marketing'
 import { notify } from '@/lib/notifications'
 import { pushToUsers } from '@/lib/push'
@@ -96,6 +96,8 @@ export const POST = handle(async (request: Request) => {
   requireMarketing(user, 'prospek')
   const body = await readJson(request)
   const input = readProspectInput(body)
+  const products = readProspectProducts(body)
+  if (products) input.kebutuhan = products.map((p) => p.label).join('; ').slice(0, 500) || null
   if (input.telepon && !body.force) {
     const [dup] = await db.query<(RowDataPacket & { nama_usaha: string })[]>('SELECT nama_usaha FROM prospects WHERE telepon = ? LIMIT 1', [input.telepon])
     if (dup.length) fail(409, `Nomor ${input.telepon} sudah terdaftar sebagai prospek "${dup[0].nama_usaha}".`)
@@ -112,6 +114,7 @@ export const POST = handle(async (request: Request) => {
       input.kebutuhan, input.estimasi_order, input.catatan, assigned, nextFollowup, user.id],
   )
   const id = result.insertId
+  if (products) await saveProspectProducts(id, products)
   await logActivity(db, { prospectId: id, userId: user.id, jenis: 'status', hasil: `Prospek dibuat oleh ${user.name}${input.sumber ? ` (sumber: ${input.sumber})` : ''}`, statusTo: 'baru' })
   if (assigned && assigned !== user.id) {
     await pushToUsers(await notify([assigned], {

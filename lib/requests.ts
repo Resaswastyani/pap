@@ -117,7 +117,7 @@ export const optDate = (value: unknown, label: string) => {
 
 // ---------- Sample ----------
 export const SAMPLE_SELECT = `SELECT s.*, ur.name AS requested_name, COALESCE(p.nama_usaha, c.name) AS target_name, c.customer_no,
-  cp.nama AS product_name
+  cp.nama AS product_name, (SELECT COUNT(*) FROM sample_request_items i WHERE i.sample_id = s.id) AS item_count
   FROM sample_requests s
   JOIN users ur ON ur.id = s.requested_by
   LEFT JOIN prospects p ON p.id = s.prospect_id
@@ -130,22 +130,63 @@ export async function loadSample(id: number, user: UserProfile) {
   return rows[0] ?? fail(404, 'Request sample tidak ditemukan.')
 }
 
-export function readSampleSpec(body: Record<string, unknown>) {
-  const nama_produk = str(body.nama_produk, 255)
-  if (!nama_produk) fail(400, 'Nama produk sample wajib diisi.')
-  const opt = (key: string, max = 255) => str(body[key], max) || null
+// Satu request sample berisi 1..20 produk; spek tiap produk opsional (hanya nama yang wajib)
+export type SampleItem = {
+  product_id: number | null; nama_produk: string; jenis: string | null; ukuran: string | null; ketebalan: string | null
+  bahan: string | null; warna_cetak: string | null; jumlah: string | null; catatan: string | null
+}
+
+export function readSampleRequest(body: Record<string, unknown>) {
+  const rawItems = Array.isArray(body.items) ? (body.items as Record<string, unknown>[]) : []
+  if (!rawItems.length) fail(400, 'Tambahkan minimal satu produk sample.')
+  if (rawItems.length > 20) fail(400, 'Maksimal 20 produk per request sample.')
+  const items: SampleItem[] = rawItems.map((raw, i) => {
+    const opt = (key: string, max = 255) => str(raw?.[key], max) || null
+    const nama_produk = str(raw?.nama_produk, 255) || fail(400, `Nama produk sample ke-${i + 1} wajib diisi.`)
+    return {
+      product_id: int(raw?.product_id),
+      nama_produk,
+      jenis: opt('jenis', 80),
+      ukuran: opt('ukuran', 150),
+      ketebalan: opt('ketebalan', 80),
+      bahan: opt('bahan', 255),
+      warna_cetak: opt('warna_cetak', 255),
+      jumlah: opt('jumlah', 80),
+      catatan: opt('catatan', 1000),
+    }
+  })
   return {
-    nama_produk,
-    jenis: opt('jenis', 80),
-    ukuran: opt('ukuran', 150),
-    ketebalan: opt('ketebalan', 80),
-    bahan: opt('bahan', 255),
-    warna_cetak: opt('warna_cetak', 255),
-    jumlah: opt('jumlah', 80),
-    spesifikasi: opt('spesifikasi', 5000),
-    special_request: opt('special_request', 5000),
+    items,
+    // Ringkasan untuk daftar & notifikasi
+    nama_produk: (items.length > 1 ? `${items[0].nama_produk} (+${items.length - 1} produk)` : items[0].nama_produk).slice(0, 255),
+    spesifikasi: str(body.spesifikasi, 5000) || null,
+    special_request: str(body.special_request, 5000) || null,
     tenggat: optDate(body.tenggat, 'tenggat'),
   }
+}
+
+export async function saveSampleItems(sampleId: number, items: SampleItem[]) {
+  const ids = items.map((i) => i.product_id).filter((id): id is number => !!id)
+  const valid = new Set<number>()
+  if (ids.length) {
+    const [rows] = await db.query<(RowDataPacket & { id: number })[]>('SELECT id FROM customer_products WHERE id IN (?)', [ids])
+    for (const r of rows) valid.add(r.id)
+  }
+  await db.query('DELETE FROM sample_request_items WHERE sample_id = ?', [sampleId])
+  await db.query(
+    'INSERT INTO sample_request_items (sample_id, product_id, nama_produk, jenis, ukuran, ketebalan, bahan, warna_cetak, jumlah, catatan, sort_order) VALUES ?',
+    [items.map((it, i) => [sampleId, it.product_id && valid.has(it.product_id) ? it.product_id : null, it.nama_produk, it.jenis, it.ukuran, it.ketebalan, it.bahan, it.warna_cetak, it.jumlah, it.catatan, i + 1])],
+  )
+  await db.query('UPDATE sample_requests SET product_id = ? WHERE id = ?', [items[0].product_id && valid.has(items[0].product_id) ? items[0].product_id : null, sampleId])
+}
+
+export async function loadSampleItems(sampleId: number) {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT i.*, cp.nama AS product_name FROM sample_request_items i LEFT JOIN customer_products cp ON cp.id = i.product_id
+     WHERE i.sample_id = ? ORDER BY i.sort_order, i.id`,
+    [sampleId],
+  )
+  return rows
 }
 
 // Tahap yang perlu ditindaklanjuti oleh user ini (untuk filter "Perlu tindakan saya")

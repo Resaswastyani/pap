@@ -73,7 +73,7 @@ export function VisitPage({ user, focusId, onOpenProspect }: { user: UserProfile
     return map
   }, [items])
   const isOverdue = (v: Visit) => v.status === 'terjadwal' && new Date(v.jadwal.replace(' ', 'T')).getTime() < Date.now() - 3600e3
-  const canCheckin = (v: Visit) => v.status === 'terjadwal' && (v.sales_id === user.id || user.role.isAdmin)
+  const canCheckin = (v: Visit) => v.status === 'terjadwal' && (v.sales_ids.includes(user.id) || user.role.isAdmin)
 
   return (
     <>
@@ -126,7 +126,7 @@ export function VisitPage({ user, focusId, onOpenProspect }: { user: UserProfile
                     <div className="pap-visit-time">{v.jadwal.slice(11, 16)}</div>
                     <div className="pap-visit-main">
                       <strong>{v.target_name ?? '—'}</strong>
-                      <small>{VISIT_TYPE_LABEL[v.jenis]}{canSupervise ? ` · ${v.sales_name}` : ''}{v.kontak_nama ? ` · ${v.kontak_nama}` : ''}</small>
+                      <small>{VISIT_TYPE_LABEL[v.jenis]}{canSupervise || v.sales_ids.length > 1 ? ` · ${v.sales_name}` : ''}{v.kontak_nama ? ` · ${v.kontak_nama}` : ''}</small>
                       {v.alamat && <small className="pap-visit-addr"><MapPin className="pap-inline-icon" /> {v.alamat}</small>}
                       {v.tujuan && <span className="pap-clamp">{v.tujuan}</span>}
                     </div>

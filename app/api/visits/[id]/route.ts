@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
-import { canSupervise, loadVisit, logActivity, parseDateTime, requireMarketing, requireMarketingUser, VISIT_TYPES } from '@/lib/marketing'
+import { canSupervise, loadVisit, logActivity, parseDateTime, readVisitSales, requireMarketing, saveVisitSales, VISIT_TYPES } from '@/lib/marketing'
 import { formatWaktu } from '@/lib/notifications'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -30,8 +30,12 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   const jadwal = parseDateTime(body.jadwal, 'Jadwal visit', true)!
   const jenis = str(body.jenis, 20) || visit.jenis
   if (!(jenis in VISIT_TYPES)) fail(400, 'Jenis visit tidak valid.')
-  const salesId = canSupervise(user) && body.sales_id !== undefined ? (await requireMarketingUser(body.sales_id, 'Sales'))?.id ?? visit.sales_id : visit.sales_id
-  await db.query('UPDATE visits SET jadwal = ?, jenis = ?, tujuan = ?, alamat = ?, sales_id = ? WHERE id = ?', [jadwal, jenis, str(body.tujuan, 500) || null, str(body.alamat, 500) || null, salesId, visit.id])
+  await db.query('UPDATE visits SET jadwal = ?, jenis = ?, tujuan = ?, alamat = ? WHERE id = ?', [jadwal, jenis, str(body.tujuan, 500) || null, str(body.alamat, 500) || null, visit.id])
+  if (body.sales_ids !== undefined || body.sales_id !== undefined) {
+    // Staff yang bukan pembuat tetap ikut di daftar sales saat mengubah
+    const ids = await readVisitSales(body, user)
+    await saveVisitSales(visit.id, ids)
+  }
   if (jadwal !== visit.jadwal) {
     await logActivity(db, { prospectId: visit.prospect_id, customerId: visit.customer_id, visitId: visit.id, userId: user.id, jenis: 'catatan', hasil: `Visit dijadwal ulang ke ${formatWaktu(jadwal)}` })
   }

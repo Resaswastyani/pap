@@ -49,6 +49,7 @@ export type Visit = {
   next_followup_at: string | null
   created_by: number
   sales_name: string
+  sales_ids: number[]
   created_name: string
   target_name: string | null
   target_phone: string | null
@@ -114,6 +115,27 @@ export function ProspectSelect({ value, onChange }: { value: ProspectOption | nu
   )
 }
 
+// Pilih beberapa sales (chip). lockedId = user login yang wajib ikut (staff).
+function SalesPicker({ users, selected, lockedId, onChange }: { users: MarketingUser[]; selected: number[]; lockedId: number | null; onChange: (ids: number[]) => void }) {
+  const [adding, setAdding] = useState('')
+  const name = (id: number) => users.find((u) => u.id === id)?.name ?? `User #${id}`
+  const ids = lockedId && !selected.includes(lockedId) ? [lockedId, ...selected] : selected
+  return (
+    <div className="pap-sales-picker">
+      <div className="pap-need-chips">
+        {ids.map((id, i) => (
+          <span key={id} className="pap-need-chip">{i === 0 ? '★ ' : ''}{name(id)}{id !== lockedId && <button type="button" aria-label={`Hapus ${name(id)}`} onClick={() => onChange(ids.filter((x) => x !== id))}>×</button>}</span>
+        ))}
+        {!ids.length && <span className="pap-muted">Belum ada sales dipilih.</span>}
+      </div>
+      <select className="pap-select" value={adding} onChange={(e) => { const id = Number(e.target.value); if (id && !ids.includes(id)) onChange([...ids, id]); setAdding('') }} aria-label="Tambah sales">
+        <option value="">+ Tambah sales...</option>
+        {users.filter((u) => !ids.includes(u.id)).map((u) => <option key={u.id} value={u.id}>{u.name} · {u.division_name}</option>)}
+      </select>
+    </div>
+  )
+}
+
 // ---- Form jadwal visit (baru / jadwal ulang) ----
 export function VisitForm({ initial, prospect, users, canSupervise, currentUserId, onClose, onSaved }: {
   initial?: Visit | null
@@ -133,7 +155,12 @@ export function VisitForm({ initial, prospect, users, canSupervise, currentUserI
     tujuan: initial?.tujuan ?? '',
     alamat: initial?.alamat ?? (prospect ? [prospect.alamat, prospect.kota].filter(Boolean).join(', ') : ''),
     // Default: sales prospek, lalu user yang login bila ia termasuk daftar sales; selain itu wajib dipilih
-    sales_id: String(initial?.sales_id ?? prospect?.assigned_to ?? (users.some((u) => u.id === currentUserId) ? currentUserId : '')),
+  })
+  // Sales yang ikut (bisa lebih dari satu). Default: sales visit lama / sales prospek / user login bila ia sales
+  const [salesIds, setSalesIds] = useState<number[]>(() => {
+    if (initial) return initial.sales_ids
+    const first = prospect?.assigned_to ?? (users.some((u) => u.id === currentUserId) ? currentUserId : null)
+    return first ? [first] : []
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -144,13 +171,14 @@ export function VisitForm({ initial, prospect, users, canSupervise, currentUserI
     setSaving(true)
     setError('')
     try {
+      if (!salesIds.length) throw new Error('Pilih minimal satu sales.')
       if (initial) {
-        await api(`/api/visits/${initial.id}`, { method: 'PATCH', json: values })
+        await api(`/api/visits/${initial.id}`, { method: 'PATCH', json: { ...values, sales_ids: salesIds } })
         onSaved('Jadwal visit diperbarui.')
       } else {
         if (target === 'prospek' && !pickedProspect) throw new Error('Pilih prospek yang dikunjungi.')
         if (target === 'customer' && !pickedCustomer) throw new Error('Pilih customer yang dikunjungi.')
-        await api('/api/visits', { method: 'POST', json: { ...values, prospect_id: target === 'prospek' ? pickedProspect!.id : null, customer_id: target === 'customer' ? pickedCustomer!.id : null } })
+        await api('/api/visits', { method: 'POST', json: { ...values, sales_ids: salesIds, prospect_id: target === 'prospek' ? pickedProspect!.id : null, customer_id: target === 'customer' ? pickedCustomer!.id : null } })
         onSaved('Visit dijadwalkan.')
       }
     } catch (err) {
@@ -188,14 +216,11 @@ export function VisitForm({ initial, prospect, users, canSupervise, currentUserI
           <select className="pap-select" value={values.jenis} onChange={set('jenis')}>{Object.entries(VISIT_TYPE_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
         </Field>
         <Field label="Jadwal"><input className="pap-input" type="datetime-local" required value={values.jadwal} onChange={set('jadwal')} /></Field>
-        {canSupervise && (
-          <Field label="Sales" full>
-            <select className="pap-select" required value={values.sales_id} onChange={set('sales_id')}>
-              <option value="" disabled>Pilih sales yang akan visit</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.name} · {u.division_name}</option>)}
-            </select>
-          </Field>
-        )}
+        <div className="pap-field full">
+          <span>Sales yang ikut visit</span>
+          <SalesPicker users={users} selected={salesIds} lockedId={canSupervise ? null : currentUserId} onChange={setSalesIds} />
+          <small>Bisa lebih dari satu. Sales pertama menjadi PIC utama; semua sales mendapat pengingat dan bisa check-in.</small>
+        </div>
         <Field label="Alamat / lokasi" full hint="Dipakai untuk membuka Google Maps menuju lokasi."><input className="pap-input" maxLength={500} value={values.alamat} onChange={set('alamat')} /></Field>
         <Field label="Tujuan visit" full><textarea className="pap-input" rows={2} maxLength={500} value={values.tujuan} onChange={set('tujuan')} placeholder="Contoh: presentasi produk & bawa sampel kantong HD" /></Field>
       </form>
@@ -468,8 +493,9 @@ export function VisitDetail({ visit, currentUserId, canSupervise, isAdmin, onClo
 }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const canCheckin = visit.status === 'terjadwal' && (visit.sales_id === currentUserId || isAdmin)
-  const canChange = visit.status === 'terjadwal' && (canSupervise || visit.sales_id === currentUserId || visit.created_by === currentUserId)
+  const isSales = visit.sales_ids.includes(currentUserId)
+  const canCheckin = visit.status === 'terjadwal' && (isSales || isAdmin)
+  const canChange = visit.status === 'terjadwal' && (canSupervise || isSales || visit.created_by === currentUserId)
 
   async function cancel() {
     const alasan = window.prompt('Alasan pembatalan visit (opsional):')
@@ -534,7 +560,7 @@ export function VisitDetail({ visit, currentUserId, canSupervise, isAdmin, onClo
         </section>
       )}
       {!visit.checkin_at && visit.hasil && <section className="pap-detail-section"><h3>Catatan</h3><p className="pap-prewrap">{visit.hasil}</p></section>}
-      <VisitAttachments visitId={visit.id} canAdd={visit.status !== 'batal' && (visit.sales_id === currentUserId || visit.created_by === currentUserId || canSupervise)} currentUserId={currentUserId} isAdmin={isAdmin} />
+      <VisitAttachments visitId={visit.id} canAdd={visit.status !== 'batal' && (isSales || visit.created_by === currentUserId || canSupervise)} currentUserId={currentUserId} isAdmin={isAdmin} />
     </Modal>
   )
 }

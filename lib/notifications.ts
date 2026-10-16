@@ -79,9 +79,9 @@ export async function createDueReminders(userId?: number) {
 async function createMarketingReminders(userId?: number) {
   const created: number[] = []
   const [visits] = await db.query<(RowDataPacket & { id: number; jadwal: string; sales_id: number; target: string | null; alamat: string | null })[]>(
-    `SELECT v.id, v.jadwal, v.sales_id, v.alamat, COALESCE(p.nama_usaha, c.name) AS target FROM visits v
+    `SELECT v.id, v.jadwal, vs.user_id AS sales_id, v.alamat, COALESCE(p.nama_usaha, c.name) AS target FROM visits v JOIN visit_sales vs ON vs.visit_id = v.id
      LEFT JOIN prospects p ON p.id = v.prospect_id LEFT JOIN customers c ON c.id = v.customer_id
-     WHERE v.status = 'terjadwal' AND v.jadwal > NOW() AND v.jadwal <= NOW() + INTERVAL ? MINUTE ${userId ? 'AND v.sales_id = ?' : ''}`,
+     WHERE v.status = 'terjadwal' AND v.jadwal > NOW() AND v.jadwal <= NOW() + INTERVAL ? MINUTE ${userId ? 'AND vs.user_id = ?' : ''}`,
     userId ? [VISIT_REMINDER_MINUTES, userId] : [VISIT_REMINDER_MINUTES],
   )
   for (const visit of visits) {

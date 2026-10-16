@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import {
-  canSupervise, isMarketing, loadProspect, logActivity, MARKETING_DIVISIONS, parseDateTime, PIPELINE, requireMarketing, requireMarketingUser,
+  canSupervise, loadProspect, readVisitSales, saveVisitSales, logActivity, MARKETING_DIVISIONS, parseDateTime, PIPELINE, requireMarketing, requireMarketingUser,
   serializeVisit, VISIT_SELECT, VISIT_TYPES, visitScope, type ProspectStatus,
 } from '@/lib/marketing'
 import { formatWaktu, notify } from '@/lib/notifications'
@@ -24,7 +24,7 @@ export const GET = handle(async (request: Request) => {
   const params: (string | number)[] = [...scope.params, from, to]
   const sales = int(url.searchParams.get('sales'))
   if (sales) {
-    where.push('v.sales_id = ?')
+    where.push('EXISTS (SELECT 1 FROM visit_sales vf WHERE vf.visit_id = v.id AND vf.user_id = ?)')
     params.push(sales)
   }
   const status = str(url.searchParams.get('status'), 20)
@@ -62,9 +62,9 @@ export const POST = handle(async (request: Request) => {
   const jadwal = parseDateTime(body.jadwal, 'Jadwal visit', true)!
   const jenis = str(body.jenis, 20) || 'visit'
   if (!(jenis in VISIT_TYPES)) fail(400, 'Jenis visit tidak valid.')
-  // Supervisor memilih sales; bila kosong, dirinya sendiri hanya jika ia orang marketing (bukan admin/IT)
-  const chosen = canSupervise(user) ? (await requireMarketingUser(body.sales_id, 'Sales'))?.id ?? null : null
-  const salesId = chosen ?? (isMarketing(user) || user.division.code === 'general_manager' ? user.id : fail(400, 'Pilih sales yang akan melakukan visit.'))
+  // Bisa lebih dari satu sales; sales pertama = PIC utama
+  const salesIds = await readVisitSales(body, user)
+  const salesId = salesIds[0]
 
   let prospect: RowDataPacket | null = null
   let customer: (RowDataPacket & { id: number; name: string; bill_street: string | null; bill_city: string | null }) | null = null
@@ -86,6 +86,7 @@ export const POST = handle(async (request: Request) => {
     [prospect?.id ?? null, customer?.id ?? null, salesId, jenis, jadwal, tujuan, alamat, user.id],
   )
   const visitId = result.insertId
+  await saveVisitSales(visitId, salesIds)
   const targetName = prospect?.nama_usaha ?? customer!.name
   if (prospect) {
     const status = prospect.status as ProspectStatus
@@ -99,8 +100,8 @@ export const POST = handle(async (request: Request) => {
   } else {
     await logActivity(db, { customerId: customer!.id, visitId, userId: user.id, jenis: 'catatan', hasil: `Visit dijadwalkan ${formatWaktu(jadwal)}${tujuan ? `: ${tujuan}` : ''}` })
   }
-  if (salesId !== user.id) {
-    await pushToUsers(await notify([salesId], {
+  if (salesIds.some((id) => id !== user.id)) {
+    await pushToUsers(await notify(salesIds.filter((id) => id !== user.id), {
       type: 'visit_reminder',
       title: `Jadwal visit baru: ${targetName}`,
       body: [formatWaktu(jadwal), alamat].filter(Boolean).join(' · '),

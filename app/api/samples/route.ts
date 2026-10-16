@@ -4,7 +4,7 @@ import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { logActivity } from '@/lib/marketing'
 import {
-  canRequest, divisionUsers, isPPIC, isProduksi, logRequest, notifyRequest, readSampleSpec, readTarget, requireRequestMenu,
+  canRequest, divisionUsers, isPPIC, isProduksi, logRequest, notifyRequest, readSampleRequest, readTarget, saveSampleItems, requireRequestMenu,
   SAMPLE_SELECT, SAMPLE_STATUS, sampleScope, sampleTodoSql, setNomor,
 } from '@/lib/requests'
 
@@ -53,7 +53,7 @@ export const GET = handle(async (request: Request) => {
     params,
   )
   return NextResponse.json({
-    items,
+    items: items.map((s) => ({ ...s, item_count: Number(s.item_count) })),
     counts: { todo: Number(counts.todo), aktif: Number(counts.aktif) },
     summary: Object.fromEntries(summary.map((r) => [r.status, Number(r.n)])),
     roles: { canRequest: canRequest(user), ppic: isPPIC(user), produksi: isProduksi(user) },
@@ -67,21 +67,20 @@ export const POST = handle(async (request: Request) => {
   if (!canRequest(user)) fail(403, 'Request sample diajukan oleh Marketing.')
   const body = await readJson(request)
   const target = await readTarget(body, user)
-  const spec = readSampleSpec(body)
+  const spec = readSampleRequest(body)
   const [result] = await db.query<ResultSetHeader>(
-    `INSERT INTO sample_requests (prospect_id, customer_id, product_id, nama_produk, jenis, ukuran, ketebalan, bahan, warna_cetak, jumlah, spesifikasi,
-       special_request, tenggat, requested_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [target.prospectId, target.customerId, target.productId, spec.nama_produk, spec.jenis, spec.ukuran, spec.ketebalan, spec.bahan, spec.warna_cetak,
-      spec.jumlah, spec.spesifikasi, spec.special_request, spec.tenggat, user.id],
+    `INSERT INTO sample_requests (prospect_id, customer_id, nama_produk, spesifikasi, special_request, tenggat, requested_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [target.prospectId, target.customerId, spec.nama_produk, spec.spesifikasi, spec.special_request, spec.tenggat, user.id],
   )
   const id = result.insertId
+  await saveSampleItems(id, spec.items)
   const nomor = await setNomor('sample_requests', 'SMP', id)
   await logRequest({ sampleId: id, userId: user.id, to: 'diajukan', catatan: spec.special_request })
-  if (target.prospectId) await logActivity(db, { prospectId: target.prospectId, userId: user.id, jenis: 'catatan', hasil: `Request sample ${nomor}: ${spec.nama_produk}` })
+  if (target.prospectId) await logActivity(db, { prospectId: target.prospectId, userId: user.id, jenis: 'catatan', hasil: `Request sample ${nomor}: ${spec.items.map((i) => i.nama_produk).join(', ')}` })
   await notifyRequest(await divisionUsers(['ppic']), user.id, {
     type: 'sample_update',
     title: `Request sample baru ${nomor}`,
-    body: [spec.nama_produk, spec.jumlah, spec.tenggat && `butuh ${spec.tenggat}`, `dari ${user.name}`].filter(Boolean).join(' · '),
+    body: [spec.nama_produk, spec.tenggat && `butuh ${spec.tenggat}`, `dari ${user.name}`].filter(Boolean).join(' · '),
     sampleId: id,
     refKey: `sample:${id}:diajukan:0`,
   })
