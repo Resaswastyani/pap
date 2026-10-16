@@ -544,7 +544,7 @@ type Design = {
   judul: string; jenis: string | null; ukuran: string | null; warna_cetak: string | null; brief: string; deadline: string | null
   status: DesignStatus; designer_id: number | null; revisi_ke: number; feedback: string | null; final_file_id: number | null
   requested_by: number; requested_name: string; designer_name: string | null; target_name: string | null; customer_no: string | null
-  product_name: string | null; design_count: number; created_at: string
+  product_name: string | null; design_count: number; created_at: string; kategori: 'klise' | 'konten'; jenis_konten: string | null
 }
 type DesignFile = { id: number; kind: 'referensi' | 'desain'; versi: number; name: string; mime: string; size: number; created_at: string; uploaded_by_name: string }
 type DesignRoles = { canRequest: boolean; designer: boolean; isRequester?: boolean; isDesignerOf?: boolean }
@@ -555,6 +555,7 @@ export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: num
   const [summary, setSummary] = useState<Partial<Record<DesignStatus, number>>>({})
   const [roles, setRoles] = useState<DesignRoles>({ canRequest: false, designer: false })
   const [status, setStatus] = useState('aktif')
+  const [kategori, setKategori] = useState('')
   const [q, setQ] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -568,6 +569,7 @@ export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: num
     try {
       const params = new URLSearchParams({ status })
       if (q.trim()) params.set('q', q.trim())
+      if (kategori) params.set('kategori', kategori)
       const res = await api<{ items: Design[]; counts: typeof counts; summary: typeof summary; roles: DesignRoles }>(`/api/designs?${params}`)
       setItems(res.items)
       setCounts(res.counts)
@@ -583,7 +585,7 @@ export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: num
     } finally {
       setLoading(false)
     }
-  }, [status, q])
+  }, [status, q, kategori])
   useEffect(() => {
     const timer = setTimeout(load, q ? 300 : 0)
     return () => clearTimeout(timer)
@@ -596,7 +598,7 @@ export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: num
         <div>
           <p className="pap-eyebrow">MARKETING · TIM DESAIN</p>
           <h1>Request Desain</h1>
-          <span>Sales mengirim brief desain klise, Tim Desain mengunggah desain, customer menyetujui atau minta revisi. Desain final otomatis masuk ke Data Produk.</span>
+          <span>Klise cetakan (desain final masuk Data Produk) dan konten digital untuk Marketing Digital (masuk Bank Konten). Tim Desain mengunggah desain per versi sampai disetujui.</span>
         </div>
         {roles.canRequest && <button className="pap-primary-button" onClick={() => setForm(true)}><Plus /> Request desain</button>}
       </div>
@@ -605,6 +607,11 @@ export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: num
         status={status} setStatus={setStatus} q={q} setQ={setQ} counts={counts} summary={summary}
         labels={DESIGN_LABEL} order={[...DESIGN_FLOW, 'revisi', 'batal']} placeholder="Cari nomor, judul, prospek/customer..."
       />
+      <div className="pap-segmented pap-page-tabs" role="tablist" aria-label="Kategori desain">
+        <button className={kategori === '' ? 'active' : ''} onClick={() => setKategori('')}>Semua</button>
+        <button className={kategori === 'klise' ? 'active' : ''} onClick={() => setKategori('klise')}>Klise cetakan</button>
+        <button className={kategori === 'konten' ? 'active' : ''} onClick={() => setKategori('konten')}>Konten digital</button>
+      </div>
       <div className="pap-table-card">
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
@@ -614,8 +621,8 @@ export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: num
               {items.map((d) => (
                 <tr key={d.id} className="pap-row-link" onClick={() => setDetailId(d.id)}>
                   <td><div className="pap-cell-title">{d.nomor}</div>{d.revisi_ke > 0 && <div className="pap-cell-sub">Revisi {d.revisi_ke}</div>}</td>
-                  <td><div className="pap-cell-title">{d.judul}</div><div className="pap-cell-sub">{[d.jenis, d.ukuran].filter(Boolean).join(' · ')}{d.design_count ? ` · ${d.design_count} file desain` : ''}</div></td>
-                  <td>{d.target_name ?? '—'}</td>
+                  <td><div className="pap-cell-title">{d.judul} <span className={`pap-chip ${d.kategori === 'konten' ? 'konten' : ''}`}>{d.kategori === 'konten' ? `Konten ${d.jenis_konten ?? ''}` : 'Klise'}</span></div><div className="pap-cell-sub">{[d.jenis, d.ukuran].filter(Boolean).join(' · ')}{d.design_count ? ` · ${d.design_count} file desain` : ''}</div></td>
+                  <td>{d.target_name ?? (d.kategori === 'konten' ? 'Marketing Digital' : '—')}</td>
                   <td>{d.requested_name}<div className="pap-cell-sub">{formatDate(d.created_at)}</div></td>
                   <td>{d.designer_name ?? <span className="pap-muted">Belum diambil</span>}</td>
                   <td className={d.deadline && d.deadline < new Date().toISOString().slice(0, 10) && !['disetujui', 'batal'].includes(d.status) ? 'pap-followup overdue' : ''}>{formatDate(d.deadline)}</td>
@@ -641,21 +648,30 @@ async function uploadDesignFile(designId: number, kind: 'referensi' | 'desain', 
   await api(`/api/designs/${designId}/files`, { method: 'POST', body: form })
 }
 
-export function DesignForm({ prospect, onClose, onSaved }: { prospect?: PrefillProspect | null; onClose: () => void; onSaved: (message: string, id: number) => void }) {
+export type DesignPreset = { judul: string; brief: string; deadline?: string; jenis_konten?: string; content_plan_id?: number }
+
+export function DesignForm({ prospect, preset, onClose, onSaved }: { prospect?: PrefillProspect | null; preset?: DesignPreset; onClose: () => void; onSaved: (message: string, id: number) => void }) {
+  // Klise cetakan (prospek/customer, hasil ke Data Produk) atau konten digital (Marketing Digital, hasil ke bank konten)
+  const [kategori, setKategori] = useState<'klise' | 'konten'>(preset ? 'konten' : 'klise')
+  const [jenisKonten, setJenisKonten] = useState(preset?.jenis_konten ?? 'gambar')
   const [target, setTarget] = useState<{ prospect_id: number | null; customer_id: number | null }>({ prospect_id: prospect?.id ?? null, customer_id: null })
   const [product, setProduct] = useState<ProductRef | null>(null)
-  const [values, setValues] = useState({ judul: prospect?.kebutuhan?.split(';')[0]?.trim() ?? '', jenis: '', ukuran: '', warna_cetak: '', deadline: '', brief: '' })
+  const [values, setValues] = useState({ judul: preset?.judul ?? prospect?.kebutuhan?.split(';')[0]?.trim() ?? '', jenis: '', ukuran: '', warna_cetak: '', deadline: preset?.deadline ?? '', brief: preset?.brief ?? '' })
   const [files, setFiles] = useState<File[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const set = (key: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [key]: e.target.value }))
+  const konten = kategori === 'konten'
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     setError('')
     try {
-      const res = await api<{ id: number; nomor: string }>('/api/designs', { method: 'POST', json: { ...values, ...target, product_id: product?.id ?? null } })
+      const payload = konten
+        ? { ...values, kategori, jenis_konten: jenisKonten, content_plan_id: preset?.content_plan_id ?? null }
+        : { ...values, ...target, kategori, product_id: product?.id ?? null }
+      const res = await api<{ id: number; nomor: string }>('/api/designs', { method: 'POST', json: payload })
       const failed: string[] = []
       for (const file of files) await uploadDesignFile(res.id, 'referensi', file).catch((err: Error) => failed.push(err.message))
       onSaved(`Request desain ${res.nomor} terkirim ke Tim Desain.${failed.length ? ` Sebagian referensi gagal diunggah: ${failed.join('; ')}` : ''}`, res.id)
@@ -667,25 +683,42 @@ export function DesignForm({ prospect, onClose, onSaved }: { prospect?: PrefillP
   }
   return (
     <Modal
-      title="Request desain klise"
-      subtitle="Brief dikirim ke Tim Desain"
+      title={konten ? 'Request konten digital' : 'Request desain klise'}
+      subtitle={konten ? 'Gambar / video untuk sosial media, iklan, atau blasting — dikerjakan Tim Desain' : 'Brief dikirim ke Tim Desain'}
       wide
       onClose={onClose}
       footer={<><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="design-form" className="pap-primary-button" disabled={saving}><Send /> {saving ? 'Mengirim...' : 'Kirim ke Tim Desain'}</button></>}
     >
       <form id="design-form" className="pap-form-grid" onSubmit={submit}>
         {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
-        <Field label="Untuk" full><TargetPicker prospect={prospect} onChange={setTarget} /></Field>
-        <Field label="Produk yang sudah ada" full hint="Pilih bila ini revisi desain produk lama; desain final akan ditambahkan ke produk tersebut. Kosongkan untuk produk baru.">
-          <ProductRefSelect value={product} onChange={(p) => { setProduct(p); if (p) setValues((v) => ({ ...v, judul: p.nama, jenis: p.jenis ?? v.jenis })) }} />
-        </Field>
-        <Field label="Nama produk / desain" full><input className="pap-input" required maxLength={255} value={values.judul} onChange={set('judul')} placeholder="Contoh: Kantong laundry Bersih Jaya 40x60" /></Field>
-        <Field label="Jenis"><input className="pap-input" list="pap-jenis-design" maxLength={80} value={values.jenis} onChange={set('jenis')} /></Field>
-        <Field label="Ukuran"><input className="pap-input" maxLength={150} value={values.ukuran} onChange={set('ukuran')} placeholder="Contoh: 40 x 60 cm" /></Field>
-        <Field label="Warna cetak"><input className="pap-input" maxLength={255} value={values.warna_cetak} onChange={set('warna_cetak')} placeholder="Contoh: 2 warna (merah, biru), 2 sisi" /></Field>
+        {!prospect && !preset && (
+          <div className="pap-field full">
+            <span>Kategori</span>
+            <div className="pap-segmented">
+              <button type="button" className={!konten ? 'active' : ''} onClick={() => setKategori('klise')}>Klise cetakan (order)</button>
+              <button type="button" className={konten ? 'active' : ''} onClick={() => setKategori('konten')}>Konten digital (MDigi)</button>
+            </div>
+          </div>
+        )}
+        {!konten && <Field label="Untuk" full><TargetPicker prospect={prospect} onChange={setTarget} /></Field>}
+        {!konten && (
+          <Field label="Produk yang sudah ada" full hint="Pilih bila ini revisi desain produk lama; desain final akan ditambahkan ke produk tersebut. Kosongkan untuk produk baru.">
+            <ProductRefSelect value={product} onChange={(p) => { setProduct(p); if (p) setValues((v) => ({ ...v, judul: p.nama, jenis: p.jenis ?? v.jenis })) }} />
+          </Field>
+        )}
+        <Field label={konten ? 'Judul konten' : 'Nama produk / desain'} full><input className="pap-input" required maxLength={255} value={values.judul} onChange={set('judul')} placeholder={konten ? 'Contoh: Promo kantong laundry custom Oktober' : 'Contoh: Kantong laundry Bersih Jaya 40x60'} /></Field>
+        {konten ? (
+          <Field label="Jenis konten">
+            <select className="pap-select" value={jenisKonten} onChange={(e) => setJenisKonten(e.target.value)}>
+              <option value="gambar">Gambar / feed</option><option value="carousel">Carousel</option><option value="video">Video / reels</option><option value="lainnya">Lainnya</option>
+            </select>
+          </Field>
+        ) : <Field label="Jenis"><input className="pap-input" list="pap-jenis-design" maxLength={80} value={values.jenis} onChange={set('jenis')} /></Field>}
+        <Field label={konten ? 'Ukuran / format' : 'Ukuran'}><input className="pap-input" maxLength={150} value={values.ukuran} onChange={set('ukuran')} placeholder={konten ? 'Contoh: 1080x1350 (4:5), video 9:16 30 detik' : 'Contoh: 40 x 60 cm'} /></Field>
+        {!konten && <Field label="Warna cetak"><input className="pap-input" maxLength={255} value={values.warna_cetak} onChange={set('warna_cetak')} placeholder="Contoh: 2 warna (merah, biru), 2 sisi" /></Field>}
         <Field label="Deadline"><input className="pap-input" type="date" value={values.deadline} onChange={set('deadline')} /></Field>
-        <Field label="Brief desain" full><textarea className="pap-input" rows={4} required maxLength={10000} value={values.brief} onChange={set('brief')} placeholder="Isi teks (nama usaha, alamat, nomor WA), logo, posisi, gaya, warna dominan, contoh yang disukai customer..." /></Field>
-        <Field label="File referensi (opsional)" full hint="Logo, foto contoh, sketsa. PDF/JPG/PNG/WEBP, maks 4 MB per file.">
+        <Field label="Brief" full><textarea className="pap-input" rows={4} required maxLength={10000} value={values.brief} onChange={set('brief')} placeholder={konten ? 'Pesan utama, teks/caption di gambar, CTA (nomor WA), gaya visual, referensi akun yang disukai...' : 'Isi teks (nama usaha, alamat, nomor WA), logo, posisi, gaya, warna dominan, contoh yang disukai customer...'} /></Field>
+        <Field label="File referensi (opsional)" full hint="Logo, foto produk, contoh, sketsa. PDF/JPG/PNG/WEBP, maks 4 MB per file.">
           <input className="pap-input" type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(e) => setFiles([...(e.target.files ?? [])])} />
         </Field>
         <datalist id="pap-jenis-design">{JENIS.map((j) => <option key={j} value={j} />)}</datalist>
@@ -814,18 +847,18 @@ function DesignDetail({ id, user, onClose, onChanged }: { id: number; user: User
       {s === 'review' && roles.isRequester && (
         <div className="pap-inline-panel">
           <strong>Tanggapan customer atas desain versi {latestVersi}</strong>
-          <p className="pap-muted">Pilih file final di daftar desain di bawah bila customer setuju. Desain final otomatis masuk ke Data Produk.</p>
+          <p className="pap-muted">{item.kategori === 'konten' ? 'Pilih file final bila konten disetujui; otomatis masuk Bank Konten dan rencana konten menjadi Siap tayang.' : 'Pilih file final di daftar desain di bawah bila customer setuju. Desain final otomatis masuk ke Data Produk.'}</p>
           <textarea className="pap-input" rows={3} maxLength={5000} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Tanggapan customer. Wajib diisi bila minta revisi." />
           <div className="pap-inline-actions pap-wrap">
             <button className="pap-btn danger" disabled={busy || !catatan.trim()} onClick={() => act({ status: 'revisi', catatan }, 'Revisi dikirim ke Tim Desain.')}><RotateCcw /> Minta revisi</button>
             <span className="pap-spacer" />
-            <button className="pap-primary-button" disabled={busy || !finalId} onClick={() => act({ status: 'disetujui', catatan, file_id: finalId }, 'Desain disetujui dan masuk ke Data Produk.')}><CheckCircle2 /> Customer setuju</button>
+            <button className="pap-primary-button" disabled={busy || !finalId} onClick={() => act({ status: 'disetujui', catatan, file_id: finalId }, item.kategori === 'konten' ? 'Konten disetujui dan masuk Bank Konten.' : 'Desain disetujui dan masuk ke Data Produk.')}><CheckCircle2 /> {item.kategori === 'konten' ? 'Setujui konten' : 'Customer setuju'}</button>
           </div>
         </div>
       )}
-      {s === 'disetujui' && (
-        <Notice kind="success">Desain final sudah masuk ke Data Produk{item.product_name ? `: ${item.product_name}` : ''}.{item.customer_id ? '' : ' Produk akan terhubung ke customer saat prospek dijadikan customer.'}</Notice>
-      )}
+      {s === 'disetujui' && (item.kategori === 'konten'
+        ? <Notice kind="success">Konten final tersimpan di Bank Konten (menu Kalender Konten).</Notice>
+        : <Notice kind="success">Desain final sudah masuk ke Data Produk{item.product_name ? `: ${item.product_name}` : ''}.{item.customer_id ? '' : ' Produk akan terhubung ke customer saat prospek dijadikan customer.'}</Notice>)}
 
       <dl className="pap-detail-grid">
         <div><dt>Jenis</dt><dd>{item.jenis ?? '—'}</dd></div>

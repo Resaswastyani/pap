@@ -2,6 +2,7 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
+import { canEditContent } from '@/lib/content'
 import { logActivity } from '@/lib/marketing'
 import {
   canRequest, DESIGN_SELECT, DESIGN_STATUS, designScope, designTodoSql, divisionUsers, isDesigner, logRequest, notifyRequest, readDesignBrief,
@@ -24,6 +25,11 @@ export const GET = handle(async (request: Request) => {
   if (prospect) {
     where.push('d.prospect_id = ?')
     params.push(prospect)
+  }
+  const kategori = url.searchParams.get('kategori')
+  if (kategori === 'klise' || kategori === 'konten') {
+    where.push('d.kategori = ?')
+    params.push(kategori)
   }
   const todo = designTodoSql(user)
   const from = 'FROM design_requests d LEFT JOIN prospects p ON p.id = d.prospect_id LEFT JOIN customers c ON c.id = d.customer_id'
@@ -55,21 +61,30 @@ export const GET = handle(async (request: Request) => {
   })
 })
 
-// Sales mengirim brief desain klise -> notifikasi ke Tim Desain. File referensi diunggah setelahnya.
+// Brief desain -> notifikasi ke Tim Desain. File referensi diunggah setelahnya.
+//   klise : desain cetakan untuk prospek/customer (hasil masuk Data Produk)
+//   konten: gambar/video untuk Marketing Digital (hasil masuk bank konten), bisa ditautkan ke rencana konten
 export const POST = handle(async (request: Request) => {
   const user = await requireUser()
   requireRequestMenu(user, 'desain')
   if (!canRequest(user)) fail(403, 'Request desain diajukan oleh Marketing.')
   const body = await readJson(request)
-  const target = await readTarget(body, user)
+  const kategori = body.kategori === 'konten' ? 'konten' : 'klise'
+  const jenisKonten = kategori === 'konten' && ['gambar', 'video', 'carousel', 'lainnya'].includes(String(body.jenis_konten)) ? String(body.jenis_konten) : null
+  const target = kategori === 'klise' ? await readTarget(body, user) : { prospectId: null, customerId: null, productId: null }
   const brief = readDesignBrief(body)
   const [result] = await db.query<ResultSetHeader>(
-    `INSERT INTO design_requests (prospect_id, customer_id, product_id, judul, jenis, ukuran, warna_cetak, brief, deadline, requested_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [target.prospectId, target.customerId, target.productId, brief.judul, brief.jenis, brief.ukuran, brief.warna_cetak, brief.brief, brief.deadline, user.id],
+    `INSERT INTO design_requests (kategori, jenis_konten, prospect_id, customer_id, product_id, judul, jenis, ukuran, warna_cetak, brief, deadline, requested_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [kategori, jenisKonten, target.prospectId, target.customerId, target.productId, brief.judul, brief.jenis, brief.ukuran, brief.warna_cetak, brief.brief, brief.deadline, user.id],
   )
   const id = result.insertId
   const nomor = await setNomor('design_requests', 'DSN', id)
+  // Ditautkan ke rencana konten: status konten menjadi "Produksi desain"
+  const contentId = int(body.content_plan_id)
+  if (kategori === 'konten' && contentId && canEditContent(user)) {
+    await db.query("UPDATE content_plans SET design_request_id = ?, status = IF(status = 'ide', 'produksi', status) WHERE id = ?", [id, contentId])
+  }
   await logRequest({ designId: id, userId: user.id, to: 'diajukan' })
   if (target.prospectId) await logActivity(db, { prospectId: target.prospectId, userId: user.id, jenis: 'catatan', hasil: `Request desain ${nomor}: ${brief.judul}` })
   await notifyRequest(await divisionUsers(['tim_desain']), user.id, {

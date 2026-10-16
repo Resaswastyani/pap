@@ -21,8 +21,9 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   const alasan = str(body.alasan, 500)
   if ((to === 'ditolak' || to === 'batal') && !alasan) fail(400, 'Isi alasan.')
   await db.query(
-    `UPDATE quotations SET status = ?, alasan = ?, sent_at = IF(? = 'dikirim', NOW(), sent_at) WHERE id = ? AND status = ?`,
-    [to, alasan || null, to, item.id, from],
+    `UPDATE quotations SET status = ?, alasan = ?, sent_at = IF(? = 'dikirim', NOW(), sent_at), closed_at = IF(? IN ('diterima', 'ditolak'), NOW(), closed_at)
+     WHERE id = ? AND status = ?`,
+    [to, alasan || null, to, to, item.id, from],
   )
   // Prospek ikut bergerak di pipeline: penawaran dikirim -> "Penawaran", diterima -> "Order pertama"
   if (item.prospect_id) {

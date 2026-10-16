@@ -12,6 +12,8 @@ export const MENU_KEYS = {
   Quotation: 'quotation',
   'Tabel HPP': 'hpp',
   'Repeat Order': 'repeat-order',
+  'KPI Marketing': 'kpi',
+  'Kalender Konten': 'konten',
   'Surat Berita Kerja': 'sbk',
   'Jadwal Produksi': 'jadwal-produksi',
   'Data Mesin': 'data-mesin',

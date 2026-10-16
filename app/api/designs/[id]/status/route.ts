@@ -72,7 +72,13 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
 
   await db.query(`UPDATE design_requests SET ${sets.join(', ')} WHERE id = ? AND status = ?`, [...values, item.id, from])
   let productId: number | null = null
-  if (finalFileId) productId = await publishDesignToProduct(item as RowDataPacket, finalFileId, user.id)
+  if (finalFileId && item.kategori === 'konten') {
+    // Konten digital: simpan file final, rencana konten yang tertaut menjadi "Siap tayang" (masuk bank konten)
+    await db.query('UPDATE design_requests SET final_file_id = ? WHERE id = ?', [finalFileId, item.id])
+    await db.query("UPDATE content_plans SET status = 'siap' WHERE design_request_id = ? AND status IN ('ide', 'produksi')", [item.id])
+  } else if (finalFileId) {
+    productId = await publishDesignToProduct(item as RowDataPacket, finalFileId, user.id)
+  }
   await logRequest({ designId: item.id, userId: user.id, from, to, catatan: note })
   if (item.prospect_id && ['review', 'disetujui', 'revisi'].includes(to)) {
     await logActivity(db, { prospectId: item.prospect_id, userId: user.id, jenis: 'catatan', hasil: `Desain ${item.nomor}: ${DESIGN_STATUS[to]}${note ? ` — ${note}` : ''}` })
