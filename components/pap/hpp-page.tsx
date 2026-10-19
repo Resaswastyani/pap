@@ -211,7 +211,7 @@ export function DocForm({ data, onSaved }: { data: HppData; onSaved: (message: s
       {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
       <div className="pap-form-grid pap-settings-body">
         <Field label="Nama perusahaan"><input className="pap-input" disabled={dis} value={values.nama ?? ''} onChange={set('nama')} /></Field>
-        <Field label="Telepon / WA"><input className="pap-input" disabled={dis} value={values.telepon ?? ''} onChange={set('telepon')} /></Field>
+        <Field label="Telepon / WA (satu per baris, bisa dipilih lebih dari satu di penawaran)"><textarea className="pap-input" rows={4} disabled={dis} value={values.telepon ?? ''} onChange={set('telepon')} placeholder="+62895-3269-45000 (Laundry)&#10;+62895-6053-97437 (Beras)" /></Field>
         <Field label="Alamat" full><textarea className="pap-input" rows={2} disabled={dis} value={values.alamat ?? ''} onChange={set('alamat')} /></Field>
         <Field label="Email"><input className="pap-input" disabled={dis} value={values.email ?? ''} onChange={set('email')} /></Field>
         <Field label="Penandatangan (nama & jabatan)"><input className="pap-input" disabled={dis} value={values.penandatangan ?? ''} onChange={set('penandatangan')} placeholder="Kosongkan = nama sales pembuat" /></Field>

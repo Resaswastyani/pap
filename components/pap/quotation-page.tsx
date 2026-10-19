@@ -27,7 +27,7 @@ type Quotation = {
   created_name: string; sent_at: string | null; created_at: string; prospect_name: string | null; customer_no: string | null; item_count: number
   order_nomor: string | null; proforma_nomor: string | null; tanggal_kirim: string | null; dp_persen: number | null; expedition_id: number | null
   expedition_name: string | null; expedition_estimasi: string | null; ongkir: number | null; catatan_order: string | null; terbayar: number
-  approval: Approval | null; approval_note: string | null; approved_name: string | null; approved_at: string | null; rekening: string | null
+  approval: Approval | null; approval_note: string | null; approved_name: string | null; approved_at: string | null; rekening: string | null; telepon_kop: string | null
 }
 type Item = { id: number; product_id: number | null; nama_produk: string; spesifikasi: string | null; qty: number; satuan: string; harga_satuan: number; subtotal: number }
 const UNITS = ['pcs', 'kg', 'pack', 'roll', 'lembar'] as const
@@ -165,6 +165,8 @@ const fromItem = (it: Item): FormItem => ({
   qty: String(it.qty), satuan: it.satuan, harga_satuan: String(it.harga_satuan),
 })
 const toNum = (v: string) => Number(v.replace(',', '.')) || 0
+// Teks multi-baris (pilihan di Template dokumen) -> daftar baris tidak kosong
+const lines = (text: string | null | undefined) => String(text ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
 
 export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?: Quotation & { items: Item[] }; copy?: Quotation & { items: Item[] }; prefill?: Prefill; onClose: () => void; onSaved: (message: string, id: number) => void }) {
   // Hanya untuk syarat default & tarif PPN dari pengaturan dokumen
@@ -180,13 +182,16 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
     alamat: base?.alamat ?? [pp?.alamat, pp?.kota].filter(Boolean).join(', '), tanggal: edit?.tanggal ?? today(), berlaku_hari: String(base?.berlaku_hari ?? 14),
     syarat: base?.syarat ?? '', rekening: base?.rekening ?? '', catatan: base?.catatan ?? '', pakai_ppn: base ? base.pakai_ppn : true,
   })
+  // Nomor Telepon / WA perusahaan di kop (bisa lebih dari satu)
+  const [teleponKop, setTeleponKop] = useState<string[]>(() => lines(base?.telepon_kop))
   const [items, setItems] = useState<FormItem[]>(() => (base ? base.items.map(fromItem) : pp?.products?.length ? pp.products.map((p) => blankItem(p.product_id, p.label)) : [blankItem()]))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const set = (k: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [k]: e.target.value }))
 
   // Pilihan rekening = baris-baris "Rekening pembayaran" di Template dokumen
-  const rekeningOptions = (data?.doc.rekening ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+  const rekeningOptions = lines(data?.doc.rekening)
+  const teleponOptions = lines(data?.doc.telepon)
   // Default rekening sesuai PPN: baris berisi "PPN" (bukan "Non") untuk penawaran ber-PPN, baris "Non" bila tanpa PPN
   const defaultRekening = (options: string[], ppn: boolean) =>
     options.find((o) => (ppn ? /ppn/i.test(o) && !/non/i.test(o) : /non/i.test(o))) ?? options[0] ?? ''
@@ -196,6 +201,8 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
     if (!data) return
     const options = (data.doc.rekening ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
     setValues((v) => ({ ...v, syarat: v.syarat || data.doc.syarat || '', rekening: v.rekening || defaultRekening(options, v.pakai_ppn) }))
+    // Penawaran baru: nomor pertama di Template dokumen terpilih
+    setTeleponKop((list) => (list.length || base ? list : lines(data.doc.telepon).slice(0, 1)))
   }, [data])
 
   const update = (key: string, patch: Partial<FormItem>) => setItems((list) => list.map((it) => (it.key === key ? { ...it, ...patch } : it)))
@@ -209,7 +216,7 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
     setError('')
     try {
       const payload = {
-        ...values, ...target, berlaku_hari: Number(values.berlaku_hari) || 14,
+        ...values, ...target, berlaku_hari: Number(values.berlaku_hari) || 14, telepon_kop: teleponKop,
         items: items.map((it) => ({ product_id: it.product_id, nama_produk: it.nama_produk, spesifikasi: it.spesifikasi, qty: it.qty, satuan: it.satuan, harga_satuan: it.harga_satuan })),
       }
       if (edit) {
@@ -301,6 +308,9 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
           }} /><span>Kenakan PPN {ppnPersen}%</span></label>
           <dl><dt>Subtotal</dt><dd>{rupiah(subtotal)}</dd>{values.pakai_ppn && <><dt>PPN {ppnPersen}%</dt><dd>{rupiah(ppn)}</dd></>}<dt className="grand">Total</dt><dd className="grand">{rupiah(subtotal + ppn)}</dd></dl>
         </div>
+        <Field label="Telepon / WA perusahaan di kop surat (bisa lebih dari satu)" full>
+          <MultiSelect options={teleponOptions} value={teleponKop} onChange={setTeleponKop} empty="Belum ada nomor di Template dokumen" placeholder="Semua nomor di Template dokumen" />
+        </Field>
         <Field label="Rekening pembayaran (dicetak)" full>
           <select className="pap-select" value={values.rekening} onChange={set('rekening')}>
             {!rekeningOptions.length && <option value="">Belum ada rekening di Template dokumen</option>}
@@ -312,6 +322,23 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
         <Field label="Catatan internal (tidak dicetak)" full><textarea className="pap-input" rows={2} maxLength={5000} value={values.catatan} onChange={set('catatan')} /></Field>
       </form>
     </Modal>
+  )
+}
+
+// Dropdown pilih banyak (checkbox). Kosong = placeholder (mis. dokumen memakai semua pilihan).
+function MultiSelect({ options, value, onChange, empty, placeholder }: { options: string[]; value: string[]; onChange: (next: string[]) => void; empty: string; placeholder: string }) {
+  // Nilai lama yang sudah tidak ada di Template dokumen tetap ditampilkan agar bisa dilepas
+  const all = [...options, ...value.filter((v) => !options.includes(v))]
+  const toggle = (o: string) => onChange(value.includes(o) ? value.filter((v) => v !== o) : all.filter((x) => x === o || value.includes(x)))
+  return (
+    <details className="pap-multiselect">
+      <summary className="pap-select">{value.length ? value.join(' · ') : options.length ? placeholder : empty}</summary>
+      {all.length > 0 && (
+        <div className="pap-multiselect-menu">
+          {all.map((o) => <label key={o} className="pap-check"><input type="checkbox" checked={value.includes(o)} onChange={() => toggle(o)} /><span>{o}</span></label>)}
+        </div>
+      )}
+    </details>
   )
 }
 

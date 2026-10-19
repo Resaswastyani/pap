@@ -47,12 +47,14 @@ export function quotationDocumentHtml({ q, items, doc }: Awaited<ReturnType<type
   }[jenis]
   // Rekening yang dipilih di penawaran; kosong = semua rekening di Template dokumen
   const rekening = q.rekening || doc.rekening
+  // Nomor Telepon / WA di kop: yang dipilih di penawaran; kosong = semua nomor di Template dokumen
+  const telepon = String(q.telepon_kop || doc.telepon || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
   const syarat = String(q.syarat ?? '').split(/\r?\n/).filter((l) => l.trim()).map((l) => `<li>${esc(l.replace(/^\s*[-•\d.]+\s*/, ''))}</li>`).join('')
 
   return `<article class="pap-sheet">
 <table class="pap-sheet-head"><tbody><tr>
   <td class="logo"><img src="${esc(logoSrc)}" alt="" width="120"></td>
-  <td><h1>${esc(perusahaan)}</h1><p>Flexible Plastic Packaging Manufacture</p>${doc.alamat ? `<p>${esc(doc.alamat)}</p>` : ''}<p>${esc([doc.telepon && `Telp/WA ${doc.telepon}`, doc.email].filter(Boolean).join(' · '))}</p></td>
+  <td><h1>${esc(perusahaan)}</h1><p>Flexible Plastic Packaging Manufacture</p>${doc.alamat ? `<p>${esc(doc.alamat)}</p>` : ''}${telepon.length ? `<p>Telp/WA: ${telepon.map(esc).join(' · ')}</p>` : ''}${doc.email ? `<p>${esc(doc.email)}</p>` : ''}</td>
 </tr></tbody></table>
 <h2 class="pap-sheet-title">${JUDUL[jenis]}</h2>
 ${QUOTATION_APPROVAL_REQUIRED && jenis === 'penawaran' && q.status === 'draft' && q.approval !== 'disetujui' ? '<p class="pap-sheet-draft">DRAFT — belum disetujui Kepala Marketing / GM, jangan dikirim ke customer</p>' : ''}
