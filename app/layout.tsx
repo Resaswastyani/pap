@@ -36,13 +36,20 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="id">
+    <html lang="id" suppressHydrationWarning>
       <head>
         {/* Buka koneksi ke reCAPTCHA lebih awal agar widget & centang checkbox lebih cepat */}
         <link rel="preconnect" href="https://www.google.com" />
         <link rel="preconnect" href="https://www.gstatic.com" />
+        {/* Splash logo hanya sekali per pembukaan aplikasi (sesi); dijalankan sebelum halaman tampil */}
+        <script dangerouslySetInnerHTML={{ __html: "try{if(sessionStorage.getItem('pap-splash'))document.documentElement.classList.add('pap-no-splash');else sessionStorage.setItem('pap-splash','1')}catch(e){}" }} />
       </head>
       <body className="antialiased">
+        {/* Splash logo di HP (Android & iOS) selama 3 detik sebelum login. Murni CSS agar langsung tampil tanpa menunggu JavaScript. */}
+        <div className="pap-splash" aria-hidden="true">
+          <img src="/logo-pap.png" alt="" />
+          <span>Focus on Quality</span>
+        </div>
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

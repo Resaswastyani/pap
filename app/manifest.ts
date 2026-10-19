@@ -9,7 +9,7 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: '/',
     scope: '/',
     display: 'standalone',
-    background_color: '#eef0f4',
+    background_color: '#ffffff', // sama dengan latar splash logo di HP
     theme_color: '#23264b',
     lang: 'id',
     icons: [
