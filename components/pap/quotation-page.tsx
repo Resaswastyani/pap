@@ -180,7 +180,7 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
   const [values, setValues] = useState({
     kepada: base?.kepada ?? pp?.nama_usaha ?? '', kontak: base?.kontak ?? pp?.kontak_nama ?? '', telepon: base?.telepon ?? '', whatsapp: base?.whatsapp ?? pp?.telepon ?? '',
     alamat: base?.alamat ?? [pp?.alamat, pp?.kota].filter(Boolean).join(', '), tanggal: edit?.tanggal ?? today(), berlaku_hari: String(base?.berlaku_hari ?? 14),
-    syarat: base?.syarat ?? '', rekening: base?.rekening ?? '', catatan: base?.catatan ?? '', pakai_ppn: base ? base.pakai_ppn : true,
+    syarat: base?.syarat ?? '', catatan: base?.catatan ?? '', pakai_ppn: base ? base.pakai_ppn : true,
   })
   // Nomor Telepon / WA perusahaan di kop (bisa lebih dari satu)
   const [teleponKop, setTeleponKop] = useState<string[]>(() => lines(base?.telepon_kop))
@@ -189,18 +189,12 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
   const [error, setError] = useState('')
   const set = (k: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [k]: e.target.value }))
 
-  // Pilihan rekening = baris-baris "Rekening pembayaran" di Template dokumen
-  const rekeningOptions = lines(data?.doc.rekening)
   const teleponOptions = lines(data?.doc.telepon)
-  // Default rekening sesuai PPN: baris berisi "PPN" (bukan "Non") untuk penawaran ber-PPN, baris "Non" bila tanpa PPN
-  const defaultRekening = (options: string[], ppn: boolean) =>
-    options.find((o) => (ppn ? /ppn/i.test(o) && !/non/i.test(o) : /non/i.test(o))) ?? options[0] ?? ''
 
-  // Syarat & ketentuan default dan rekening dari template dokumen (bila belum diisi)
+  // Syarat & ketentuan default dari template dokumen (bila belum diisi)
   useEffect(() => {
     if (!data) return
-    const options = (data.doc.rekening ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
-    setValues((v) => ({ ...v, syarat: v.syarat || data.doc.syarat || '', rekening: v.rekening || defaultRekening(options, v.pakai_ppn) }))
+    setValues((v) => ({ ...v, syarat: v.syarat || data.doc.syarat || '' }))
     // Penawaran baru: nomor pertama di Template dokumen terpilih
     setTeleponKop((list) => (list.length || base ? list : lines(data.doc.telepon).slice(0, 1)))
   }, [data])
@@ -304,20 +298,12 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
         <div className="pap-quote-totals full">
           <label className="pap-check"><input type="checkbox" checked={values.pakai_ppn} onChange={(e) => {
             const ppn = e.target.checked
-            // Rekening ikut berganti (PPN / Non PPN) selama belum dipilih manual
-            setValues((v) => ({ ...v, pakai_ppn: ppn, rekening: !v.rekening || v.rekening === defaultRekening(rekeningOptions, v.pakai_ppn) ? defaultRekening(rekeningOptions, ppn) : v.rekening }))
+            setValues((v) => ({ ...v, pakai_ppn: ppn }))
           }} /><span>Kenakan PPN {ppnPersen}%</span></label>
           <dl><dt>Subtotal</dt><dd>{rupiah(subtotal)}</dd>{values.pakai_ppn && <><dt>PPN {ppnPersen}%</dt><dd>{rupiah(ppn)}</dd></>}<dt className="grand">Total</dt><dd className="grand">{rupiah(subtotal + ppn)}</dd></dl>
         </div>
         <Field label="Telepon / WA perusahaan di kop surat (bisa lebih dari satu)" full>
           <MultiSelect options={teleponOptions} value={teleponKop} onChange={setTeleponKop} empty="Belum ada nomor di Template dokumen" placeholder="Semua nomor di Template dokumen" />
-        </Field>
-        <Field label="Rekening pembayaran (dicetak)" full>
-          <select className="pap-select" value={values.rekening} onChange={set('rekening')}>
-            {!rekeningOptions.length && <option value="">Belum ada rekening di Template dokumen</option>}
-            {values.rekening && !rekeningOptions.includes(values.rekening) && <option value={values.rekening}>{values.rekening}</option>}
-            {rekeningOptions.map((o) => <option key={o} value={o}>{o}</option>)}
-          </select>
         </Field>
         <Field label="Syarat & ketentuan (dicetak)" full><textarea className="pap-input" rows={4} maxLength={5000} value={values.syarat} onChange={set('syarat')} /></Field>
         <Field label="Catatan internal (tidak dicetak)" full><textarea className="pap-input" rows={2} maxLength={5000} value={values.catatan} onChange={set('catatan')} /></Field>

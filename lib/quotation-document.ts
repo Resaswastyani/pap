@@ -45,8 +45,8 @@ export function quotationDocumentHtml({ q, items, doc }: Awaited<ReturnType<type
     order: 'Terima kasih atas kepercayaan Anda. Berikut konfirmasi pesanan yang akan kami produksi:',
     proforma: 'Berikut tagihan sementara (proforma) atas pesanan Anda:',
   }[jenis]
-  // Rekening yang dipilih di penawaran; kosong = semua rekening di Template dokumen
-  const rekening = q.rekening || doc.rekening
+  // Rekening hanya dicetak di Proforma Invoice (tagihan); surat penawaran & surat order tanpa rekening
+  const rekening = jenis === 'proforma' ? q.rekening || doc.rekening : null
   // Nomor Telepon / WA di kop: yang dipilih di penawaran; kosong = semua nomor di Template dokumen
   const telepon = String(q.telepon_kop || doc.telepon || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
   const syarat = String(q.syarat ?? '').split(/\r?\n/).filter((l) => l.trim()).map((l) => `<li>${esc(l.replace(/^\s*[-•\d.]+\s*/, ''))}</li>`).join('')
@@ -85,7 +85,7 @@ ${jenis !== 'penawaran' && q.catatan_order ? `<h3>Catatan pesanan</h3><p class="
 ${jenis === 'order' && dp ? `<p>Pembayaran: DP ${q.dp_persen}% sebesar <b>${rp(dp)}</b> sebelum produksi dimulai, pelunasan sebelum barang dikirim.</p>` : ''}
 ${syarat && jenis !== 'proforma' ? `<h3>Syarat &amp; ketentuan</h3><ol>${syarat}</ol>` : ''}
 ${rekening ? `<h3>Pembayaran ke</h3><p class="pre">${esc(rekening)}</p>` : ''}
-${jenis === 'penawaran' ? '<p>Demikian penawaran ini kami sampaikan. Atas perhatian dan kerja samanya kami ucapkan terima kasih.</p>' : ''}
+${jenis === 'penawaran' ? '<br><p>Demikian surat penawaran harga ini kami sampaikan. Atas perhatian dan kesempatan yang diberikan, kami mengucapkan terima kasih. Besar harapan kami dapat menjalin kerja sama yang baik, dan kami menantikan kabar baik dari Bapak/Ibu.</p></br>' : ''}
 ${jenis === 'proforma' ? '<p>Mohon lakukan pembayaran ke rekening di atas dan kirimkan bukti transfer kepada kami.</p>' : ''}
 <table class="pap-sheet-sign"><tbody><tr>
   ${jenis === 'order' ? sign('Disetujui pemesan,', q.kontak || '(.........................)', q.kepada) : '<td>&nbsp;</td>'}
