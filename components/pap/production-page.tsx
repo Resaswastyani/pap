@@ -1,11 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ArrowDown, ArrowUp, CalendarClock, ChevronLeft, ChevronRight, ClipboardList, Cog, ExternalLink, Factory, FileText, Flag, List, Loader2, Plus, Printer, Search, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, CalendarClock, ChevronLeft, ChevronRight, ClipboardList, Cog, ExternalLink, Factory, FilePlus2, FileText, Flag, List, Loader2, Plus, Printer, Search, Stamp, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatNumber } from './accurate'
 import { AttachmentPanel } from './attachments'
-import { api, formatDate, Modal, Notice, Progress, type UserOption } from './ui'
+import { QcForm, ResultForm, ResultsTable, type Result } from './results-page'
+import { api, Field, formatDate, Modal, Notice, Progress, type UserOption } from './ui'
 
 type JobStatus = 'menunggu' | 'dijadwalkan' | 'berjalan' | 'selesai' | 'batal'
 type StageStatus = 'belum' | 'berjalan' | 'selesai' | 'dilewati'
@@ -20,6 +21,14 @@ type Job = {
   item_name: string
   quantity: number | null
   unit: string | null
+  target_qty: number | null
+  hasil_baik: number | null
+  spk_nomor: string | null
+  spk_terbit_at: string | null
+  spk_terbit_name: string | null
+  formulasi: string | null
+  tingkat_kualitas: string | null
+  acuan_kerja: string | null
   due_date: string | null
   status: JobStatus
   prioritas: 'normal' | 'tinggi'
@@ -43,6 +52,11 @@ type Stage = {
   actual_end: string | null
   status: StageStatus
   progress: number
+  target_qty: number | null
+  target_unit: string | null
+  hasil_baik: number | null
+  jumlah_reject: number | null
+  laporan: number
   pic_user_id: number | null
   pic_name: string | null
   catatan: string | null
@@ -51,7 +65,7 @@ type Stage = {
 type Machine = { id: number; kode: string; nama: string; tahap: string; status: string }
 type ProductInfo = { id: number; nama: string; kode: string | null; jenis: string | null; spesifikasi: string | null; bahan: string | null; keterangan: string | null }
 type ProductFile = { id: number; name: string; mime: string }
-type Summary = { menunggu: number; dijadwalkan: number; berjalan: number; terlambat: number; selesai_minggu: number }
+type Summary = { menunggu: number; dijadwalkan: number; berjalan: number; terlambat: number; selesai_minggu: number; spk_aktif: number; spk_belum: number }
 
 export const JOB_LABEL: Record<JobStatus, string> = { menunggu: 'Menunggu dijadwalkan', dijadwalkan: 'Dijadwalkan', berjalan: 'Berjalan', selesai: 'Selesai', batal: 'Batal' }
 const JOB_TONE: Record<JobStatus, string> = { menunggu: 'warning', dijadwalkan: 'info', berjalan: 'info', selesai: 'success', batal: 'neutral' }
@@ -64,11 +78,16 @@ const today = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
 const isLate = (job: Pick<Job, 'due_date' | 'status'>) => !!job.due_date && job.due_date < today() && !['selesai', 'batal'].includes(job.status)
 const toInput = (v: string | null) => (v ? v.slice(0, 16).replace(' ', 'T') : '')
 const qty = (q: number | null, unit: string | null) => (q === null ? '—' : `${formatNumber(q)} ${unit ?? ''}`)
+// Target SPK: kosong = jumlah pesanan
+const targetOf = (job: Pick<Job, 'target_qty' | 'quantity'>) => job.target_qty ?? job.quantity
 
-export function ProductionPage({ user, focusId }: { user: UserProfile; focusId?: number | null }) {
+// mode 'spk': menu SPK (Surat Perintah Kerja) memakai data job yang sama, fokus ke penerbitan SPK & hasil terhadap target
+export function ProductionPage({ user, focusId, mode = 'jadwal' }: { user: UserProfile; focusId?: number | null; mode?: 'jadwal' | 'spk' }) {
+  const isSpk = mode === 'spk'
   const [view, setView] = useState<'list' | 'machine'>('list')
   const [items, setItems] = useState<Job[]>([])
-  const [summary, setSummary] = useState<Summary>({ menunggu: 0, dijadwalkan: 0, berjalan: 0, terlambat: 0, selesai_minggu: 0 })
+  const [summary, setSummary] = useState<Summary>({ menunggu: 0, dijadwalkan: 0, berjalan: 0, terlambat: 0, selesai_minggu: 0, spk_aktif: 0, spk_belum: 0 })
+  const [spk, setSpk] = useState('')
   const [can, setCan] = useState({ manage: false, progress: false })
   const [maxAge, setMaxAge] = useState(30)
   const [total, setTotal] = useState(0)
@@ -86,6 +105,7 @@ export function ProductionPage({ user, focusId }: { user: UserProfile; focusId?:
     try {
       const params = new URLSearchParams({ page: String(page) })
       if (status) params.set('status', status)
+      if (spk) params.set('spk', spk)
       if (q.trim()) params.set('q', q.trim())
       const res = await api<{ items: Job[]; summary: Summary; total: number; pageSize: number; maxAgeDays: number; can: typeof can }>(`/api/production?${params}`)
       setItems(res.items)
@@ -100,17 +120,23 @@ export function ProductionPage({ user, focusId }: { user: UserProfile; focusId?:
     } finally {
       setLoading(false)
     }
-  }, [page, status, q])
+  }, [page, status, spk, q])
   useEffect(() => {
     const timer = setTimeout(load, q ? 300 : 0)
     return () => clearTimeout(timer)
   }, [load, q])
-  useEffect(() => setPage(1), [status, q])
+  useEffect(() => setPage(1), [status, spk, q])
 
   const reloadAll = () => {
     load()
     setReloadKey((k) => k + 1)
   }
+  const spkStats: [string, number, string, string, typeof Factory, string][] = [
+    ['terbit', summary.spk_aktif, 'SPK aktif', 'Sudah terbit, belum selesai', Stamp, 'stat-1'],
+    ['belum', summary.spk_belum, 'SPK belum terbit', 'Job aktif menunggu PPIC', FilePlus2, 'stat-2'],
+    ['berjalan', summary.berjalan, 'Sedang diproduksi', `${summary.selesai_minggu} selesai 7 hari terakhir`, Factory, 'stat-0'],
+    ['terlambat', summary.terlambat, 'Lewat tanggal kirim', 'Belum selesai, perlu perhatian', AlertTriangle, 'stat-2'],
+  ]
   const stats: [string, number, string, string, typeof Factory, string][] = [
     ['menunggu', summary.menunggu, 'Menunggu dijadwalkan', 'Pesanan baru dari Accurate', ClipboardList, 'stat-2'],
     ['dijadwalkan', summary.dijadwalkan, 'Dijadwalkan', 'Mesin & tanggal sudah diatur', CalendarClock, 'stat-1'],
@@ -124,14 +150,22 @@ export function ProductionPage({ user, focusId }: { user: UserProfile; focusId?:
       <div className="pap-page-heading">
         <div>
           <p className="pap-eyebrow">PRODUKSI</p>
-          <h1>Jadwal Produksi</h1>
-          <span>Otomatis dari Sales Order Accurate berisi barang bertanda “Diproduksi”. Kepala PPIC / GM mengatur tahap & mesin, Produksi meng-update progress.</span>
+          <h1>{isSpk ? 'SPK (Surat Perintah Kerja)' : 'Jadwal Produksi'}</h1>
+          <span>{isSpk
+            ? 'PPIC menerbitkan SPK dari job produksi: target jumlah, formulasi bahan, tingkat kualitas, dan acuan kerja untuk KA Shift. Hasil baik dihitung dari laporan hasil produksi per shift.'
+            : 'Otomatis dari Sales Order Accurate berisi barang bertanda “Diproduksi”. Kepala PPIC / GM mengatur tahap & mesin, Produksi meng-update progress.'}</span>
         </div>
       </div>
       <AccurateSyncBar entities={['sales-order', 'sales-order-items', 'item-detail']} canSync={can.manage || user.role.isAdmin} onSynced={reloadAll} />
       <div className="pap-stat-grid four">
-        {stats.map(([key, value, label, note, Icon, tone]) => (
-          <button key={key} className={`pap-stat-card pap-stat-button ${status === key ? 'active' : ''}`} onClick={() => { setView('list'); setStatus((s) => (s === key ? 'aktif' : key)) }}>
+        {(isSpk ? spkStats : stats).map(([key, value, label, note, Icon, tone]) => (
+          <button key={key} className={`pap-stat-card pap-stat-button ${(isSpk && (key === 'terbit' || key === 'belum') ? spk === key && status === 'aktif' : status === key) ? 'active' : ''}`} onClick={() => {
+            setView('list')
+            if (isSpk && (key === 'terbit' || key === 'belum')) {
+              setStatus('aktif')
+              setSpk((v) => (v === key ? '' : key))
+            } else setStatus((s) => (s === key ? 'aktif' : key))
+          }}>
             <div><span>{label}</span><strong>{value}</strong><small className="neutral">{note}</small></div>
             <div className={`pap-stat-icon ${tone}`}><Icon /></div>
           </button>
@@ -140,15 +174,15 @@ export function ProductionPage({ user, focusId }: { user: UserProfile; focusId?:
       <div className="pap-table-card">
         <div className="pap-card-head">
           <div>
-            <h2>{view === 'list' ? 'Daftar job produksi' : 'Jadwal per mesin'}</h2>
+            <h2>{isSpk ? 'Daftar SPK' : view === 'list' ? 'Daftar job produksi' : 'Jadwal per mesin'}</h2>
             <p>{view === 'list' ? `Dari SO belum selesai dalam ${maxAge} hari terakhir & SO baru. Diurutkan dari tanggal kirim terdekat.` : 'Tahap produksi yang dijadwalkan per mesin dalam seminggu.'}</p>
           </div>
-          <div className="pap-segmented" role="tablist" aria-label="Tampilan jadwal">
+          {!isSpk && <div className="pap-segmented" role="tablist" aria-label="Tampilan jadwal">
             <button role="tab" aria-selected={view === 'list'} className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}><List /> Daftar job</button>
             <button role="tab" aria-selected={view === 'machine'} className={view === 'machine' ? 'active' : ''} onClick={() => setView('machine')}><Cog /> Per mesin</button>
-          </div>
+          </div>}
         </div>
-        {view === 'machine' ? (
+        {view === 'machine' && !isSpk ? (
           <MachineSchedule key={reloadKey} onOpen={setDetailId} />
         ) : (
           <>
@@ -160,17 +194,23 @@ export function ProductionPage({ user, focusId }: { user: UserProfile; focusId?:
                 {Object.entries(JOB_LABEL).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
                 <option value="">Semua</option>
               </select>
+              <select className="pap-select" value={spk} onChange={(e) => setSpk(e.target.value)} aria-label="Filter SPK">
+                <option value="">SPK: semua</option>
+                <option value="terbit">SPK sudah terbit</option>
+                <option value="belum">SPK belum terbit</option>
+              </select>
             </div>
             {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
             <div className="pap-table-wrap">
               <table>
-                <thead><tr><th>Produk / Customer</th><th>Job / SO</th><th className="pap-num">Jumlah</th><th>Tgl kirim</th><th>Tahap</th><th>Status</th></tr></thead>
+                <thead><tr><th>Produk / Customer</th><th>{isSpk ? 'SPK / SO' : 'Job / SO'}</th><th className="pap-num">{isSpk ? 'Target' : 'Jumlah'}</th>{isSpk && <th className="pap-num">Hasil baik</th>}<th>Tgl kirim</th><th>Tahap</th><th>Status</th></tr></thead>
                 <tbody>
                   {items.map((job) => (
                     <tr key={job.id} className="pap-row-link" onClick={() => setDetailId(job.id)}>
                       <td><div className="pap-cell-title">{job.prioritas === 'tinggi' && <Flag className="pap-inline-icon pap-flag" />}{job.item_name}</div><div className="pap-cell-sub">{job.customer_name ?? '—'}</div></td>
-                      <td className="pap-nowrap"><div className="pap-cell-sub">{job.nomor}</div><div className="pap-cell-sub">{job.so_number}</div></td>
-                      <td className="pap-num pap-nowrap">{qty(job.quantity, job.unit)}</td>
+                      <td className="pap-nowrap">{job.spk_nomor ? <div className="pap-cell-title">{job.spk_nomor}</div> : <div className="pap-cell-sub">{job.nomor}{isSpk && <div><span className="pap-status warning">SPK belum terbit</span></div>}</div>}<div className="pap-cell-sub">{job.so_number}</div></td>
+                      <td className="pap-num pap-nowrap">{qty(isSpk ? targetOf(job) : job.quantity, job.unit)}</td>
+                      {isSpk && <td className="pap-num pap-nowrap">{job.hasil_baik === null ? '—' : qty(job.hasil_baik, job.unit)}{job.hasil_baik !== null && targetOf(job) ? <div className="pap-cell-sub">{Math.floor((job.hasil_baik / targetOf(job)!) * 100)}% target</div> : null}</td>}
                       <td className="pap-nowrap">{formatDate(job.due_date)}{isLate(job) && <div><span className="pap-status danger">Terlambat</span></div>}</td>
                       <td><div className="pap-cell-sub">{job.current_stage ?? (job.status === 'selesai' ? 'Semua tahap selesai' : '—')}</div><Progress value={job.progress} /></td>
                       <td><JobBadge value={job.status} /></td>
@@ -271,13 +311,13 @@ function MachineSchedule({ onOpen }: { onOpen: (jobId: number) => void }) {
 }
 
 // ---------- Detail job ----------
-type EditableStage = { key: string; id?: number; tahap: string; machine_id: string; plan_start: string; plan_end: string; pic_user_id: string; catatan: string }
-const toEditable = (s: Stage): EditableStage => ({ key: String(s.id), id: s.id, tahap: s.tahap, machine_id: s.machine_id ? String(s.machine_id) : '', plan_start: toInput(s.plan_start), plan_end: toInput(s.plan_end), pic_user_id: s.pic_user_id ? String(s.pic_user_id) : '', catatan: s.catatan ?? '' })
+type EditableStage = { key: string; id?: number; tahap: string; machine_id: string; plan_start: string; plan_end: string; pic_user_id: string; catatan: string; target_qty: string; target_unit: string }
+const toEditable = (s: Stage): EditableStage => ({ key: String(s.id), id: s.id, tahap: s.tahap, machine_id: s.machine_id ? String(s.machine_id) : '', plan_start: toInput(s.plan_start), plan_end: toInput(s.plan_end), pic_user_id: s.pic_user_id ? String(s.pic_user_id) : '', catatan: s.catatan ?? '', target_qty: s.target_qty === null ? '' : String(s.target_qty), target_unit: s.target_unit ?? '' })
 
 const esc = (value: string | null | undefined) => (value ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
 
 // Surat Perintah Kerja (SPK) siap cetak: data job, tahap, spesifikasi produk
-function printSpk(job: Job, stages: Stage[], product: ProductInfo | null) {
+function printSpk(job: Job, stages: Stage[], product: ProductInfo | null, results: Result[]) {
   const win = window.open('', '_blank')
   if (!win) return
   const block = (title: string, value: string | null | undefined) => `<h3>${title}</h3><div class="box">${value ? esc(value).replace(/\n/g, '<br>') : '<i>—</i>'}</div>`
@@ -286,12 +326,15 @@ function printSpk(job: Job, stages: Stage[], product: ProductInfo | null) {
 .head{display:flex;justify-content:space-between;border-bottom:2px solid #111;padding-bottom:10px}.head img{height:42px}.meta{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 20px;margin-top:12px}
 .meta span{display:block;color:#666;font-size:10.5px}.box{padding:9px 11px;border:1px solid #bbb;border-radius:6px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:6px 8px;text-align:left;font-size:12px}
 th{background:#f2f2f2}.sign{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:36px;text-align:center}.sign div{padding-top:48px;border-bottom:1px solid #111}@media print{body{margin:10mm}}</style></head><body>
-<div class="head"><div><h1>SURAT PERINTAH KERJA</h1><div>${esc(job.nomor)} · ${esc(job.so_number)}</div></div><img src="/logo-pap.png" alt=""></div>
-<div class="meta"><div><span>Produk</span><b>${esc(job.item_name)}</b></div><div><span>Customer</span>${esc(job.customer_name) || '—'}</div><div><span>Jumlah</span><b>${esc(qty(job.quantity, job.unit))}</b></div>
-<div><span>Tanggal SO</span>${esc(formatDate(job.so_date))}</div><div><span>Tanggal kirim</span><b>${esc(formatDate(job.due_date))}</b></div><div><span>Prioritas</span>${job.prioritas === 'tinggi' ? '<b>TINGGI</b>' : 'Normal'}</div></div>
-<h3>Tahap produksi</h3><table><tr><th>#</th><th>Tahap</th><th>Mesin</th><th>Rencana mulai</th><th>Rencana selesai</th><th>PIC</th><th>Paraf</th></tr>
-${stages.filter((s) => s.status !== 'dilewati').map((s, i) => `<tr><td>${i + 1}</td><td>${esc(s.tahap)}</td><td>${esc(s.machine_name) || '—'}</td><td>${esc(formatDate(s.plan_start, true))}</td><td>${esc(formatDate(s.plan_end, true))}</td><td>${esc(s.pic_name) || '—'}</td><td></td></tr>`).join('')}</table>
-${block('Spesifikasi', product?.spesifikasi)}${block('Keterangan bahan', product?.bahan)}${block('Catatan PPIC', job.catatan)}
+<div class="head"><div><h1>SURAT PERINTAH KERJA</h1><div><b>${esc(job.spk_nomor) || 'DRAFT (belum terbit)'}</b> · ${esc(job.nomor)} · ${esc(job.so_number)}</div>${job.spk_terbit_at ? `<div>Terbit ${esc(formatDate(job.spk_terbit_at, true))}${job.spk_terbit_name ? ` oleh ${esc(job.spk_terbit_name)}` : ''}</div>` : ''}</div><img src="/logo-pap.png" alt=""></div>
+<div class="meta"><div><span>Produk</span><b>${esc(job.item_name)}</b></div><div><span>Customer</span>${esc(job.customer_name) || '—'}</div><div><span>Target produksi</span><b>${esc(qty(targetOf(job), job.unit))}</b>${job.target_qty !== null ? ` <small>(pesanan ${esc(qty(job.quantity, job.unit))})</small>` : ''}</div>
+<div><span>Tanggal SO</span>${esc(formatDate(job.so_date))}</div><div><span>Tanggal kirim</span><b>${esc(formatDate(job.due_date))}</b></div><div><span>Prioritas</span>${job.prioritas === 'tinggi' ? '<b>TINGGI</b>' : 'Normal'}</div>
+<div><span>Tingkat kualitas</span><b>${esc(job.tingkat_kualitas) || '—'}</b></div></div>
+<h3>Tahap produksi</h3><table><tr><th>#</th><th>Tahap</th><th>Mesin</th><th>Target</th><th>Rencana mulai</th><th>Rencana selesai</th><th>PIC</th><th>Paraf</th></tr>
+${stages.filter((s) => s.status !== 'dilewati').map((s, i) => `<tr><td>${i + 1}</td><td>${esc(s.tahap)}</td><td>${esc(s.machine_name) || '—'}</td><td>${esc(qty(s.target_qty ?? targetOf(job), s.target_unit ?? job.unit))}</td><td>${esc(formatDate(s.plan_start, true))}</td><td>${esc(formatDate(s.plan_end, true))}</td><td>${esc(s.pic_name) || '—'}</td><td></td></tr>`).join('')}</table>
+${block('Formulasi / campuran bahan', job.formulasi)}${block('Acuan kerja', job.acuan_kerja)}${block('Spesifikasi produk', product?.spesifikasi)}${block('Keterangan bahan', product?.bahan)}${block('Catatan PPIC', job.catatan)}
+<h3>Laporan hasil per shift</h3><table><tr><th>Tanggal</th><th>Shift</th><th>Tahap</th><th>Hasil</th><th>Reject</th><th>Operator</th><th>QC</th><th>Paraf KA Shift</th></tr>
+${results.length ? results.map((r) => `<tr><td>${esc(formatDate(r.tanggal))}</td><td>${r.shift}</td><td>${esc(r.tahap)}</td><td>${esc(qty(r.jumlah_hasil, r.satuan))}</td><td>${esc(qty(r.jumlah_reject, r.satuan))}</td><td>${esc(r.operator) || '—'}</td><td>${esc(r.status_qc)}</td><td></td></tr>`).join('') : Array.from({ length: 6 }, () => '<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}</table>
 <div class="sign"><div>PPIC</div><div>Kepala Produksi</div><div>QC</div></div>
 <p style="margin-top:18px;color:#777;font-size:10.5px">Dicetak dari PAP-MS · ${esc(new Date().toLocaleString('id-ID'))}</p>
 <script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`)
@@ -309,6 +352,11 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
   const [users, setUsers] = useState<UserOption[]>([])
   const [editing, setEditing] = useState<EditableStage[] | null>(null)
   const [catatan, setCatatan] = useState('')
+  const [spkForm, setSpkForm] = useState({ target_qty: '', tingkat_kualitas: '', formulasi: '', acuan_kerja: '' })
+  const [results, setResults] = useState<Result[]>([])
+  const [resultCan, setResultCan] = useState({ report: false, qc: false, manage: false })
+  const [resultForm, setResultForm] = useState<{ initial: Result | null; stageId?: number } | null>(null)
+  const [qcFor, setQcFor] = useState<Result | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -323,6 +371,10 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
       setStock(res.stock)
       setCan(res.can)
       setCatatan(res.item.catatan ?? '')
+      setSpkForm({ target_qty: res.item.target_qty === null ? '' : String(res.item.target_qty), tingkat_kualitas: res.item.tingkat_kualitas ?? '', formulasi: res.item.formulasi ?? '', acuan_kerja: res.item.acuan_kerja ?? '' })
+      const rs = await api<{ items: Result[]; can: typeof resultCan }>(`/api/production/results?job=${id}`)
+      setResults(rs.items)
+      setResultCan(rs.can)
     } catch (e) {
       setError((e as Error).message)
     }
@@ -364,7 +416,7 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
   const saveSchedule = () => run(async () => {
     await api(`/api/production/${job.id}/stages`, {
       method: 'PUT',
-      json: { stages: editing!.map((s) => ({ id: s.id, tahap: s.tahap, machine_id: s.machine_id || null, plan_start: s.plan_start || null, plan_end: s.plan_end || null, pic_user_id: s.pic_user_id || null, catatan: s.catatan })) },
+      json: { stages: editing!.map((s) => ({ id: s.id, tahap: s.tahap, machine_id: s.machine_id || null, plan_start: s.plan_start || null, plan_end: s.plan_end || null, pic_user_id: s.pic_user_id || null, catatan: s.catatan, target_qty: s.target_qty || null, target_unit: s.target_unit })) },
     })
     setEditing(null)
   }, 'Jadwal tahap disimpan.')
@@ -382,7 +434,7 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
             : <button className="pap-btn danger" disabled={busy} onClick={() => window.confirm('Batalkan job produksi ini?') && run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { batal: true } }), 'Job dibatalkan.')}><Trash2 /> Batalkan</button>)}
           <span className="pap-spacer" />
           {can.manage && <button className="pap-btn" disabled={busy} onClick={() => run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { prioritas: job.prioritas === 'tinggi' ? 'normal' : 'tinggi' } }))}><Flag /> {job.prioritas === 'tinggi' ? 'Prioritas normal' : 'Prioritas tinggi'}</button>}
-          <button className="pap-btn" onClick={() => printSpk(job, stages, product)}><Printer /> Cetak SPK</button>
+          <button className="pap-btn" onClick={() => printSpk(job, stages, product, results)}><Printer /> Cetak SPK</button>
         </>
       }
     >
@@ -390,6 +442,7 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       <div className="pap-detail-badges">
         <JobBadge value={job.status} />
+        {job.spk_nomor ? <span className="pap-status success">{job.spk_nomor}</span> : <span className="pap-status warning">SPK belum terbit</span>}
         {job.prioritas === 'tinggi' && <span className="pap-status danger">Prioritas tinggi</span>}
         {isLate(job) && <span className="pap-status danger">Lewat tanggal kirim</span>}
       </div>
@@ -398,7 +451,34 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
         <div><dt>Tanggal kirim</dt><dd>{formatDate(job.due_date)}</dd></div>
         <div><dt>Sales Order</dt><dd>{job.so_number} · {formatDate(job.so_date)}</dd></div>
         <div><dt>Stok barang jadi saat ini</dt><dd>{stock ? qty(stock.qty, stock.unit) : '—'}</dd></div>
+        <div><dt>Target SPK · hasil baik</dt><dd><strong>{qty(targetOf(job), job.unit)}</strong> · {job.hasil_baik === null ? 'belum ada laporan' : `${qty(job.hasil_baik, job.unit)}${targetOf(job) ? ` (${Math.floor((job.hasil_baik / targetOf(job)!) * 100)}%)` : ''}`}</dd></div>
       </dl>
+
+      <section className="pap-detail-section">
+        <div className="pap-section-head">
+          <h3>SPK (Surat Perintah Kerja)</h3>
+          {job.spk_nomor && <small className="pap-muted">Terbit {formatDate(job.spk_terbit_at, true)}{job.spk_terbit_name ? ` oleh ${job.spk_terbit_name}` : ''}</small>}
+        </div>
+        {can.manage && job.status !== 'batal' ? (
+          <div className="pap-form-grid">
+            <Field label="Target jumlah produksi" hint={`Kosong = jumlah pesanan (${qty(job.quantity, job.unit)}). Satuan: ${job.unit ?? '—'}`}><input className="pap-input" inputMode="decimal" value={spkForm.target_qty} onChange={(e) => setSpkForm((v) => ({ ...v, target_qty: e.target.value }))} placeholder={job.quantity === null ? '' : String(job.quantity)} /></Field>
+            <Field label="Tingkat kualitas"><input className="pap-input" maxLength={100} value={spkForm.tingkat_kualitas} onChange={(e) => setSpkForm((v) => ({ ...v, tingkat_kualitas: e.target.value }))} placeholder="mis. Grade A, food grade, reguler" /></Field>
+            <Field label="Formulasi / campuran bahan" full><textarea className="pap-input" rows={3} maxLength={10000} value={spkForm.formulasi} onChange={(e) => setSpkForm((v) => ({ ...v, formulasi: e.target.value }))} placeholder="mis. HD 70% · LLDPE 25% · masterbatch putih 5%" /></Field>
+            <Field label="Acuan kerja untuk KA Shift" full><textarea className="pap-input" rows={3} maxLength={10000} value={spkForm.acuan_kerja} onChange={(e) => setSpkForm((v) => ({ ...v, acuan_kerja: e.target.value }))} placeholder="Ukuran, ketebalan, warna cetak, standar seal, sample acuan, dll." /></Field>
+            <div className="full pap-inline-actions">
+              <span className="pap-spacer" />
+              <button className="pap-btn" disabled={busy || (spkForm.target_qty === (job.target_qty === null ? '' : String(job.target_qty)) && spkForm.tingkat_kualitas === (job.tingkat_kualitas ?? '') && spkForm.formulasi === (job.formulasi ?? '') && spkForm.acuan_kerja === (job.acuan_kerja ?? ''))} onClick={() => run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { ...spkForm, target_qty: spkForm.target_qty || null } }), 'Isi SPK disimpan.')}>Simpan isi SPK</button>
+              {!job.spk_nomor && <button className="pap-primary-button" disabled={busy} onClick={() => window.confirm('Terbitkan SPK untuk job ini? Nomor SPK dibuat dan SPK bisa dicetak untuk Produksi.') && run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { ...spkForm, target_qty: spkForm.target_qty || null, terbitkan_spk: true } }), 'SPK diterbitkan.')}><Stamp /> Terbitkan SPK</button>}
+            </div>
+          </div>
+        ) : (
+          <div className="pap-spec-grid">
+            <div><span>Tingkat kualitas</span><p>{job.tingkat_kualitas || <span className="pap-muted">—</span>}</p></div>
+            <div><span>Formulasi / campuran bahan</span><p className="pap-prewrap">{job.formulasi || <span className="pap-muted">Belum diisi PPIC.</span>}</p></div>
+            <div><span>Acuan kerja</span><p className="pap-prewrap">{job.acuan_kerja || <span className="pap-muted">Belum diisi PPIC.</span>}</p></div>
+          </div>
+        )}
+      </section>
 
       <section className="pap-detail-section">
         <div className="pap-section-head">
@@ -432,14 +512,17 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
                       {users.map((u) => <option key={u.id} value={u.id}>{u.name} · {u.division_name}</option>)}
                     </select>
                   </label>
+                  <label>Target tahap<input className="pap-input" inputMode="decimal" value={s.target_qty} onChange={(e) => setRow(index, 'target_qty', e.target.value)} placeholder={`Kosong = target SPK (${qty(targetOf(job), job.unit)})`} /></label>
+                  <label>Satuan target<input className="pap-input" maxLength={40} list="pap-result-units-stage" value={s.target_unit} onChange={(e) => setRow(index, 'target_unit', e.target.value)} placeholder={job.unit ?? 'kg / pcs'} /></label>
                   <label className="full">Catatan tahap<input className="pap-input" maxLength={1000} value={s.catatan} onChange={(e) => setRow(index, 'catatan', e.target.value)} placeholder="Instruksi khusus, warna tinta, ukuran potong, dll." /></label>
                 </div>
               </div>
             ))}
             <datalist id="pap-stage-names">{STAGES.map((t) => <option key={t} value={t} />)}</datalist>
+            <datalist id="pap-result-units-stage">{['kg', 'pcs', 'roll', 'bal', 'lembar', 'pack'].map((u) => <option key={u} value={u} />)}</datalist>
             {!machines.length && <p className="pap-hint">Belum ada data mesin. Tambahkan di menu Data Mesin.</p>}
             <div className="pap-inline-actions">
-              <button className="pap-btn" onClick={() => setEditing((rows) => [...rows!, { key: `new-${Date.now()}`, tahap: 'Lainnya', machine_id: '', plan_start: '', plan_end: '', pic_user_id: '', catatan: '' }])}><Plus /> Tambah tahap</button>
+              <button className="pap-btn" onClick={() => setEditing((rows) => [...rows!, { key: `new-${Date.now()}`, tahap: 'Lainnya', machine_id: '', plan_start: '', plan_end: '', pic_user_id: '', catatan: '', target_qty: '', target_unit: '' }])}><Plus /> Tambah tahap</button>
               <span className="pap-spacer" />
               <button className="pap-btn" onClick={() => setEditing(null)}>Batal</button>
               <button className="pap-primary-button" disabled={busy} onClick={saveSchedule}>{busy ? <Loader2 className="pap-spin" /> : null} Simpan jadwal</button>
@@ -447,10 +530,22 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
           </div>
         ) : (
           <ol className="pap-stage-list">
-            {stages.map((s) => <StageRow key={`${s.id}-${s.status}-${s.progress}`} stage={s} user={user} canProgress={can.progress && job.status !== 'batal'} busy={busy} run={run} />)}
+            {stages.map((s) => <StageRow key={`${s.id}-${s.status}-${s.progress}`} stage={s} job={job} user={user} canProgress={can.progress && job.status !== 'batal'} canReport={resultCan.report && job.status !== 'batal' && s.status !== 'dilewati'} onReport={() => setResultForm({ initial: null, stageId: s.id })} busy={busy} run={run} />)}
           </ol>
         )}
       </section>
+
+      <section className="pap-detail-section">
+        <div className="pap-section-head">
+          <h3>Laporan hasil produksi & QC</h3>
+          {resultCan.report && job.status !== 'batal' && <button className="pap-btn" onClick={() => setResultForm({ initial: null })}><Plus /> Lapor hasil</button>}
+        </div>
+        {results.length ? (
+          <ResultsTable items={results} can={resultCan} showJob={false} currentUserId={user.id} onEdit={(r) => setResultForm({ initial: r })} onQc={setQcFor} onDeleted={() => { load(); onChanged() }} onError={setError} />
+        ) : <p className="pap-muted">Belum ada laporan hasil. KA Shift melaporkan hasil per shift dari menu Hasil Produksi atau tombol Lapor hasil pada tahap.</p>}
+      </section>
+      {resultForm && <ResultForm initial={resultForm.initial} stageId={resultForm.stageId} onClose={() => setResultForm(null)} onSaved={(t) => { setResultForm(null); setMessage(t); load(); onChanged() }} />}
+      {qcFor && <QcForm item={qcFor} onClose={() => setQcFor(null)} onSaved={(t) => { setQcFor(null); setMessage(t); load(); onChanged() }} />}
 
       <section className="pap-detail-section">
         <h3>Spesifikasi produk</h3>
@@ -487,7 +582,7 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
   )
 }
 
-function StageRow({ stage, user, canProgress, busy, run }: { stage: Stage; user: UserProfile; canProgress: boolean; busy: boolean; run: (action: () => Promise<unknown>, text?: string) => Promise<void> }) {
+function StageRow({ stage, job, user, canProgress, canReport, onReport, busy, run }: { stage: Stage; job: Job; user: UserProfile; canProgress: boolean; canReport: boolean; onReport: () => void; busy: boolean; run: (action: () => Promise<unknown>, text?: string) => Promise<void> }) {
   const [progress, setProgress] = useState(stage.progress)
   const [status, setStatus] = useState<StageStatus>(stage.status)
   const [catatan, setCatatan] = useState(stage.catatan ?? '')
@@ -500,8 +595,10 @@ function StageRow({ stage, user, canProgress, busy, run }: { stage: Stage; user:
           <strong>{stage.tahap}</strong>
           <small>{stage.machine_name ?? 'Mesin belum dipilih'} · {stage.plan_start ? `${formatDate(stage.plan_start, true)} – ${formatDate(stage.plan_end, true)}` : 'Belum dijadwalkan'}{stage.pic_name ? ` · PIC ${stage.pic_name}` : ''}</small>
           {(stage.actual_start || stage.actual_end) && <small>Aktual: {formatDate(stage.actual_start, true)}{stage.actual_end ? ` – ${formatDate(stage.actual_end, true)}` : ' – sekarang'}</small>}
+          <small>Target {qty(stage.target_qty ?? targetOf(job), stage.target_unit ?? job.unit)} · hasil baik {stage.laporan ? qty(stage.hasil_baik ?? 0, stage.target_unit ?? job.unit) : '—'}{stage.jumlah_reject ? ` · reject ${formatNumber(stage.jumlah_reject)}` : ''}{stage.laporan ? ` · ${stage.laporan} laporan shift` : ''}</small>
         </div>
         <span className={`pap-status ${STAGE_TONE[stage.status]}`}>{STAGE_LABEL[stage.status]}</span>
+        {canReport && <button className="pap-btn small" onClick={onReport}><Plus /> Lapor hasil</button>}
       </div>
       {canProgress ? (
         <div className="pap-stage-progress">

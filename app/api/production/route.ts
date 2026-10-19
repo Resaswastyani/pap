@@ -16,8 +16,11 @@ export const GET = handle(async (request: Request) => {
   if (status === 'aktif') where.push("j.status IN ('menunggu', 'dijadwalkan', 'berjalan')")
   else if (status === 'terlambat') where.push("j.status IN ('menunggu', 'dijadwalkan', 'berjalan') AND j.due_date < CURDATE()")
   else if (status && status in JOB_STATUS) where.push('j.status = ?'), args.push(status)
+  const spk = params.get('spk')
+  if (spk === 'terbit') where.push('j.spk_nomor IS NOT NULL')
+  else if (spk === 'belum') where.push('j.spk_nomor IS NULL')
   const q = str(params.get('q'), 100)
-  if (q) where.push('(j.item_name LIKE ? OR j.so_number LIKE ? OR j.nomor LIKE ? OR c.name LIKE ?)'), args.push(...Array(4).fill(`%${q}%`))
+  if (q) where.push('(j.item_name LIKE ? OR j.so_number LIKE ? OR j.nomor LIKE ? OR j.spk_nomor LIKE ? OR c.name LIKE ?)'), args.push(...Array(5).fill(`%${q}%`))
   const machine = int(params.get('machine'))
   if (machine) where.push('EXISTS (SELECT 1 FROM production_stages s WHERE s.job_id = j.id AND s.machine_id = ?)'), args.push(machine)
   const page = Math.max(1, int(params.get('page')) ?? 1)
@@ -36,7 +39,9 @@ export const GET = handle(async (request: Request) => {
   const [[summary]] = await db.query<RowDataPacket[]>(
     `SELECT SUM(status = 'menunggu') AS menunggu, SUM(status = 'dijadwalkan') AS dijadwalkan, SUM(status = 'berjalan') AS berjalan,
        SUM(status IN ('menunggu', 'dijadwalkan', 'berjalan') AND due_date < CURDATE()) AS terlambat,
-       SUM(status = 'selesai' AND updated_at >= CURDATE() - INTERVAL 7 DAY) AS selesai_minggu
+       SUM(status = 'selesai' AND updated_at >= CURDATE() - INTERVAL 7 DAY) AS selesai_minggu,
+       SUM(status IN ('menunggu', 'dijadwalkan', 'berjalan') AND spk_nomor IS NOT NULL) AS spk_aktif,
+       SUM(status IN ('menunggu', 'dijadwalkan', 'berjalan') AND spk_nomor IS NULL) AS spk_belum
      FROM production_jobs`,
   )
   return NextResponse.json({

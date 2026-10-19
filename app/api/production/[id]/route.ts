@@ -39,6 +39,20 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   const args: unknown[] = []
   if ('prioritas' in body) sets.push('prioritas = ?'), args.push(body.prioritas === 'tinggi' ? 'tinggi' : 'normal')
   if ('catatan' in body) sets.push('catatan = ?'), args.push(str(body.catatan, 5000) || null)
+  // Isi SPK: target hasil, formulasi / campuran bahan, tingkat kualitas, acuan kerja
+  if ('target_qty' in body) {
+    const raw = body.target_qty === null || body.target_qty === '' ? null : Number(String(body.target_qty).replace(',', '.'))
+    if (raw !== null && (!Number.isFinite(raw) || raw <= 0)) fail(400, 'Target jumlah produksi tidak valid.')
+    sets.push('target_qty = ?'), args.push(raw)
+  }
+  if ('formulasi' in body) sets.push('formulasi = ?'), args.push(str(body.formulasi, 10000) || null)
+  if ('tingkat_kualitas' in body) sets.push('tingkat_kualitas = ?'), args.push(str(body.tingkat_kualitas, 100) || null)
+  if ('acuan_kerja' in body) sets.push('acuan_kerja = ?'), args.push(str(body.acuan_kerja, 10000) || null)
+  // Terbitkan SPK: nomor SPK-YYYYMM-<id job>, dicatat siapa & kapan
+  if (body.terbitkan_spk === true) {
+    if (job.status === 'batal') fail(400, 'Job yang dibatalkan tidak bisa diterbitkan SPK-nya.')
+    if (!job.spk_nomor) sets.push("spk_nomor = CONCAT('SPK-', DATE_FORMAT(NOW(), '%Y%m'), '-', LPAD(id, 5, '0')), spk_terbit_at = NOW(), spk_terbit_oleh = ?"), args.push(user.id)
+  }
   if (body.batal === true) sets.push("status = 'batal'")
   if (sets.length) await db.query(`UPDATE production_jobs SET ${sets.join(', ')}, updated_by = ? WHERE id = ?`, [...args, user.id, job.id])
   if (body.batal === false && job.status === 'batal') {

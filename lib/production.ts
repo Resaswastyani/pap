@@ -21,7 +21,10 @@ export type StageStatus = keyof typeof STAGE_STATUS
 // Permission production.manage tetap bisa diberikan per user (Manajemen User) bila perlu pengecualian.
 export const canManageProduction = (user: UserProfile) => can(user, PERMISSIONS.productionManage) || isManagement(user) || isLeadOf(user, 'ppic')
 export const canProgressProduction = (user: UserProfile) => canManageProduction(user) || can(user, PERMISSIONS.productionProgress) || user.division.code === 'produksi'
-export const canViewProduction = (user: UserProfile) => user.menus.includes('jadwal-produksi')
+// Job produksi dibuka dari menu Jadwal Produksi, SPK, atau Hasil Produksi
+export const canViewProduction = (user: UserProfile) => ['jadwal-produksi', 'sbk', 'hasil-produksi'].some((m) => user.menus.includes(m as never))
+// Verifikasi QC hasil produksi: Kepala Produksi, PPIC (kelola), GM, atau permission production.qc
+export const canQcProduction = (user: UserProfile) => canManageProduction(user) || can(user, PERMISSIONS.productionQc) || isLeadOf(user, 'produksi')
 // Data mesin: PPIC & Teknik
 export const canManageMachines = (user: UserProfile) => user.role.isAdmin || canManageProduction(user) || ['ppic', 'teknik'].includes(user.division.code)
 
@@ -83,8 +86,13 @@ export async function refreshJobStatus(jobId: number) {
   return status
 }
 
-export const JOB_SELECT = `SELECT j.id, j.nomor, j.so_accurate_id, j.so_number, j.line_id, j.customer_id, c.name AS customer_name, j.product_id,
-  j.item_accurate_id, j.item_name, j.quantity, j.unit, j.due_date, j.status, j.prioritas, j.catatan, j.created_at, j.updated_at,
+// Hasil baik = hasil - reject, laporan yang ditolak QC (reject) tidak dihitung
+export const GOOD_QTY_SQL = "CASE r.status_qc WHEN 'reject' THEN 0 ELSE r.jumlah_hasil - r.jumlah_reject END"
+
+export const JOB_SELECT = `SELECT j.id, j.nomor, j.spk_nomor, j.spk_terbit_at, us.name AS spk_terbit_name, j.so_accurate_id, j.so_number, j.line_id, j.customer_id, c.name AS customer_name, j.product_id,
+  j.item_accurate_id, j.item_name, j.quantity, j.unit, j.target_qty, j.due_date, j.status, j.prioritas, j.catatan, j.formulasi, j.tingkat_kualitas, j.acuan_kerja, j.created_at, j.updated_at,
+  (SELECT SUM(${GOOD_QTY_SQL}) FROM production_results r WHERE r.stage_id = (
+     SELECT s.id FROM production_stages s WHERE s.job_id = j.id AND s.status <> 'dilewati' ORDER BY s.urutan DESC LIMIT 1)) AS hasil_baik,
   so.trans_date AS so_date, so.status AS so_status,
   (SELECT COUNT(*) FROM production_stages s WHERE s.job_id = j.id AND s.status <> 'dilewati') AS stage_count,
   (SELECT COUNT(*) FROM production_stages s WHERE s.job_id = j.id AND s.status = 'selesai') AS stage_done,
@@ -95,12 +103,15 @@ export const JOB_SELECT = `SELECT j.id, j.nomor, j.so_accurate_id, j.so_number, 
   (SELECT MAX(s.plan_end) FROM production_stages s WHERE s.job_id = j.id) AS plan_end
   FROM production_jobs j
   LEFT JOIN customers c ON c.id = j.customer_id
-  LEFT JOIN accurate_sales_orders so ON so.accurate_id = j.so_accurate_id`
+  LEFT JOIN accurate_sales_orders so ON so.accurate_id = j.so_accurate_id
+  LEFT JOIN users us ON us.id = j.spk_terbit_oleh`
 
-type JobRow = RowDataPacket & { id: number; status: JobStatus; product_id: number | null; item_accurate_id: number | null; item_name: string }
+type JobRow = RowDataPacket & { id: number; status: JobStatus; product_id: number | null; item_accurate_id: number | null; item_name: string; spk_nomor: string | null }
 export const serializeJob = (row: JobRow) => ({
   ...row,
   quantity: row.quantity === null ? null : Number(row.quantity),
+  target_qty: row.target_qty === null ? null : Number(row.target_qty),
+  hasil_baik: row.hasil_baik === null ? null : Number(row.hasil_baik),
   stage_count: Number(row.stage_count ?? 0),
   stage_done: Number(row.stage_done ?? 0),
   progress: Number(row.progress ?? 0),
@@ -121,12 +132,21 @@ export async function loadJob(id: number) {
 export async function loadStages(jobId: number) {
   const [rows] = await db.query<RowDataPacket[]>(
     `SELECT s.id, s.urutan, s.tahap, s.machine_id, m.nama AS machine_name, m.kode AS machine_kode, s.plan_start, s.plan_end, s.actual_start, s.actual_end,
-       s.status, s.progress, s.pic_user_id, u.name AS pic_name, s.catatan, s.updated_at, ub.name AS updated_by_name
+       s.status, s.progress, s.target_qty, s.target_unit, s.pic_user_id, u.name AS pic_name, s.catatan, s.updated_at, ub.name AS updated_by_name,
+       (SELECT SUM(${GOOD_QTY_SQL}) FROM production_results r WHERE r.stage_id = s.id) AS hasil_baik,
+       (SELECT SUM(r.jumlah_reject) FROM production_results r WHERE r.stage_id = s.id) AS jumlah_reject,
+       (SELECT COUNT(*) FROM production_results r WHERE r.stage_id = s.id) AS laporan
      FROM production_stages s LEFT JOIN machines m ON m.id = s.machine_id LEFT JOIN users u ON u.id = s.pic_user_id LEFT JOIN users ub ON ub.id = s.updated_by
      WHERE s.job_id = ? ORDER BY s.urutan`,
     [jobId],
   )
-  return rows
+  return rows.map((r) => ({
+    ...r,
+    target_qty: r.target_qty === null ? null : Number(r.target_qty),
+    hasil_baik: r.hasil_baik === null ? null : Number(r.hasil_baik),
+    jumlah_reject: r.jumlah_reject === null ? null : Number(r.jumlah_reject),
+    laporan: Number(r.laporan ?? 0),
+  }))
 }
 
 export function readMachineInput(body: Record<string, unknown>) {

@@ -15,6 +15,7 @@ export const PERMISSIONS = {
   productManage: 'product.manage',
   productionManage: 'production.manage',
   productionProgress: 'production.progress',
+  productionQc: 'production.qc',
 } as const
 
 // Lampiran produk (desain): PDF & gambar, maks 4 MB per file (batas request Vercel 4,5 MB; diunggah satu per satu)

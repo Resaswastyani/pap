@@ -1006,3 +1006,28 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
   .pap-shift-board { grid-template-columns:1fr; padding:12px; }
   .pap-shift-table .nama { min-width:130px; max-width:150px; }
 }
+
+/* ---------- SPK & Hasil Produksi / QC ---------- */
+.pap-btn.small { min-height:30px; padding:0 10px; border-radius:8px; font-size:11px; }
+.pap-btn.small svg { width:13px; height:13px; }
+.pap-stage-top .pap-btn.small { flex:none; }
+.pap-result-stat { display:block; }
+.pap-result-stat small { display:inline !important; color:var(--pap-muted) !important; font-size:13px !important; letter-spacing:0; }
+.pap-result-issue { display:flex; align-items:flex-start; gap:6px; margin-top:6px; padding:6px 8px; border-radius:8px; background:rgb(245 180 60 / .14); color:#a06b00; font-size:11px; }
+.pap-result-issue svg { flex:none; width:13px; height:13px; margin-top:1px; }
+.pap-shell.dark .pap-result-issue { color:#f5c24c; }
+.pap-table-wrap .pap-results-table { min-width:900px; }
+.pap-table-wrap .pap-results-table th, .pap-table-wrap .pap-results-table td { padding:10px 12px; vertical-align:top; }
+.pap-results-table td:nth-last-child(3) { min-width:170px; }
+.pap-results-table td:nth-last-child(2) { min-width:130px; }
+.pap-results-table td:nth-child(2) { min-width:150px; }
+.pap-date-input { width:auto; min-height:36px; }
+.pap-shift-pick { display:flex; width:100%; }
+.pap-shift-pick button { flex:1; justify-content:center; }
+.pap-qc-options { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px; margin:14px 0; }
+.pap-qc-option { padding:10px 6px; border:1px solid var(--pap-border); border-radius:10px; background:var(--pap-surface); color:var(--pap-text); font-size:12px; font-weight:700; cursor:pointer; }
+.pap-qc-option.active.success { border-color:#1db98a; background:rgb(29 185 138 / .12); color:#0f9c74; }
+.pap-qc-option.active.info { border-color:#7c5cfc; background:rgb(124 92 252 / .12); color:#7050e7; }
+.pap-qc-option.active.danger { border-color:#dc2626; background:rgb(239 68 68 / .12); color:#dc2626; }
+.pap-qc-option.active.warning { border-color:#b47908; background:rgb(245 180 60 / .15); color:#b47908; }
+@media (max-width:800px) { .pap-qc-options { grid-template-columns:1fr 1fr; } .pap-date-input { width:100%; } }
