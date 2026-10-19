@@ -918,3 +918,9 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 @keyframes pap-splash-in { from { opacity:0; transform:translateY(8px) scale(.97); } to { opacity:1; transform:none; } }
 @keyframes pap-splash-out { to { opacity:0; visibility:hidden; pointer-events:none; } }
 .pap-activity-brand { margin-bottom:3px; color:var(--pap-text); font-size:12px; font-weight:700; white-space:nowrap; }
+
+/* Dropdown pilih banyak (Telepon / WA di kop penawaran) */
+.pap-multiselect { position:relative; }
+.pap-multiselect > summary { display:block; list-style:none; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.pap-multiselect > summary::-webkit-details-marker { display:none; }
+.pap-multiselect-menu { position:absolute; z-index:5; top:calc(100% + 4px); left:0; right:0; display:flex; flex-direction:column; gap:8px; max-height:240px; overflow:auto; padding:10px 12px; border:1px solid var(--pap-border); border-radius:12px; background:var(--pap-surface); box-shadow:0 12px 30px rgb(0 0 0 / .15); }

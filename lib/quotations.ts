@@ -109,6 +109,8 @@ export async function readQuotationInput(body: Record<string, unknown>, user: Us
       tanggal, berlaku_hari: berlaku, pakai_ppn: pakaiPpn ? 1 : 0, ppn_persen: ppnPersen,
       subtotal, ppn, total: subtotal + ppn,
       syarat: str(body.syarat, 5000) || null, rekening: str(body.rekening, 255) || null, catatan: str(body.catatan, 5000) || null,
+      // Nomor Telepon / WA perusahaan yang dicetak di kop (satu per baris)
+      telepon_kop: (Array.isArray(body.telepon_kop) ? body.telepon_kop.map((v) => str(v, 150)).filter(Boolean).join('\n') : '').slice(0, 1000) || null,
     },
     items,
   }
