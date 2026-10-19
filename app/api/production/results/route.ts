@@ -5,6 +5,7 @@ import { requireMenu } from '@/lib/customers'
 import { db } from '@/lib/db'
 import { canManageProduction, canProgressProduction, canQcProduction, canViewProduction, GOOD_QTY_SQL } from '@/lib/production'
 import { currentShift, readResultInput, refreshStageProgress, RESULT_SELECT, serializeResult } from '@/lib/production-results'
+import { canReportRepair, createRepair, REPAIR_PRIORITY, type RepairPriority } from '@/lib/repairs'
 
 // Laporan hasil produksi: ?tanggal=YYYY-MM-DD (default tanggal shift berjalan) &shift=1|2|3 &qc=menunggu, atau ?job=ID (semua laporan job)
 export const GET = handle(async (request: Request) => {
@@ -47,13 +48,25 @@ export const GET = handle(async (request: Request) => {
 export const POST = handle(async (request: Request) => {
   const user = await requireUser()
   if (!canProgressProduction(user)) fail(403, 'Anda tidak punya akses untuk melaporkan hasil produksi.')
-  const input = await readResultInput(await readJson(request))
+  const body = await readJson(request)
+  const input = await readResultInput(body)
+  // Kendala mesin sekaligus dilaporkan ke Teknik
+  const laporKerusakan = body.lapor_kerusakan === true
+  if (laporKerusakan && !input.machineId) fail(400, 'Pilih mesin untuk melaporkan kerusakan ke Teknik.')
+  if (laporKerusakan && !input.kendala) fail(400, 'Tuliskan kendala mesin untuk dilaporkan ke Teknik.')
+  if (laporKerusakan && !canReportRepair(user)) fail(403, 'Anda tidak punya akses ke menu Kerusakan Mesin.')
   const [res] = await db.query<ResultSetHeader>(
     `INSERT INTO production_results (job_id, stage_id, tanggal, shift, machine_id, jumlah_hasil, jumlah_reject, satuan, operator, kendala, catatan, reported_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [input.stage.job_id, input.stage.id, input.tanggal, input.shift, input.machineId, input.hasil, input.reject, input.satuan, input.operator, input.kendala, input.catatan, user.id],
   )
   await refreshStageProgress(input.stage.id)
+  const repairId = laporKerusakan
+    ? await createRepair({
+        machineId: input.machineId!, keluhan: input.kendala!, resultId: res.insertId, mesinBerhenti: body.mesin_berhenti === true,
+        prioritas: typeof body.prioritas === 'string' && body.prioritas in REPAIR_PRIORITY ? (body.prioritas as RepairPriority) : 'normal',
+      }, user)
+    : null
   const [[item]] = await db.query<RowDataPacket[]>(`${RESULT_SELECT} WHERE r.id = ?`, [res.insertId])
-  return NextResponse.json({ item: serializeResult(item) })
+  return NextResponse.json({ item: serializeResult(item), repairId })
 })

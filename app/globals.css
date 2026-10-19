@@ -1031,3 +1031,10 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-qc-option.active.danger { border-color:#dc2626; background:rgb(239 68 68 / .12); color:#dc2626; }
 .pap-qc-option.active.warning { border-color:#b47908; background:rgb(245 180 60 / .15); color:#b47908; }
 @media (max-width:800px) { .pap-qc-options { grid-template-columns:1fr 1fr; } .pap-date-input { width:100%; } }
+
+/* ---------- Kerusakan Mesin ---------- */
+.pap-filters-top { align-items:center; padding-top:18px; }
+.pap-repair-keluhan { display:-webkit-box; max-width:420px; overflow:hidden; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.pap-qc-options.three { grid-template-columns:repeat(3, minmax(0,1fr)); margin:0; }
+.pap-result-repair { display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; padding:10px 12px; border:1px dashed rgb(239 68 68 / .45); border-radius:10px; }
+.pap-result-repair .pap-select { width:auto; min-height:34px; font-size:12px; }
