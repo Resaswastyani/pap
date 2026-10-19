@@ -10,6 +10,8 @@ export type QuotationStatus = keyof typeof QUOTATION_STATUS
 
 // Persetujuan internal (db/031): penawaran buatan staff wajib disetujui Kepala Marketing atau GM sebelum dikirim.
 // Penawaran buatan penyetuju sendiri tidak perlu diajukan.
+// Saklar: surat penawaran sementara tidak perlu persetujuan (bisa langsung dikirim). Ubah ke true untuk mengaktifkan lagi.
+export const QUOTATION_APPROVAL_REQUIRED = false
 export const canApproveQuotation = (user: UserProfile) => isManagement(user) || isLeadOf(user, ...MARKETING_DIVISIONS)
 export const quotationApprovers = () => leadAndGmUsers([...MARKETING_DIVISIONS])
 

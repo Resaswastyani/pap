@@ -3,7 +3,7 @@ import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { notify } from '@/lib/notifications'
 import { pushToUsers } from '@/lib/push'
-import { canApproveQuotation, loadQuotation, quotationApprovers, requireQuotation } from '@/lib/quotations'
+import { canApproveQuotation, loadQuotation, QUOTATION_APPROVAL_REQUIRED, quotationApprovers, requireQuotation } from '@/lib/quotations'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -14,6 +14,7 @@ type Ctx = { params: Promise<{ id: string }> }
 export const POST = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
   requireQuotation(user)
+  if (!QUOTATION_APPROVAL_REQUIRED) fail(400, 'Persetujuan penawaran sedang tidak dipakai; penawaran bisa langsung dikirim.')
   const item = await loadQuotation(int((await ctx.params).id) ?? fail(404, 'Quotation tidak ditemukan.'), user)
   if (item.status !== 'draft') fail(400, 'Persetujuan hanya untuk penawaran berstatus Draft.')
   const body = await readJson(request)
