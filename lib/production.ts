@@ -2,7 +2,7 @@ import type { RowDataPacket } from 'mysql2'
 import { fail, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { PERMISSIONS } from '@/lib/permissions'
-import { can, type UserProfile } from '@/lib/users'
+import { can, isLeadOf, isManagement, type UserProfile } from '@/lib/users'
 
 // Jadwal Produksi: setiap baris Sales Order Accurate berisi barang bertanda "Diproduksi"
 // otomatis menjadi job produksi, dipecah per tahap (Blow -> Cetak -> Bag making) dengan mesin & jadwal.
@@ -17,12 +17,13 @@ export type JobStatus = keyof typeof JOB_STATUS
 export const STAGE_STATUS = { belum: 'Belum mulai', berjalan: 'Berjalan', selesai: 'Selesai', dilewati: 'Dilewati' } as const
 export type StageStatus = keyof typeof STAGE_STATUS
 
-// PPIC mengatur jadwal & mesin; Produksi update progress; divisi lain dengan menu Jadwal Produksi hanya melihat
-export const canManageProduction = (user: UserProfile) => can(user, PERMISSIONS.productionManage) || user.division.code === 'ppic'
+// Kepala PPIC & GM mengatur jadwal, mesin, & job; Produksi update progress; staff PPIC & divisi lain dengan menu Jadwal Produksi hanya melihat.
+// Permission production.manage tetap bisa diberikan per user (Manajemen User) bila perlu pengecualian.
+export const canManageProduction = (user: UserProfile) => can(user, PERMISSIONS.productionManage) || isManagement(user) || isLeadOf(user, 'ppic')
 export const canProgressProduction = (user: UserProfile) => canManageProduction(user) || can(user, PERMISSIONS.productionProgress) || user.division.code === 'produksi'
 export const canViewProduction = (user: UserProfile) => user.menus.includes('jadwal-produksi')
 // Data mesin: PPIC & Teknik
-export const canManageMachines = (user: UserProfile) => user.role.isAdmin || canManageProduction(user) || user.division.code === 'teknik'
+export const canManageMachines = (user: UserProfile) => user.role.isAdmin || canManageProduction(user) || ['ppic', 'teknik'].includes(user.division.code)
 
 // Tahap bawaan dari nama barang: "POLOS" tanpa cetak, "ROL" tanpa bag making
 export function defaultStages(itemName: string) {

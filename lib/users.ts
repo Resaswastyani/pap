@@ -85,6 +85,22 @@ export function can(profile: UserProfile, permission: PermissionCode) {
   return profile.role.isSuperAdmin || profile.permissions.includes(permission)
 }
 
+// General Manager (divisi GM) atau role Admin / Super Admin
+export const isManagement = (profile: UserProfile) => profile.role.isAdmin || profile.division.code === 'general_manager'
+
+// Kepala divisi (role Lead) di salah satu divisi ini
+export const isLeadOf = (profile: UserProfile, ...divisions: string[]) => profile.role.code === 'lead' && divisions.includes(profile.division.code)
+
+// Penerima notifikasi persetujuan: Lead divisi tertentu + semua user divisi GM
+export async function leadAndGmUsers(leadDivisions: string[]) {
+  const [rows] = await db.query<(RowDataPacket & { id: number })[]>(
+    `SELECT u.id FROM users u JOIN divisions d ON d.id = u.division_id JOIN roles r ON r.id = u.role_id
+     WHERE u.is_active = 1 AND ((r.code = 'lead' AND d.code IN (?)) OR d.code = 'general_manager')`,
+    [leadDivisions.length ? leadDivisions : ['']],
+  )
+  return rows.map((r) => r.id)
+}
+
 // User yang sedang login (null bila sesi tidak valid atau akun dinonaktifkan)
 export async function getCurrentUser() {
   const session = await getSession()

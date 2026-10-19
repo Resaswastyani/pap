@@ -183,6 +183,8 @@ function planFor(method: string, path: string): Plan | null {
     return { ...base, action: 'checkin', table: r.table, id: a, describe: (l) => `Check-in visit ${l}` }
   if (['samples', 'designs', 'quotations'].includes(res) && isId(a) && b === 'status')
     return { ...base, action: 'update', always: true, table: r.table, id: a, describe: (l, f) => `Mengubah status ${r.noun} ${l}${f.status ? ` menjadi ${f.status}` : ''}` }
+  if (res === 'quotations' && isId(a) && b === 'approval')
+    return { ...base, action: 'update', always: true, table: r.table, id: a, describe: (l, f) => `${f.action === 'ajukan' ? 'Mengajukan persetujuan' : f.action === 'tolak' ? 'Menolak' : 'Menyetujui'} ${r.noun} ${l}` }
   if (res === 'repeat-order' && isId(a) && !b)
     return { ...base, action: 'update', always: true, table: r.table, id: a, describe: (l, f) => (f.hasil ? `Mencatat follow up repeat order${f.jenis ? ` (${f.jenis})` : ''} customer ${l}` : `Mengubah PIC repeat order customer ${l}`) }
   if (res === 'hpp' && !a)

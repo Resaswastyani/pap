@@ -4,8 +4,8 @@ import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { logActivity } from '@/lib/marketing'
 import {
-  canRequest, divisionUsers, isPPIC, isProduksi, logRequest, notifyRequest, readSampleRequest, readTarget, saveSampleItems, requireRequestMenu,
-  SAMPLE_SELECT, SAMPLE_STATUS, sampleScope, sampleTodoSql, setNomor,
+  canApproveSample, canRequest, isPPIC, isProduksi, logRequest, notifyRequest, readSampleRequest, readTarget, saveSampleItems, requireRequestMenu,
+  sampleApprovers, SAMPLE_SELECT, SAMPLE_STATUS, sampleScope, sampleTodoSql, setNomor,
 } from '@/lib/requests'
 
 // Daftar request sample + jumlah per status + "perlu tindakan saya"
@@ -56,11 +56,11 @@ export const GET = handle(async (request: Request) => {
     items: items.map((s) => ({ ...s, item_count: Number(s.item_count) })),
     counts: { todo: Number(counts.todo), aktif: Number(counts.aktif) },
     summary: Object.fromEntries(summary.map((r) => [r.status, Number(r.n)])),
-    roles: { canRequest: canRequest(user), ppic: isPPIC(user), produksi: isProduksi(user) },
+    roles: { canRequest: canRequest(user), ppic: isPPIC(user), produksi: isProduksi(user), approve: canApproveSample(user) },
   })
 })
 
-// Sales mengajukan sample -> notifikasi ke PPIC
+// Sales mengajukan sample -> notifikasi ke penyetuju (Kepala Produksi, Kepala PPIC, GM)
 export const POST = handle(async (request: Request) => {
   const user = await requireUser()
   requireRequestMenu(user, 'sample')
@@ -77,9 +77,9 @@ export const POST = handle(async (request: Request) => {
   const nomor = await setNomor('sample_requests', 'SMP', id)
   await logRequest({ sampleId: id, userId: user.id, to: 'diajukan', catatan: spec.special_request })
   if (target.prospectId) await logActivity(db, { prospectId: target.prospectId, userId: user.id, jenis: 'catatan', hasil: `Request sample ${nomor}: ${spec.items.map((i) => i.nama_produk).join(', ')}` })
-  await notifyRequest(await divisionUsers(['ppic']), user.id, {
+  await notifyRequest(await sampleApprovers(), user.id, {
     type: 'sample_update',
-    title: `Request sample baru ${nomor}`,
+    title: `Request sample baru ${nomor} menunggu persetujuan`,
     body: [spec.nama_produk, spec.tenggat && `butuh ${spec.tenggat}`, `dari ${user.name}`].filter(Boolean).join(' · '),
     sampleId: id,
     refKey: `sample:${id}:diajukan:0`,

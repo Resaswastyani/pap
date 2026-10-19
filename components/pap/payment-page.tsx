@@ -22,7 +22,7 @@ export type PaymentPreset = { quotation_id: number; pembayar: string; nomor: str
 
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 
-export function PaymentPage({ focusId }: { user: UserProfile; focusId?: number | null }) {
+export function PaymentPage({ user, focusId }: { user: UserProfile; focusId?: number | null }) {
   const [tab, setTab] = useState<'konfirmasi' | 'piutang'>('konfirmasi')
   const [items, setItems] = useState<Payment[]>([])
   const [unpaid, setUnpaid] = useState<Unpaid[]>([])
@@ -77,7 +77,7 @@ export function PaymentPage({ focusId }: { user: UserProfile; focusId?: number |
         <button className="pap-stat-card pap-stat-button" onClick={() => setTab('piutang')}>
           <div><span>Faktur belum lunas</span><strong>{unpaid.length}</strong><small className="neutral">{formatRupiah(piutang)}</small></div><div className="pap-stat-icon stat-2"><AlertTriangle /></div>
         </button>
-        <div className="pap-stat-card"><div><span>Peran Anda</span><strong className="pap-stat-text">{canVerify ? 'Verifikator' : 'Pengirim'}</strong><small className="neutral">{canVerify ? 'Accounting / GM / admin' : 'Konfirmasi dicek Accounting'}</small></div><div className="pap-stat-icon stat-1"><Wallet /></div></div>
+        <div className="pap-stat-card"><div><span>Peran Anda</span><strong className="pap-stat-text">{canVerify ? 'Verifikator' : user.division.code === 'accounting' ? 'Pemantau' : 'Pengirim'}</strong><small className="neutral">{canVerify ? 'Kepala Accounting / GM' : 'Diverifikasi Kepala Accounting / GM'}</small></div><div className="pap-stat-icon stat-1"><Wallet /></div></div>
       </div>
       <div className="pap-table-card">
         <div className="pap-card-head">

@@ -125,7 +125,7 @@ export function ProductionPage({ user, focusId }: { user: UserProfile; focusId?:
         <div>
           <p className="pap-eyebrow">PRODUKSI</p>
           <h1>Jadwal Produksi</h1>
-          <span>Otomatis dari Sales Order Accurate berisi barang bertanda “Diproduksi”. PPIC mengatur tahap & mesin, Produksi meng-update progress.</span>
+          <span>Otomatis dari Sales Order Accurate berisi barang bertanda “Diproduksi”. Kepala PPIC / GM mengatur tahap & mesin, Produksi meng-update progress.</span>
         </div>
       </div>
       <AccurateSyncBar entities={['sales-order', 'sales-order-items', 'item-detail']} canSync={can.manage || user.role.isAdmin} onSynced={reloadAll} />

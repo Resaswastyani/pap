@@ -10,7 +10,7 @@ type Ctx = { params: Promise<{ id: string }> }
 // Tahap yang tidak dikirim dihapus; urutan mengikuti urutan array.
 export const PUT = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
-  if (!canManageProduction(user)) fail(403, 'Hanya PPIC yang dapat mengatur jadwal produksi.')
+  if (!canManageProduction(user)) fail(403, 'Hanya Kepala PPIC atau General Manager yang dapat mengatur jadwal produksi.')
   const job = await loadJob(int((await ctx.params).id) ?? fail(404, 'Job produksi tidak ditemukan.'))
   const body = await readJson(request)
   const input = Array.isArray(body.stages) ? (body.stages as Record<string, unknown>[]) : []

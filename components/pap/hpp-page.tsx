@@ -116,7 +116,7 @@ export function HppPage({ user: _user }: { user: UserProfile }) {
       {!data && !error && <div className="pap-empty">Memuat...</div>}
       {data && tab === 'bahan' && (
         <div className="pap-table-card">
-          <div className="pap-card-head"><div><h2>Harga bahan baku</h2><p>{data.canEditPrices ? 'Purchasing / Admin / GM memperbarui harga; setiap perubahan tercatat di riwayat.' : 'Hanya melihat. Harga diperbarui Purchasing.'}</p></div></div>
+          <div className="pap-card-head"><div><h2>Harga bahan baku</h2><p>{data.canEditPrices ? 'Kepala Purchasing / GM memperbarui harga; setiap perubahan tercatat di riwayat.' : 'Hanya melihat. Harga diperbarui Kepala Purchasing / GM.'}</p></div></div>
           <div className="pap-table-wrap">
             <table>
               <thead><tr><th>Bahan</th><th>Jenis</th><th className="pap-num">Harga</th><th>Perubahan</th><th>Density</th><th>Diperbarui</th><th aria-label="Aksi" /></tr></thead>

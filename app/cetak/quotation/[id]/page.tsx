@@ -57,6 +57,7 @@ export default async function CetakQuotationPage({ params, searchParams }: { par
           </div>
         </header>
         <h2 className="pap-sheet-title">{JUDUL[jenis]}</h2>
+        {jenis === 'penawaran' && q.status === 'draft' && q.approval !== 'disetujui' && <p className="pap-sheet-draft">DRAFT — belum disetujui Kepala Marketing / GM, jangan dikirim ke customer</p>}
         <table className="pap-sheet-meta">
           <tbody>
             <tr><td>Nomor</td><td>: {nomor}</td><td>Tanggal</td><td>: {tanggal(tanggalDok)}</td></tr>

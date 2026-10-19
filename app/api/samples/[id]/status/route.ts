@@ -4,15 +4,15 @@ import { db } from '@/lib/db'
 import { canSupervise, logActivity } from '@/lib/marketing'
 import { formatWaktu } from '@/lib/notifications'
 import {
-  divisionUsers, isPPIC, isProduksi, loadSample, logRequest, notifyRequest, optDate, readSampleRequest, requireRequestMenu, saveSampleItems,
-  SAMPLE_STATUS, type SampleStatus,
+  canApproveSample, divisionUsers, isPPIC, isProduksi, loadSample, logRequest, notifyRequest, optDate, readSampleRequest, requireRequestMenu,
+  saveSampleItems, SAMPLE_STATUS, sampleApprovers, type SampleStatus,
 } from '@/lib/requests'
 
 type Ctx = { params: Promise<{ id: string }> }
 
-// Alur: diajukan -(PPIC jadwalkan)-> dijadwalkan -(Produksi mulai)-> diproduksi -(Produksi selesai)-> selesai
-//       -(kirim)-> dikirim -(customer)-> disetujui | revisi -(sales ajukan ulang dgn spek baru)-> diajukan
-// Batal bisa dari tahap mana pun sebelum disetujui.
+// Alur: diajukan -(Kepala Produksi / Kepala PPIC / GM setujui & jadwalkan)-> dijadwalkan -(Produksi mulai)-> diproduksi
+//       -(Produksi selesai)-> selesai -(kirim)-> dikirim -(customer)-> disetujui | revisi -(sales ajukan ulang dgn spek baru)-> diajukan
+// Batal bisa dari tahap mana pun sebelum disetujui; batal oleh penyetuju pada tahap diajukan = pengajuan ditolak.
 const NEXT: Record<SampleStatus, SampleStatus[]> = {
   diajukan: ['dijadwalkan', 'batal'],
   dijadwalkan: ['dijadwalkan', 'diproduksi', 'batal'],
@@ -39,11 +39,12 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   const values: unknown[] = [to]
   let note = catatan
   if (to === 'dijadwalkan') {
-    if (!isPPIC(user)) fail(403, 'Hanya PPIC yang menjadwalkan produksi sample.')
+    if (from === 'diajukan' && !canApproveSample(user)) fail(403, 'Pengajuan sample hanya bisa disetujui Kepala Produksi, Kepala PPIC, atau General Manager.')
+    if (from === 'dijadwalkan' && !isPPIC(user) && !canApproveSample(user)) fail(403, 'Hanya PPIC yang dapat mengubah jadwal produksi sample.')
     const jadwal = optDate(body.jadwal_produksi, 'jadwal produksi') ?? fail(400, 'Isi tanggal jadwal produksi sample.')
     sets.push('jadwal_produksi = ?')
     values.push(jadwal)
-    note = [`Jadwal produksi ${formatWaktu(jadwal)}`, catatan].filter(Boolean).join('. ')
+    note = [`${from === 'diajukan' ? 'Disetujui, jadwal' : 'Jadwal'} produksi ${formatWaktu(jadwal)}`, catatan].filter(Boolean).join('. ')
   } else if (to === 'diproduksi' || to === 'selesai') {
     if (!isProduksi(user) && !isPPIC(user)) fail(403, 'Hanya Produksi / PPIC yang memperbarui proses produksi sample.')
   } else if (to === 'dikirim') {
@@ -66,7 +67,8 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
     sets.push('revisi_ke = revisi_ke + 1', 'jadwal_produksi = NULL', 'pengiriman = NULL')
     note = `Diajukan ulang (revisi ${Number(item.revisi_ke) + 1})${catatan ? `: ${catatan}` : ''}`
   } else if (to === 'batal') {
-    if (!requester && !isPPIC(user)) fail(403, 'Hanya sales pengaju atau PPIC yang dapat membatalkan.')
+    if (from === 'diajukan' && !requester && !canApproveSample(user)) fail(403, 'Pengajuan sample hanya bisa ditolak Kepala Produksi, Kepala PPIC, atau General Manager.')
+    if (from !== 'diajukan' && !requester && !isPPIC(user) && !canApproveSample(user)) fail(403, 'Hanya sales pengaju atau PPIC yang dapat membatalkan.')
     if (!catatan) fail(400, 'Tulis alasan pembatalan.')
   }
 
@@ -80,8 +82,8 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   const ppic = await divisionUsers(['ppic'])
   const produksi = await divisionUsers(['produksi'])
   const recipients: Record<SampleStatus, number[]> = {
-    diajukan: ppic,
-    dijadwalkan: [item.requested_by, ...produksi],
+    diajukan: await sampleApprovers(),
+    dijadwalkan: [item.requested_by, ...ppic, ...produksi],
     diproduksi: [item.requested_by],
     selesai: [item.requested_by, ...ppic],
     dikirim: [item.requested_by, ...ppic],

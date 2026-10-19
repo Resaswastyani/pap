@@ -14,6 +14,11 @@ type Status = 'draft' | 'dikirim' | 'diterima' | 'ditolak' | 'batal'
 const STATUS_LABEL: Record<Status, string> = { draft: 'Draft', dikirim: 'Dikirim', diterima: 'Diterima', ditolak: 'Ditolak', batal: 'Batal' }
 const STATUS_TONE: Record<Status, string> = { draft: 'neutral', dikirim: 'info', diterima: 'success', ditolak: 'danger', batal: 'neutral' }
 const Badge = ({ s }: { s: Status }) => <span className={`pap-status ${STATUS_TONE[s]}`}>{STATUS_LABEL[s]}</span>
+// Persetujuan internal Kepala Marketing / GM (hanya relevan selama draft)
+type Approval = 'menunggu' | 'disetujui' | 'ditolak'
+const APPROVAL_LABEL: Record<Approval, string> = { menunggu: 'Menunggu persetujuan', disetujui: 'Disetujui atasan', ditolak: 'Ditolak atasan' }
+const APPROVAL_TONE: Record<Approval, string> = { menunggu: 'warning', disetujui: 'success', ditolak: 'danger' }
+const ApprovalBadge = ({ q }: { q: Pick<Quotation, 'status' | 'approval'> }) => (q.status === 'draft' && q.approval ? <span className={`pap-status ${APPROVAL_TONE[q.approval]}`}>{APPROVAL_LABEL[q.approval]}</span> : null)
 
 type Quotation = {
   id: number; nomor: string; prospect_id: number | null; customer_id: number | null; kepada: string; kontak: string | null; telepon: string | null
@@ -22,6 +27,7 @@ type Quotation = {
   created_name: string; sent_at: string | null; created_at: string; prospect_name: string | null; customer_no: string | null; item_count: number
   order_nomor: string | null; proforma_nomor: string | null; tanggal_kirim: string | null; dp_persen: number | null; expedition_id: number | null
   expedition_name: string | null; expedition_estimasi: string | null; ongkir: number | null; catatan_order: string | null; terbayar: number
+  approval: Approval | null; approval_note: string | null; approved_name: string | null; approved_at: string | null
 }
 type Item = {
   id: number; product_id: number | null; nama_produk: string; spesifikasi: string | null; material_id: number | null; material_name: string | null
@@ -36,10 +42,12 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export function QuotationPage({ user }: { user: UserProfile }) {
+export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number | null }) {
   const [items, setItems] = useState<Quotation[]>([])
   const [summary, setSummary] = useState<Partial<Record<Status, { n: number; total: number }>>>({})
+  const [pendingApproval, setPendingApproval] = useState(0)
   const [canWrite, setCanWrite] = useState(false)
+  const [canApprove, setCanApprove] = useState(false)
   const [seesAll, setSeesAll] = useState(false)
   const [status, setStatus] = useState('')
   const [q, setQ] = useState('')
@@ -47,7 +55,8 @@ export function QuotationPage({ user }: { user: UserProfile }) {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [form, setForm] = useState<{ edit?: Quotation & { items: Item[] }; copy?: Quotation & { items: Item[] } } | null>(null)
-  const [detailId, setDetailId] = useState<number | null>(null)
+  // Dibuka dari notifikasi persetujuan
+  const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -55,10 +64,12 @@ export function QuotationPage({ user }: { user: UserProfile }) {
       const params = new URLSearchParams()
       if (status) params.set('status', status)
       if (q.trim()) params.set('q', q.trim())
-      const res = await api<{ items: Quotation[]; summary: typeof summary; canWrite: boolean; seesAll: boolean }>(`/api/quotations?${params}`)
+      const res = await api<{ items: Quotation[]; summary: typeof summary; pendingApproval: number; canWrite: boolean; canApprove: boolean; seesAll: boolean }>(`/api/quotations?${params}`)
       setItems(res.items)
       setSummary(res.summary)
+      setPendingApproval(res.pendingApproval)
       setCanWrite(res.canWrite)
+      setCanApprove(res.canApprove)
       setSeesAll(res.seesAll)
       setError('')
     } catch (e) {
@@ -87,7 +98,7 @@ export function QuotationPage({ user }: { user: UserProfile }) {
       </div>
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       <div className="pap-stat-grid four">
-        <div className="pap-stat-card"><div><span>Draft</span><strong>{sum('draft').n}</strong><small className="neutral">Belum dikirim</small></div><div className="pap-stat-icon stat-1"><FileText /></div></div>
+        <button className="pap-stat-card pap-stat-button" onClick={() => setStatus(pendingApproval ? 'persetujuan' : 'draft')}><div><span>Draft</span><strong>{sum('draft').n}</strong><small className={pendingApproval ? '' : 'neutral'}>{pendingApproval ? `${pendingApproval} menunggu persetujuan${canApprove ? ' Anda' : ''}` : 'Belum dikirim'}</small></div><div className="pap-stat-icon stat-1"><FileText /></div></button>
         <div className="pap-stat-card"><div><span>Menunggu jawaban</span><strong>{sum('dikirim').n}</strong><small className="neutral">{rupiah(sum('dikirim').total)}</small></div><div className="pap-stat-icon stat-1"><Send /></div></div>
         <div className="pap-stat-card"><div><span>Diterima</span><strong>{sum('diterima').n}</strong><small className="neutral">{rupiah(sum('diterima').total)}</small></div><div className="pap-stat-icon stat-0"><CheckCircle2 /></div></div>
         <div className="pap-stat-card"><div><span>Win rate</span><strong>{closed ? `${Math.round((sum('diterima').n / closed) * 100)}%` : '—'}</strong><small className="neutral">dari {closed} penawaran selesai</small></div><div className="pap-stat-icon stat-0"><TrendingUp /></div></div>
@@ -98,6 +109,7 @@ export function QuotationPage({ user }: { user: UserProfile }) {
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor, nama usaha, kontak..." /></label>
           <select className="pap-select" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter status">
             <option value="">Semua status</option>
+            <option value="persetujuan">Menunggu persetujuan</option>
             {Object.entries(STATUS_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
         </div>
@@ -114,7 +126,7 @@ export function QuotationPage({ user }: { user: UserProfile }) {
                   <td className={x.status === 'dikirim' && x.berlaku_sampai < today() ? 'pap-followup overdue' : ''}>{formatDate(x.berlaku_sampai)}</td>
                   <td className="pap-num">{rupiah(x.total)}</td>
                   <td>{x.created_name}</td>
-                  <td><Badge s={x.status} /></td>
+                  <td><div className="pap-detail-badges"><Badge s={x.status} /><ApprovalBadge q={x} /></div></td>
                 </tr>
               ))}
             </tbody>
@@ -318,15 +330,20 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
   const [rows, setRows] = useState<Item[]>([])
   const [canEdit, setCanEdit] = useState(false)
   const [canWrite, setCanWrite] = useState(false)
+  const [canApprove, setCanApprove] = useState(false)
+  const [isOwner, setIsOwner] = useState(false)
+  const [approvalNote, setApprovalNote] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const load = useCallback(async () => {
     try {
-      const res = await api<{ item: Quotation; items: Item[]; canEdit: boolean; canWrite: boolean }>(`/api/quotations/${id}`)
+      const res = await api<{ item: Quotation; items: Item[]; canEdit: boolean; canWrite: boolean; canApprove: boolean; isOwner: boolean }>(`/api/quotations/${id}`)
       setItem(res.item)
       setRows(res.items)
       setCanEdit(res.canEdit)
       setCanWrite(res.canWrite)
+      setCanApprove(res.canApprove)
+      setIsOwner(res.isOwner)
     } catch (e) {
       setError((e as Error).message)
     }
@@ -350,6 +367,21 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
       setBusy(false)
     }
   }
+  async function approval(action: 'ajukan' | 'setujui' | 'tolak') {
+    if (action === 'tolak' && !approvalNote.trim()) return setError('Tulis alasan penolakan agar sales bisa memperbaiki penawaran.')
+    setBusy(true)
+    setError('')
+    try {
+      await api(`/api/quotations/${id}/approval`, { method: 'POST', json: { action, catatan: approvalNote } })
+      setApprovalNote('')
+      await load()
+      onChanged(action === 'ajukan' ? 'Penawaran diajukan, Kepala Marketing / GM diberi tahu.' : action === 'setujui' ? 'Penawaran disetujui, sales diberi tahu.' : 'Penawaran ditolak, sales diberi tahu.')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
   async function remove() {
     if (!window.confirm('Hapus draft penawaran ini?')) return
     try {
@@ -365,6 +397,11 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
   const full = { ...item, items: rows }
   const hppTotal = rows.reduce((n, r) => n + (r.hpp_satuan ?? 0) * r.qty, 0)
   const margin = hppTotal ? ((item.subtotal - hppTotal) / hppTotal) * 100 : null
+  // Draft boleh dikirim bila sudah disetujui, atau penawaran milik penyetuju sendiri (otomatis tercatat disetujui saat dikirim)
+  const draft = item.status === 'draft'
+  const approved = item.approval === 'disetujui'
+  const sendable = approved || (canApprove && isOwner)
+  const approvalNoteInput = <textarea className="pap-input" rows={2} maxLength={500} value={approvalNote} onChange={(e) => setApprovalNote(e.target.value)} placeholder="Catatan (wajib bila menolak)" />
 
   return (
     <Modal
@@ -382,9 +419,32 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
       </>}
     >
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
-      <div className="pap-detail-badges"><Badge s={item.status} />{item.prospect_name && <span className="pap-status neutral">Prospek: {item.prospect_name}</span>}{item.customer_no && <span className="pap-status neutral">Customer {item.customer_no}</span>}</div>
+      <div className="pap-detail-badges"><Badge s={item.status} /><ApprovalBadge q={item} />{item.prospect_name && <span className="pap-status neutral">Prospek: {item.prospect_name}</span>}{item.customer_no && <span className="pap-status neutral">Customer {item.customer_no}</span>}</div>
 
-      {item.status === 'draft' && canWrite && (
+      {draft && item.approval === 'ditolak' && item.approval_note && <Notice>Ditolak {item.approved_name ?? 'atasan'}: {item.approval_note}. Perbaiki penawaran lalu ajukan ulang.</Notice>}
+      {draft && approved && <p className="pap-muted">Disetujui {item.approved_name ?? 'atasan'}{item.approved_at ? `, ${formatDate(item.approved_at, true)}` : ''}{item.approval_note ? ` · ${item.approval_note}` : ''}</p>}
+      {draft && !approved && canApprove && !isOwner && (
+        <div className="pap-inline-panel">
+          <strong>Persetujuan penawaran{item.approval === 'menunggu' ? ` dari ${item.created_name}` : ''}</strong>
+          <p className="pap-muted">Periksa harga & margin di bawah. Setelah disetujui, sales bisa mengirim penawaran ke customer.</p>
+          {approvalNoteInput}
+          <div className="pap-inline-actions pap-wrap">
+            {item.approval === 'menunggu' && <button className="pap-btn danger" disabled={busy} onClick={() => approval('tolak')}><XCircle /> Tolak</button>}
+            <span className="pap-spacer" />
+            <button className="pap-primary-button" disabled={busy} onClick={() => approval('setujui')}><CheckCircle2 /> Setujui</button>
+          </div>
+        </div>
+      )}
+      {draft && !sendable && isOwner && item.approval !== 'menunggu' && (
+        <div className="pap-inline-panel">
+          <strong>Ajukan persetujuan</strong>
+          <p className="pap-muted">Penawaran harus disetujui Kepala Marketing atau General Manager sebelum dikirim ke customer.</p>
+          {approvalNoteInput}
+          <div className="pap-inline-actions"><span className="pap-spacer" /><button className="pap-primary-button" disabled={busy} onClick={() => approval('ajukan')}><Send /> Ajukan persetujuan</button></div>
+        </div>
+      )}
+      {draft && !sendable && !canApprove && (!isOwner || item.approval === 'menunggu') && item.approval !== 'ditolak' && <p className="pap-muted">{item.approval === 'menunggu' ? 'Menunggu persetujuan Kepala Marketing / GM.' : 'Belum diajukan untuk persetujuan oleh pembuatnya.'}</p>}
+      {draft && sendable && canWrite && (
         <div className="pap-inline-panel">
           <strong>Kirim penawaran ke customer</strong>
           <p className="pap-muted">1) Klik <b>Cetak / PDF</b> lalu simpan sebagai PDF. 2) Kirim lewat WhatsApp/email. 3) Tandai terkirim — status prospek otomatis menjadi &quot;Penawaran&quot;.</p>
