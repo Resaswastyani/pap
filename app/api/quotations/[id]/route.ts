@@ -32,9 +32,9 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   if (item.created_by !== user.id && !user.role.isAdmin && !canEditHppParams(user)) fail(403, 'Hanya pembuat penawaran yang dapat mengubah.')
   const { header, items } = await readQuotationInput(await readJson(request), user)
   await db.query(
-    `UPDATE quotations SET prospect_id = ?, customer_id = ?, kepada = ?, kontak = ?, telepon = ?, alamat = ?, tanggal = ?, berlaku_hari = ?, pakai_ppn = ?,
+    `UPDATE quotations SET prospect_id = ?, customer_id = ?, kepada = ?, kontak = ?, telepon = ?, whatsapp = ?, alamat = ?, tanggal = ?, berlaku_hari = ?, pakai_ppn = ?,
        ppn_persen = ?, subtotal = ?, ppn = ?, total = ?, syarat = ?, rekening = ?, telepon_kop = ?, catatan = ? WHERE id = ?`,
-    [header.prospect_id, header.customer_id, header.kepada, header.kontak, header.telepon, header.alamat, header.tanggal, header.berlaku_hari, header.pakai_ppn,
+    [header.prospect_id, header.customer_id, header.kepada, header.kontak, header.telepon, header.whatsapp, header.alamat, header.tanggal, header.berlaku_hari, header.pakai_ppn,
       header.ppn_persen, header.subtotal, header.ppn, header.total, header.syarat, header.rekening, header.telepon_kop, header.catatan, item.id],
   )
   await saveQuotationItems(item.id, items)

@@ -61,7 +61,9 @@ ${QUOTATION_APPROVAL_REQUIRED && jenis === 'penawaran' && q.status === 'draft' &
 <table class="pap-sheet-meta"><tbody>
   <tr><td>Nomor</td><td>: ${esc(documentNomor(q, jenis))}</td><td>Tanggal</td><td>: ${tanggal(tanggalDok)}</td></tr>
   <tr><td>Kepada</td><td>: <b>${esc(q.kepada)}</b></td>${jenis === 'penawaran' ? `<td>Berlaku s/d</td><td>: ${tanggal(q.berlaku_sampai)}</td>` : `<td>Ref. penawaran</td><td>: ${esc(q.nomor)}</td>`}</tr>
-  ${q.kontak || q.telepon ? `<tr><td>Up.</td><td colspan="3">: ${esc([q.kontak, q.telepon].filter(Boolean).join(' · '))}</td></tr>` : ''}
+  ${q.kontak ? `<tr><td>Up.</td><td colspan="3">: ${esc(q.kontak)}</td></tr>` : ''}
+  ${q.telepon ? `<tr><td>Telepon</td><td colspan="3">: ${esc(q.telepon)}</td></tr>` : ''}
+  ${q.whatsapp ? `<tr><td>WA</td><td colspan="3">: ${esc(q.whatsapp)}</td></tr>` : ''}
   ${q.alamat ? `<tr><td>Alamat</td><td colspan="3">: ${esc(q.alamat)}</td></tr>` : ''}
   ${jenis !== 'penawaran' && q.tanggal_kirim ? `<tr><td>Rencana kirim</td><td colspan="3">: ${tanggal(q.tanggal_kirim)}${q.expedition_name ? ` · via ${esc(q.expedition_name)}` : ''}</td></tr>` : ''}
 </tbody></table>
