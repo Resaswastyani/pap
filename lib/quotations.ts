@@ -1,8 +1,7 @@
 import type { RowDataPacket } from 'mysql2'
 import { fail, int, str } from '@/lib/api'
 import { db } from '@/lib/db'
-import { loadHppParams, loadMaterials, toNumber } from '@/lib/hpp'
-import { hitungHpp, type HppModel } from '@/lib/hpp-calc'
+import { loadHppParams, toNumber } from '@/lib/hpp'
 import { canSupervise, loadProspect, MARKETING_DIVISIONS } from '@/lib/marketing'
 import { isLeadOf, isManagement, leadAndGmUsers, type UserProfile } from '@/lib/users'
 
@@ -51,23 +50,18 @@ export const serializeQuotation = toNumbers
 
 export async function loadQuotationItems(id: number) {
   const [rows] = await db.query<RowDataPacket[]>(
-    `SELECT i.*, m.nama AS material_name FROM quotation_items i LEFT JOIN raw_materials m ON m.id = i.material_id
-     WHERE i.quotation_id = ? ORDER BY i.sort_order, i.id`,
+    'SELECT id, product_id, nama_produk, spesifikasi, qty, satuan, harga_satuan, subtotal FROM quotation_items WHERE quotation_id = ? ORDER BY sort_order, id',
     [id],
   )
-  const n = (v: unknown) => (v === null || v === undefined ? null : Number(v))
   return rows.map((r) => ({
-    ...r,
-    panjang_cm: n(r.panjang_cm), lebar_cm: n(r.lebar_cm), gusset_cm: n(r.gusset_cm), tebal_mikron: n(r.tebal_mikron),
-    qty: Number(r.qty), berat_gram: n(r.berat_gram), hpp_per_kg: n(r.hpp_per_kg), hpp_satuan: n(r.hpp_satuan),
-    harga_satuan: Number(r.harga_satuan), subtotal: Number(r.subtotal),
-    hpp_detail: typeof r.hpp_detail === 'string' ? JSON.parse(r.hpp_detail) : r.hpp_detail,
-  }) as unknown as RowDataPacket & { id: number; nama_produk: string; spesifikasi: string | null; satuan: string; qty: number; harga_satuan: number; subtotal: number; hpp_satuan: number | null })
+    id: r.id, product_id: r.product_id, nama_produk: r.nama_produk, spesifikasi: r.spesifikasi, satuan: r.satuan,
+    qty: Number(r.qty), harga_satuan: Number(r.harga_satuan), subtotal: Number(r.subtotal),
+  }) as { id: number; product_id: number | null; nama_produk: string; spesifikasi: string | null; satuan: string; qty: number; harga_satuan: number; subtotal: number })
 }
 
-const MODELS: HppModel[] = ['kantong', 'gusset', 'roll', 'lainnya']
+export const QUOTATION_UNITS = ['pcs', 'kg', 'pack', 'roll', 'lembar'] as const
 
-// Baca isian form + hitung ulang HPP tiap baris dengan harga bahan & parameter terbaru (disimpan sebagai snapshot)
+// Baca isian form. Penawaran = template: produk, spesifikasi, jumlah, dan harga diisi manual (tanpa perhitungan HPP).
 export async function readQuotationInput(body: Record<string, unknown>, user: UserProfile) {
   let prospectId: number | null = null
   let customerId: number | null = null
@@ -84,44 +78,22 @@ export async function readQuotationInput(body: Record<string, unknown>, user: Us
   const rawItems = Array.isArray(body.items) ? (body.items as Record<string, unknown>[]) : []
   if (!rawItems.length) fail(400, 'Tambahkan minimal satu produk.')
   if (rawItems.length > 30) fail(400, 'Maksimal 30 produk per penawaran.')
-  const [materials, params] = await Promise.all([loadMaterials(), loadHppParams()])
+  const params = await loadHppParams() // hanya untuk tarif PPN
 
   const items = rawItems.map((raw, i) => {
     const nama = str(raw.nama_produk, 255) || fail(400, `Nama produk baris ${i + 1} wajib diisi.`)
-    const model = (MODELS.includes(raw.model as HppModel) ? raw.model : 'kantong') as HppModel
-    const material = materials.find((m) => m.id === int(raw.material_id)) ?? null
-    const pewarna = materials.find((m) => m.id === int(raw.pewarna_id)) ?? null
-    const satuan = ['pcs', 'kg', 'pack', 'roll', 'lembar'].includes(String(raw.satuan)) ? String(raw.satuan) : 'pcs'
+    const satuan = (QUOTATION_UNITS as readonly string[]).includes(String(raw.satuan)) ? String(raw.satuan) : 'pcs'
     const qty = toNumber(raw.qty) ?? 0
     if (qty <= 0) fail(400, `Jumlah produk baris ${i + 1} harus lebih dari 0.`)
     const harga = toNumber(raw.harga_satuan) ?? 0
     if (harga < 0) fail(400, `Harga baris ${i + 1} tidak valid.`)
-    const dims = {
-      panjang_cm: toNumber(raw.panjang_cm), lebar_cm: toNumber(raw.lebar_cm), gusset_cm: toNumber(raw.gusset_cm), tebal_mikron: toNumber(raw.tebal_mikron),
-      jumlah_warna: Math.min(12, Math.max(0, int(raw.jumlah_warna) ?? 0)),
-    }
-    const pewarnaPersen = toNumber(raw.pewarna_persen) ?? 0
-    const hpp = hitungHpp({
-      model, ...dims, satuan: satuan === 'kg' ? 'kg' : 'pcs',
-      resin: material ? { harga: material.harga, density: material.density } : null,
-      pewarna: pewarna && pewarnaPersen > 0 ? { harga: pewarna.harga, persen: pewarnaPersen } : null,
-    }, params)
     return {
       product_id: int(raw.product_id),
       nama_produk: nama,
       spesifikasi: str(raw.spesifikasi, 1000) || null,
-      material_id: material?.id ?? null,
-      model, ...dims, qty, satuan,
-      berat_gram: hpp.berat_gram,
-      hpp_per_kg: hpp.hpp_per_kg || null,
-      hpp_satuan: hpp.hpp_satuan,
+      qty, satuan,
       harga_satuan: harga,
       subtotal: Math.round(qty * harga * 100) / 100,
-      hpp_detail: {
-        ...hpp, params,
-        bahan: material ? { kode: material.kode, harga: material.harga, density: material.density } : null,
-        pewarna: pewarna && pewarnaPersen > 0 ? { kode: pewarna.kode, harga: pewarna.harga, persen: pewarnaPersen } : null,
-      },
     }
   })
   const subtotal = items.reduce((n, it) => n + it.subtotal, 0)
@@ -149,12 +121,10 @@ export async function saveQuotationItems(quotationId: number, items: Awaited<Ret
   }
   await db.query('DELETE FROM quotation_items WHERE quotation_id = ?', [quotationId])
   await db.query(
-    `INSERT INTO quotation_items (quotation_id, product_id, nama_produk, spesifikasi, material_id, model, panjang_cm, lebar_cm, gusset_cm, tebal_mikron, jumlah_warna,
-       qty, satuan, berat_gram, hpp_per_kg, hpp_satuan, harga_satuan, subtotal, hpp_detail, sort_order) VALUES ?`,
+    `INSERT INTO quotation_items (quotation_id, product_id, nama_produk, spesifikasi, model, qty, satuan, harga_satuan, subtotal, sort_order) VALUES ?`,
     [items.map((it, i) => [
-      quotationId, it.product_id && valid.has(it.product_id) ? it.product_id : null, it.nama_produk, it.spesifikasi, it.material_id, it.model,
-      it.panjang_cm, it.lebar_cm, it.gusset_cm, it.tebal_mikron, it.jumlah_warna, it.qty, it.satuan, it.berat_gram, it.hpp_per_kg, it.hpp_satuan,
-      it.harga_satuan, it.subtotal, JSON.stringify(it.hpp_detail), i + 1,
+      quotationId, it.product_id && valid.has(it.product_id) ? it.product_id : null, it.nama_produk, it.spesifikasi, 'lainnya',
+      it.qty, it.satuan, it.harga_satuan, it.subtotal, i + 1,
     ])],
   )
 }

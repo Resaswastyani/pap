@@ -186,7 +186,7 @@ function ParamsForm({ data, onSaved }: { data: HppData; onSaved: (message: strin
   )
 }
 
-function DocForm({ data, onSaved }: { data: HppData; onSaved: (message: string) => void }) {
+export function DocForm({ data, onSaved }: { data: HppData; onSaved: (message: string) => void }) {
   const [values, setValues] = useState<Record<string, string>>({ ...data.doc })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
