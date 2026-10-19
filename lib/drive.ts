@@ -403,6 +403,9 @@ export async function readSpreadsheet(id: string): Promise<SheetTab[]> {
   const xlsx = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}/export?mimeType=${encodeURIComponent(xlsx)}`, { headers })
   if (!res.ok) {
+    // File Excel (.xlsx) yang diunggah ke Drive bukan Google Sheet sehingga tidak bisa diekspor: unduh file aslinya
+    const media = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media&supportsAllDrives=true`, { headers })
+    if (media.ok) return readXlsx(Buffer.from(await media.arrayBuffer()))
     const j = await res.json().catch(() => ({}))
     throw new DriveError(res.status, res.status === 404 || res.status === 403
       ? 'Spreadsheet tidak ditemukan atau belum dibagikan ke akun Google yang terhubung. Bagikan spreadsheet ke akun tersebut (Viewer).'

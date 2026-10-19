@@ -926,3 +926,75 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-multiselect > summary { display:block; list-style:none; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 .pap-multiselect > summary::-webkit-details-marker { display:none; }
 .pap-multiselect-menu { position:absolute; z-index:5; top:calc(100% + 4px); left:0; right:0; display:flex; flex-direction:column; gap:8px; max-height:240px; overflow:auto; padding:10px 12px; border:1px solid var(--pap-border); border-radius:12px; background:var(--pap-surface); box-shadow:0 12px 30px rgb(0 0 0 / .15); }
+
+/* ---------- Jadwal Shift produksi ---------- */
+.pap-shift-search { width:220px; }
+.pap-shift-search input { flex:1; min-width:0; border:0; outline:0; background:transparent; color:var(--pap-text); font-size:12px; }
+.pap-shift-legend { display:flex; flex-wrap:wrap; align-items:center; gap:14px; padding:0 22px 12px; color:var(--pap-muted); font-size:11px; }
+.pap-shift-legend > span { display:inline-flex; align-items:center; gap:6px; }
+.pap-shift-legend i { display:inline-grid; place-items:center; width:20px; height:18px; border:1px solid var(--pap-border); border-radius:4px; font-style:normal; font-size:10px; font-weight:700; }
+.pap-shift-legend .pap-muted { margin-left:auto; }
+.pap-shift-wrap { overflow:auto; max-height:calc(100vh - 230px); border-top:1px solid var(--pap-border); }
+.pap-shift-table { border-collapse:separate; border-spacing:0; font-size:11px; }
+.pap-shift-table th, .pap-shift-table td { height:26px; padding:0 4px; border-right:1px solid var(--pap-border); border-bottom:1px solid var(--pap-border); text-align:center; white-space:nowrap; }
+.pap-shift-table thead th { position:sticky; z-index:2; background:var(--pap-surface); color:var(--pap-muted); font-size:10px; font-weight:700; }
+.pap-shift-table thead tr:first-child th { top:0; }
+.pap-shift-table thead tr:nth-child(2) th { top:26px; }
+.pap-shift-table th.dow, .pap-shift-table th.date { min-width:26px; width:26px; padding:0; }
+.pap-shift-table th.date button { width:100%; height:100%; border:0; background:transparent; color:var(--pap-text); font:inherit; cursor:pointer; }
+.pap-shift-table th.date button:hover { color:#7050e7; }
+.pap-shift-table th.sunday { color:#d93025; }
+.pap-shift-table th.today { background:#7c5cfc; color:#fff; }
+.pap-shift-table th.today button { color:#fff; }
+.pap-shift-table .sticky { position:sticky; z-index:1; background:var(--pap-surface); }
+.pap-shift-table thead .sticky { z-index:3; }
+.pap-shift-table .no { left:0; min-width:34px; }
+.pap-shift-table .nama { left:34px; min-width:190px; max-width:230px; text-align:left; box-shadow:2px 0 0 var(--pap-border); }
+.pap-shift-table td.nama { overflow:hidden; text-overflow:ellipsis; }
+.pap-shift-table .induk { min-width:58px; }
+.pap-shift-table .pilihan { min-width:70px; }
+.pap-shift-name { font-weight:700; color:var(--pap-text); }
+.pap-shift-tag { display:inline-block; margin-left:6px; padding:1px 6px; border-radius:99px; background:rgb(245 180 60 / .2); color:#a06b00; font-size:9px; font-weight:700; vertical-align:1px; }
+.pap-shift-tag.lead { background:rgb(0 188 212 / .16); color:#00838f; }
+.pap-shift-cell { font-weight:700; color:var(--pap-text); }
+.pap-shift-cell.s1 { background:var(--pap-surface); }
+.pap-shift-cell.s2 { background:#6aa84f; color:#fff; }
+.pap-shift-cell.s3 { background:#bf8f00; color:#fff; }
+.pap-shift-cell.off { background:#e53935; color:#fff; }
+.pap-shift-cell.other { background:rgb(124 92 252 / .18); color:#7050e7; }
+.pap-shift-table td.today { box-shadow:inset 2px 0 0 #7c5cfc, inset -2px 0 0 #7c5cfc; }
+.pap-shift-table tbody tr:hover td.sticky { background:rgb(124 92 252 / .08); }
+.pap-shift-table tfoot td { background:var(--pap-bg); font-weight:700; }
+.pap-shift-table tfoot td.label { text-align:right; padding-right:8px; color:var(--pap-muted); }
+.pap-shift-table tfoot td.jumlah { position:sticky; left:0; z-index:1; background:var(--pap-bg); font-size:13px; }
+.pap-shift-table tfoot .off-row td:not(.label) { color:#d93025; }
+.pap-shift-days { display:flex; gap:6px; overflow-x:auto; padding:0 22px 14px; }
+.pap-shift-days button { display:flex; flex:none; flex-direction:column; align-items:center; gap:2px; width:44px; padding:6px 0; border:1px solid var(--pap-border); border-radius:10px; background:var(--pap-surface); color:var(--pap-text); cursor:pointer; }
+.pap-shift-days button small { color:var(--pap-muted); font-size:9px; }
+.pap-shift-days button.sunday small { color:#d93025; }
+.pap-shift-days button.today { border-color:#7c5cfc; }
+.pap-shift-days button.active { background:#7c5cfc; border-color:#7c5cfc; color:#fff; }
+.pap-shift-days button.active small { color:#fff; }
+.pap-shift-board { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px; padding:14px 22px 22px; border-top:1px solid var(--pap-border); }
+.pap-shift-column { border:1px solid var(--pap-border); border-radius:12px; overflow:hidden; }
+.pap-shift-column header { display:flex; align-items:center; gap:8px; padding:10px 12px; color:#fff; }
+.pap-shift-column header svg { width:16px; }
+.pap-shift-column header span { margin-left:auto; font-size:11px; opacity:.9; }
+.pap-shift-column.s1 header { background:#7c5cfc; }
+.pap-shift-column.s2 header { background:#6aa84f; }
+.pap-shift-column.s3 header { background:#bf8f00; }
+.pap-shift-column.off header { background:#e53935; }
+.pap-shift-column.other header { background:var(--pap-muted); }
+.pap-shift-column .pap-muted { margin:0; padding:12px; font-size:12px; }
+.pap-shift-person { display:flex; align-items:center; justify-content:space-between; gap:6px; padding:8px 12px; border-top:1px solid var(--pap-border); font-size:12px; font-weight:600; }
+.pap-shift-person:first-of-type { border-top:0; }
+.pap-shift-footnote { margin-top:12px; font-size:12px; }
+.pap-shell.dark .pap-shift-tag { color:#f5c24c; }
+.pap-shell.dark .pap-shift-tag.lead { color:#4dd0e1; }
+@media (max-width:1100px) { .pap-shift-board { grid-template-columns:repeat(2, minmax(0,1fr)); } }
+@media (max-width:800px) {
+  .pap-shift-search { width:100%; }
+  .pap-shift-legend, .pap-shift-days { padding-left:12px; padding-right:12px; }
+  .pap-shift-board { grid-template-columns:1fr; padding:12px; }
+  .pap-shift-table .nama { min-width:130px; max-width:150px; }
+}

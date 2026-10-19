@@ -17,6 +17,7 @@ export const MENU_KEYS = {
   Pembayaran: 'pembayaran',
   'Surat Berita Kerja': 'sbk',
   'Jadwal Produksi': 'jadwal-produksi',
+  'Jadwal Shift': 'jadwal-shift',
   'Data Mesin': 'data-mesin',
   Karyawan: 'karyawan',
   Absensi: 'absensi',
