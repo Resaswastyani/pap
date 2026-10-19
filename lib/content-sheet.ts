@@ -64,6 +64,12 @@ const pad = (n: number) => String(n).padStart(2, '0')
 export function parseSheetDate(value: string, defaultYear: number) {
   const v = value.trim().toLowerCase()
   if (!v) return null
+  // Ekspor XLSX: tanggal berupa angka seri Excel (hari sejak 30 Des 1899), mis. 46328 = 2 Nov 2026
+  if (/^\d{5}(\.\d+)?$/.test(v)) {
+    const date = new Date(Date.UTC(1899, 11, 30) + Math.floor(Number(v)) * 86_400_000)
+    const year = date.getUTCFullYear()
+    return year >= 2000 && year <= 2100 ? `${year}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}` : null
+  }
   let y: number, m: number, d: number
   let match = v.match(/(\d{4})-(\d{1,2})-(\d{1,2})/)
   if (match) [y, m, d] = [Number(match[1]), Number(match[2]), Number(match[3])]
