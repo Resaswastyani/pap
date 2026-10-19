@@ -4,6 +4,7 @@ import { handle, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { computeKpi, loadTargets, readPeriode } from '@/lib/kpi'
 import { canSupervise, prospectScope } from '@/lib/marketing'
+import { canViewAllDivisions } from '@/lib/planning'
 import { canApproveQuotation, QUOTATION_APPROVAL_REQUIRED } from '@/lib/quotations'
 import { REPEAT_BASE, seesAllCustomers } from '@/lib/repeat-order'
 import { designScope, designTodoSql, sampleScope, sampleTodoSql } from '@/lib/requests'
@@ -43,7 +44,10 @@ export const GET = handle(async () => {
            AND p.next_followup_at < CURDATE() + INTERVAL 1 DAY AND p.status NOT IN ('gagal', 'handover') ORDER BY p.next_followup_at LIMIT 6`,
         [user.id, user.id, user.id],
       )
+      // Corong prospek per tahap (cakupan sama dengan menu Prospek)
+      const [funnel] = await db.query<Row[]>(`SELECT p.status, COUNT(*) AS jumlah FROM prospects p WHERE ${scope.sql} GROUP BY p.status`, scope.params)
       out.marketing = {
+        funnel: Object.fromEntries(funnel.map((f) => [f.status, n(f.jumlah)])),
         followup_saya: n(c.followup_saya), followup_terlambat: n(c.followup_terlambat), prospek_aktif: n(c.prospek_aktif), belum_dibagi: n(c.belum_dibagi),
         visits, followups, tim: canSupervise(user),
       }
@@ -89,7 +93,7 @@ export const GET = handle(async () => {
     tasks.push((async () => {
       const [months] = await db.query<Row[]>(
         `SELECT DATE_FORMAT(trans_date, '%Y-%m') AS bulan, SUM(total_amount) AS omzet, COUNT(*) AS faktur, COUNT(DISTINCT customer_accurate_id) AS customer
-         FROM accurate_sales_invoices WHERE trans_date >= DATE_FORMAT(CURDATE() - INTERVAL 5 MONTH, '%Y-%m-01') GROUP BY bulan ORDER BY bulan`,
+         FROM accurate_sales_invoices WHERE trans_date >= DATE_FORMAT(CURDATE() - INTERVAL 11 MONTH, '%Y-%m-01') GROUP BY bulan ORDER BY bulan`,
       )
       const [top] = await db.query<Row[]>(
         `SELECT COALESCE(c.name, i.customer_accurate_id) AS name, SUM(i.total_amount) AS omzet FROM accurate_sales_invoices i
@@ -127,7 +131,25 @@ export const GET = handle(async () => {
         `SELECT j.id, j.nomor, j.item_name, j.due_date, j.status, c.name AS customer FROM production_jobs j LEFT JOIN customers c ON c.id = j.customer_id
          WHERE j.status NOT IN ('selesai', 'batal') AND j.due_date >= CURDATE() ORDER BY j.due_date LIMIT 5`,
       )
-      out.produksi = { menunggu: n(p.menunggu), dijadwalkan: n(p.dijadwalkan), berjalan: n(p.berjalan), terlambat: n(p.terlambat), selesai_bulan_ini: n(p.selesai_bulan_ini), jatuh_tempo: due }
+      // Gantt: job aktif yang tahapnya terjadwal atau tanggal kirimnya jatuh di jendela 4 minggu (H-7 s/d H+21)
+      const [jobs] = await db.query<Row[]>(
+        `SELECT j.id, j.nomor, j.item_name, j.due_date, j.status, j.prioritas, c.name AS customer, so.trans_date AS so_date
+         FROM production_jobs j LEFT JOIN customers c ON c.id = j.customer_id LEFT JOIN accurate_sales_orders so ON so.accurate_id = j.so_accurate_id
+         WHERE j.status NOT IN ('selesai', 'batal') AND (
+           (j.due_date >= CURDATE() - INTERVAL 7 DAY AND j.due_date < CURDATE() + INTERVAL 21 DAY)
+           OR EXISTS (SELECT 1 FROM production_stages s WHERE s.job_id = j.id AND s.status <> 'dilewati'
+             AND s.plan_start < CURDATE() + INTERVAL 21 DAY AND COALESCE(s.plan_end, s.plan_start) >= CURDATE() - INTERVAL 7 DAY))
+         ORDER BY j.status = 'berjalan' DESC, j.due_date IS NULL, j.due_date, j.id LIMIT 12`,
+      )
+      const [stages] = jobs.length
+        ? await db.query<Row[]>(
+          `SELECT id, job_id, tahap, plan_start, plan_end, status, progress FROM production_stages
+           WHERE job_id IN (?) AND status <> 'dilewati' AND plan_start IS NOT NULL ORDER BY job_id, urutan`,
+          [jobs.map((j) => j.id)],
+        )
+        : [[] as Row[]]
+      const gantt = jobs.map((j) => ({ ...j, stages: stages.filter((s) => s.job_id === j.id).map((s) => ({ ...s, progress: n(s.progress) })) }))
+      out.produksi = { gantt, menunggu: n(p.menunggu), dijadwalkan: n(p.dijadwalkan), berjalan: n(p.berjalan), terlambat: n(p.terlambat), selesai_bulan_ini: n(p.selesai_bulan_ini), jatuh_tempo: due }
     })())
   }
   if (has('sample')) {
@@ -172,6 +194,17 @@ export const GET = handle(async () => {
         [user.id],
       )
       out.plannings = rows.map((r) => ({ ...r, progress: n(r.progress) }))
+      // Gantt planning: semua divisi bila punya planning.view_all, selain itu divisi sendiri + yang saya PIC-i
+      const all = canViewAllDivisions(user)
+      const [gantt] = await db.query<Row[]>(
+        `SELECT p.id, p.judul, p.tanggal_mulai, p.tanggal_selesai, p.progress, p.status, d.name AS divisi FROM plannings p JOIN divisions d ON d.id = p.division_id
+         WHERE p.status IN ('belum_mulai', 'berjalan') AND p.approval <> 'ditolak'
+           AND p.tanggal_mulai < CURDATE() + INTERVAL 21 DAY AND p.tanggal_selesai >= CURDATE() - INTERVAL 7 DAY
+           ${all ? '' : 'AND (p.division_id = ? OR EXISTS (SELECT 1 FROM planning_pics pp WHERE pp.planning_id = p.id AND pp.user_id = ?))'}
+         ORDER BY p.tanggal_selesai, p.id LIMIT 10`,
+        all ? [] : [user.division.id, user.id],
+      )
+      out.planningGantt = gantt.map((r) => ({ ...r, progress: n(r.progress) }))
     })())
   }
 
