@@ -51,7 +51,7 @@ export function quotationDocumentHtml({ q, items, doc }: Awaited<ReturnType<type
   const telepon = String(q.telepon_kop || doc.telepon || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
   const syarat = String(q.syarat ?? '').split(/\r?\n/).filter((l) => l.trim()).map((l) => `<li>${esc(l.replace(/^\s*[-•\d.]+\s*/, ''))}</li>`).join('')
 
-  return `<article class="pap-sheet">
+  return `<div class="pap-sheet">
 <table class="pap-sheet-head"><tbody><tr>
   <td class="logo"><img src="${esc(logoSrc)}" alt="" width="120"></td>
   <td><h1>${esc(perusahaan)}</h1><p>Flexible Plastic Packaging Manufacture</p>${doc.alamat ? `<p>${esc(doc.alamat)}</p>` : ''}${telepon.length ? `<p>Telp/WA: ${telepon.map(esc).join(' · ')}</p>` : ''}${doc.email ? `<p>${esc(doc.email)}</p>` : ''}</td>
@@ -91,7 +91,7 @@ ${jenis === 'proforma' ? '<p>Mohon lakukan pembayaran ke rekening di atas dan ki
   ${jenis === 'order' ? sign('Disetujui pemesan,', q.kontak || '(.........................)', q.kepada) : '<td>&nbsp;</td>'}
   ${sign('Hormat kami,', penandatangan, perusahaan)}
 </tr></tbody></table>
-</article>`
+</div>`
 }
 
 // CSS untuk file Word (Word tidak membaca globals.css; hanya subset CSS sederhana yang didukung)
