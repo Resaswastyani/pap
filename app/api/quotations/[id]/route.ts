@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canEditHppParams, loadSettings } from '@/lib/hpp'
-import { canApproveQuotation, canWriteQuotation, loadQuotation, loadQuotationItems, readQuotationInput, requireQuotation, saveQuotationItems } from '@/lib/quotations'
+import { canApproveQuotation, canWriteQuotation, loadQuotation, QUOTATION_APPROVAL_REQUIRED, loadQuotationItems, readQuotationInput, requireQuotation, saveQuotationItems } from '@/lib/quotations'
 
 type Ctx = { params: Promise<{ id: string }> }
 const quotationId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Quotation tidak ditemukan.')
@@ -19,6 +19,7 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
     canWrite: canWriteQuotation(user),
     canApprove: canApproveQuotation(user),
     isOwner: item.created_by === user.id,
+    approvalRequired: QUOTATION_APPROVAL_REQUIRED,
   })
 })
 
@@ -38,7 +39,7 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   )
   await saveQuotationItems(item.id, items)
   // Isi penawaran yang sudah disetujui berubah: harus disetujui ulang (kecuali yang mengubah penyetuju sendiri)
-  if (item.approval === 'disetujui' && !canApproveQuotation(user)) {
+  if (QUOTATION_APPROVAL_REQUIRED && item.approval === 'disetujui' && !canApproveQuotation(user)) {
     await db.query('UPDATE quotations SET approval = NULL, approval_note = NULL, approved_by = NULL, approved_at = NULL WHERE id = ?', [item.id])
   }
   return NextResponse.json({ ok: true })

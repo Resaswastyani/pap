@@ -4,7 +4,7 @@ import { handle, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { computeKpi, loadTargets, readPeriode } from '@/lib/kpi'
 import { canSupervise, prospectScope } from '@/lib/marketing'
-import { canApproveQuotation } from '@/lib/quotations'
+import { canApproveQuotation, QUOTATION_APPROVAL_REQUIRED } from '@/lib/quotations'
 import { REPEAT_BASE, seesAllCustomers } from '@/lib/repeat-order'
 import { designScope, designTodoSql, sampleScope, sampleTodoSql } from '@/lib/requests'
 
@@ -61,7 +61,7 @@ export const GET = handle(async () => {
       )
       out.quotation = { menunggu: n(q.menunggu), nilai_menunggu: n(q.nilai_menunggu), draft: n(q.draft), diterima_bulan_ini: n(q.diterima_bulan_ini),
         // Penyetuju (Kepala Marketing / GM) melihat penawaran yang menunggu persetujuannya
-        persetujuan: canApproveQuotation(user) ? n(q.persetujuan) : 0 }
+        persetujuan: QUOTATION_APPROVAL_REQUIRED && canApproveQuotation(user) ? n(q.persetujuan) : 0 }
     })())
   }
   if (has('repeat-order')) {

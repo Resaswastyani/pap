@@ -2,7 +2,7 @@
 // Satu template dipakai halaman cetak (/cetak/quotation/[id] -> PDF lewat dialog cetak)
 // dan ekspor Word (/api/quotations/[id]/word). Tata letak memakai tabel agar tampil sama di browser dan Microsoft Word.
 import { loadSettings } from '@/lib/hpp'
-import { loadQuotation, loadQuotationItems, requireQuotation } from '@/lib/quotations'
+import { loadQuotation, loadQuotationItems, QUOTATION_APPROVAL_REQUIRED, requireQuotation } from '@/lib/quotations'
 import type { UserProfile } from '@/lib/users'
 
 export type DocJenis = 'penawaran' | 'order' | 'proforma'
@@ -53,7 +53,7 @@ export function quotationDocumentHtml({ q, items, doc }: Awaited<ReturnType<type
   <td><h1>${esc(perusahaan)}</h1><p>Flexible Plastic Packaging Manufacture</p>${doc.alamat ? `<p>${esc(doc.alamat)}</p>` : ''}<p>${esc([doc.telepon && `Telp/WA ${doc.telepon}`, doc.email].filter(Boolean).join(' · '))}</p></td>
 </tr></tbody></table>
 <h2 class="pap-sheet-title">${JUDUL[jenis]}</h2>
-${jenis === 'penawaran' && q.status === 'draft' && q.approval !== 'disetujui' ? '<p class="pap-sheet-draft">DRAFT — belum disetujui Kepala Marketing / GM, jangan dikirim ke customer</p>' : ''}
+${QUOTATION_APPROVAL_REQUIRED && jenis === 'penawaran' && q.status === 'draft' && q.approval !== 'disetujui' ? '<p class="pap-sheet-draft">DRAFT — belum disetujui Kepala Marketing / GM, jangan dikirim ke customer</p>' : ''}
 <table class="pap-sheet-meta"><tbody>
   <tr><td>Nomor</td><td>: ${esc(documentNomor(q, jenis))}</td><td>Tanggal</td><td>: ${tanggal(tanggalDok)}</td></tr>
   <tr><td>Kepada</td><td>: <b>${esc(q.kepada)}</b></td>${jenis === 'penawaran' ? `<td>Berlaku s/d</td><td>: ${tanggal(q.berlaku_sampai)}</td>` : `<td>Ref. penawaran</td><td>: ${esc(q.nomor)}</td>`}</tr>

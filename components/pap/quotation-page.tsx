@@ -18,7 +18,7 @@ const Badge = ({ s }: { s: Status }) => <span className={`pap-status ${STATUS_TO
 type Approval = 'menunggu' | 'disetujui' | 'ditolak'
 const APPROVAL_LABEL: Record<Approval, string> = { menunggu: 'Menunggu persetujuan', disetujui: 'Disetujui atasan', ditolak: 'Ditolak atasan' }
 const APPROVAL_TONE: Record<Approval, string> = { menunggu: 'warning', disetujui: 'success', ditolak: 'danger' }
-const ApprovalBadge = ({ q }: { q: Pick<Quotation, 'status' | 'approval'> }) => (q.status === 'draft' && q.approval ? <span className={`pap-status ${APPROVAL_TONE[q.approval]}`}>{APPROVAL_LABEL[q.approval]}</span> : null)
+const ApprovalBadge = ({ q, show = true }: { q: Pick<Quotation, 'status' | 'approval'>; show?: boolean }) => (show && q.status === 'draft' && q.approval ? <span className={`pap-status ${APPROVAL_TONE[q.approval]}`}>{APPROVAL_LABEL[q.approval]}</span> : null)
 
 type Quotation = {
   id: number; nomor: string; prospect_id: number | null; customer_id: number | null; kepada: string; kontak: string | null; telepon: string | null
@@ -46,6 +46,7 @@ export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number
   const [pendingApproval, setPendingApproval] = useState(0)
   const [canWrite, setCanWrite] = useState(false)
   const [canApprove, setCanApprove] = useState(false)
+  const [approvalRequired, setApprovalRequired] = useState(false)
   const [seesAll, setSeesAll] = useState(false)
   const [status, setStatus] = useState('')
   const [q, setQ] = useState('')
@@ -63,12 +64,13 @@ export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number
       const params = new URLSearchParams()
       if (status) params.set('status', status)
       if (q.trim()) params.set('q', q.trim())
-      const res = await api<{ items: Quotation[]; summary: typeof summary; pendingApproval: number; canWrite: boolean; canApprove: boolean; seesAll: boolean }>(`/api/quotations?${params}`)
+      const res = await api<{ items: Quotation[]; summary: typeof summary; pendingApproval: number; canWrite: boolean; canApprove: boolean; approvalRequired: boolean; seesAll: boolean }>(`/api/quotations?${params}`)
       setItems(res.items)
       setSummary(res.summary)
       setPendingApproval(res.pendingApproval)
       setCanWrite(res.canWrite)
       setCanApprove(res.canApprove)
+      setApprovalRequired(res.approvalRequired)
       setSeesAll(res.seesAll)
       setError('')
     } catch (e) {
@@ -101,7 +103,7 @@ export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number
       {docOpen && <DocTemplateModal onClose={() => setDocOpen(false)} onSaved={(t) => { setDocOpen(false); flash(t) }} />}
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       <div className="pap-stat-grid four">
-        <button className="pap-stat-card pap-stat-button" onClick={() => setStatus(pendingApproval ? 'persetujuan' : 'draft')}><div><span>Draft</span><strong>{sum('draft').n}</strong><small className={pendingApproval ? '' : 'neutral'}>{pendingApproval ? `${pendingApproval} menunggu persetujuan${canApprove ? ' Anda' : ''}` : 'Belum dikirim'}</small></div><div className="pap-stat-icon stat-1"><FileText /></div></button>
+        <button className="pap-stat-card pap-stat-button" onClick={() => setStatus(approvalRequired && pendingApproval ? 'persetujuan' : 'draft')}><div><span>Draft</span><strong>{sum('draft').n}</strong><small className={approvalRequired && pendingApproval ? '' : 'neutral'}>{approvalRequired && pendingApproval ? `${pendingApproval} menunggu persetujuan${canApprove ? ' Anda' : ''}` : 'Belum dikirim'}</small></div><div className="pap-stat-icon stat-1"><FileText /></div></button>
         <div className="pap-stat-card"><div><span>Menunggu jawaban</span><strong>{sum('dikirim').n}</strong><small className="neutral">{rupiah(sum('dikirim').total)}</small></div><div className="pap-stat-icon stat-1"><Send /></div></div>
         <div className="pap-stat-card"><div><span>Diterima</span><strong>{sum('diterima').n}</strong><small className="neutral">{rupiah(sum('diterima').total)}</small></div><div className="pap-stat-icon stat-0"><CheckCircle2 /></div></div>
         <div className="pap-stat-card"><div><span>Win rate</span><strong>{closed ? `${Math.round((sum('diterima').n / closed) * 100)}%` : '—'}</strong><small className="neutral">dari {closed} penawaran selesai</small></div><div className="pap-stat-icon stat-0"><TrendingUp /></div></div>
@@ -112,7 +114,7 @@ export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor, nama usaha, kontak..." /></label>
           <select className="pap-select" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter status">
             <option value="">Semua status</option>
-            <option value="persetujuan">Menunggu persetujuan</option>
+            {approvalRequired && <option value="persetujuan">Menunggu persetujuan</option>}
             {Object.entries(STATUS_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
         </div>
@@ -129,7 +131,7 @@ export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number
                   <td className={x.status === 'dikirim' && x.berlaku_sampai < today() ? 'pap-followup overdue' : ''}>{formatDate(x.berlaku_sampai)}</td>
                   <td className="pap-num">{rupiah(x.total)}</td>
                   <td>{x.created_name}</td>
-                  <td><div className="pap-detail-badges"><Badge s={x.status} /><ApprovalBadge q={x} /></div></td>
+                  <td><div className="pap-detail-badges"><Badge s={x.status} /><ApprovalBadge q={x} show={approvalRequired} /></div></td>
                 </tr>
               ))}
             </tbody>
@@ -315,18 +317,20 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
   const [canEdit, setCanEdit] = useState(false)
   const [canWrite, setCanWrite] = useState(false)
   const [canApprove, setCanApprove] = useState(false)
+  const [approvalRequired, setApprovalRequired] = useState(false)
   const [isOwner, setIsOwner] = useState(false)
   const [approvalNote, setApprovalNote] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const load = useCallback(async () => {
     try {
-      const res = await api<{ item: Quotation; items: Item[]; canEdit: boolean; canWrite: boolean; canApprove: boolean; isOwner: boolean }>(`/api/quotations/${id}`)
+      const res = await api<{ item: Quotation; items: Item[]; canEdit: boolean; canWrite: boolean; canApprove: boolean; isOwner: boolean; approvalRequired: boolean }>(`/api/quotations/${id}`)
       setItem(res.item)
       setRows(res.items)
       setCanEdit(res.canEdit)
       setCanWrite(res.canWrite)
       setCanApprove(res.canApprove)
+      setApprovalRequired(res.approvalRequired)
       setIsOwner(res.isOwner)
     } catch (e) {
       setError((e as Error).message)
@@ -382,7 +386,7 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
   // Draft boleh dikirim bila sudah disetujui, atau penawaran milik penyetuju sendiri (otomatis tercatat disetujui saat dikirim)
   const draft = item.status === 'draft'
   const approved = item.approval === 'disetujui'
-  const sendable = approved || (canApprove && isOwner)
+  const sendable = !approvalRequired || approved || (canApprove && isOwner)
   const approvalNoteInput = <textarea className="pap-input" rows={2} maxLength={500} value={approvalNote} onChange={(e) => setApprovalNote(e.target.value)} placeholder="Catatan (wajib bila menolak)" />
 
   return (
@@ -402,11 +406,11 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
       </>}
     >
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
-      <div className="pap-detail-badges"><Badge s={item.status} /><ApprovalBadge q={item} />{item.prospect_name && <span className="pap-status neutral">Prospek: {item.prospect_name}</span>}{item.customer_no && <span className="pap-status neutral">Customer {item.customer_no}</span>}</div>
+      <div className="pap-detail-badges"><Badge s={item.status} /><ApprovalBadge q={item} show={approvalRequired} />{item.prospect_name && <span className="pap-status neutral">Prospek: {item.prospect_name}</span>}{item.customer_no && <span className="pap-status neutral">Customer {item.customer_no}</span>}</div>
 
-      {draft && item.approval === 'ditolak' && item.approval_note && <Notice>Ditolak {item.approved_name ?? 'atasan'}: {item.approval_note}. Perbaiki penawaran lalu ajukan ulang.</Notice>}
-      {draft && approved && <p className="pap-muted">Disetujui {item.approved_name ?? 'atasan'}{item.approved_at ? `, ${formatDate(item.approved_at, true)}` : ''}{item.approval_note ? ` · ${item.approval_note}` : ''}</p>}
-      {draft && !approved && canApprove && !isOwner && (
+      {approvalRequired && draft && item.approval === 'ditolak' && item.approval_note && <Notice>Ditolak {item.approved_name ?? 'atasan'}: {item.approval_note}. Perbaiki penawaran lalu ajukan ulang.</Notice>}
+      {approvalRequired && draft && approved && <p className="pap-muted">Disetujui {item.approved_name ?? 'atasan'}{item.approved_at ? `, ${formatDate(item.approved_at, true)}` : ''}{item.approval_note ? ` · ${item.approval_note}` : ''}</p>}
+      {approvalRequired && draft && !approved && canApprove && !isOwner && (
         <div className="pap-inline-panel">
           <strong>Persetujuan penawaran{item.approval === 'menunggu' ? ` dari ${item.created_name}` : ''}</strong>
           <p className="pap-muted">Periksa produk & harga di bawah. Setelah disetujui, sales bisa mengirim penawaran ke customer.</p>

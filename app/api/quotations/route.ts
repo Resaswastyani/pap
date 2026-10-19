@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { logActivity } from '@/lib/marketing'
-import { canApproveQuotation, canWriteQuotation, QUOTATION_SELECT, QUOTATION_STATUS, quotationScope, readQuotationInput, requireQuotation, saveQuotationItems, seesAllQuotations, serializeQuotation } from '@/lib/quotations'
+import { canApproveQuotation, canWriteQuotation, QUOTATION_APPROVAL_REQUIRED, QUOTATION_SELECT, QUOTATION_STATUS, quotationScope, readQuotationInput, requireQuotation, saveQuotationItems, seesAllQuotations, serializeQuotation } from '@/lib/quotations'
 import { setNomor } from '@/lib/requests'
 
 export const GET = handle(async (request: Request) => {
@@ -45,6 +45,7 @@ export const GET = handle(async (request: Request) => {
     pendingApproval: Number(pending.n),
     canWrite: canWriteQuotation(user),
     canApprove: canApproveQuotation(user),
+    approvalRequired: QUOTATION_APPROVAL_REQUIRED,
     seesAll: seesAllQuotations(user),
   })
 })

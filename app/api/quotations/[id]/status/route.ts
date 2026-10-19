@@ -2,12 +2,12 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { CLOSED_STATUS, logActivity, PIPELINE, type ProspectStatus } from '@/lib/marketing'
-import { canApproveQuotation, canWriteQuotation, loadQuotation, QUOTATION_STATUS, requireQuotation, type QuotationStatus } from '@/lib/quotations'
+import { canApproveQuotation, canWriteQuotation, loadQuotation, QUOTATION_APPROVAL_REQUIRED, QUOTATION_STATUS, requireQuotation, type QuotationStatus } from '@/lib/quotations'
 
 type Ctx = { params: Promise<{ id: string }> }
 
 // draft -> dikirim -> diterima | ditolak ; draft/dikirim -> batal
-// Draft baru boleh dikirim setelah disetujui Kepala Marketing / GM (lihat ../approval); penyetuju boleh langsung mengirim.
+// Bila QUOTATION_APPROVAL_REQUIRED: draft baru boleh dikirim setelah disetujui Kepala Marketing / GM (lihat ../approval); penyetuju boleh langsung mengirim.
 const NEXT: Record<QuotationStatus, QuotationStatus[]> = { draft: ['dikirim', 'batal'], dikirim: ['diterima', 'ditolak', 'batal'], diterima: [], ditolak: [], batal: [] }
 
 export const POST = handle(async (request: Request, ctx: Ctx) => {
@@ -21,7 +21,7 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   if (!(to in QUOTATION_STATUS) || !NEXT[from].includes(to)) fail(400, `Status tidak bisa diubah dari ${QUOTATION_STATUS[from]} ke ${QUOTATION_STATUS[to] ?? to}.`)
   const alasan = str(body.alasan, 500)
   if ((to === 'ditolak' || to === 'batal') && !alasan) fail(400, 'Isi alasan.')
-  if (to === 'dikirim' && item.approval !== 'disetujui') {
+  if (QUOTATION_APPROVAL_REQUIRED && to === 'dikirim' && item.approval !== 'disetujui') {
     if (!canApproveQuotation(user)) fail(403, 'Penawaran harus disetujui Kepala Marketing atau General Manager sebelum dikirim ke customer.')
     // Dikirim langsung oleh penyetuju = sekaligus disetujui
     await db.query("UPDATE quotations SET approval = 'disetujui', approved_by = ?, approved_at = NOW() WHERE id = ? AND status = 'draft'", [user.id, item.id])
