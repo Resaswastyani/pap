@@ -8,7 +8,7 @@ import { canEditPrices, readMaterialInput, requireHpp } from '@/lib/hpp'
 export const POST = handle(async (request: Request) => {
   const user = await requireUser()
   requireHpp(user)
-  if (!canEditPrices(user)) fail(403, 'Hanya Purchasing / Admin / GM yang dapat mengubah bahan baku.')
+  if (!canEditPrices(user)) fail(403, 'Hanya Kepala Purchasing atau General Manager yang dapat mengubah bahan baku.')
   const m = readMaterialInput(await readJson(request))
   const [result] = await db.query<ResultSetHeader>(
     'INSERT INTO raw_materials (kode, nama, jenis, satuan, harga, density, keterangan, aktif, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',

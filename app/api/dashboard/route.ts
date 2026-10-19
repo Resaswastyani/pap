@@ -4,6 +4,7 @@ import { handle, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { computeKpi, loadTargets, readPeriode } from '@/lib/kpi'
 import { canSupervise, prospectScope } from '@/lib/marketing'
+import { canApproveQuotation } from '@/lib/quotations'
 import { REPEAT_BASE, seesAllCustomers } from '@/lib/repeat-order'
 import { designScope, designTodoSql, sampleScope, sampleTodoSql } from '@/lib/requests'
 
@@ -53,12 +54,14 @@ export const GET = handle(async () => {
       const all = canSupervise(user) || ['general_manager', 'accounting'].includes(user.division.code)
       const [[q]] = await db.query<Row[]>(
         `SELECT COALESCE(SUM(status = 'dikirim'), 0) AS menunggu, COALESCE(SUM(IF(status = 'dikirim', total, 0)), 0) AS nilai_menunggu,
-           COALESCE(SUM(status = 'draft'), 0) AS draft,
+           COALESCE(SUM(status = 'draft'), 0) AS draft, COALESCE(SUM(status = 'draft' AND approval = 'menunggu'), 0) AS persetujuan,
            COALESCE(SUM(status = 'diterima' AND closed_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')), 0) AS diterima_bulan_ini
          FROM quotations ${all ? '' : 'WHERE created_by = ?'}`,
         all ? [] : [user.id],
       )
-      out.quotation = { menunggu: n(q.menunggu), nilai_menunggu: n(q.nilai_menunggu), draft: n(q.draft), diterima_bulan_ini: n(q.diterima_bulan_ini) }
+      out.quotation = { menunggu: n(q.menunggu), nilai_menunggu: n(q.nilai_menunggu), draft: n(q.draft), diterima_bulan_ini: n(q.diterima_bulan_ini),
+        // Penyetuju (Kepala Marketing / GM) melihat penawaran yang menunggu persetujuannya
+        persetujuan: canApproveQuotation(user) ? n(q.persetujuan) : 0 }
     })())
   }
   if (has('repeat-order')) {

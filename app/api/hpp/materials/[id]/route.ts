@@ -10,7 +10,7 @@ type Ctx = { params: Promise<{ id: string }> }
 export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
   requireHpp(user)
-  if (!canEditPrices(user)) fail(403, 'Hanya Purchasing / Admin / GM yang dapat mengubah bahan baku.')
+  if (!canEditPrices(user)) fail(403, 'Hanya Kepala Purchasing atau General Manager yang dapat mengubah bahan baku.')
   const id = int((await ctx.params).id) ?? fail(404, 'Bahan tidak ditemukan.')
   const [[old]] = await db.query<(RowDataPacket & { harga: string })[]>('SELECT harga FROM raw_materials WHERE id = ?', [id])
   if (!old) fail(404, 'Bahan tidak ditemukan.')

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { fail, handle, int, requireUser } from '@/lib/api'
-import { canRequest, isPPIC, isProduksi, loadLogs, loadSample, loadSampleItems, requireRequestMenu } from '@/lib/requests'
+import { canApproveSample, canRequest, isPPIC, isProduksi, loadLogs, loadSample, loadSampleItems, requireRequestMenu } from '@/lib/requests'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -12,6 +12,6 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
     item: { ...item, item_count: Number(item.item_count) },
     items: await loadSampleItems(item.id),
     logs: await loadLogs('sample_id', item.id),
-    roles: { canRequest: canRequest(user), ppic: isPPIC(user), produksi: isProduksi(user), isRequester: item.requested_by === user.id || user.role.isAdmin },
+    roles: { canRequest: canRequest(user), ppic: isPPIC(user), produksi: isProduksi(user), approve: canApproveSample(user), isRequester: item.requested_by === user.id || user.role.isAdmin },
   })
 })

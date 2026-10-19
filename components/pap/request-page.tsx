@@ -11,7 +11,7 @@ import { api, Field, formatDate, formatSize, Modal, Notice } from './ui'
 // ---------------- Konstanta ----------------
 type SampleStatus = 'diajukan' | 'dijadwalkan' | 'diproduksi' | 'selesai' | 'dikirim' | 'disetujui' | 'revisi' | 'batal'
 const SAMPLE_LABEL: Record<SampleStatus, string> = {
-  diajukan: 'Diajukan', dijadwalkan: 'Dijadwalkan PPIC', diproduksi: 'Diproduksi', selesai: 'Selesai produksi',
+  diajukan: 'Diajukan', dijadwalkan: 'Disetujui & dijadwalkan', diproduksi: 'Diproduksi', selesai: 'Selesai produksi',
   dikirim: 'Dikirim ke customer', disetujui: 'Disetujui customer', revisi: 'Revisi spek', batal: 'Batal',
 }
 const SAMPLE_TONE: Record<SampleStatus, string> = { diajukan: 'warning', dijadwalkan: 'info', diproduksi: 'info', selesai: 'info', dikirim: 'info', disetujui: 'success', revisi: 'danger', batal: 'neutral' }
@@ -128,7 +128,7 @@ type SampleItemRow = {
   id: number; product_id: number | null; nama_produk: string; jenis: string | null; ukuran: string | null; ketebalan: string | null
   bahan: string | null; warna_cetak: string | null; jumlah: string | null; catatan: string | null; product_name: string | null
 }
-type SampleRoles = { canRequest: boolean; ppic: boolean; produksi: boolean; isRequester?: boolean }
+type SampleRoles = { canRequest: boolean; ppic: boolean; produksi: boolean; approve?: boolean; isRequester?: boolean }
 
 export function SamplePage({ user, focusId }: { user: UserProfile; focusId?: number | null }) {
   const [items, setItems] = useState<Sample[]>([])
@@ -178,7 +178,7 @@ export function SamplePage({ user, focusId }: { user: UserProfile; focusId?: num
         <div>
           <p className="pap-eyebrow">MARKETING · PPIC · PRODUKSI</p>
           <h1>Request Sample</h1>
-          <span>Sales mengajukan sample, PPIC menjadwalkan, Produksi membuat, sample dikirim, lalu customer menyetujui atau minta revisi spek.</span>
+          <span>Sales mengajukan sample, Kepala Produksi / Kepala PPIC / GM menyetujui &amp; menjadwalkan, Produksi membuat, sample dikirim, lalu customer menyetujui atau minta revisi spek.</span>
         </div>
         {roles.canRequest && <button className="pap-primary-button" onClick={() => setForm(true)}><Plus /> Request sample</button>}
       </div>
@@ -300,7 +300,7 @@ export function SampleForm({ prospect, resubmit, resubmitItems, onClose, onSaved
   return (
     <Modal
       title={resubmit ? `Ajukan ulang ${resubmit.nomor}` : 'Request sample'}
-      subtitle={resubmit ? `Revisi dari customer: ${resubmit.feedback ?? '—'}` : 'Produk custom, dikirim ke PPIC untuk dijadwalkan produksi'}
+      subtitle={resubmit ? `Revisi dari customer: ${resubmit.feedback ?? '—'}` : 'Produk custom, dikirim ke Kepala Produksi / Kepala PPIC / GM untuk disetujui'}
       wide
       onClose={onClose}
       footer={<><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="sample-form" className="pap-primary-button" disabled={saving}><Send /> {saving ? 'Mengirim...' : resubmit ? 'Ajukan ulang' : `Kirim ke PPIC (${items.length} produk)`}</button></>}
@@ -392,7 +392,8 @@ function SampleDetail({ id, user, onClose, onChanged }: { id: number; user: User
   if (!item) return <Modal title="Request sample" onClose={onClose}>{error ? <Notice>{error}</Notice> : <p className="pap-muted">Memuat...</p>}</Modal>
   const s = item.status
   const requester = !!roles.isRequester
-  const canCancel = !['disetujui', 'batal', 'dikirim'].includes(s) && (requester || roles.ppic)
+  // Pada tahap diajukan, penyetuju memakai tombol Tolak di panel persetujuan; sales pengaju tetap bisa membatalkan
+  const canCancel = !['disetujui', 'batal', 'dikirim'].includes(s) && (requester || (s !== 'diajukan' && (roles.ppic || !!roles.approve)))
   const note = <><textarea className="pap-input" rows={2} maxLength={5000} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Catatan (opsional)" /><div className="pap-note-attach"><AttachmentInput value={noteFiles} onChange={setNoteFiles} /></div></>
 
   return (
@@ -409,20 +410,25 @@ function SampleDetail({ id, user, onClose, onChanged }: { id: number; user: User
         {s !== 'batal' && <Track flow={SAMPLE_FLOW} labels={SAMPLE_LABEL} status={s === 'revisi' ? 'dikirim' : s} />}
 
         {/* Panel tindakan sesuai peran & tahap */}
-        {s === 'diajukan' && roles.ppic && (
+        {s === 'diajukan' && roles.approve && (
           <div className="pap-inline-panel">
-            <strong>PPIC: jadwalkan produksi sample</strong>
+            <strong>Persetujuan: setujui &amp; jadwalkan produksi sample</strong>
             <div className="pap-activity-row two"><label className="pap-activity-date"><span>Tanggal produksi</span><input className="pap-input" type="date" value={jadwal} onChange={(e) => setJadwal(e.target.value)} /></label>{note}</div>
-            <div className="pap-inline-actions"><button className="pap-primary-button" disabled={busy || !jadwal} onClick={() => act({ status: 'dijadwalkan', jadwal_produksi: jadwal, catatan }, 'Sample dijadwalkan, Produksi diberi tahu.')}><CheckCircle2 /> Jadwalkan</button></div>
+            <div className="pap-inline-actions pap-wrap">
+              <button className="pap-btn danger" disabled={busy} onClick={() => { const a = ask('Alasan menolak pengajuan sample:'); if (a) act({ status: 'batal', catatan: `Ditolak: ${a}` }, 'Pengajuan sample ditolak, sales diberi tahu.') }}><Ban /> Tolak</button>
+              <span className="pap-spacer" />
+              <button className="pap-primary-button" disabled={busy || !jadwal} onClick={() => act({ status: 'dijadwalkan', jadwal_produksi: jadwal, catatan }, 'Sample disetujui & dijadwalkan, PPIC dan Produksi diberi tahu.')}><CheckCircle2 /> Setujui &amp; jadwalkan</button>
+            </div>
           </div>
         )}
+        {s === 'diajukan' && !roles.approve && <p className="pap-muted">Menunggu persetujuan Kepala Produksi, Kepala PPIC, atau General Manager.</p>}
         {s === 'dijadwalkan' && (roles.produksi || roles.ppic) && (
           <div className="pap-inline-panel">
             <strong>{roles.produksi ? 'Produksi' : 'PPIC'}: sample dijadwalkan {formatDate(item.jadwal_produksi)}</strong>
             {note}
             <div className="pap-inline-actions pap-wrap">
-              {roles.ppic && <button className="pap-btn" disabled={busy || !jadwal} onClick={() => act({ status: 'dijadwalkan', jadwal_produksi: jadwal, catatan: catatan || 'Jadwal diubah' }, 'Jadwal produksi diubah.')}>Ubah jadwal ke</button>}
-              {roles.ppic && <input className="pap-input pap-date-inline" type="date" value={jadwal} onChange={(e) => setJadwal(e.target.value)} />}
+              {(roles.ppic || roles.approve) && <button className="pap-btn" disabled={busy || !jadwal} onClick={() => act({ status: 'dijadwalkan', jadwal_produksi: jadwal, catatan: catatan || 'Jadwal diubah' }, 'Jadwal produksi diubah.')}>Ubah jadwal ke</button>}
+              {(roles.ppic || roles.approve) && <input className="pap-input pap-date-inline" type="date" value={jadwal} onChange={(e) => setJadwal(e.target.value)} />}
               <span className="pap-spacer" />
               <button className="pap-primary-button" disabled={busy} onClick={() => act({ status: 'diproduksi', catatan }, 'Produksi sample dimulai.')}><Hammer /> Mulai produksi</button>
             </div>
