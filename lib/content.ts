@@ -5,7 +5,7 @@ import { parseDateTime } from '@/lib/marketing'
 import type { UserProfile } from '@/lib/users'
 
 // Kalender konten Marketing Digital (rencana posting, iklan, blasting) + hasilnya
-export const PLATFORMS = { instagram: 'Instagram', tiktok: 'TikTok', facebook: 'Facebook', website: 'Website / blog', whatsapp: 'WhatsApp blast', marketplace: 'Marketplace', google: 'Google (Maps / Ads)', lainnya: 'Lainnya' } as const
+export const PLATFORMS = { sosmed: 'Semua sosmed (IG/FB/TikTok)', instagram: 'Instagram', tiktok: 'TikTok', facebook: 'Facebook', website: 'Website / blog', whatsapp: 'WhatsApp blast', marketplace: 'Marketplace', google: 'Google (Maps / Ads)', lainnya: 'Lainnya' } as const
 export const CONTENT_TYPES = { feed: 'Feed / post', reels: 'Reels / video pendek', story: 'Story', video: 'Video', artikel: 'Artikel', iklan: 'Iklan berbayar', blasting: 'Blasting pesan', lainnya: 'Lainnya' } as const
 export const CONTENT_STATUS = { ide: 'Ide', produksi: 'Produksi desain', siap: 'Siap tayang', tayang: 'Sudah tayang', batal: 'Batal' } as const
 export type ContentStatus = keyof typeof CONTENT_STATUS
