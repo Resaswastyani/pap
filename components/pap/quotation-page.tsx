@@ -21,7 +21,7 @@ const APPROVAL_TONE: Record<Approval, string> = { menunggu: 'warning', disetujui
 const ApprovalBadge = ({ q, show = true }: { q: Pick<Quotation, 'status' | 'approval'>; show?: boolean }) => (show && q.status === 'draft' && q.approval ? <span className={`pap-status ${APPROVAL_TONE[q.approval]}`}>{APPROVAL_LABEL[q.approval]}</span> : null)
 
 type Quotation = {
-  id: number; nomor: string; prospect_id: number | null; customer_id: number | null; kepada: string; kontak: string | null; telepon: string | null
+  id: number; nomor: string; prospect_id: number | null; customer_id: number | null; kepada: string; kontak: string | null; telepon: string | null; whatsapp: string | null
   alamat: string | null; tanggal: string; berlaku_hari: number; berlaku_sampai: string; status: Status; pakai_ppn: boolean; ppn_persen: number
   subtotal: number; ppn: number; total: number; syarat: string | null; catatan: string | null; alasan: string | null; created_by: number
   created_name: string; sent_at: string | null; created_at: string; prospect_name: string | null; customer_no: string | null; item_count: number
@@ -178,7 +178,7 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
   const [customer, setCustomer] = useState<CustomerOption | null>(null)
   const [target, setTarget] = useState({ prospect_id: base?.prospect_id ?? pp?.id ?? null, customer_id: base?.customer_id ?? null })
   const [values, setValues] = useState({
-    kepada: base?.kepada ?? pp?.nama_usaha ?? '', kontak: base?.kontak ?? pp?.kontak_nama ?? '', telepon: base?.telepon ?? pp?.telepon ?? '',
+    kepada: base?.kepada ?? pp?.nama_usaha ?? '', kontak: base?.kontak ?? pp?.kontak_nama ?? '', telepon: base?.telepon ?? '', whatsapp: base?.whatsapp ?? pp?.telepon ?? '',
     alamat: base?.alamat ?? [pp?.alamat, pp?.kota].filter(Boolean).join(', '), tanggal: edit?.tanggal ?? today(), berlaku_hari: String(base?.berlaku_hari ?? 14),
     syarat: base?.syarat ?? '', rekening: base?.rekening ?? '', catatan: base?.catatan ?? '', pakai_ppn: base ? base.pakai_ppn : true,
   })
@@ -237,14 +237,14 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
     setProspect(p)
     setTarget({ prospect_id: p.id, customer_id: null })
     api<{ item: { nama_usaha: string; kontak_nama: string | null; telepon: string | null; alamat: string | null; kota: string | null } }>(`/api/prospects/${p.id}`).then(({ item }) => {
-      setValues((v) => ({ ...v, kepada: item.nama_usaha, kontak: item.kontak_nama ?? '', telepon: item.telepon ?? '', alamat: [item.alamat, item.kota].filter(Boolean).join(', ') }))
+      setValues((v) => ({ ...v, kepada: item.nama_usaha, kontak: item.kontak_nama ?? '', whatsapp: item.telepon ?? '', alamat: [item.alamat, item.kota].filter(Boolean).join(', ') }))
     }).catch(() => setValues((v) => ({ ...v, kepada: p.nama_usaha })))
   }
   function pickCustomer(c: CustomerOption) {
     setCustomer(c)
     setTarget({ prospect_id: null, customer_id: c.id })
-    const full = c as CustomerOption & { mobile_phone?: string | null; bill_street?: string | null }
-    setValues((v) => ({ ...v, kepada: c.name, telepon: full.mobile_phone ?? '', alamat: [full.bill_street, c.bill_city].filter(Boolean).join(', ') }))
+    const full = c as CustomerOption & { mobile_phone?: string | null; work_phone?: string | null; bill_street?: string | null }
+    setValues((v) => ({ ...v, kepada: c.name, telepon: full.work_phone ?? '', whatsapp: full.mobile_phone ?? '', alamat: [full.bill_street, c.bill_city].filter(Boolean).join(', ') }))
   }
 
   return (
@@ -272,7 +272,8 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
         )}
         <Field label="Kepada (nama usaha)"><input className="pap-input" required maxLength={200} value={values.kepada} onChange={set('kepada')} /></Field>
         <Field label="Up. (nama kontak)"><input className="pap-input" maxLength={150} value={values.kontak} onChange={set('kontak')} /></Field>
-        <Field label="Telepon / WA"><input className="pap-input" maxLength={40} value={values.telepon} onChange={set('telepon')} /></Field>
+        <Field label="No. telepon"><input className="pap-input" maxLength={40} value={values.telepon} onChange={set('telepon')} placeholder="mis. (0271) 7685458" /></Field>
+        <Field label="No. WA"><input className="pap-input" maxLength={40} value={values.whatsapp} onChange={set('whatsapp')} placeholder="mis. 0812xxxx" /></Field>
         <Field label="Alamat"><input className="pap-input" maxLength={500} value={values.alamat} onChange={set('alamat')} /></Field>
         <Field label="Tanggal"><input className="pap-input" type="date" required value={values.tanggal} onChange={set('tanggal')} /></Field>
         <Field label="Berlaku (hari)"><input className="pap-input" type="number" min={1} max={365} value={values.berlaku_hari} onChange={set('berlaku_hari')} /></Field>
@@ -482,7 +483,7 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
           <strong>Kirim penawaran ke customer</strong>
           <p className="pap-muted">1) Unduh <b>PDF</b> (simpan sebagai PDF di dialog cetak) atau <b>Word</b>. 2) Kirim lewat WhatsApp/email. 3) Tandai terkirim — status prospek otomatis menjadi &quot;Penawaran&quot;.</p>
           <div className="pap-inline-actions pap-wrap">
-            {waLink(item.telepon, waText) && <a className="pap-btn pap-wa" href={waLink(item.telepon, waText)!} target="_blank" rel="noreferrer"><MessageCircle /> Buka WhatsApp</a>}
+            {waLink(item.whatsapp || item.telepon, waText) && <a className="pap-btn pap-wa" href={waLink(item.whatsapp || item.telepon, waText)!} target="_blank" rel="noreferrer"><MessageCircle /> Buka WhatsApp</a>}
             <span className="pap-spacer" />
             <button className="pap-primary-button" disabled={busy} onClick={() => status('dikirim')}><Send /> Tandai terkirim</button>
           </div>
@@ -492,7 +493,7 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
         <div className="pap-inline-panel">
           <strong>Jawaban customer</strong>
           <div className="pap-inline-actions pap-wrap">
-            {waLink(item.telepon, `Halo${item.kontak ? ` ${item.kontak}` : ''}, menindaklanjuti penawaran kami no. ${item.nomor}. Apakah ada pertanyaan atau bisa kami bantu proses ordernya?`) && <a className="pap-btn pap-wa" href={waLink(item.telepon, `Halo${item.kontak ? ` ${item.kontak}` : ''}, menindaklanjuti penawaran kami no. ${item.nomor}. Apakah ada pertanyaan atau bisa kami bantu proses ordernya?`)!} target="_blank" rel="noreferrer"><MessageCircle /> Follow-up WA</a>}
+            {waLink(item.whatsapp || item.telepon, `Halo${item.kontak ? ` ${item.kontak}` : ''}, menindaklanjuti penawaran kami no. ${item.nomor}. Apakah ada pertanyaan atau bisa kami bantu proses ordernya?`) && <a className="pap-btn pap-wa" href={waLink(item.whatsapp || item.telepon, `Halo${item.kontak ? ` ${item.kontak}` : ''}, menindaklanjuti penawaran kami no. ${item.nomor}. Apakah ada pertanyaan atau bisa kami bantu proses ordernya?`)!} target="_blank" rel="noreferrer"><MessageCircle /> Follow-up WA</a>}
             <span className="pap-spacer" />
             <button className="pap-btn danger" disabled={busy} onClick={() => status('ditolak', true)}><XCircle /> Ditolak</button>
             <button className="pap-primary-button" disabled={busy} onClick={() => status('diterima')}><CheckCircle2 /> Diterima / deal</button>
@@ -504,7 +505,8 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
 
       <dl className="pap-detail-grid">
         <div><dt>Kepada</dt><dd>{item.kepada}{item.kontak ? ` · up. ${item.kontak}` : ''}</dd></div>
-        <div><dt>Telepon / alamat</dt><dd>{[item.telepon, item.alamat].filter(Boolean).join(' · ') || '—'}</dd></div>
+        <div><dt>Telepon / WA</dt><dd>{[item.telepon && `Telp ${item.telepon}`, item.whatsapp && `WA ${item.whatsapp}`].filter(Boolean).join(' · ') || '—'}</dd></div>
+        <div><dt>Alamat</dt><dd>{item.alamat || '—'}</dd></div>
       </dl>
       <div className="pap-table-wrap pap-sample-table">
         <table>
