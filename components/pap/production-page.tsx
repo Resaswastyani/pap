@@ -26,6 +26,10 @@ type Job = {
   spk_nomor: string | null
   spk_terbit_at: string | null
   spk_terbit_name: string | null
+  spk_revisi: number
+  spk_ditarik_at: string | null
+  spk_ditarik_name: string | null
+  spk_alasan_tarik: string | null
   formulasi: string | null
   tingkat_kualitas: string | null
   acuan_kerja: string | null
@@ -353,6 +357,7 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
   const [editing, setEditing] = useState<EditableStage[] | null>(null)
   const [catatan, setCatatan] = useState('')
   const [spkForm, setSpkForm] = useState({ target_qty: '', tingkat_kualitas: '', formulasi: '', acuan_kerja: '' })
+  const [tarik, setTarik] = useState<string | null>(null)
   const [results, setResults] = useState<Result[]>([])
   const [resultCan, setResultCan] = useState({ report: false, qc: false, manage: false })
   const [resultForm, setResultForm] = useState<{ initial: Result | null; stageId?: number } | null>(null)
@@ -430,8 +435,8 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
       footer={
         <>
           {can.manage && (job.status === 'batal'
-            ? <button className="pap-btn" disabled={busy} onClick={() => run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { batal: false } }), 'Job diaktifkan kembali.')}>Aktifkan lagi</button>
-            : <button className="pap-btn danger" disabled={busy} onClick={() => window.confirm('Batalkan job produksi ini?') && run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { batal: true } }), 'Job dibatalkan.')}><Trash2 /> Batalkan</button>)}
+            ? <button className="pap-btn" disabled={busy} onClick={() => run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { batal: false } }), 'Produksi diaktifkan kembali.')}>Aktifkan produksi lagi</button>
+            : <button className="pap-btn danger" disabled={busy} title="Hentikan produksi job ini. Sales Order di Accurate tidak ikut dibatalkan." onClick={() => window.confirm(`Batalkan produksi ${job.item_name}?\n\nJob dan SPK-nya dihentikan dan hilang dari daftar aktif. Laporan hasil baru tidak bisa dikirim.\nSales Order ${job.so_number ?? ''} di Accurate TIDAK ikut dibatalkan.\n\nBisa diaktifkan lagi kapan saja.`) && run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { batal: true } }), 'Produksi dibatalkan. Sales Order di Accurate tidak berubah.')}><Trash2 /> Batalkan produksi</button>)}
           <span className="pap-spacer" />
           {can.manage && <button className="pap-btn" disabled={busy} onClick={() => run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { prioritas: job.prioritas === 'tinggi' ? 'normal' : 'tinggi' } }))}><Flag /> {job.prioritas === 'tinggi' ? 'Prioritas normal' : 'Prioritas tinggi'}</button>}
           <button className="pap-btn" onClick={() => printSpk(job, stages, product, results)}><Printer /> Cetak SPK</button>
@@ -442,7 +447,7 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       <div className="pap-detail-badges">
         <JobBadge value={job.status} />
-        {job.spk_nomor ? <span className="pap-status success">{job.spk_nomor}</span> : <span className="pap-status warning">SPK belum terbit</span>}
+        {job.spk_nomor ? <span className="pap-status success">{job.spk_nomor}</span> : <span className="pap-status warning">{job.spk_ditarik_at ? 'SPK ditarik, menunggu revisi' : 'SPK belum terbit'}</span>}
         {job.prioritas === 'tinggi' && <span className="pap-status danger">Prioritas tinggi</span>}
         {isLate(job) && <span className="pap-status danger">Lewat tanggal kirim</span>}
       </div>
@@ -459,7 +464,10 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
           <h3>SPK (Surat Perintah Kerja)</h3>
           {job.spk_nomor && <small className="pap-muted">Terbit {formatDate(job.spk_terbit_at, true)}{job.spk_terbit_name ? ` oleh ${job.spk_terbit_name}` : ''}</small>}
         </div>
-        {can.manage && job.status !== 'batal' ? (
+        {!job.spk_nomor && job.spk_ditarik_at && (
+          <div className="pap-result-issue pap-spk-withdrawn">SPK sebelumnya ditarik {formatDate(job.spk_ditarik_at, true)}{job.spk_ditarik_name ? ` oleh ${job.spk_ditarik_name}` : ''}: {job.spk_alasan_tarik}. Setelah direvisi, terbitkan ulang sebagai revisi R{job.spk_revisi}.</div>
+        )}
+        {can.manage && job.status !== 'batal' && !job.spk_nomor ? (
           <div className="pap-form-grid">
             <Field label="Target jumlah produksi" hint={`Kosong = jumlah pesanan (${qty(job.quantity, job.unit)}). Satuan: ${job.unit ?? '—'}`}><input className="pap-input" inputMode="decimal" value={spkForm.target_qty} onChange={(e) => setSpkForm((v) => ({ ...v, target_qty: e.target.value }))} placeholder={job.quantity === null ? '' : String(job.quantity)} /></Field>
             <Field label="Tingkat kualitas"><input className="pap-input" maxLength={100} value={spkForm.tingkat_kualitas} onChange={(e) => setSpkForm((v) => ({ ...v, tingkat_kualitas: e.target.value }))} placeholder="mis. Grade A, food grade, reguler" /></Field>
@@ -468,15 +476,37 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
             <div className="full pap-inline-actions">
               <span className="pap-spacer" />
               <button className="pap-btn" disabled={busy || (spkForm.target_qty === (job.target_qty === null ? '' : String(job.target_qty)) && spkForm.tingkat_kualitas === (job.tingkat_kualitas ?? '') && spkForm.formulasi === (job.formulasi ?? '') && spkForm.acuan_kerja === (job.acuan_kerja ?? ''))} onClick={() => run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { ...spkForm, target_qty: spkForm.target_qty || null } }), 'Isi SPK disimpan.')}>Simpan isi SPK</button>
-              {!job.spk_nomor && <button className="pap-primary-button" disabled={busy} onClick={() => window.confirm('Terbitkan SPK untuk job ini? Nomor SPK dibuat dan SPK bisa dicetak untuk Produksi.') && run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { ...spkForm, target_qty: spkForm.target_qty || null, terbitkan_spk: true } }), 'SPK diterbitkan.')}><Stamp /> Terbitkan SPK</button>}
+              {!job.spk_nomor && <button className="pap-primary-button" disabled={busy} onClick={() => window.confirm('Terbitkan SPK untuk job ini? Nomor SPK dibuat dan SPK bisa dicetak untuk Produksi.') && run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { ...spkForm, target_qty: spkForm.target_qty || null, terbitkan_spk: true } }), 'SPK diterbitkan.')}><Stamp /> {job.spk_revisi ? `Terbitkan ulang SPK (revisi R${job.spk_revisi})` : 'Terbitkan SPK'}</button>}
             </div>
           </div>
         ) : (
-          <div className="pap-spec-grid">
-            <div><span>Tingkat kualitas</span><p>{job.tingkat_kualitas || <span className="pap-muted">—</span>}</p></div>
-            <div><span>Formulasi / campuran bahan</span><p className="pap-prewrap">{job.formulasi || <span className="pap-muted">Belum diisi PPIC.</span>}</p></div>
-            <div><span>Acuan kerja</span><p className="pap-prewrap">{job.acuan_kerja || <span className="pap-muted">Belum diisi PPIC.</span>}</p></div>
-          </div>
+          <>
+            <div className="pap-spec-grid">
+              <div><span>Target produksi</span><p>{qty(targetOf(job), job.unit)}</p></div>
+              <div><span>Tingkat kualitas</span><p>{job.tingkat_kualitas || <span className="pap-muted">—</span>}</p></div>
+              <div><span>Formulasi / campuran bahan</span><p className="pap-prewrap">{job.formulasi || <span className="pap-muted">Belum diisi PPIC.</span>}</p></div>
+              <div><span>Acuan kerja</span><p className="pap-prewrap">{job.acuan_kerja || <span className="pap-muted">Belum diisi PPIC.</span>}</p></div>
+            </div>
+            {/* SPK terbit dikunci; revisi lewat Tarik SPK (job produksi & laporan hasil tetap berjalan) */}
+            {can.manage && job.status !== 'batal' && job.spk_nomor && (tarik === null ? (
+              <div className="pap-inline-actions">
+                <small className="pap-muted">Isi SPK terkunci setelah terbit. Untuk mengubahnya, tarik SPK lalu terbitkan ulang sebagai revisi.</small>
+                <span className="pap-spacer" />
+                <button className="pap-btn danger" disabled={busy} onClick={() => setTarik('')}>Tarik SPK</button>
+              </div>
+            ) : (
+              <div className="pap-inline-panel">
+                <strong>Tarik SPK {job.spk_nomor}</strong>
+                <p className="pap-muted">Nomor SPK dicabut dan SPK lama tidak berlaku lagi. Job produksi, jadwal, dan laporan hasil tetap berjalan. Setelah isinya diperbaiki, SPK diterbitkan ulang dengan nomor revisi R{job.spk_revisi + 1}.</p>
+                <textarea className="pap-input" rows={2} maxLength={500} value={tarik} onChange={(e) => setTarik(e.target.value)} placeholder="Alasan menarik SPK, mis. formulasi salah, target berubah" autoFocus />
+                <div className="pap-inline-actions">
+                  <span className="pap-spacer" />
+                  <button className="pap-btn" onClick={() => setTarik(null)}>Batal</button>
+                  <button className="pap-btn danger" disabled={busy || !tarik.trim()} onClick={() => run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { tarik_spk: true, alasan_tarik: tarik } }), 'SPK ditarik. Silakan revisi lalu terbitkan ulang.').then(() => setTarik(null))}>Tarik SPK</button>
+                </div>
+              </div>
+            ))}
+          </>
         )}
       </section>
 
