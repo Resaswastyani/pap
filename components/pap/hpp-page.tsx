@@ -215,7 +215,7 @@ export function DocForm({ data, onSaved }: { data: HppData; onSaved: (message: s
         <Field label="Alamat" full><textarea className="pap-input" rows={2} disabled={dis} value={values.alamat ?? ''} onChange={set('alamat')} /></Field>
         <Field label="Email"><input className="pap-input" disabled={dis} value={values.email ?? ''} onChange={set('email')} /></Field>
         <Field label="Penandatangan (nama & jabatan)"><input className="pap-input" disabled={dis} value={values.penandatangan ?? ''} onChange={set('penandatangan')} placeholder="Kosongkan = nama sales pembuat" /></Field>
-        <Field label="Rekening pembayaran" full><textarea className="pap-input" rows={2} disabled={dis} value={values.rekening ?? ''} onChange={set('rekening')} placeholder="Bank ... a.n. PT. Pandawa Amerta Packindo No. rek ..." /></Field>
+        <Field label="Rekening pembayaran (satu per baris, jadi pilihan di form penawaran)" full><textarea className="pap-input" rows={3} disabled={dis} value={values.rekening ?? ''} onChange={set('rekening')} placeholder="Satu rekening per baris, mis. 393-1145507 BCA / Pandawa Amerta Packindo - Non PPN" /></Field>
         <Field label="Syarat & ketentuan default" full><textarea className="pap-input" rows={4} disabled={dis} value={values.syarat ?? ''} onChange={set('syarat')} /></Field>
       </div>
       {!dis && <div className="pap-settings-foot"><button className="pap-primary-button" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan data dokumen'}</button></div>}
