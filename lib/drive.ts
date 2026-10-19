@@ -373,3 +373,63 @@ export async function driveStatus() {
   )
   return roots.map((r) => ({ ...r, files: Number(r.files), pending: Number(r.pending) }))
 }
+
+// ---- Google Sheet (dibaca dengan akun Google yang sama dengan Logo & Desain) ----
+export type SheetTab = { title: string; rows: string[][] }
+
+// "https://docs.google.com/spreadsheets/d/<id>/edit..." atau id langsung -> id
+export function spreadsheetId(urlOrId: string) {
+  const m = urlOrId.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]{20,})/)
+  if (m) return m[1]
+  return /^[a-zA-Z0-9_-]{20,}$/.test(urlOrId.trim()) ? urlOrId.trim() : null
+}
+
+// Semua tab beserta isinya (teks seperti tampil di sheet). Sheets API dipakai bila aktif di project Google,
+// bila tidak: ekspor CSV lewat Drive API (hanya tab pertama).
+export async function readSpreadsheet(id: string): Promise<SheetTab[]> {
+  const headers = { Authorization: `Bearer ${await accessToken()}` }
+  const meta = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(id)}?fields=sheets.properties(title,hidden)`, { headers })
+  if (meta.ok) {
+    const titles = ((await meta.json()).sheets as { properties: { title: string; hidden?: boolean } }[]).filter((s) => !s.properties.hidden).map((s) => s.properties.title)
+    if (!titles.length) return []
+    const url = new URL(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(id)}/values:batchGet`)
+    for (const t of titles) url.searchParams.append('ranges', `'${t.replace(/'/g, "''")}'`)
+    const res = await fetch(url, { headers })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) throw new DriveError(res.status, json.error?.message ?? `Google Sheets error ${res.status}`)
+    return titles.map((title, i) => ({ title, rows: ((json.valueRanges?.[i]?.values ?? []) as unknown[][]).map((r) => r.map((c) => String(c ?? ''))) }))
+  }
+  const err = await meta.json().catch(() => ({}))
+  if (meta.status === 404) throw new DriveError(404, 'Spreadsheet tidak ditemukan atau belum dibagikan ke akun Google yang terhubung.')
+  if (meta.status === 403 && !/has not been used|disabled/i.test(err.error?.message ?? '')) {
+    throw new DriveError(403, 'Akun Google yang terhubung belum punya akses ke spreadsheet ini. Bagikan spreadsheet ke akun tersebut (Viewer).')
+  }
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}/export?mimeType=text/csv`, { headers })
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}))
+    throw new DriveError(res.status, res.status === 404 ? 'Spreadsheet tidak ditemukan atau belum dibagikan ke akun Google yang terhubung.' : j.error?.message ?? `Google Drive error ${res.status}`)
+  }
+  return [{ title: 'Sheet1', rows: parseCsv(await res.text()) }]
+}
+
+function parseCsv(text: string) {
+  const rows: string[][] = []
+  let row: string[] = []
+  let cell = ''
+  let quoted = false
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (quoted) {
+      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++ }
+      else if (ch === '"') quoted = false
+      else cell += ch
+    } else if (ch === '"') quoted = true
+    else if (ch === ',') { row.push(cell); cell = '' }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++
+      row.push(cell); rows.push(row); row = []; cell = ''
+    } else cell += ch
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row) }
+  return rows
+}
