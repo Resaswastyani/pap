@@ -33,9 +33,9 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   const { header, items } = await readQuotationInput(await readJson(request), user)
   await db.query(
     `UPDATE quotations SET prospect_id = ?, customer_id = ?, kepada = ?, kontak = ?, telepon = ?, alamat = ?, tanggal = ?, berlaku_hari = ?, pakai_ppn = ?,
-       ppn_persen = ?, subtotal = ?, ppn = ?, total = ?, syarat = ?, catatan = ? WHERE id = ?`,
+       ppn_persen = ?, subtotal = ?, ppn = ?, total = ?, syarat = ?, rekening = ?, catatan = ? WHERE id = ?`,
     [header.prospect_id, header.customer_id, header.kepada, header.kontak, header.telepon, header.alamat, header.tanggal, header.berlaku_hari, header.pakai_ppn,
-      header.ppn_persen, header.subtotal, header.ppn, header.total, header.syarat, header.catatan, item.id],
+      header.ppn_persen, header.subtotal, header.ppn, header.total, header.syarat, header.rekening, header.catatan, item.id],
   )
   await saveQuotationItems(item.id, items)
   // Isi penawaran yang sudah disetujui berubah: harus disetujui ulang (kecuali yang mengubah penyetuju sendiri)

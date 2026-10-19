@@ -45,6 +45,8 @@ export function quotationDocumentHtml({ q, items, doc }: Awaited<ReturnType<type
     order: 'Terima kasih atas kepercayaan Anda. Berikut konfirmasi pesanan yang akan kami produksi:',
     proforma: 'Berikut tagihan sementara (proforma) atas pesanan Anda:',
   }[jenis]
+  // Rekening yang dipilih di penawaran; kosong = semua rekening di Template dokumen
+  const rekening = q.rekening || doc.rekening
   const syarat = String(q.syarat ?? '').split(/\r?\n/).filter((l) => l.trim()).map((l) => `<li>${esc(l.replace(/^\s*[-•\d.]+\s*/, ''))}</li>`).join('')
 
   return `<article class="pap-sheet">
@@ -78,7 +80,7 @@ ${!q.pakai_ppn ? '<p class="pap-sheet-note">Harga belum termasuk PPN.</p>' : ''}
 ${jenis !== 'penawaran' && q.catatan_order ? `<h3>Catatan pesanan</h3><p class="pre">${esc(q.catatan_order)}</p>` : ''}
 ${jenis === 'order' && dp ? `<p>Pembayaran: DP ${q.dp_persen}% sebesar <b>${rp(dp)}</b> sebelum produksi dimulai, pelunasan sebelum barang dikirim.</p>` : ''}
 ${syarat && jenis !== 'proforma' ? `<h3>Syarat &amp; ketentuan</h3><ol>${syarat}</ol>` : ''}
-${doc.rekening ? `<h3>Pembayaran ke</h3><p class="pre">${esc(doc.rekening)}</p>` : ''}
+${rekening ? `<h3>Pembayaran ke</h3><p class="pre">${esc(rekening)}</p>` : ''}
 ${jenis === 'penawaran' ? '<p>Demikian penawaran ini kami sampaikan. Atas perhatian dan kerja samanya kami ucapkan terima kasih.</p>' : ''}
 ${jenis === 'proforma' ? '<p>Mohon lakukan pembayaran ke rekening di atas dan kirimkan bukti transfer kepada kami.</p>' : ''}
 <table class="pap-sheet-sign"><tbody><tr>

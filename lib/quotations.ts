@@ -108,7 +108,7 @@ export async function readQuotationInput(body: Record<string, unknown>, user: Us
       kontak: str(body.kontak, 150) || null, telepon: str(body.telepon, 40) || null, alamat: str(body.alamat, 500) || null,
       tanggal, berlaku_hari: berlaku, pakai_ppn: pakaiPpn ? 1 : 0, ppn_persen: ppnPersen,
       subtotal, ppn, total: subtotal + ppn,
-      syarat: str(body.syarat, 5000) || null, catatan: str(body.catatan, 5000) || null,
+      syarat: str(body.syarat, 5000) || null, rekening: str(body.rekening, 255) || null, catatan: str(body.catatan, 5000) || null,
     },
     items,
   }

@@ -56,10 +56,10 @@ export const POST = handle(async (request: Request) => {
   if (!canWriteQuotation(user)) fail(403, 'Quotation dibuat oleh Marketing.')
   const { header, items } = await readQuotationInput(await readJson(request), user)
   const [result] = await db.query<ResultSetHeader>(
-    `INSERT INTO quotations (prospect_id, customer_id, kepada, kontak, telepon, alamat, tanggal, berlaku_hari, pakai_ppn, ppn_persen, subtotal, ppn, total, syarat, catatan, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO quotations (prospect_id, customer_id, kepada, kontak, telepon, alamat, tanggal, berlaku_hari, pakai_ppn, ppn_persen, subtotal, ppn, total, syarat, rekening, catatan, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [header.prospect_id, header.customer_id, header.kepada, header.kontak, header.telepon, header.alamat, header.tanggal, header.berlaku_hari, header.pakai_ppn,
-      header.ppn_persen, header.subtotal, header.ppn, header.total, header.syarat, header.catatan, user.id],
+      header.ppn_persen, header.subtotal, header.ppn, header.total, header.syarat, header.rekening, header.catatan, user.id],
   )
   const id = result.insertId
   await saveQuotationItems(id, items)
