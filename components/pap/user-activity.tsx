@@ -15,6 +15,8 @@ type ActivityLog = {
   changes: ActivityChange[] | null
   device: string | null
   device_type: DeviceType | null
+  device_brand: string | null
+  device_model: string | null
   ip_address: string | null
   user_agent: string | null
   created_at: string
@@ -69,7 +71,7 @@ export function UserActivityLog({ filterUser, onClearUser }: { filterUser: { id:
       </div>
       {error && <div className="pap-activity-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
       <div className="pap-filters">
-        <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari pelaku, data, perangkat, atau IP..." /></label>
+        <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari pelaku, data, merek HP, perangkat, atau IP..." /></label>
         <select className="pap-select" value={moduleName} onChange={(e) => setModuleName(e.target.value)} aria-label="Filter modul">
           <option value="">Semua modul</option>
           {ACTIVITY_MODULES.map((m) => <option key={m} value={m}>{m}</option>)}
@@ -104,6 +106,7 @@ export function UserActivityLog({ filterUser, onClearUser }: { filterUser: { id:
                     )}
                   </td>
                   <td>
+                    {(log.device_brand || log.device_model) && <div className="pap-activity-brand">{[log.device_brand, log.device_model && log.device_model !== log.device_brand ? log.device_model : null].filter(Boolean).join(' ')}</div>}
                     <div className="pap-activity-device" title={log.user_agent ?? undefined}><Icon /> <span>{log.device ?? 'Tidak diketahui'}</span></div>
                     {log.ip_address && <div className="pap-cell-sub">IP {log.ip_address}</div>}
                   </td>

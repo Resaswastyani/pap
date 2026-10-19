@@ -32,13 +32,18 @@ export function parseDevice(headers: Headers) {
     match(ua, /Version\/(\d+).*Safari/, 'Safari') ??
     null
 
+  // Client Hints (dikirim Chrome/Edge/Samsung Internet setelah header Accept-CH di next.config)
+  const hintModel = headers.get('sec-ch-ua-model')?.replaceAll('"', '').trim() || null
+  const hintVersion = Number(headers.get('sec-ch-ua-platform-version')?.replaceAll('"', '').split('.')[0])
+
   let os: string | null = null
   const android = ua.match(/Android (\d+)/)
   const ios = ua.match(/(?:iPhone|CPU) OS (\d+)/)
-  if (android) os = `Android ${android[1]}`
+  // UA Android baru selalu "Android 10"; versi sebenarnya dari Client Hints bila ada
+  if (android) os = `Android ${hintPlatform === 'Android' && hintVersion > 0 ? hintVersion : android[1]}`
   else if (/iPad/.test(ua)) os = ios ? `iPadOS ${ios[1]}` : 'iPadOS'
   else if (ios) os = `iOS ${ios[1]}`
-  else if (/Windows/.test(ua)) os = 'Windows'
+  else if (/Windows/.test(ua)) os = hintPlatform === 'Windows' && hintVersion >= 13 ? 'Windows 11' : 'Windows'
   else if (/CrOS/.test(ua)) os = 'ChromeOS'
   else if (/Mac OS X/.test(ua)) os = 'macOS'
   else if (/Linux/.test(ua)) os = 'Linux'
@@ -49,9 +54,44 @@ export function parseDevice(headers: Headers) {
   else if (/Mobi|iPhone/.test(ua) || hintMobile === '?1') type = 'mobile'
   else if (ua) type = 'desktop'
 
+  const { brand, model } = deviceBrand(ua, hintModel)
   const label = [browser, os, { desktop: 'Desktop', mobile: 'HP', tablet: 'Tablet', lainnya: null }[type]].filter(Boolean).join(' · ')
   const ip = headers.get('x-forwarded-for')?.split(',')[0].trim() || headers.get('x-real-ip') || null
-  return { label: label || 'Tidak diketahui', type, ip, ua: ua.slice(0, 500) || null }
+  return { label: label || 'Tidak diketahui', type, brand, model, ip, ua: ua.slice(0, 500) || null }
+}
+
+// Merek dari kode model HP (Client Hints atau User-Agent lama). iPhone/iPad/Mac: Apple (model tidak dibuka oleh iOS).
+const BRANDS: [RegExp, string][] = [
+  [/^(SM-|GT-|SC-|SCV|Galaxy)/i, 'Samsung'],
+  [/^Pixel/i, 'Google'],
+  [/^(Redmi|POCO|Mi |MI |MIX|M\d{4}[A-Z]|2\d{3}[0-9A-Z]{4,}|Xiaomi)/i, 'Xiaomi'],
+  [/^(RMX|realme)/i, 'realme'],
+  [/^(CPH|OPPO|PH[A-Z]\d{3})/i, 'OPPO'],
+  [/^(V\d{4}|vivo|I\d{4})/i, 'vivo'],
+  [/^(ONEPLUS|[A-Z]{2}\d{4}$|NE\d{4}|LE\d{4}|IN\d{4}|KB\d{4})/i, 'OnePlus'],
+  [/^(Infinix|X\d{3,4}[A-Z]?$)/i, 'Infinix'],
+  [/^(TECNO|[A-Z]{2}\d{1,2}[A-Z]?$)/, 'Tecno'],
+  [/^(itel|[A-Z]\d{3,4}[A-Z]{0,2}$)/i, 'itel'],
+  [/^(HUAWEI|ANE-|ELE-|VOG-|LYA-|MAR-|JNY-|NOH-|NAM-|CDY-|DUB-)/i, 'Huawei'],
+  [/^(HONOR|[A-Z]{3}-(AN|LX|NX)\d)/i, 'Honor'],
+  [/^(moto|motorola|XT\d{4})/i, 'Motorola'],
+  [/^(ASUS|ASUS_|ROG)/i, 'ASUS'],
+  [/^(Nokia|TA-\d)/i, 'Nokia'],
+  [/^(LM-|LG-)/i, 'LG'],
+  [/^(SO-|XQ-|SOV|Xperia)/i, 'Sony'],
+  [/^(Lenovo|TB-|TB\d)/i, 'Lenovo'],
+]
+
+export function deviceBrand(ua: string, hintModel?: string | null) {
+  if (/iPhone/.test(ua)) return { brand: 'Apple', model: 'iPhone' }
+  if (/iPad/.test(ua)) return { brand: 'Apple', model: 'iPad' }
+  if (/Macintosh|Mac OS X/.test(ua) && !/Android/.test(ua)) return { brand: 'Apple', model: 'Mac' }
+  // UA Android lama: "Android 13; SM-A546E Build/..." ; UA baru menyamarkan model menjadi "K"
+  const fromUa = ua.match(/Android [\d.]+; (?:[a-z]{2}[-_][a-z]{2}; )?([^;)]+?)(?: Build\/|\))/i)?.[1]?.trim()
+  const model = hintModel || (fromUa && fromUa !== 'K' ? fromUa : null)
+  if (!model) return { brand: null, model: null }
+  const brand = BRANDS.find(([re]) => re.test(model))?.[1] ?? null
+  return { brand, model: model.slice(0, 100) }
 }
 
 const match = (ua: string, re: RegExp, name: string) => {
@@ -67,12 +107,12 @@ export async function insertLog(request: Request, actor: Actor, entry: LogEntry)
     const url = new URL(request.url)
     await db.query(
       `INSERT INTO activity_logs (actor_id, actor_name, module, action, entity_type, entity_id, entity_label, description, changes,
-         method, path, device, device_type, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         method, path, device, device_type, device_brand, device_model, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         actor.id, actor.name.slice(0, 150), entry.module, entry.action, entry.entity?.type ?? null,
         entry.entity?.id != null ? String(entry.entity.id) : null, entry.entity?.label?.slice(0, 200) ?? null,
         entry.description.slice(0, 500), entry.changes?.length ? JSON.stringify(entry.changes) : null,
-        request.method, url.pathname.slice(0, 255), device.label.slice(0, 150), device.type, device.ip, device.ua,
+        request.method, url.pathname.slice(0, 255), device.label.slice(0, 150), device.type, device.brand, device.model, device.ip, device.ua,
       ],
     )
   } catch (error) {

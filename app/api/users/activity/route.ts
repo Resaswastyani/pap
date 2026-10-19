@@ -23,15 +23,15 @@ export const GET = handle(async (request: Request) => {
   if (userId) where.push("(l.actor_id = ? OR (l.entity_type = 'user' AND l.entity_id = ?))"), args.push(userId, String(userId))
   const q = params.get('q')?.trim().slice(0, 100)
   if (q) {
-    where.push('(l.actor_name LIKE ? OR l.entity_label LIKE ? OR l.description LIKE ? OR l.device LIKE ? OR l.ip_address LIKE ?)')
-    args.push(...Array(5).fill(`%${q}%`))
+    where.push('(l.actor_name LIKE ? OR l.entity_label LIKE ? OR l.description LIKE ? OR l.device LIKE ? OR l.device_brand LIKE ? OR l.device_model LIKE ? OR l.ip_address LIKE ?)')
+    args.push(...Array(7).fill(`%${q}%`))
   }
   const before = int(params.get('before'))
   if (before) where.push('l.id < ?'), args.push(before)
 
   const [rows] = await db.query<RowDataPacket[]>(
     `SELECT l.id, l.actor_id, l.actor_name, l.module, l.action, l.entity_type, l.entity_id, l.entity_label, l.description,
-       l.changes, l.device, l.device_type, l.ip_address, l.user_agent, l.created_at
+       l.changes, l.device, l.device_type, l.device_brand, l.device_model, l.ip_address, l.user_agent, l.created_at
      FROM activity_logs l ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
      ORDER BY l.id DESC LIMIT ${PAGE + 1}`,
     args,

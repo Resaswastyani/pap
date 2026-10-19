@@ -902,3 +902,15 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
 .pap-note-attach { margin-top:8px; }
 .pap-stage-attach .pap-detail-section { margin-top:10px; padding:10px 0 0; border-top:1px dashed var(--pap-border); }
 .pap-stage-attach .pap-detail-section h3 { font-size:12px; }
+
+/* Splash logo perusahaan di HP: tampil 3 detik saat aplikasi dibuka, lalu memudar (sekali per sesi) */
+.pap-splash { display:none; }
+@media (max-width:820px) {
+  .pap-splash { position:fixed; inset:0; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:24px; background:#ffffff; animation:pap-splash-out .45s ease 3s forwards; }
+  .pap-splash img { width:min(62vw,260px); height:auto; animation:pap-splash-in .6s ease both; }
+  .pap-splash span { color:#0096cf; font-size:12px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; animation:pap-splash-in .6s ease .2s both; }
+  html.pap-no-splash .pap-splash { display:none; }
+}
+@keyframes pap-splash-in { from { opacity:0; transform:translateY(8px) scale(.97); } to { opacity:1; transform:none; } }
+@keyframes pap-splash-out { to { opacity:0; visibility:hidden; pointer-events:none; } }
+.pap-activity-brand { margin-bottom:3px; color:var(--pap-text); font-size:12px; font-weight:700; white-space:nowrap; }
