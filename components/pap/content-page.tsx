@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, Image as ImageIcon, LayoutList, Megaphone, Palette, Plus, Search, Trash2, Users } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, RefreshCw, Eye, Image as ImageIcon, LayoutList, Megaphone, Palette, Plus, Search, Trash2, Users } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { toInputDateTime } from './marketing'
@@ -42,6 +42,7 @@ export function ContentPage({ user }: { user: UserProfile }) {
   const [message, setMessage] = useState('')
   const [form, setForm] = useState<Content | { jadwal: string } | null>(null)
   const [requestFor, setRequestFor] = useState<Content | null>(null)
+  const [sheetOpen, setSheetOpen] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -82,8 +83,12 @@ export function ContentPage({ user }: { user: UserProfile }) {
           <h1>Kalender Konten</h1>
           <span>Rencana posting sosial media, iklan, dan blasting; request desain/video ke Tim Desain; hasil (reach, engagement, lead); dan bank konten.</span>
         </div>
-        {canEdit && <button className="pap-primary-button" onClick={() => setForm({ jadwal: `${todayKey}T10:00` })}><Plus /> Rencana konten</button>}
+        <div className="pap-inline-actions">
+          <button className="pap-btn" onClick={() => setSheetOpen(true)}><FileSpreadsheet /> Google Sheet</button>
+          {canEdit && <button className="pap-primary-button" onClick={() => setForm({ jadwal: `${todayKey}T10:00` })}><Plus /> Rencana konten</button>}
+        </div>
       </div>
+      {sheetOpen && <SheetSync onClose={() => setSheetOpen(false)} onImported={(t) => { setSheetOpen(false); flash(t) }} />}
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       {summary && (
@@ -274,5 +279,116 @@ function ContentBank() {
       {items && !items.length && <div className="pap-empty">Belum ada konten final. Konten masuk ke sini setelah request konten disetujui.</div>}
       {!items && <div className="pap-empty">Memuat...</div>}
     </div>
+  )
+}
+
+// ---------------- Sinkron dari Google Sheet "konten planning" ----------------
+type SheetPreview = {
+  url: string; account: string | null; canEdit: boolean
+  tabs: { title: string; header: string[] | null; mapped: Record<string, string>; rows: number; skipped: number }[]
+  plans: { key: string; ref: string; jadwal_tayang: string; judul: string; platform: string; jenis: string; status: Status; baru: boolean }[]
+}
+const FIELD_LABEL: Record<string, string> = {
+  tanggal: 'Tanggal', jam: 'Jam', judul: 'Judul / topik', platform: 'Platform', jenis: 'Jenis', caption: 'Caption', status: 'Status',
+  tujuan: 'Tujuan', target_sektor: 'Target sektor', link_hasil: 'Link', pic: 'PIC', catatan: 'Catatan',
+}
+
+function SheetSync({ onClose, onImported }: { onClose: () => void; onImported: (message: string) => void }) {
+  const [data, setData] = useState<SheetPreview | null>(null)
+  const [url, setUrl] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const preview = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await api<SheetPreview>('/api/content/sheet')
+      setData(res)
+      setUrl(res.url)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+  useEffect(() => { preview() }, [preview])
+
+  async function saveUrl() {
+    setBusy(true)
+    setError('')
+    try {
+      await api('/api/content/sheet', { method: 'PUT', json: { url } })
+      await preview()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  async function importAll() {
+    setBusy(true)
+    setError('')
+    try {
+      const res = await api<{ created: number; updated: number }>('/api/content/sheet', { method: 'POST' })
+      onImported(`Sinkron Google Sheet selesai: ${res.created} konten baru, ${res.updated} diperbarui.`)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const baru = data?.plans.filter((p) => p.baru).length ?? 0
+  const canEdit = data?.canEdit ?? false
+
+  return (
+    <Modal
+      title="Sinkron dari Google Sheet"
+      subtitle={data?.account ? `Dibaca dengan akun Google ${data.account} (sama dengan Master Data > Logo & Desain)` : 'Memakai akun Google yang terhubung di Master Data > Logo & Desain'}
+      wide
+      onClose={onClose}
+      footer={<><button className="pap-btn" disabled={loading || busy} onClick={preview}><RefreshCw /> Muat ulang</button><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Tutup</button>{canEdit && <button className="pap-primary-button" disabled={busy || loading || !data?.plans.length} onClick={importAll}>{busy ? 'Menyinkron...' : `Impor ${data?.plans.length ?? 0} konten`}</button>}</>}
+    >
+      {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      <Field label="Link Google Sheet konten planning">
+        <div className="pap-inline-actions">
+          <input className="pap-input" value={url} disabled={!canEdit} onChange={(e) => setUrl(e.target.value)} />
+          {url && <a className="pap-icon-button" href={url} target="_blank" rel="noreferrer" aria-label="Buka Google Sheet"><ExternalLink /></a>}
+          {canEdit && data && url !== data.url && <button className="pap-btn" disabled={busy} onClick={saveUrl}>Simpan link</button>}
+        </div>
+      </Field>
+      <p className="pap-muted">Spreadsheet harus bisa dibuka akun Google tersebut (bagikan sebagai Viewer). Baris dengan tanggal &amp; judul diimpor; sinkron ulang memperbarui konten yang sama (tanggal + judul + platform), hasil reach/lead yang dicatat di aplikasi tidak tertimpa.</p>
+      {loading ? <p className="pap-muted">Membaca Google Sheet...</p> : data && (
+        <>
+          {data.tabs.map((t) => (
+            <div key={t.title} className="pap-inline-panel">
+              <strong>Tab “{t.title}”: {t.header ? `${t.rows} baris konten${t.skipped ? `, ${t.skipped} dilewati (tanpa tanggal / judul)` : ''}` : 'tidak ada kolom tanggal & judul, dilewati'}</strong>
+              {t.header && <p className="pap-muted">{Object.entries(t.mapped).map(([f, h]) => `${FIELD_LABEL[f] ?? f} ← “${h}”`).join(' · ')}</p>}
+            </div>
+          ))}
+          {data.plans.length > 0 && (
+            <div className="pap-table-wrap">
+              <table>
+                <thead><tr><th>Jadwal</th><th>Konten</th><th>Platform</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                  {data.plans.slice(0, 300).map((p) => (
+                    <tr key={p.key}>
+                      <td>{formatDate(p.jadwal_tayang, true)}</td>
+                      <td><div className="pap-cell-title">{p.judul}</div><div className="pap-cell-sub">{TYPES[p.jenis] ?? p.jenis} · {p.ref}</div></td>
+                      <td>{PLATFORMS[p.platform] ?? p.platform}</td>
+                      <td>{STATUS[p.status]}</td>
+                      <td><span className={`pap-status ${p.baru ? 'info' : 'neutral'}`}>{p.baru ? 'Baru' : 'Diperbarui'}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {data.plans.length > 300 && <p className="pap-muted">… dan {data.plans.length - 300} konten lainnya.</p>}
+            </div>
+          )}
+          {!data.plans.length && <div className="pap-empty">Belum ada baris yang dikenali sebagai konten.</div>}
+          {data.plans.length > 0 && <p className="pap-muted">{baru} konten baru, {data.plans.length - baru} sudah ada dan akan diperbarui.</p>}
+        </>
+      )}
+    </Modal>
   )
 }
