@@ -8,7 +8,7 @@ import { toInputDateTime } from './marketing'
 import { DesignForm } from './request-page'
 import { api, Field, formatDate, Modal, Notice } from './ui'
 
-const PLATFORMS: Record<string, string> = { instagram: 'Instagram', tiktok: 'TikTok', facebook: 'Facebook', website: 'Website / blog', whatsapp: 'WhatsApp blast', marketplace: 'Marketplace', google: 'Google (Maps / Ads)', lainnya: 'Lainnya' }
+const PLATFORMS: Record<string, string> = { sosmed: 'Semua sosmed (IG/FB/TikTok)', instagram: 'Instagram', tiktok: 'TikTok', facebook: 'Facebook', website: 'Website / blog', whatsapp: 'WhatsApp blast', marketplace: 'Marketplace', google: 'Google (Maps / Ads)', lainnya: 'Lainnya' }
 const TYPES: Record<string, string> = { feed: 'Feed / post', reels: 'Reels / video pendek', story: 'Story', video: 'Video', artikel: 'Artikel', iklan: 'Iklan berbayar', blasting: 'Blasting pesan', lainnya: 'Lainnya' }
 type Status = 'ide' | 'produksi' | 'siap' | 'tayang' | 'batal'
 const STATUS: Record<Status, string> = { ide: 'Ide', produksi: 'Produksi desain', siap: 'Siap tayang', tayang: 'Sudah tayang', batal: 'Batal' }

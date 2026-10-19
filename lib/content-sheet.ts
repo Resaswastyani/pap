@@ -25,7 +25,7 @@ type Field = 'tanggal' | 'jam' | 'judul' | 'platform' | 'jenis' | 'caption' | 's
 const FIELD_PATTERNS: [Field, RegExp][] = [
   ['jam', /^(jam|waktu|pukul|time)\b/],
   ['tanggal', /(tanggal|tgl|jadwal|date|posting date|hari)/],
-  ['caption', /(caption|copywriting|copy|naskah|script)/],
+  ['caption', /(caption|copywriting|copy|naskah|script|detail|deskripsi|description)/],
   ['platform', /(platform|channel|sosmed|media sosial|akun)/],
   ['jenis', /(jenis|format|tipe|type)/],
   ['status', /(status|progress|progres)/],
@@ -88,12 +88,12 @@ const PLATFORM_WORDS: [keyof typeof PLATFORMS, RegExp][] = [
   ['whatsapp', /\b(wa|whatsapp|blast)\b/], ['marketplace', /(shopee|tokopedia|tokped|marketplace|lazada)/],
   ['google', /(google|gmaps|maps|ads)/], ['website', /(web|website|blog|seo)/],
 ]
-function platformsOf(value: string) {
+function platformsOf(value: string, fallback: keyof typeof PLATFORMS) {
   const v = value.toLowerCase()
   const found = PLATFORM_WORDS.filter(([, re]) => re.test(v)).map(([p]) => p)
-  return found.length ? found : (['lainnya'] as (keyof typeof PLATFORMS)[])
+  return found.length ? found : [fallback]
 }
-function jenisOf(value: string): keyof typeof CONTENT_TYPES {
+function jenisOf(value: string, fallback: keyof typeof CONTENT_TYPES): keyof typeof CONTENT_TYPES {
   const v = value.toLowerCase()
   if (/reel/.test(v)) return 'reels'
   if (/story|stories/.test(v)) return 'story'
@@ -101,16 +101,16 @@ function jenisOf(value: string): keyof typeof CONTENT_TYPES {
   if (/iklan|ads|boost|promote/.test(v)) return 'iklan'
   if (/blast/.test(v)) return 'blasting'
   if (/video|vlog|youtube/.test(v)) return 'video'
-  if (/feed|post|carousel|foto|photo|single|gambar|desain/.test(v)) return 'feed'
-  return 'lainnya'
+  if (/feed|post|car[a-z]*ousel|foto|photo|single|gambar|desain/.test(v)) return 'feed'
+  return fallback
 }
 function statusOf(value: string): ContentStatus {
   const v = value.toLowerCase()
   if (/batal|cancel|skip/.test(v)) return 'batal'
-  if (/tayang|posted|upload|publish|done|selesai|sudah/.test(v)) return 'tayang'
-  if (/siap|ready|schedul|approved|acc/.test(v)) return 'siap'
-  if (/desain|design|produksi|proses|editing|edit|take|shoot|on ?progress/.test(v)) return 'produksi'
-  return 'ide'
+  if (/tayang|posted|upload|publish|sudah/.test(v)) return 'tayang'
+  if (/done|selesai|siap|ready|schedul|approved|acc/.test(v)) return 'siap'
+  if (/desain|design|produksi|proses|editing|edit|take|shoot|progress/.test(v)) return 'produksi'
+  return 'ide' // termasuk Paused
 }
 
 export type SheetPlan = {
@@ -132,31 +132,36 @@ export async function readContentSheet(url: string) {
     }
     const { index, mapping } = found
     const header = tab.rows[index]
-    const get = (row: string[], f: Field) => (mapping[f] === undefined ? '' : (row[mapping[f]!] ?? '').trim())
+    const get = (row: string[], f: Field) => {
+      if (mapping[f] === undefined) return ''
+      const v = (row[mapping[f]!] ?? '').trim()
+      return v.toLowerCase() === (header[mapping[f]!] ?? '').trim().toLowerCase() ? '' : v
+    }
     let rows = 0
     let skipped = 0
     // Tahun dari judul tab (mis. "Oktober 2026") bila tanggal di sheet tanpa tahun
     const tabYear = Number(tab.title.match(/20\d{2}/)?.[0] ?? year)
-    let lastDate: string | null = null
+    // Tab Artikel = artikel website; tab lain = konten sosmed (diunggah ke IG, FB, TikTok)
+    const isArtikel = /artikel|article|blog/i.test(tab.title)
+    const defaultPlatform: keyof typeof PLATFORMS = isArtikel ? 'website' : 'sosmed'
+    const defaultJenis: keyof typeof CONTENT_TYPES = isArtikel ? 'artikel' : 'feed'
     for (let r = index + 1; r < tab.rows.length; r++) {
       const row = tab.rows[r]
       if (!row.some((c) => c.trim())) continue
-      // Sel tanggal yang di-merge hanya terisi di baris pertama: pakai tanggal baris sebelumnya
-      const tanggal: string | null = parseSheetDate(get(row, 'tanggal'), tabYear) ?? (get(row, 'tanggal') ? null : lastDate)
+      const tanggal = parseSheetDate(get(row, 'tanggal'), tabYear)
       const judul = (get(row, 'judul') || get(row, 'caption').split(/\r?\n/)[0] || '').slice(0, 255)
       if (!tanggal || !judul) {
         skipped++
         continue
       }
-      lastDate = tanggal
       rows++
       const extra = [get(row, 'pic') && `PIC: ${get(row, 'pic')}`, get(row, 'catatan')].filter(Boolean).join('\n')
-      for (const platform of platformsOf(get(row, 'platform'))) {
+      for (const platform of platformsOf(get(row, 'platform'), defaultPlatform)) {
         const key = createHash('sha1').update(`${tanggal}|${judul.toLowerCase()}|${platform}`).digest('hex')
         plans.push({
           key, ref: `${tab.title}!${r + 1}`, tanggal, jadwal_tayang: `${tanggal} ${parseTime(get(row, 'jam'))}`, judul, platform,
-          jenis: jenisOf(`${get(row, 'jenis')} ${get(row, 'platform')}`), status: statusOf(get(row, 'status')),
-          caption: get(row, 'caption').slice(0, 10000) || null, tujuan: get(row, 'tujuan').slice(0, 255) || null,
+          jenis: jenisOf(`${get(row, 'jenis')} ${get(row, 'platform')}`, defaultJenis), status: statusOf(get(row, 'status')),
+          caption: get(row, 'caption').slice(0, 10000) || null, tujuan: (get(row, 'tujuan') || (/reel|car[a-z]*ousel/i.test(get(row, 'jenis')) ? '' : get(row, 'jenis'))).slice(0, 255) || null,
           target_sektor: get(row, 'target_sektor').slice(0, 255) || null, link_hasil: get(row, 'link_hasil').slice(0, 1000) || null,
           catatan: extra.slice(0, 5000) || null,
         })
