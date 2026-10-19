@@ -46,9 +46,27 @@ function findPeriode(texts: string[]) {
 }
 
 const norm = (v: string | undefined) => (v ?? '').toLowerCase().replace(/\s+/g, ' ').trim()
-const dayNumber = (v: string | undefined) => (/^\d{1,2}(\.0+)?$/.test((v ?? '').trim()) ? Number.parseInt(v!, 10) : null)
+// Judul kolom tanggal: "1", "2.0", "Hari1", "Hari 2", "Tgl 3"
+const dayNumber = (v: string | undefined) => {
+  const m = (v ?? '').trim().match(/^(?:hari|h|tgl|tanggal|day)?\s*(\d{1,2})(?:\.0+)?$/i)
+  return m ? Number(m[1]) : null
+}
 
-// Baris judul kolom: deretan tanggal 1, 2, 3, ... dengan kolom "Nama" di kirinya.
+// Tanggal sel: angka seri Excel (46296), "2026-10-01", "01/10/2026"
+function parseDate(value: string | undefined) {
+  const v = (value ?? '').trim()
+  let y: number, m: number, d: number
+  let match: RegExpMatchArray | null
+  if (/^\d{5}(\.\d+)?$/.test(v)) {
+    const date = new Date(Date.UTC(1899, 11, 30) + Math.floor(Number(v)) * 86_400_000)
+    ;[y, m, d] = [date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate()]
+  } else if ((match = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) [y, m, d] = [Number(match[1]), Number(match[2]), Number(match[3])]
+  else if ((match = v.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/))) [y, m, d] = [Number(match[3]), Number(match[2]), Number(match[1])]
+  else return null
+  return y >= 2000 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31 ? { periode: `${y}-${pad(m)}`, day: d } : null
+}
+
+// Baris judul kolom: deretan tanggal 1, 2, 3, ... (atau Hari1, Hari2, ...) dengan kolom "Nama" di kirinya.
 // Judul kolom kiri bisa berada di baris itu atau baris di atasnya (sel digabung / merge).
 function detectHeader(rows: string[][]) {
   for (let i = 0; i < Math.min(rows.length, 25); i++) {
@@ -58,13 +76,19 @@ function detectHeader(rows: string[][]) {
       const d = dayNumber(c)
       if (d && d <= 31 && !days.has(d) && (d === 1 || days.has(d - 1))) days.set(d, col)
     })
-    if (!days.has(1) || days.size < 28) continue
+    if (!days.has(1) || days.size < 7) continue
     const firstDay = days.get(1)!
     const label = (col: number) => norm(row[col]) || norm(rows[i - 1]?.[col])
     const find = (re: RegExp) => Array.from({ length: firstDay }, (_, col) => col).find((col) => re.test(label(col))) ?? -1
     const nama = find(/^nama\b/)
     if (nama < 0) continue
-    return { index: i, days, cols: { no: find(/^(no|no\.|nomor)$/), nama, induk: find(/(induk|nik|nip|id karyawan)/), shift: find(/shift/) } }
+    return {
+      index: i, days, lastDay: Math.max(...days.values()),
+      cols: {
+        no: find(/^(no|no\.|nomor)$/), nama, induk: find(/(kd ?karyawan|kode ?karyawan|induk|nik|nip|id karyawan)/), shift: find(/shift/),
+        awal: find(/^(tgl|tanggal) ?(awal|mulai)|^(mulai|start)/), akhir: find(/^(tgl|tanggal) ?(akhir|selesai)|^(selesai|end)/),
+      },
+    }
   }
   return null
 }
@@ -78,54 +102,112 @@ function splitName(raw: string) {
   return { nama, bagian: bagian || null }
 }
 
-// Isi sel tanggal: angka shift ("1", "2.0" -> "2"), kosong = libur, kode lain (C, S, I, ...) disimpan apa adanya
-function shiftCode(value: string | undefined) {
-  const v = (value ?? '').trim().toUpperCase()
-  if (!v || v === '-' || v === '0') return ''
-  return /^\d+(\.0+)?$/.test(v) ? String(Number.parseInt(v, 10)) : v.slice(0, 4)
+// Kode jadwal per tanggal: "Shift1" / "Shift 2" / "3" -> "1".."3"; "OFF" / "Libur" / kosong -> "" (libur);
+// kode lain (Normal1, Driver1, Cuti, ...) -> huruf kecil tanpa spasi. NO_DATA = tanggal di luar TGLAWAL-TGLAKHIR.
+export const NO_DATA = '_'
+export function shiftKey(value: string | undefined) {
+  const v = (value ?? '').trim().toLowerCase().replace(/\s+/g, '')
+  if (!v || ['-', '0', 'off', 'libur', 'l'].includes(v)) return ''
+  const m = v.match(/^(?:shift)?(\d)(?:\.0+)?$/)
+  return m ? m[1] : v.slice(0, 20)
 }
 
+// Tabel "Keterangan" (kode -> jam kerja), mis. Shift 1 | 7.00-15.00, OFF | Libur, Normal1 | 9.00-17.00
+export type ShiftCode = { kode: string; label: string; jam: string | null }
+const isKeterangan = (cell: string) => /^keterangan\s*:?$/i.test(cell.trim())
+function readKeterangan(tabs: SheetTab[]) {
+  const list = new Map<string, ShiftCode>()
+  for (const tab of tabs) {
+    tab.rows.forEach((row, r) => row.forEach((cell, c) => {
+      if (!isKeterangan(cell)) return
+      for (let rr = r + 1; rr < tab.rows.length; rr++) {
+        const label = (tab.rows[rr][c] ?? '').trim()
+        if (!label) break
+        const jam = tab.rows[rr].slice(c + 1, c + 4).map((x) => x.trim()).find(Boolean) ?? null
+        const kode = shiftKey(label)
+        if (!list.has(kode)) list.set(kode, { kode, label: label.slice(0, 40), jam: jam?.slice(0, 60) ?? null })
+      }
+    }))
+  }
+  return list
+}
+const DEFAULT_LABEL: Record<string, string> = { '1': 'Shift 1', '2': 'Shift 2', '3': 'Shift 3', '': 'OFF' }
+// Urutan: Shift 1-3, kode lain, lalu libur
+const codeOrder = (k: string) => (['1', '2', '3'].includes(k) ? Number(k) : k === '' ? 99 : 10)
+
 export type ShiftRow = { urut: number; nama: string; bagian: string | null; nomor_induk: string | null; pilihan_shift: string | null; jadwal: string[] }
-export type ParsedSchedule = { periode: string; judul: string | null; tab: string; rows: ShiftRow[] }
+export type ParsedSchedule = { periode: string; judul: string | null; tab: string; rows: ShiftRow[]; keterangan: ShiftCode[] }
 export type TabInfo = { title: string; periode: string | null; rows: number; note: string | null }
 
 export function parseShiftTabs(tabs: SheetTab[], fallbackPeriode: string) {
-  const schedules: ParsedSchedule[] = []
+  const keterangan = readKeterangan(tabs)
+  // Satu jadwal per bulan; bila dua tab berisi bulan yang sama, tab yang lebih akhir dipakai
+  const byPeriode = new Map<string, Omit<ParsedSchedule, 'keterangan'> & { seen: Map<string, string> }>()
   const info: TabInfo[] = []
   for (const tab of tabs) {
     const header = detectHeader(tab.rows)
     if (!header) {
-      info.push({ title: tab.title, periode: null, rows: 0, note: 'Tidak ada kolom Nama dan tanggal 1-31, dilewati.' })
+      if (!tab.rows.some((row) => row.some(isKeterangan))) {
+        info.push({ title: tab.title, periode: null, rows: 0, note: 'Tidak ada kolom Nama dan kolom tanggal (1, 2, ... atau Hari1, Hari2, ...), dilewati.' })
+      }
       continue
     }
     const above = tab.rows.slice(0, header.index).flat().filter((c) => c.trim())
-    const judul = above.find((c) => /jadwal/i.test(c)) ?? above[0] ?? null
-    const periode = findPeriode([...above, tab.title]) ?? fallbackPeriode
-    const total = daysIn(periode)
-    const { cols, days } = header
-    const rows: ShiftRow[] = []
+    const judul = above.find((c) => /jadwal/i.test(c))?.trim().slice(0, 255) ?? null
+    const tabPeriode = findPeriode([...above, tab.title]) ?? fallbackPeriode
+    const tabName = tab.title.slice(0, 150)
+    const { cols, days, lastDay } = header
+    const periods = new Set<string>()
+    let count = 0
     for (let r = header.index + 1; r < tab.rows.length; r++) {
       const row = tab.rows[r]
-      // Baris rekap "Jumlah / Shift 1 / Shift 2 / Shift 3" di bawah tabel: berhenti
-      if (row.slice(0, Math.max(cols.nama, cols.shift) + 1).some((c) => /^(jumlah|total)\b/i.test(c.trim()))) break
+      // Baris rekap "Jumlah / Shift 1 / ..." atau tabel Keterangan di bawah tabel: berhenti
+      if (row.slice(0, lastDay + 1).some((c) => /^(jumlah|total)\b/i.test(c.trim()) || isKeterangan(c))) break
       const rawName = (row[cols.nama] ?? '').trim()
       if (!rawName || /^shift\s*\d/i.test(rawName)) continue
+      // Format TGLAWAL / TGLAKHIR: Hari1 = TGLAWAL; selain itu Hari1 = tanggal 1 bulan di judul / nama tab
+      const start = cols.awal >= 0 ? parseDate(row[cols.awal]) : null
+      const end = cols.akhir >= 0 ? parseDate(row[cols.akhir]) : null
+      const periode = start?.periode ?? tabPeriode
+      const total = daysIn(periode)
+      const offset = (start?.day ?? 1) - 1
+      const until = end && end.periode === periode ? end.day : total
+      if (!periods.has(periode)) {
+        byPeriode.set(periode, { periode, judul, tab: tabName, rows: [], seen: new Map() })
+        periods.add(periode)
+      }
+      const schedule = byPeriode.get(periode)!
+      const jadwal = Array.from({ length: total }, () => NO_DATA)
+      for (const [n, col] of days) {
+        const date = offset + n
+        if (date > until) continue
+        const raw = (row[col] ?? '').trim()
+        const kode = shiftKey(raw)
+        jadwal[date - 1] = kode
+        if (!schedule.seen.has(kode)) schedule.seen.set(kode, raw)
+      }
       const { nama, bagian } = splitName(rawName)
-      rows.push({
-        urut: Number.parseInt(row[cols.no] ?? '', 10) || rows.length + 1,
+      count++
+      schedule.rows.push({
+        urut: Number.parseInt(row[cols.no] ?? '', 10) || schedule.rows.length + 1,
         nama: nama.slice(0, 150),
         bagian: bagian?.slice(0, 100) ?? null,
         nomor_induk: cols.induk >= 0 ? (row[cols.induk] ?? '').trim().replace(/\.0+$/, '').slice(0, 30) || null : null,
         pilihan_shift: cols.shift >= 0 ? (row[cols.shift] ?? '').trim().slice(0, 30) || null : null,
-        jadwal: Array.from({ length: total }, (_, i) => (days.has(i + 1) ? shiftCode(row[days.get(i + 1)!]) : '')),
+        jadwal,
       })
     }
-    info.push({ title: tab.title, periode, rows: rows.length, note: rows.length ? null : 'Tidak ada baris karyawan.' })
-    if (rows.length) schedules.push({ periode, judul: judul?.trim().slice(0, 255) ?? null, tab: tab.title.slice(0, 150), rows })
+    info.push({ title: tab.title, periode: periods.size ? [...periods].sort().join(', ') : null, rows: count, note: count ? null : 'Tidak ada baris karyawan.' })
   }
-  // Dua tab untuk bulan yang sama: tab yang lebih akhir dipakai
-  const unique = [...new Map(schedules.map((s) => [s.periode, s])).values()].sort((a, b) => a.periode.localeCompare(b.periode))
-  return { schedules: unique, tabs: info }
+  const schedules: ParsedSchedule[] = [...byPeriode.values()].sort((a, b) => a.periode.localeCompare(b.periode)).map(({ seen, ...s }) => {
+    // Keterangan: kode yang dipakai di jadwal + kode di tabel Keterangan, beserta jamnya
+    const codes = [...new Set([...seen.keys(), ...keterangan.keys()])].sort((a, b) => codeOrder(a) - codeOrder(b))
+    return {
+      ...s,
+      keterangan: codes.map((kode) => ({ kode, label: keterangan.get(kode)?.label ?? DEFAULT_LABEL[kode] ?? (seen.get(kode) || kode).slice(0, 40), jam: keterangan.get(kode)?.jam ?? null })),
+    }
+  })
+  return { schedules, tabs: info }
 }
 
 export async function readShiftSheet(url: string) {
@@ -142,9 +224,9 @@ export async function importShiftSchedules(schedules: ParsedSchedule[], userId: 
     await conn.beginTransaction()
     for (const s of schedules) {
       const [res] = await conn.query<ResultSetHeader>(
-        `INSERT INTO shift_schedules (periode, judul, sheet_tab, synced_by, synced_at) VALUES (?, ?, ?, ?, NOW())
-         ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), judul = VALUES(judul), sheet_tab = VALUES(sheet_tab), synced_by = VALUES(synced_by), synced_at = NOW()`,
-        [s.periode, s.judul, s.tab, userId],
+        `INSERT INTO shift_schedules (periode, judul, sheet_tab, keterangan, synced_by, synced_at) VALUES (?, ?, ?, ?, ?, NOW())
+         ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), judul = VALUES(judul), sheet_tab = VALUES(sheet_tab), keterangan = VALUES(keterangan), synced_by = VALUES(synced_by), synced_at = NOW()`,
+        [s.periode, s.judul, s.tab, JSON.stringify(s.keterangan), userId],
       )
       const scheduleId = res.insertId
       await conn.query('DELETE FROM shift_schedule_rows WHERE schedule_id = ?', [scheduleId])
@@ -164,7 +246,7 @@ export async function importShiftSchedules(schedules: ParsedSchedule[], userId: 
 }
 
 // ---------- Tampilan ----------
-type ScheduleRow = RowDataPacket & { id: number; periode: string; judul: string | null; sheet_tab: string | null; synced_at: string; synced_name: string | null }
+type ScheduleRow = RowDataPacket & { id: number; periode: string; judul: string | null; sheet_tab: string | null; keterangan: string | null; synced_at: string; synced_name: string | null }
 type RowRow = RowDataPacket & { id: number; urut: number; nama: string; bagian: string | null; nomor_induk: string | null; pilihan_shift: string | null; jadwal: string }
 
 export async function getShiftSchedule(periode: string | null) {
@@ -175,23 +257,29 @@ export async function getShiftSchedule(periode: string | null) {
   // Default: bulan ini bila ada, selain itu jadwal terbaru
   const target = periode && /^\d{4}-\d{2}$/.test(periode) ? periode : list.includes(thisMonth) ? thisMonth : list.at(-1) ?? thisMonth
   const [[schedule]] = await db.query<ScheduleRow[]>(
-    'SELECT s.id, s.periode, s.judul, s.sheet_tab, s.synced_at, u.name AS synced_name FROM shift_schedules s LEFT JOIN users u ON u.id = s.synced_by WHERE s.periode = ?',
+    'SELECT s.id, s.periode, s.judul, s.sheet_tab, s.keterangan, s.synced_at, u.name AS synced_name FROM shift_schedules s LEFT JOIN users u ON u.id = s.synced_by WHERE s.periode = ?',
     [target],
   )
   let rows: RowRow[] = []
   if (schedule) [rows] = await db.query<RowRow[]>('SELECT id, urut, nama, bagian, nomor_induk, pilihan_shift, jadwal FROM shift_schedule_rows WHERE schedule_id = ? ORDER BY urut, id', [schedule.id])
   const total = daysIn(target)
+  // Jadwal lama (sebelum ada tabel Keterangan): Shift 1-3 & OFF tanpa jam
+  let keterangan: ShiftCode[] = (['1', '2', '3', ''] as const).map((kode) => ({ kode, label: DEFAULT_LABEL[kode], jam: null }))
+  try {
+    if (schedule?.keterangan) keterangan = JSON.parse(schedule.keterangan)
+  } catch {}
   return {
     periode: target,
     periods: list,
     days: total,
+    keterangan,
     schedule: schedule ? { judul: schedule.judul, sheet_tab: schedule.sheet_tab, synced_at: schedule.synced_at, synced_name: schedule.synced_name } : null,
     rows: rows.map((r) => {
       let jadwal: string[] = []
       try {
         jadwal = JSON.parse(r.jadwal)
       } catch {}
-      return { id: r.id, urut: r.urut, nama: r.nama, bagian: r.bagian, nomor_induk: r.nomor_induk, pilihan_shift: r.pilihan_shift, jadwal: Array.from({ length: total }, (_, i) => jadwal[i] ?? '') }
+      return { id: r.id, urut: r.urut, nama: r.nama, bagian: r.bagian, nomor_induk: r.nomor_induk, pilihan_shift: r.pilihan_shift, jadwal: Array.from({ length: total }, (_, i) => jadwal[i] ?? NO_DATA) }
     }),
   }
 }

@@ -932,7 +932,10 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-shift-search input { flex:1; min-width:0; border:0; outline:0; background:transparent; color:var(--pap-text); font-size:12px; }
 .pap-shift-legend { display:flex; flex-wrap:wrap; align-items:center; gap:14px; padding:0 22px 12px; color:var(--pap-muted); font-size:11px; }
 .pap-shift-legend > span { display:inline-flex; align-items:center; gap:6px; }
-.pap-shift-legend i { display:inline-grid; place-items:center; width:20px; height:18px; border:1px solid var(--pap-border); border-radius:4px; font-style:normal; font-size:10px; font-weight:700; }
+.pap-shift-legend > strong { color:var(--pap-text); font-size:12px; }
+.pap-shift-legend b { color:var(--pap-text); }
+.pap-shift-legend em { font-style:normal; }
+.pap-shift-legend i { display:inline-grid; place-items:center; min-width:20px; height:18px; padding:0 2px; border:1px solid var(--pap-border); border-radius:4px; font-style:normal; font-size:10px; font-weight:700; }
 .pap-shift-legend .pap-muted { margin-left:auto; }
 .pap-shift-wrap { overflow:auto; max-height:calc(100vh - 230px); border-top:1px solid var(--pap-border); }
 .pap-shift-table { border-collapse:separate; border-spacing:0; font-size:11px; }
@@ -961,37 +964,42 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-shift-cell.s2 { background:#6aa84f; color:#fff; }
 .pap-shift-cell.s3 { background:#bf8f00; color:#fff; }
 .pap-shift-cell.off { background:#e53935; color:#fff; }
+.pap-shift-cell.normal { background:#3d85c6; color:#fff; }
+.pap-shift-cell.driver { background:#0097a7; color:#fff; }
 .pap-shift-cell.other { background:rgb(124 92 252 / .18); color:#7050e7; }
+.pap-shift-cell.none { background:repeating-linear-gradient(45deg, transparent 0 4px, rgb(127 127 127 / .12) 4px 8px); }
 .pap-shift-table td.today { box-shadow:inset 2px 0 0 #7c5cfc, inset -2px 0 0 #7c5cfc; }
 .pap-shift-table tbody tr:hover td.sticky { background:rgb(124 92 252 / .08); }
 .pap-shift-table tfoot td { background:var(--pap-bg); font-weight:700; }
-.pap-shift-table tfoot td.label { text-align:right; padding-right:8px; color:var(--pap-muted); }
-.pap-shift-table tfoot td.jumlah { position:sticky; left:0; z-index:1; background:var(--pap-bg); font-size:13px; }
+.pap-shift-table tfoot td.jumlah { position:sticky; left:0; z-index:1; padding:0 8px; background:var(--pap-bg); color:var(--pap-muted); font-size:11px; text-align:right; }
 .pap-shift-table tfoot .off-row td:not(.label) { color:#d93025; }
-.pap-shift-days { display:flex; gap:6px; overflow-x:auto; padding:0 22px 14px; }
+.pap-shift-days { position:relative; display:flex; gap:6px; overflow-x:auto; padding:0 22px 14px; }
 .pap-shift-days button { display:flex; flex:none; flex-direction:column; align-items:center; gap:2px; width:44px; padding:6px 0; border:1px solid var(--pap-border); border-radius:10px; background:var(--pap-surface); color:var(--pap-text); cursor:pointer; }
 .pap-shift-days button small { color:var(--pap-muted); font-size:9px; }
 .pap-shift-days button.sunday small { color:#d93025; }
 .pap-shift-days button.today { border-color:#7c5cfc; }
 .pap-shift-days button.active { background:#7c5cfc; border-color:#7c5cfc; color:#fff; }
 .pap-shift-days button.active small { color:#fff; }
-.pap-shift-board { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px; padding:14px 22px 22px; border-top:1px solid var(--pap-border); }
+.pap-shift-board { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:14px; padding:14px 22px 22px; border-top:1px solid var(--pap-border); }
 .pap-shift-column { border:1px solid var(--pap-border); border-radius:12px; overflow:hidden; }
 .pap-shift-column header { display:flex; align-items:center; gap:8px; padding:10px 12px; color:#fff; }
-.pap-shift-column header svg { width:16px; }
+.pap-shift-column header svg { flex:none; width:16px; }
+.pap-shift-column header div { display:flex; flex-direction:column; }
+.pap-shift-column header small { font-size:10px; opacity:.9; }
 .pap-shift-column header span { margin-left:auto; font-size:11px; opacity:.9; }
 .pap-shift-column.s1 header { background:#7c5cfc; }
 .pap-shift-column.s2 header { background:#6aa84f; }
 .pap-shift-column.s3 header { background:#bf8f00; }
 .pap-shift-column.off header { background:#e53935; }
-.pap-shift-column.other header { background:var(--pap-muted); }
+.pap-shift-column.normal header { background:#3d85c6; }
+.pap-shift-column.driver header { background:#0097a7; }
+.pap-shift-column.other header, .pap-shift-column.none header { background:var(--pap-muted); }
 .pap-shift-column .pap-muted { margin:0; padding:12px; font-size:12px; }
 .pap-shift-person { display:flex; align-items:center; justify-content:space-between; gap:6px; padding:8px 12px; border-top:1px solid var(--pap-border); font-size:12px; font-weight:600; }
 .pap-shift-person:first-of-type { border-top:0; }
 .pap-shift-footnote { margin-top:12px; font-size:12px; }
 .pap-shell.dark .pap-shift-tag { color:#f5c24c; }
 .pap-shell.dark .pap-shift-tag.lead { color:#4dd0e1; }
-@media (max-width:1100px) { .pap-shift-board { grid-template-columns:repeat(2, minmax(0,1fr)); } }
 @media (max-width:800px) {
   .pap-shift-search { width:100%; }
   .pap-shift-legend, .pap-shift-days { padding-left:12px; padding-right:12px; }
