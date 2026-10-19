@@ -1,10 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Ban, CheckCircle2, Copy, FileText, MessageCircle, Pencil, Plus, Printer, Receipt, Search, Send, Trash2, TrendingUp, Truck, Wallet, XCircle } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Ban, CheckCircle2, Copy, FileDown, FileText, MessageCircle, Pencil, Plus, Printer, Receipt, Search, Send, Settings2, Trash2, TrendingUp, Truck, Wallet, XCircle } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
-import { rupiah, type HppModel } from '@/lib/hpp-calc'
-import { CalcFields, CalcSummary, calcResult, emptyCalc, useHppData, type CalcValues, type HppData } from './hpp-page'
+import { rupiah } from '@/lib/hpp-calc'
+import { DocForm, useHppData } from './hpp-page'
 import { ProspectSelect, waLink, type ProspectOption } from './marketing'
 import { PaymentForm } from './payment-page'
 import { CustomerSelect, type CustomerOption } from './product-page'
@@ -29,12 +29,10 @@ type Quotation = {
   expedition_name: string | null; expedition_estimasi: string | null; ongkir: number | null; catatan_order: string | null; terbayar: number
   approval: Approval | null; approval_note: string | null; approved_name: string | null; approved_at: string | null
 }
-type Item = {
-  id: number; product_id: number | null; nama_produk: string; spesifikasi: string | null; material_id: number | null; material_name: string | null
-  model: HppModel; panjang_cm: number | null; lebar_cm: number | null; gusset_cm: number | null; tebal_mikron: number | null; jumlah_warna: number
-  qty: number; satuan: string; berat_gram: number | null; hpp_per_kg: number | null; hpp_satuan: number | null; harga_satuan: number; subtotal: number
-  hpp_detail: { pewarna?: { persen: number } | null } | null
-}
+type Item = { id: number; product_id: number | null; nama_produk: string; spesifikasi: string | null; qty: number; satuan: string; harga_satuan: number; subtotal: number }
+const UNITS = ['pcs', 'kg', 'pack', 'roll', 'lembar'] as const
+// Unduh dokumen: PDF lewat halaman cetak (dialog cetak > Simpan sebagai PDF), Word langsung terunduh
+const docLinks = (id: number, jenis: 'penawaran' | 'order' | 'proforma') => ({ pdf: `/cetak/quotation/${id}${jenis === 'penawaran' ? '' : `?jenis=${jenis}`}`, word: `/api/quotations/${id}/word?jenis=${jenis}` })
 type Prefill = { prospect?: { id: number; nama_usaha: string; kontak_nama: string | null; telepon: string | null; alamat: string | null; kota: string | null; products?: { product_id: number | null; label: string }[] } }
 
 const today = () => {
@@ -57,6 +55,7 @@ export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number
   const [form, setForm] = useState<{ edit?: Quotation & { items: Item[] }; copy?: Quotation & { items: Item[] } } | null>(null)
   // Dibuka dari notifikasi persetujuan
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
+  const [docOpen, setDocOpen] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -92,10 +91,14 @@ export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number
         <div>
           <p className="pap-eyebrow">MARKETING</p>
           <h1>Quotation</h1>
-          <span>Surat penawaran harga ke prospek / customer, dengan HPP otomatis dari Tabel HPP. Bisa dicetak / disimpan PDF dan dikirim lewat WhatsApp.</span>
+          <span>Template surat penawaran ke prospek / customer dengan harga diisi manual. Ekspor ke PDF atau Word lalu kirim lewat WhatsApp / email.</span>
         </div>
-        {canWrite && <button className="pap-primary-button" onClick={() => setForm({})}><Plus /> Buat penawaran</button>}
+        <div className="pap-inline-actions">
+          {canApprove && <button className="pap-btn" onClick={() => setDocOpen(true)}><Settings2 /> Template dokumen</button>}
+          {canWrite && <button className="pap-primary-button" onClick={() => setForm({})}><Plus /> Buat penawaran</button>}
+        </div>
       </div>
+      {docOpen && <DocTemplateModal onClose={() => setDocOpen(false)} onSaved={(t) => { setDocOpen(false); flash(t) }} />}
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       <div className="pap-stat-grid four">
         <button className="pap-stat-card pap-stat-button" onClick={() => setStatus(pendingApproval ? 'persetujuan' : 'draft')}><div><span>Draft</span><strong>{sum('draft').n}</strong><small className={pendingApproval ? '' : 'neutral'}>{pendingApproval ? `${pendingApproval} menunggu persetujuan${canApprove ? ' Anda' : ''}` : 'Belum dikirim'}</small></div><div className="pap-stat-icon stat-1"><FileText /></div></button>
@@ -151,25 +154,18 @@ export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number
 }
 
 // ---------------- Form penawaran ----------------
-type FormItem = { key: string; product_id: number | null; nama_produk: string; spesifikasi: string; specTouched: boolean; calc: CalcValues; qty: string; harga_satuan: string }
+// Template penawaran: produk, spesifikasi, jumlah, dan harga diisi manual (tanpa perhitungan HPP)
+type FormItem = { key: string; product_id: number | null; nama_produk: string; spesifikasi: string; qty: string; satuan: string; harga_satuan: string }
 let seq = 0
-const autoSpec = (c: CalcValues, data: HppData) => {
-  const bahan = data.materials.find((m) => String(m.id) === c.material_id)?.kode
-  const ukuran = c.panjang_cm && c.lebar_cm ? `${c.lebar_cm}${c.model === 'gusset' && c.gusset_cm ? `+${c.gusset_cm}` : ''} x ${c.panjang_cm} cm` : ''
-  const warna = Number(c.jumlah_warna) > 0 ? `cetak ${c.jumlah_warna} warna` : 'polos'
-  return [bahan, ukuran, c.tebal_mikron && `${c.tebal_mikron} mikron`, warna].filter(Boolean).join(' · ')
-}
+const blankItem = (product_id: number | null = null, nama_produk = ''): FormItem => ({ key: `q${++seq}`, product_id, nama_produk, spesifikasi: '', qty: '', satuan: 'pcs', harga_satuan: '' })
 const fromItem = (it: Item): FormItem => ({
-  key: `q${++seq}`, product_id: it.product_id, nama_produk: it.nama_produk, spesifikasi: it.spesifikasi ?? '', specTouched: true,
-  calc: {
-    model: it.model, material_id: it.material_id ? String(it.material_id) : '', pewarna_id: '', pewarna_persen: '',
-    panjang_cm: it.panjang_cm?.toString() ?? '', lebar_cm: it.lebar_cm?.toString() ?? '', gusset_cm: it.gusset_cm?.toString() ?? '',
-    tebal_mikron: it.tebal_mikron?.toString() ?? '', jumlah_warna: String(it.jumlah_warna), satuan: it.satuan === 'kg' ? 'kg' : 'pcs',
-  },
-  qty: String(it.qty), harga_satuan: String(it.harga_satuan),
+  key: `q${++seq}`, product_id: it.product_id, nama_produk: it.nama_produk, spesifikasi: it.spesifikasi ?? '',
+  qty: String(it.qty), satuan: it.satuan, harga_satuan: String(it.harga_satuan),
 })
+const toNum = (v: string) => Number(v.replace(',', '.')) || 0
 
 export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?: Quotation & { items: Item[] }; copy?: Quotation & { items: Item[] }; prefill?: Prefill; onClose: () => void; onSaved: (message: string, id: number) => void }) {
+  // Hanya untuk syarat default & tarif PPN dari pengaturan dokumen
   const { data, error: loadError } = useHppData()
   const base = edit ?? copy
   const pp = prefill?.prospect
@@ -182,29 +178,18 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
     alamat: base?.alamat ?? [pp?.alamat, pp?.kota].filter(Boolean).join(', '), tanggal: edit?.tanggal ?? today(), berlaku_hari: String(base?.berlaku_hari ?? 14),
     syarat: base?.syarat ?? '', catatan: base?.catatan ?? '', pakai_ppn: base ? base.pakai_ppn : true,
   })
-  const [items, setItems] = useState<FormItem[]>(() => (base ? base.items.map(fromItem) : []))
+  const [items, setItems] = useState<FormItem[]>(() => (base ? base.items.map(fromItem) : pp?.products?.length ? pp.products.map((p) => blankItem(p.product_id, p.label)) : [blankItem()]))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const set = (k: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [k]: e.target.value }))
 
-  // Data HPP termuat: isi syarat default & produk dari prospek (bila form baru)
+  // Syarat & ketentuan default dari template dokumen (bila form baru)
   useEffect(() => {
-    if (!data) return
-    setValues((v) => ({ ...v, syarat: v.syarat || data.doc.syarat || '' }))
-    if (!base && !items.length) {
-      const list = pp?.products?.length ? pp.products : [{ product_id: null, label: '' }]
-      setItems(list.map((p) => ({ key: `q${++seq}`, product_id: p.product_id, nama_produk: p.label, spesifikasi: '', specTouched: false, calc: emptyCalc(data.materials), qty: '', harga_satuan: '' })))
-    }
-  }, [data]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (data) setValues((v) => ({ ...v, syarat: v.syarat || data.doc.syarat || '' }))
+  }, [data])
 
-  const update = (key: string, patch: Partial<FormItem>) => setItems((list) => list.map((it) => {
-    if (it.key !== key) return it
-    const next = { ...it, ...patch, calc: patch.calc ? { ...it.calc, ...patch.calc } : it.calc }
-    if (!next.specTouched && data) next.spesifikasi = autoSpec(next.calc, data)
-    return next
-  }))
-  const rows = useMemo(() => (data ? items.map((it) => ({ it, r: calcResult(it.calc, data) })) : []), [items, data])
-  const subtotal = rows.reduce((n, { it }) => n + (Number(it.qty) || 0) * (Number(it.harga_satuan) || 0), 0)
+  const update = (key: string, patch: Partial<FormItem>) => setItems((list) => list.map((it) => (it.key === key ? { ...it, ...patch } : it)))
+  const subtotal = items.reduce((n, it) => n + toNum(it.qty) * toNum(it.harga_satuan), 0)
   const ppnPersen = data?.params.ppn_persen ?? 11
   const ppn = values.pakai_ppn ? Math.round(subtotal * ppnPersen) / 100 : 0
 
@@ -215,7 +200,7 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
     try {
       const payload = {
         ...values, ...target, berlaku_hari: Number(values.berlaku_hari) || 14,
-        items: items.map((it) => ({ product_id: it.product_id, nama_produk: it.nama_produk, spesifikasi: it.spesifikasi, ...it.calc, qty: it.qty, harga_satuan: it.harga_satuan })),
+        items: items.map((it) => ({ product_id: it.product_id, nama_produk: it.nama_produk, spesifikasi: it.spesifikasi, qty: it.qty, satuan: it.satuan, harga_satuan: it.harga_satuan })),
       }
       if (edit) {
         await api(`/api/quotations/${edit.id}`, { method: 'PATCH', json: payload })
@@ -248,75 +233,74 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
   return (
     <Modal
       title={edit ? `Edit ${edit.nomor}` : copy ? `Revisi dari ${copy.nomor}` : 'Buat penawaran'}
-      subtitle="HPP dihitung otomatis dari Tabel HPP; harga jual Anda tentukan sendiri."
+      subtitle="Isi produk, spesifikasi, jumlah, dan harga secara manual."
       wide
       onClose={onClose}
-      footer={<><span className="pap-quote-total">Total: <b>{rupiah(subtotal + ppn)}</b></span><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="quotation-form" className="pap-primary-button" disabled={saving || !data}>{saving ? 'Menyimpan...' : 'Simpan draft'}</button></>}
+      footer={<><span className="pap-quote-total">Total: <b>{rupiah(subtotal + ppn)}</b></span><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="quotation-form" className="pap-primary-button" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan draft'}</button></>}
     >
       {(error || loadError) && <Notice onClose={() => setError('')}>{error || loadError}</Notice>}
-      {!data ? <p className="pap-muted">Memuat Tabel HPP...</p> : (
-        <form id="quotation-form" className="pap-form-grid" onSubmit={submit}>
-          {!pp && (
-            <div className="pap-field full">
-              <span>Untuk</span>
-              <div className="pap-target-picker">
-                <div className="pap-segmented">
-                  <button type="button" className={mode === 'prospek' ? 'active' : ''} onClick={() => setMode('prospek')}>Prospek</button>
-                  <button type="button" className={mode === 'customer' ? 'active' : ''} onClick={() => setMode('customer')}>Customer</button>
-                </div>
-                {mode === 'prospek' ? <ProspectSelect value={prospect} onChange={pickProspect} /> : <CustomerSelect value={customer} onChange={pickCustomer} />}
-                {base && !prospect && !customer && <small className="pap-muted">Tetap: {base.prospect_name ?? base.kepada}</small>}
-              </div>
-            </div>
-          )}
-          <Field label="Kepada (nama usaha)"><input className="pap-input" required maxLength={200} value={values.kepada} onChange={set('kepada')} /></Field>
-          <Field label="Up. (nama kontak)"><input className="pap-input" maxLength={150} value={values.kontak} onChange={set('kontak')} /></Field>
-          <Field label="Telepon / WA"><input className="pap-input" maxLength={40} value={values.telepon} onChange={set('telepon')} /></Field>
-          <Field label="Alamat"><input className="pap-input" maxLength={500} value={values.alamat} onChange={set('alamat')} /></Field>
-          <Field label="Tanggal"><input className="pap-input" type="date" required value={values.tanggal} onChange={set('tanggal')} /></Field>
-          <Field label="Berlaku (hari)"><input className="pap-input" type="number" min={1} max={365} value={values.berlaku_hari} onChange={set('berlaku_hari')} /></Field>
-
+      <form id="quotation-form" className="pap-form-grid" onSubmit={submit}>
+        {!pp && (
           <div className="pap-field full">
-            <span>Produk ({items.length})</span>
-            <div className="pap-quote-items">
-              {rows.map(({ it, r }, i) => {
-                const harga = Number(it.harga_satuan) || 0
-                // Untung di atas HPP (sama dengan cara harga saran dihitung: HPP x (1 + margin%))
-                const margin = r.hpp_satuan && harga ? ((harga - r.hpp_satuan) / r.hpp_satuan) * 100 : null
-                return (
-                  <div key={it.key} className="pap-quote-item">
-                    <div className="pap-sample-item-head">
-                      <b>{i + 1}</b>
-                      <input className="pap-input" required maxLength={255} value={it.nama_produk} onChange={(e) => update(it.key, { nama_produk: e.target.value })} placeholder="Nama produk, mis. Kantong laundry HD" aria-label={`Nama produk ${i + 1}`} />
-                      <button type="button" className="pap-icon-button" aria-label={`Hapus produk ${i + 1}`} onClick={() => setItems((l) => l.filter((x) => x.key !== it.key))}><Trash2 /></button>
-                    </div>
-                    <CalcFields compact data={data} values={it.calc} onChange={(patch) => update(it.key, { calc: patch as CalcValues })} />
-                    <label className="pap-quote-spec"><span>Spesifikasi (dicetak di penawaran)</span><input className="pap-input" maxLength={1000} value={it.spesifikasi} onChange={(e) => update(it.key, { spesifikasi: e.target.value, specTouched: true })} /></label>
-                    <CalcSummary result={r} satuan={it.calc.satuan} />
-                    <div className="pap-quote-price">
-                      <label><span>Jumlah ({it.calc.satuan})</span><input className="pap-input" inputMode="decimal" required value={it.qty} onChange={(e) => update(it.key, { qty: e.target.value })} placeholder="10000" /></label>
-                      <label><span>Harga / {it.calc.satuan} (Rp)</span><input className="pap-input" inputMode="decimal" required value={it.harga_satuan} onChange={(e) => update(it.key, { harga_satuan: e.target.value })} /></label>
-                      {r.harga_saran !== null && <button type="button" className="pap-btn" onClick={() => update(it.key, { harga_satuan: String(r.harga_saran) })}>Pakai harga saran</button>}
-                      <div className="pap-quote-line">
-                        <small>Subtotal</small><b>{rupiah((Number(it.qty) || 0) * harga)}</b>
-                        {margin !== null && <small className={margin < 0 ? 'pap-text-danger' : margin < 10 ? 'pap-text-warn' : 'pap-text-ok'}>Untung {margin.toFixed(1)}% di atas HPP{margin < 0 ? ' (rugi!)' : ''}</small>}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-              <button type="button" className="pap-btn pap-add-item" onClick={() => setItems((l) => [...l, { key: `q${++seq}`, product_id: null, nama_produk: '', spesifikasi: '', specTouched: false, calc: emptyCalc(data.materials), qty: '', harga_satuan: '' }])}><Plus /> Tambah produk</button>
+            <span>Untuk</span>
+            <div className="pap-target-picker">
+              <div className="pap-segmented">
+                <button type="button" className={mode === 'prospek' ? 'active' : ''} onClick={() => setMode('prospek')}>Prospek</button>
+                <button type="button" className={mode === 'customer' ? 'active' : ''} onClick={() => setMode('customer')}>Customer</button>
+              </div>
+              {mode === 'prospek' ? <ProspectSelect value={prospect} onChange={pickProspect} /> : <CustomerSelect value={customer} onChange={pickCustomer} />}
+              {base && !prospect && !customer && <small className="pap-muted">Tetap: {base.prospect_name ?? base.kepada}</small>}
             </div>
           </div>
+        )}
+        <Field label="Kepada (nama usaha)"><input className="pap-input" required maxLength={200} value={values.kepada} onChange={set('kepada')} /></Field>
+        <Field label="Up. (nama kontak)"><input className="pap-input" maxLength={150} value={values.kontak} onChange={set('kontak')} /></Field>
+        <Field label="Telepon / WA"><input className="pap-input" maxLength={40} value={values.telepon} onChange={set('telepon')} /></Field>
+        <Field label="Alamat"><input className="pap-input" maxLength={500} value={values.alamat} onChange={set('alamat')} /></Field>
+        <Field label="Tanggal"><input className="pap-input" type="date" required value={values.tanggal} onChange={set('tanggal')} /></Field>
+        <Field label="Berlaku (hari)"><input className="pap-input" type="number" min={1} max={365} value={values.berlaku_hari} onChange={set('berlaku_hari')} /></Field>
 
-          <div className="pap-quote-totals full">
-            <label className="pap-check"><input type="checkbox" checked={values.pakai_ppn} onChange={(e) => setValues((v) => ({ ...v, pakai_ppn: e.target.checked }))} /><span>Kenakan PPN {ppnPersen}%</span></label>
-            <dl><dt>Subtotal</dt><dd>{rupiah(subtotal)}</dd>{values.pakai_ppn && <><dt>PPN {ppnPersen}%</dt><dd>{rupiah(ppn)}</dd></>}<dt className="grand">Total</dt><dd className="grand">{rupiah(subtotal + ppn)}</dd></dl>
+        <div className="pap-field full">
+          <span>Produk ({items.length})</span>
+          <div className="pap-quote-items">
+            {items.map((it, i) => (
+              <div key={it.key} className="pap-quote-item">
+                <div className="pap-sample-item-head">
+                  <b>{i + 1}</b>
+                  <input className="pap-input" required maxLength={255} value={it.nama_produk} onChange={(e) => update(it.key, { nama_produk: e.target.value })} placeholder="Nama produk, mis. Kantong laundry HD" aria-label={`Nama produk ${i + 1}`} />
+                  <button type="button" className="pap-icon-button" aria-label={`Hapus produk ${i + 1}`} disabled={items.length === 1} onClick={() => setItems((l) => l.filter((x) => x.key !== it.key))}><Trash2 /></button>
+                </div>
+                <label className="pap-quote-spec"><span>Spesifikasi (dicetak di penawaran)</span><textarea className="pap-input" rows={2} maxLength={1000} value={it.spesifikasi} onChange={(e) => update(it.key, { spesifikasi: e.target.value })} placeholder="mis. HD 30 x 40 cm, 50 mikron, cetak 2 warna" /></label>
+                <div className="pap-quote-price">
+                  <label><span>Jumlah</span><input className="pap-input" inputMode="decimal" required value={it.qty} onChange={(e) => update(it.key, { qty: e.target.value })} placeholder="10000" /></label>
+                  <label><span>Satuan</span><select className="pap-select" value={it.satuan} onChange={(e) => update(it.key, { satuan: e.target.value })}>{UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select></label>
+                  <label><span>Harga / {it.satuan} (Rp)</span><input className="pap-input" inputMode="decimal" required value={it.harga_satuan} onChange={(e) => update(it.key, { harga_satuan: e.target.value })} /></label>
+                  <div className="pap-quote-line"><small>Subtotal</small><b>{rupiah(toNum(it.qty) * toNum(it.harga_satuan))}</b></div>
+                </div>
+              </div>
+            ))}
+            <button type="button" className="pap-btn pap-add-item" onClick={() => setItems((l) => [...l, blankItem()])}><Plus /> Tambah produk</button>
           </div>
-          <Field label="Syarat & ketentuan (dicetak)" full><textarea className="pap-input" rows={4} maxLength={5000} value={values.syarat} onChange={set('syarat')} /></Field>
-          <Field label="Catatan internal (tidak dicetak)" full><textarea className="pap-input" rows={2} maxLength={5000} value={values.catatan} onChange={set('catatan')} /></Field>
-        </form>
-      )}
+        </div>
+
+        <div className="pap-quote-totals full">
+          <label className="pap-check"><input type="checkbox" checked={values.pakai_ppn} onChange={(e) => setValues((v) => ({ ...v, pakai_ppn: e.target.checked }))} /><span>Kenakan PPN {ppnPersen}%</span></label>
+          <dl><dt>Subtotal</dt><dd>{rupiah(subtotal)}</dd>{values.pakai_ppn && <><dt>PPN {ppnPersen}%</dt><dd>{rupiah(ppn)}</dd></>}<dt className="grand">Total</dt><dd className="grand">{rupiah(subtotal + ppn)}</dd></dl>
+        </div>
+        <Field label="Syarat & ketentuan (dicetak)" full><textarea className="pap-input" rows={4} maxLength={5000} value={values.syarat} onChange={set('syarat')} /></Field>
+        <Field label="Catatan internal (tidak dicetak)" full><textarea className="pap-input" rows={2} maxLength={5000} value={values.catatan} onChange={set('catatan')} /></Field>
+      </form>
+    </Modal>
+  )
+}
+
+// Template dokumen (kop surat, rekening, syarat default, penandatangan) - dulu di menu Tabel HPP
+function DocTemplateModal({ onClose, onSaved }: { onClose: () => void; onSaved: (message: string) => void }) {
+  const { data, error } = useHppData()
+  return (
+    <Modal title="Template dokumen penawaran" subtitle="Dipakai di surat penawaran, surat order, dan proforma (PDF & Word)." wide onClose={onClose}>
+      {error && <Notice>{error}</Notice>}
+      {data ? <DocForm data={data} onSaved={onSaved} /> : !error && <p className="pap-muted">Memuat...</p>}
     </Modal>
   )
 }
@@ -392,11 +376,9 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
     }
   }
   if (!item) return <Modal title="Penawaran" onClose={onClose}>{error ? <Notice>{error}</Notice> : <p className="pap-muted">Memuat...</p>}</Modal>
-  const printUrl = `/cetak/quotation/${item.id}`
+  const links = docLinks(item.id, 'penawaran')
   const waText = `Halo${item.kontak ? ` ${item.kontak}` : ''}, berikut penawaran harga dari PT. Pandawa Amerta Packindo no. ${item.nomor} senilai ${rupiah(item.total)}, berlaku s/d ${formatDate(item.berlaku_sampai)}. File PDF penawaran kami lampirkan. Terima kasih.`
   const full = { ...item, items: rows }
-  const hppTotal = rows.reduce((n, r) => n + (r.hpp_satuan ?? 0) * r.qty, 0)
-  const margin = hppTotal ? ((item.subtotal - hppTotal) / hppTotal) * 100 : null
   // Draft boleh dikirim bila sudah disetujui, atau penawaran milik penyetuju sendiri (otomatis tercatat disetujui saat dikirim)
   const draft = item.status === 'draft'
   const approved = item.approval === 'disetujui'
@@ -415,7 +397,8 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
         <span className="pap-spacer" />
         {canWrite && <button className="pap-btn" onClick={() => onCopy(full)}><Copy /> Buat revisi</button>}
         {item.status === 'draft' && canEdit && <button className="pap-btn" onClick={() => onEdit(full)}><Pencil /> Edit</button>}
-        <a className="pap-btn" href={printUrl} target="_blank" rel="noreferrer"><Printer /> Cetak / PDF</a>
+        <a className="pap-btn" href={links.word}><FileDown /> Word</a>
+        <a className="pap-btn" href={links.pdf} target="_blank" rel="noreferrer"><Printer /> PDF</a>
       </>}
     >
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
@@ -426,7 +409,7 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
       {draft && !approved && canApprove && !isOwner && (
         <div className="pap-inline-panel">
           <strong>Persetujuan penawaran{item.approval === 'menunggu' ? ` dari ${item.created_name}` : ''}</strong>
-          <p className="pap-muted">Periksa harga & margin di bawah. Setelah disetujui, sales bisa mengirim penawaran ke customer.</p>
+          <p className="pap-muted">Periksa produk & harga di bawah. Setelah disetujui, sales bisa mengirim penawaran ke customer.</p>
           {approvalNoteInput}
           <div className="pap-inline-actions pap-wrap">
             {item.approval === 'menunggu' && <button className="pap-btn danger" disabled={busy} onClick={() => approval('tolak')}><XCircle /> Tolak</button>}
@@ -447,7 +430,7 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
       {draft && sendable && canWrite && (
         <div className="pap-inline-panel">
           <strong>Kirim penawaran ke customer</strong>
-          <p className="pap-muted">1) Klik <b>Cetak / PDF</b> lalu simpan sebagai PDF. 2) Kirim lewat WhatsApp/email. 3) Tandai terkirim — status prospek otomatis menjadi &quot;Penawaran&quot;.</p>
+          <p className="pap-muted">1) Unduh <b>PDF</b> (simpan sebagai PDF di dialog cetak) atau <b>Word</b>. 2) Kirim lewat WhatsApp/email. 3) Tandai terkirim — status prospek otomatis menjadi &quot;Penawaran&quot;.</p>
           <div className="pap-inline-actions pap-wrap">
             {waLink(item.telepon, waText) && <a className="pap-btn pap-wa" href={waLink(item.telepon, waText)!} target="_blank" rel="noreferrer"><MessageCircle /> Buka WhatsApp</a>}
             <span className="pap-spacer" />
@@ -475,7 +458,7 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
       </dl>
       <div className="pap-table-wrap pap-sample-table">
         <table>
-          <thead><tr><th>#</th><th>Produk</th><th className="pap-num">Jumlah</th><th className="pap-num">Harga</th><th className="pap-num">Subtotal</th><th className="pap-num">HPP / satuan</th></tr></thead>
+          <thead><tr><th>#</th><th>Produk</th><th className="pap-num">Jumlah</th><th className="pap-num">Harga</th><th className="pap-num">Subtotal</th></tr></thead>
           <tbody>
             {rows.map((r, i) => (
               <tr key={r.id}>
@@ -484,14 +467,13 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
                 <td className="pap-num">{r.qty.toLocaleString('id-ID')} {r.satuan}</td>
                 <td className="pap-num">{rupiah(r.harga_satuan, r.harga_satuan % 1 ? 2 : 0)}</td>
                 <td className="pap-num">{rupiah(r.subtotal)}</td>
-                <td className="pap-num pap-muted">{rupiah(r.hpp_satuan, 2)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
       <div className="pap-quote-totals">
-        <span className="pap-muted">{margin !== null ? `Perkiraan untung ${margin.toFixed(1)}% di atas HPP (HPP saat penawaran dibuat, internal)` : ''}</span>
+        <span />
         <dl><dt>Subtotal</dt><dd>{rupiah(item.subtotal)}</dd>{item.pakai_ppn && <><dt>PPN {item.ppn_persen}%</dt><dd>{rupiah(item.ppn)}</dd></>}<dt className="grand">Total</dt><dd className="grand">{rupiah(item.total)}</dd></dl>
       </div>
       {item.syarat && <section className="pap-detail-section"><h3>Syarat & ketentuan</h3><p className="pap-prewrap">{item.syarat}</p></section>}
@@ -561,8 +543,10 @@ function OrderPanel({ item, canWrite, onSaved }: { item: Quotation; canWrite: bo
           <div className="pap-inline-actions pap-wrap">
             {canWrite && <button className="pap-btn" onClick={() => setEditing(true)}><Pencil /> Ubah data order</button>}
             <span className="pap-spacer" />
-            <a className="pap-btn" href={`/cetak/quotation/${item.id}?jenis=order`} target="_blank" rel="noreferrer"><Printer /> Surat Order</a>
-            <a className="pap-btn" href={`/cetak/quotation/${item.id}?jenis=proforma`} target="_blank" rel="noreferrer"><Printer /> Proforma Invoice</a>
+            <a className="pap-btn" href={docLinks(item.id, 'order').pdf} target="_blank" rel="noreferrer"><Printer /> Surat Order PDF</a>
+            <a className="pap-btn" href={docLinks(item.id, 'order').word}><FileDown /> Word</a>
+            <a className="pap-btn" href={docLinks(item.id, 'proforma').pdf} target="_blank" rel="noreferrer"><Printer /> Proforma PDF</a>
+            <a className="pap-btn" href={docLinks(item.id, 'proforma').word}><FileDown /> Word</a>
             {sisa > 0 && <button className="pap-primary-button" onClick={() => setPaying(true)}><Wallet /> Konfirmasi pembayaran</button>}
           </div>
         </>
