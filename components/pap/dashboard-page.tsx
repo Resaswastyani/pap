@@ -13,7 +13,7 @@ type DashboardData = {
     visits: { id: number; jadwal: string; jenis: string; target: string | null; alamat: string | null }[]
     followups: { id: number; nama_usaha: string; next_followup_at: string; status: string }[]
   }
-  quotation?: { menunggu: number; nilai_menunggu: number; draft: number; diterima_bulan_ini: number }
+  quotation?: { menunggu: number; nilai_menunggu: number; draft: number; diterima_bulan_ini: number; persetujuan: number }
   repeat?: { waktunya: number; berisiko: number; followup: number; tim: boolean }
   kpi?: { periode: string; nilai?: Record<string, number>; target: Record<string, number> }
   penjualan?: { omzet_bulan_lalu_sd_hari_ini: number; bulan: { bulan: string; omzet: number; faktur: number; customer: number }[]; top: { name: string; omzet: number }[]; so: { jumlah: number; nilai: number } }
@@ -75,6 +75,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         <div className="pap-stat-grid four pap-dash-tiles">
           {d.marketing && <Tile label="Follow-up hari ini" value={d.marketing.followup_saya} note={d.marketing.followup_terlambat ? `${d.marketing.followup_terlambat} terlambat` : 'Prospek pegangan Anda'} icon={CalendarClock} tone={d.marketing.followup_terlambat ? 'stat-2' : 'stat-1'} onClick={() => onNavigate('Prospek')} />}
           {d.marketing && <Tile label="Visit hari ini" value={d.marketing.visits.length} note={`${d.marketing.prospek_aktif} prospek aktif${d.marketing.tim && d.marketing.belum_dibagi ? ` · ${d.marketing.belum_dibagi} belum dibagi` : ''}`} icon={MapPin} onClick={() => onNavigate('Jadwal Visit')} />}
+          {!!d.quotation?.persetujuan && <Tile label="Quotation perlu persetujuan" value={d.quotation.persetujuan} note="menunggu persetujuan Anda" icon={ClipboardList} tone="stat-2" onClick={() => onNavigate('Quotation')} />}
           {d.quotation && <Tile label="Penawaran menunggu" value={d.quotation.menunggu} note={`${formatRupiah(d.quotation.nilai_menunggu)}${d.quotation.draft ? ` · ${d.quotation.draft} draft` : ''}`} icon={ClipboardList} onClick={() => onNavigate('Quotation')} />}
           {d.repeat && <Tile label="Customer perlu dihubungi" value={d.repeat.waktunya + d.repeat.berisiko} note={`${d.repeat.berisiko} berisiko berhenti order`} icon={Repeat} tone={d.repeat.berisiko ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Repeat Order')} />}
           {d.sample && <Tile label="Request sample" value={d.sample.todo} note={`perlu tindakan · ${d.sample.aktif} berjalan`} icon={FlaskConical} tone={d.sample.todo ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Request Sample')} />}

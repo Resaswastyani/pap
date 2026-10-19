@@ -5,11 +5,14 @@ import { canSupervise, isMarketing, loadProspect } from '@/lib/marketing'
 import { notify, type NotificationType } from '@/lib/notifications'
 import { withNoteAttachments } from '@/lib/attachments'
 import { pushToUsers } from '@/lib/push'
-import type { UserProfile } from '@/lib/users'
+import { isLeadOf, isManagement, leadAndGmUsers, type UserProfile } from '@/lib/users'
 
 // ---------- Peran ----------
 const isGM = (user: UserProfile) => user.division.code === 'general_manager'
 export const isPPIC = (user: UserProfile) => user.role.isAdmin || user.division.code === 'ppic'
+// Pengajuan sample disetujui (sekaligus dijadwalkan) hanya oleh Kepala Produksi, Kepala PPIC, atau GM
+export const canApproveSample = (user: UserProfile) => isManagement(user) || isLeadOf(user, 'produksi', 'ppic')
+export const sampleApprovers = () => leadAndGmUsers(['produksi', 'ppic'])
 export const isProduksi = (user: UserProfile) => user.role.isAdmin || user.division.code === 'produksi'
 export const isDesigner = (user: UserProfile) => user.role.isAdmin || user.division.code === 'tim_desain'
 export const canRequest = (user: UserProfile) => user.role.isAdmin || isGM(user) || isMarketing(user)
@@ -31,7 +34,7 @@ export function designScope(user: UserProfile) {
 // ---------- Status ----------
 export const SAMPLE_STATUS = {
   diajukan: 'Diajukan',
-  dijadwalkan: 'Dijadwalkan PPIC',
+  dijadwalkan: 'Disetujui & dijadwalkan',
   diproduksi: 'Diproduksi',
   selesai: 'Selesai produksi',
   dikirim: 'Dikirim ke customer',
@@ -196,7 +199,7 @@ export async function loadSampleItems(sampleId: number) {
 export function sampleTodoSql(user: UserProfile) {
   const parts: string[] = []
   const params: number[] = []
-  if (isPPIC(user)) parts.push("s.status = 'diajukan'")
+  if (canApproveSample(user)) parts.push("s.status = 'diajukan'")
   if (isProduksi(user)) parts.push("s.status IN ('dijadwalkan', 'diproduksi')")
   if (canRequest(user)) {
     parts.push("(s.requested_by = ? AND s.status IN ('selesai', 'dikirim', 'revisi'))")

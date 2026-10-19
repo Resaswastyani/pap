@@ -2,7 +2,7 @@ import type { RowDataPacket } from 'mysql2'
 import { fail, int, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { toNumber } from '@/lib/hpp'
-import type { UserProfile } from '@/lib/users'
+import { isLeadOf, isManagement, type UserProfile } from '@/lib/users'
 
 // ---------- Ekspedisi ----------
 export const canViewExpeditions = (user: UserProfile) => ['master-data', 'quotation'].some((m) => (user.menus as string[]).includes(m))
@@ -30,9 +30,11 @@ export const PAYMENT_FILE_MAX = 4 * 1024 * 1024
 export function requirePayments(user: UserProfile) {
   if (!(user.menus as string[]).includes('pembayaran')) fail(403, 'Anda tidak punya akses ke menu Pembayaran.')
 }
-export const canVerifyPayment = (user: UserProfile) => user.role.isAdmin || ['accounting', 'general_manager'].includes(user.division.code)
+// Verifikasi (terima / tolak) hanya Kepala Accounting & GM; staff Accounting melihat saja
+export const canVerifyPayment = (user: UserProfile) => isManagement(user) || isLeadOf(user, 'accounting')
 // Staff marketing melihat konfirmasi yang dibuatnya; Accounting/GM/Lead/admin semua
-export const seesAllPayments = (user: UserProfile) => canVerifyPayment(user) || (user.division.code.startsWith('marketing') && user.role.code === 'lead')
+export const seesAllPayments = (user: UserProfile) =>
+  canVerifyPayment(user) || user.division.code === 'accounting' || (user.division.code.startsWith('marketing') && user.role.code === 'lead')
 
 export const PAYMENT_SELECT = `SELECT p.id, p.quotation_id, p.customer_id, p.pembayar, p.jenis, p.nominal, p.tanggal_bayar, p.metode, p.bukti_mime, p.bukti_name,
   (p.bukti IS NOT NULL) AS has_bukti, p.catatan, p.status, p.alasan, p.verified_at, p.created_by, p.created_at,

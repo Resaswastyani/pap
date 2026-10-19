@@ -2,10 +2,10 @@ import type { RowDataPacket } from 'mysql2'
 import { fail, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { HPP_PARAM_KEYS, type HppParams } from '@/lib/hpp-calc'
-import type { UserProfile } from '@/lib/users'
+import { isLeadOf, isManagement, type UserProfile } from '@/lib/users'
 
-// Harga bahan baku diperbarui Purchasing / Admin / GM; parameter biaya & data dokumen oleh Admin / GM
-export const canEditPrices = (user: UserProfile) => user.role.isAdmin || ['purchasing', 'general_manager'].includes(user.division.code)
+// Harga bahan baku diperbarui Kepala Purchasing / GM (staff Purchasing melihat saja); parameter biaya & data dokumen oleh Admin / GM
+export const canEditPrices = (user: UserProfile) => isManagement(user) || isLeadOf(user, 'purchasing')
 export const canEditHppParams = (user: UserProfile) => user.role.isAdmin || user.division.code === 'general_manager'
 export const canViewHpp = (user: UserProfile) => user.menus.includes('hpp') || user.menus.includes('quotation')
 

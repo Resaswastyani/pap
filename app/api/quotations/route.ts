@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { logActivity } from '@/lib/marketing'
-import { canWriteQuotation, QUOTATION_SELECT, QUOTATION_STATUS, quotationScope, readQuotationInput, requireQuotation, saveQuotationItems, seesAllQuotations, serializeQuotation } from '@/lib/quotations'
+import { canApproveQuotation, canWriteQuotation, QUOTATION_SELECT, QUOTATION_STATUS, quotationScope, readQuotationInput, requireQuotation, saveQuotationItems, seesAllQuotations, serializeQuotation } from '@/lib/quotations'
 import { setNomor } from '@/lib/requests'
 
 export const GET = handle(async (request: Request) => {
@@ -27,8 +27,14 @@ export const GET = handle(async (request: Request) => {
     `SELECT q.status, COUNT(*) AS n, SUM(q.total) AS total FROM quotations q WHERE ${where.join(' AND ')} GROUP BY q.status`,
     params,
   )
+  const [[pending]] = await db.query<(RowDataPacket & { n: number })[]>(
+    `SELECT COUNT(*) AS n FROM quotations q WHERE ${where.join(' AND ')} AND q.status = 'draft' AND q.approval = 'menunggu'`,
+    params,
+  )
   const status = url.searchParams.get('status')
-  if (status && status in QUOTATION_STATUS) {
+  if (status === 'persetujuan') {
+    where.push("q.status = 'draft' AND q.approval = 'menunggu'")
+  } else if (status && status in QUOTATION_STATUS) {
     where.push('q.status = ?')
     params.push(status)
   }
@@ -36,7 +42,9 @@ export const GET = handle(async (request: Request) => {
   return NextResponse.json({
     items: items.map(serializeQuotation),
     summary: Object.fromEntries(summary.map((r) => [r.status, { n: Number(r.n), total: Number(r.total ?? 0) }])),
+    pendingApproval: Number(pending.n),
     canWrite: canWriteQuotation(user),
+    canApprove: canApproveQuotation(user),
     seesAll: seesAllQuotations(user),
   })
 })

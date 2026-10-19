@@ -14,7 +14,7 @@ export const POST = handle(async (request: Request) => {
   const [[sub]] = await db.query<Sub[]>('SELECT id, user_id, last_notification_id FROM push_subscriptions WHERE endpoint_hash = ?', [endpointHash(endpoint)])
   if (!sub) return NextResponse.json({ items: [] })
   const [items] = await db.query<RowDataPacket[]>(
-    `SELECT id, type, title, body, meeting_id, planning_id, prospect_id, visit_id, sample_id, design_id, customer_id, payment_id FROM notifications
+    `SELECT id, type, title, body, meeting_id, planning_id, prospect_id, visit_id, sample_id, design_id, customer_id, payment_id, quotation_id FROM notifications
      WHERE user_id = ? AND id > ? AND read_at IS NULL ORDER BY id DESC LIMIT 5`,
     [sub.user_id, sub.last_notification_id],
   )

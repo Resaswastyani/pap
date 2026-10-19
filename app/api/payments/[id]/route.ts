@@ -25,11 +25,11 @@ export const GET = handle(async (request: Request, ctx: Ctx) => {
   return NextResponse.json({ item, canVerify: canVerifyPayment(user) })
 })
 
-// Accounting memverifikasi: { status: 'diterima' | 'ditolak', alasan }
+// Kepala Accounting / GM memverifikasi: { status: 'diterima' | 'ditolak', alasan }
 export const POST = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
   requirePayments(user)
-  if (!canVerifyPayment(user)) fail(403, 'Pembayaran diverifikasi oleh Accounting.')
+  if (!canVerifyPayment(user)) fail(403, 'Pembayaran hanya bisa diverifikasi Kepala Accounting atau General Manager.')
   const item = await loadPayment(await paymentId(ctx), user)
   if (item.status !== 'menunggu') fail(400, 'Pembayaran ini sudah diverifikasi.')
   const body = await readJson(request)

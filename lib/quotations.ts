@@ -3,11 +3,16 @@ import { fail, int, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { loadHppParams, loadMaterials, toNumber } from '@/lib/hpp'
 import { hitungHpp, type HppModel } from '@/lib/hpp-calc'
-import { canSupervise, loadProspect } from '@/lib/marketing'
-import type { UserProfile } from '@/lib/users'
+import { canSupervise, loadProspect, MARKETING_DIVISIONS } from '@/lib/marketing'
+import { isLeadOf, isManagement, leadAndGmUsers, type UserProfile } from '@/lib/users'
 
 export const QUOTATION_STATUS = { draft: 'Draft', dikirim: 'Dikirim', diterima: 'Diterima', ditolak: 'Ditolak', batal: 'Batal' } as const
 export type QuotationStatus = keyof typeof QUOTATION_STATUS
+
+// Persetujuan internal (db/031): penawaran buatan staff wajib disetujui Kepala Marketing atau GM sebelum dikirim.
+// Penawaran buatan penyetuju sendiri tidak perlu diajukan.
+export const canApproveQuotation = (user: UserProfile) => isManagement(user) || isLeadOf(user, ...MARKETING_DIVISIONS)
+export const quotationApprovers = () => leadAndGmUsers([...MARKETING_DIVISIONS])
 
 export function requireQuotation(user: UserProfile) {
   if (!user.menus.includes('quotation')) fail(403, 'Anda tidak punya akses ke Quotation.')
@@ -21,12 +26,12 @@ export function quotationScope(user: UserProfile) {
   return seesAllQuotations(user) ? { sql: '1 = 1', params: [] as number[] } : { sql: 'q.created_by = ?', params: [user.id] }
 }
 
-export const QUOTATION_SELECT = `SELECT q.*, u.name AS created_name, p.nama_usaha AS prospect_name, p.status AS prospect_status, c.customer_no,
+export const QUOTATION_SELECT = `SELECT q.*, u.name AS created_name, ua.name AS approved_name, p.nama_usaha AS prospect_name, p.status AS prospect_status, c.customer_no,
   (SELECT COUNT(*) FROM quotation_items i WHERE i.quotation_id = q.id) AS item_count,
   DATE_ADD(q.tanggal, INTERVAL q.berlaku_hari DAY) AS berlaku_sampai,
   e.nama AS expedition_name, e.estimasi_hari AS expedition_estimasi,
   (SELECT COALESCE(SUM(pc.nominal), 0) FROM payment_confirmations pc WHERE pc.quotation_id = q.id AND pc.status = 'diterima') AS terbayar
-  FROM quotations q JOIN users u ON u.id = q.created_by LEFT JOIN expeditions e ON e.id = q.expedition_id
+  FROM quotations q JOIN users u ON u.id = q.created_by LEFT JOIN users ua ON ua.id = q.approved_by LEFT JOIN expeditions e ON e.id = q.expedition_id
   LEFT JOIN prospects p ON p.id = q.prospect_id LEFT JOIN customers c ON c.id = q.customer_id`
 
 const toNumbers = (q: RowDataPacket): RowDataPacket => ({

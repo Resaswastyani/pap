@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canEditHppParams, loadSettings } from '@/lib/hpp'
-import { canWriteQuotation, loadQuotation, loadQuotationItems, readQuotationInput, requireQuotation, saveQuotationItems } from '@/lib/quotations'
+import { canApproveQuotation, canWriteQuotation, loadQuotation, loadQuotationItems, readQuotationInput, requireQuotation, saveQuotationItems } from '@/lib/quotations'
 
 type Ctx = { params: Promise<{ id: string }> }
 const quotationId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Quotation tidak ditemukan.')
@@ -17,6 +17,8 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
     doc: await loadSettings('doc.'),
     canEdit: item.status === 'draft' && (item.created_by === user.id || user.role.isAdmin || canEditHppParams(user)),
     canWrite: canWriteQuotation(user),
+    canApprove: canApproveQuotation(user),
+    isOwner: item.created_by === user.id,
   })
 })
 
@@ -35,6 +37,10 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
       header.ppn_persen, header.subtotal, header.ppn, header.total, header.syarat, header.catatan, item.id],
   )
   await saveQuotationItems(item.id, items)
+  // Isi penawaran yang sudah disetujui berubah: harus disetujui ulang (kecuali yang mengubah penyetuju sendiri)
+  if (item.approval === 'disetujui' && !canApproveQuotation(user)) {
+    await db.query('UPDATE quotations SET approval = NULL, approval_note = NULL, approved_by = NULL, approved_at = NULL WHERE id = ?', [item.id])
+  }
   return NextResponse.json({ ok: true })
 })
 
