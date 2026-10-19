@@ -20,6 +20,7 @@ export const MENU_KEYS = {
   'Jadwal Shift': 'jadwal-shift',
   'Hasil Produksi': 'hasil-produksi',
   'Data Mesin': 'data-mesin',
+  'Kerusakan Mesin': 'perbaikan-mesin',
   Karyawan: 'karyawan',
   Absensi: 'absensi',
   Planning: 'planning',

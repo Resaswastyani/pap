@@ -4,6 +4,7 @@ import type { NoteOwner } from '@/lib/attachments'
 import { db } from '@/lib/db'
 import { loadProspect, requireMarketing } from '@/lib/marketing'
 import { canManageProduction, canProgressProduction, canViewProduction } from '@/lib/production'
+import { canHandleRepair, requireRepairs } from '@/lib/repairs'
 import { loadRepeatCustomer, requireRepeatOrder } from '@/lib/repeat-order'
 import { loadDesign, loadSample, requireRequestMenu } from '@/lib/requests'
 import type { UserProfile } from '@/lib/users'
@@ -33,6 +34,13 @@ export async function noteAccess(owner: NoteOwner, id: number, user: UserProfile
       await loadDesign(row.design_id, user)
     }
     return { canAdd: row.user_id === user.id || user.role.isAdmin }
+  }
+  if (owner === 'repair') {
+    // Foto kerusakan / hasil perbaikan: pelapor & Teknik
+    requireRepairs(user)
+    const [[row]] = await db.query<RowDataPacket[]>('SELECT reported_by FROM machine_repairs WHERE id = ?', [id])
+    if (!row) fail(404, 'Laporan kerusakan tidak ditemukan.')
+    return { canAdd: row.reported_by === user.id || canHandleRepair(user) }
   }
   const table = owner === 'stage' ? 'production_stages' : 'production_jobs'
   const [[row]] = await db.query<RowDataPacket[]>(`SELECT id FROM ${table} WHERE id = ?`, [id])

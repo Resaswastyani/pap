@@ -216,6 +216,7 @@ export function ResultForm({ initial, stageId, defaults, onClose, onSaved }: {
     kendala: initial?.kendala ?? '',
     catatan: initial?.catatan ?? '',
   })
+  const [repair, setRepair] = useState({ lapor: false, prioritas: 'tinggi', mesin_berhenti: false })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -253,8 +254,12 @@ export function ResultForm({ initial, stageId, defaults, onClose, onSaved }: {
     setBusy(true)
     setError('')
     try {
-      await api(initial ? `/api/production/results/${initial.id}` : '/api/production/results', { method: initial ? 'PATCH' : 'POST', json: values })
-      onSaved(initial ? 'Laporan hasil produksi diperbarui.' : 'Hasil produksi dilaporkan. Menunggu pemeriksaan QC.')
+      const lapor = !initial && repair.lapor && !!values.kendala.trim()
+      await api(initial ? `/api/production/results/${initial.id}` : '/api/production/results', {
+        method: initial ? 'PATCH' : 'POST',
+        json: lapor ? { ...values, lapor_kerusakan: true, prioritas: repair.prioritas, mesin_berhenti: repair.mesin_berhenti } : values,
+      })
+      onSaved(initial ? 'Laporan hasil produksi diperbarui.' : `Hasil produksi dilaporkan. Menunggu pemeriksaan QC.${lapor ? ' Kerusakan mesin sudah diteruskan ke Teknik.' : ''}`)
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -308,6 +313,20 @@ export function ResultForm({ initial, stageId, defaults, onClose, onSaved }: {
           <datalist id="pap-result-units">{['kg', 'pcs', 'roll', 'bal', 'lembar', 'pack'].map((u) => <option key={u} value={u} />)}</datalist>
         </Field>
         <Field label="Kendala bahan baku / mesin" full hint="Diisi bila ada kendala, mis. bahan telat, mesin trouble, listrik padam."><textarea className="pap-input" rows={2} maxLength={5000} value={values.kendala} onChange={set('kendala')} /></Field>
+        {!initial && values.kendala.trim() && (
+          <div className="full pap-result-repair">
+            <label className="pap-check"><input type="checkbox" checked={repair.lapor} onChange={(e) => setRepair((r) => ({ ...r, lapor: e.target.checked }))} /> Laporkan sebagai kerusakan mesin ke Teknik</label>
+            {repair.lapor && (
+              <>
+                <select className="pap-select" value={repair.prioritas} onChange={(e) => setRepair((r) => ({ ...r, prioritas: e.target.value }))} aria-label="Prioritas perbaikan">
+                  <option value="darurat">Darurat</option><option value="tinggi">Tinggi</option><option value="normal">Normal</option>
+                </select>
+                <label className="pap-check"><input type="checkbox" checked={repair.mesin_berhenti} onChange={(e) => setRepair((r) => ({ ...r, mesin_berhenti: e.target.checked }))} /> Mesin berhenti</label>
+                {!values.machine_id && <small className="pap-text-danger">Pilih mesin di atas.</small>}
+              </>
+            )}
+          </div>
+        )}
         <Field label="Catatan" full><textarea className="pap-input" rows={2} maxLength={5000} value={values.catatan} onChange={set('catatan')} /></Field>
       </form>
     </Modal>

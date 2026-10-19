@@ -39,7 +39,9 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   const args: unknown[] = []
   if ('prioritas' in body) sets.push('prioritas = ?'), args.push(body.prioritas === 'tinggi' ? 'tinggi' : 'normal')
   if ('catatan' in body) sets.push('catatan = ?'), args.push(str(body.catatan, 5000) || null)
-  // Isi SPK: target hasil, formulasi / campuran bahan, tingkat kualitas, acuan kerja
+  // Isi SPK: target hasil, formulasi / campuran bahan, tingkat kualitas, acuan kerja. SPK yang sudah terbit dikunci: tarik dulu untuk merevisi.
+  const spkFields = ['target_qty', 'formulasi', 'tingkat_kualitas', 'acuan_kerja'].filter((key) => key in body)
+  if (spkFields.length && job.spk_nomor && body.tarik_spk !== true) fail(400, 'SPK sudah terbit. Tarik SPK dulu untuk merevisi isinya.')
   if ('target_qty' in body) {
     const raw = body.target_qty === null || body.target_qty === '' ? null : Number(String(body.target_qty).replace(',', '.'))
     if (raw !== null && (!Number.isFinite(raw) || raw <= 0)) fail(400, 'Target jumlah produksi tidak valid.')
@@ -48,11 +50,23 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   if ('formulasi' in body) sets.push('formulasi = ?'), args.push(str(body.formulasi, 10000) || null)
   if ('tingkat_kualitas' in body) sets.push('tingkat_kualitas = ?'), args.push(str(body.tingkat_kualitas, 100) || null)
   if ('acuan_kerja' in body) sets.push('acuan_kerja = ?'), args.push(str(body.acuan_kerja, 10000) || null)
-  // Terbitkan SPK: nomor SPK-YYYYMM-<id job>, dicatat siapa & kapan
+  // Terbitkan SPK: nomor SPK-YYYYMM-<id job>, terbit ulang setelah ditarik diberi akhiran revisi (-R1, -R2, ...)
   if (body.terbitkan_spk === true) {
     if (job.status === 'batal') fail(400, 'Job yang dibatalkan tidak bisa diterbitkan SPK-nya.')
-    if (!job.spk_nomor) sets.push("spk_nomor = CONCAT('SPK-', DATE_FORMAT(NOW(), '%Y%m'), '-', LPAD(id, 5, '0')), spk_terbit_at = NOW(), spk_terbit_oleh = ?"), args.push(user.id)
+    if (!job.spk_nomor) {
+      sets.push("spk_nomor = CONCAT('SPK-', DATE_FORMAT(NOW(), '%Y%m'), '-', LPAD(id, 5, '0'), IF(spk_revisi > 0, CONCAT('-R', spk_revisi), '')), spk_terbit_at = NOW(), spk_terbit_oleh = ?")
+      args.push(user.id)
+    }
   }
+  // Tarik SPK: SPK dicabut untuk direvisi, job produksi & laporan hasilnya tetap berjalan
+  if (body.tarik_spk === true) {
+    if (!job.spk_nomor) fail(400, 'SPK job ini belum terbit.')
+    const alasan = str(body.alasan_tarik, 500)
+    if (!alasan) fail(400, 'Tuliskan alasan menarik SPK.')
+    sets.push('spk_nomor = NULL, spk_terbit_at = NULL, spk_terbit_oleh = NULL, spk_revisi = spk_revisi + 1, spk_ditarik_at = NOW(), spk_ditarik_oleh = ?, spk_alasan_tarik = ?')
+    args.push(user.id, alasan)
+  }
+  // Batalkan produksi: job dihentikan di PAP-MS saja, Sales Order di Accurate tidak berubah
   if (body.batal === true) sets.push("status = 'batal'")
   if (sets.length) await db.query(`UPDATE production_jobs SET ${sets.join(', ')}, updated_by = ? WHERE id = ?`, [...args, user.id, job.id])
   if (body.batal === false && job.status === 'batal') {

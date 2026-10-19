@@ -152,6 +152,8 @@ const RESOURCES: Record<string, Resource> = {
   products: { module: 'Data Produk', noun: 'produk', table: 'customer_products', files: 'customer_product_files' },
   production: { module: 'Jadwal Produksi', noun: 'job produksi', table: 'production_jobs' },
   machines: { module: 'Data Mesin', noun: 'mesin', table: 'machines' },
+  'production/results': { module: 'Hasil Produksi', noun: 'laporan hasil produksi', table: 'production_results' },
+  repairs: { module: 'Kerusakan Mesin', noun: 'laporan kerusakan mesin', table: 'machine_repairs' },
   accurate: { module: 'Accurate', noun: 'data Accurate' },
   samples: { module: 'Request Sample', noun: 'request sample', table: 'sample_requests', files: 'sample_attachments' },
   designs: { module: 'Request Desain', noun: 'request desain', table: 'design_requests', files: 'design_request_files' },
@@ -183,7 +185,7 @@ function planFor(method: string, path: string): Plan | null {
   const segs = path.replace(/^\/api\//, '').split('/')
   // Lampiran catatan: /api/notes/{jenis}/{id}/attachments dan /api/notes/attachments/{id}
   if (segs[0] === 'notes') {
-    const NOTE_LABEL: Record<string, string> = { activity: 'follow-up', request_log: 'status request', stage: 'tahap produksi', job: 'job produksi' }
+    const NOTE_LABEL: Record<string, string> = { activity: 'follow-up', request_log: 'status request', stage: 'tahap produksi', job: 'job produksi', repair: 'kerusakan mesin' }
     const note = { module: 'Catatan', entityType: 'lampiran catatan' }
     if (segs[1] === 'attachments' && /^\d+$/.test(segs[2] ?? '') && method === 'DELETE')
       return { ...note, action: 'delete', table: 'note_attachments', id: segs[2], describe: (l) => `Menghapus lampiran catatan ${l}` }
