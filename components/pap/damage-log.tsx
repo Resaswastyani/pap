@@ -104,6 +104,8 @@ export function DamageLogView({ user: _user }: { user: UserProfile }) {
   const months = lastMonths(12)
   const printUrl = (blank = false) => `/cetak/kerusakan?${blank ? 'kosong=1' : filterParams()}`
   const filtered = !!(query || mesin || komponen || tahun)
+  // Rekap di Drive tidak punya kolom Tindakan: kolom tampil hanya bila ada isian tindakan (dari form)
+  const hasTindakan = !!data?.items.some((d) => d.tindakan)
 
   return (
     <>
@@ -188,14 +190,14 @@ export function DamageLogView({ user: _user }: { user: UserProfile }) {
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table className="pap-plan-table">
-            <thead><tr><th>Mesin</th><th>Tanggal</th><th>Kerusakan</th><th>Tindakan</th><th>Keterangan</th><th>Sumber</th><th aria-label="Aksi" /></tr></thead>
+            <thead><tr><th>Mesin</th><th>Tanggal</th><th>Kerusakan</th>{hasTindakan && <th>Tindakan</th>}<th>Keterangan</th><th>Sumber</th><th aria-label="Aksi" /></tr></thead>
             <tbody>
               {(data?.items ?? []).slice(0, shown).map((d) => (
                 <tr key={d.id}>
                   <td><div className="pap-cell-title">{d.mesin_label ?? d.mesin ?? '—'}</div>{d.komponen && <div className="pap-cell-sub">{d.komponen}</div>}</td>
                   <td className="pap-nowrap">{formatDate(d.tanggal)}</td>
                   <td className="pap-damage-text">{d.kerusakan ?? '—'}</td>
-                  <td className="pap-damage-text">{d.tindakan ?? '—'}</td>
+                  {hasTindakan && <td className="pap-damage-text">{d.tindakan ?? '—'}</td>}
                   <td className="pap-damage-text">{d.keterangan ?? '—'}</td>
                   <td className="pap-nowrap">{d.source === 'sheet' ? <span className="pap-status info">Drive{d.no_laporan ? ` · No ${d.no_laporan}` : ''}</span> : <span className="pap-status success">Form{d.created_name ? ` · ${d.created_name}` : ''}</span>}</td>
                   <td className="pap-nowrap">
@@ -350,7 +352,7 @@ function DamageSheetSync({ onClose, onImported }: { onClose: () => void; onImpor
           {(!data || canSync) && url && url !== data?.url && <button className="pap-btn" disabled={busy} onClick={saveUrl}>Simpan link</button>}
         </div>
       </Field>
-      <p className="pap-muted">Spreadsheet (Google Sheet atau file Excel di Drive) harus bisa dibuka akun Google tersebut (bagikan sebagai Viewer). Tab berjudul “REKAP” dibaca dengan kolom NO, TANGGAL, MESIN, Komponen, KERUSAKAN, KETERANGAN (tindakan). Baris tanpa NO melanjutkan laporan di atasnya. Sinkron otomatis berjalan bersama sinkron Google Drive (±30 menit).</p>
+      <p className="pap-muted">Spreadsheet (Google Sheet atau file Excel di Drive) harus bisa dibuka akun Google tersebut (bagikan sebagai Viewer). Tab berjudul “REKAP” dibaca dengan kolom NO, TANGGAL, MESIN, Komponen, KERUSAKAN, TINDAKAN (bila ada), KETERANGAN. Baris tanpa NO melanjutkan laporan di atasnya. Sinkron otomatis berjalan bersama sinkron Google Drive (±30 menit).</p>
       {loading ? <p className="pap-muted">Membaca spreadsheet...</p> : data && (
         <>
           <ul className="pap-dash-agenda">

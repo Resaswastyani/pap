@@ -1,6 +1,6 @@
 // Rekap kerusakan mesin dari spreadsheet "Laporan Kerusakan Mesin" di Google Drive (dibaca dengan akun Google yang terhubung
 // di Master Data > Logo & Desain, sama seperti Jadwal Shift) + isian Form Laporan Kerusakan Mesin dari aplikasi.
-// Format tab REKAP KERUSAKAN: NO | TANGGAL | MESIN | Komponen | KERUSAKAN | KETERANGAN (berisi tindakan perbaikan).
+// Format tab REKAP KERUSAKAN: NO | TANGGAL | MESIN | Komponen | KERUSAKAN | KETERANGAN (opsional: TINDAKAN, seperti tab FORM KERUSAKAN).
 // Baris tanpa NO melanjutkan laporan di atasnya: berisi kerusakan lain (item baru) atau hanya lanjutan tindakan.
 import type { RowDataPacket } from 'mysql2'
 import { fail } from '@/lib/api'
@@ -72,11 +72,7 @@ function detectHeader(rows: string[][]): { index: number; cols: Columns } | null
     if (tanggal < 0 || mesin < 0 || kerusakan < 0) continue
     const tindakan = find(/^tindakan/)
     const keterangan = find(/^keterangan$/)
-    // Tanpa kolom TINDAKAN (tab rekap), kolom KETERANGAN berisi tindakan perbaikan
-    return {
-      index: i,
-      cols: { no: find(/^(no|no\.|nomor)$/), tanggal, mesin, komponen: find(/^komponen/), kerusakan, tindakan: tindakan >= 0 ? tindakan : keterangan, keterangan: tindakan >= 0 ? keterangan : -1 },
-    }
+    return { index: i, cols: { no: find(/^(no|no\.|nomor)$/), tanggal, mesin, komponen: find(/^komponen/), kerusakan, tindakan, keterangan } }
   }
   return null
 }
