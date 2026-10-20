@@ -20,7 +20,8 @@ export const POST = handle(async (request: Request) => {
   const only = Array.isArray(body.entities) ? (body.entities.filter((e) => SYNC_ENTITIES.includes(e as SyncEntity)) as SyncEntity[]) : undefined
   // Stok boleh disinkron oleh semua pengguna menu Stok; data customer hanya oleh pengelola customer/admin
   const stockOnly = !!only?.length && only.every((e) => e === 'item' || e === 'stock')
-  const allowed = canManageCustomer(user) || user.role.isAdmin || (stockOnly && user.menus.includes('stok'))
+  const bomOnly = !!only?.length && only.every((e) => e === 'bill-of-material' || e === 'bill-of-material-detail')
+  const allowed = canManageCustomer(user) || user.role.isAdmin || (stockOnly && user.menus.includes('stok')) || (bomOnly && user.menus.includes('formulasi'))
   if (!allowed) fail(403, 'Anda tidak punya akses untuk menjalankan sinkronisasi.')
   const results = await syncAll(45_000, only?.length ? only : undefined)
   return NextResponse.json({ results, status: await syncStatus() })

@@ -1062,3 +1062,10 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-spk-formula { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:6px; }
 .pap-spk-formula .pap-select { flex:1; min-width:220px; }
 @media (max-width:800px) { .pap-formula-row { grid-template-columns:1fr 100px 38px; } .pap-formula-row > input.pap-input { grid-column:1 / -1; grid-row:2; } }
+
+/* ---------- Formulasi dari BOM Accurate ---------- */
+.pap-bom-row { grid-template-columns:minmax(0,3fr) 110px 80px minmax(110px,1fr) 38px; }
+.pap-bom-row .pap-num { text-align:right; }
+.pap-bom-info { color:var(--pap-muted); font-size:11px; white-space:nowrap; }
+.pap-table-note { padding:10px 22px 16px; font-size:12px; }
+@media (max-width:800px) { .pap-bom-row { grid-template-columns:1fr 90px 70px 38px; } .pap-bom-row .pap-bom-info { grid-column:1 / -1; grid-row:2; } }

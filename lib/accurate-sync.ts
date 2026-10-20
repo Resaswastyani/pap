@@ -9,11 +9,12 @@ import { syncProductionJobs } from '@/lib/production'
 
 // Daftar (list.do): customer, sales-invoice, sales-order, item, stock (stok fisik)
 // Detail (per data): sales-order-items (baris barang SO -> Data Produk), customer-detail (alamat customer)
-type ListEntity = 'customer' | 'sales-invoice' | 'sales-order' | 'item' | 'stock'
-type DetailEntity = 'sales-order-items' | 'customer-detail' | 'item-detail'
+// Bill of Material (Formula Produksi): daftar BOM + detail bahan (bill-of-material-detail) -> menu Formulasi Produk
+type ListEntity = 'customer' | 'sales-invoice' | 'sales-order' | 'item' | 'stock' | 'bill-of-material'
+type DetailEntity = 'sales-order-items' | 'customer-detail' | 'item-detail' | 'bill-of-material-detail'
 export type SyncEntity = ListEntity | DetailEntity
 // Urutan: data kecil & inkremental dulu, stok (selalu penuh, paling lama) terakhir
-export const SYNC_ENTITIES: SyncEntity[] = ['customer', 'sales-invoice', 'sales-order', 'sales-order-items', 'customer-detail', 'item', 'item-detail', 'stock']
+export const SYNC_ENTITIES: SyncEntity[] = ['customer', 'sales-invoice', 'sales-order', 'sales-order-items', 'customer-detail', 'item', 'item-detail', 'bill-of-material', 'bill-of-material-detail', 'stock']
 
 const PATHS: Record<ListEntity, string> = {
   customer: '/api/customer/list.do',
@@ -21,6 +22,7 @@ const PATHS: Record<ListEntity, string> = {
   'sales-order': '/api/sales-order/list.do',
   item: '/api/item/list.do',
   stock: '/api/item/list-stock.do',
+  'bill-of-material': '/api/bill-of-material/list.do',
 }
 // Stok selalu disinkron penuh: jumlahnya berubah karena transaksi lain tanpa mengubah lastUpdate barang
 const FULL_SYNC: ListEntity[] = ['item', 'stock']
@@ -38,6 +40,7 @@ const FIELDS: Record<ListEntity, string> = {
   'sales-invoice': 'id,number,transDate,customer,totalAmount,statusName,lastUpdate',
   item: 'id,no,name,itemType,itemCategory,unit1,availableToSell,balance,quantity,minimumQuantity,suspended,lastUpdate',
   stock: '', // list-stock memakai field bawaan: id, no, name, quantity
+  'bill-of-material': 'id,number,transDate,description,item,itemUnit,suspended,lastUpdate',
 }
 
 // Penyimpanan per halaman (satu query untuk banyak baris) agar sinkron cepat ke database jarak jauh.
@@ -116,7 +119,43 @@ async function saveSalesOrders(rows: Row[]) {
   )
 }
 
-const SAVERS: Record<ListEntity, (rows: Row[]) => Promise<void>> = { customer: storeCustomerRows, 'sales-invoice': saveInvoices, 'sales-order': saveSalesOrders, item: saveItems, stock: saveStock }
+// Kepala Bill of Material: barang jadi & nomor formula (bahan diambil terpisah lewat detail.do)
+export async function saveBoms(rows: Row[]) {
+  if (!rows.length) return
+  await db.query(
+    `INSERT INTO accurate_boms (accurate_id, number, trans_date, description, item_accurate_id, item_no, item_name, unit, suspended, last_update)
+     VALUES ?
+     ON DUPLICATE KEY UPDATE number = VALUES(number), trans_date = VALUES(trans_date), description = VALUES(description), item_accurate_id = VALUES(item_accurate_id),
+       item_no = VALUES(item_no), item_name = VALUES(item_name), unit = COALESCE(VALUES(unit), unit), suspended = VALUES(suspended),
+       last_update = VALUES(last_update), synced_at = NOW()`,
+    [rows.map((row) => {
+      const item = (row.item && typeof row.item === 'object' ? row.item : {}) as Row
+      return [num(row.id), str(row.number, 80), fromAccurateDate(row.transDate), str(row.description, 500), num(item.id ?? row.itemId), str(item.no, 80), str(item.name),
+        nameOf(row.itemUnit), row.suspended === true ? 1 : 0, str(row.lastUpdate, 20)]
+    })],
+  )
+}
+
+// Simpan detail satu BOM (jumlah hasil + baris bahan) dari detail.do / balasan save.do
+export async function storeBomDetail(d: Row, lastUpdate: string | null) {
+  const id = num(d.id)
+  if (!id) return
+  const item = (d.item && typeof d.item === 'object' ? d.item : {}) as Row
+  await saveBoms([{ ...d, lastUpdate: lastUpdate ?? d.lastUpdate }])
+  await db.query('UPDATE accurate_boms SET quantity = ?, unit = COALESCE(?, unit), item_name = COALESCE(?, item_name), detail_synced_update = ? WHERE accurate_id = ?', [
+    num(d.quantityDefault ?? d.quantity) ?? 1, nameOf(d.itemUnit), str(item.name), lastUpdate ?? str(d.lastUpdate, 20) ?? '', id,
+  ])
+  const lines = ((d.detailMaterial ?? []) as Row[]).map((line) => {
+    const mat = (line.item ?? {}) as Row
+    return [id, num(line.id), num(line.seq), num(mat.id ?? line.itemId), str(mat.no, 80), str(mat.name), num(line.quantity ?? line.quantityDefault), nameOf(line.itemUnit)]
+  }).filter((line) => line[1] !== null)
+  await db.query('DELETE FROM accurate_bom_materials WHERE bom_accurate_id = ?', [id])
+  if (lines.length) {
+    await db.query('INSERT INTO accurate_bom_materials (bom_accurate_id, line_id, seq, item_accurate_id, item_no, item_name, quantity, unit) VALUES ?', [lines])
+  }
+}
+
+const SAVERS: Record<ListEntity, (rows: Row[]) => Promise<void>> = { customer: storeCustomerRows, 'sales-invoice': saveInvoices, 'sales-order': saveSalesOrders, item: saveItems, stock: saveStock, 'bill-of-material': saveBoms }
 
 // Jalankan fn untuk tiap item dengan beberapa permintaan paralel ke Accurate
 async function eachParallel<T>(items: T[], limit: number, deadline: number, fn: (item: T) => Promise<void>) {
@@ -243,10 +282,28 @@ async function syncItemDetails(deadline: number) {
   return { saved, done: saved === pending.length && pending.length < 400 }
 }
 
+// Bahan tiap Bill of Material hanya ada di detail.do: ambil BOM baru / berubah
+async function syncBomDetails(deadline: number) {
+  const [pending] = await db.query<(RowDataPacket & { accurate_id: number; last_update: string | null })[]>(
+    `SELECT accurate_id, last_update FROM accurate_boms
+     WHERE detail_synced_update IS NULL OR detail_synced_update <> COALESCE(last_update, '')
+     ORDER BY accurate_id DESC LIMIT 400`,
+  )
+  let saved = 0
+  await eachParallel(pending, 4, deadline, async (bom) => {
+    const res = await accurate<Row>('/api/bill-of-material/detail.do', { params: { id: bom.accurate_id } }).catch(() => null)
+    if (!res?.d) return
+    await storeBomDetail(res.d, bom.last_update ?? '')
+    saved++
+  })
+  return { saved, done: saved === pending.length && pending.length < 400 }
+}
+
 const DETAIL_TASKS: Record<DetailEntity, (deadline: number) => Promise<{ saved: number; done: boolean }>> = {
   'sales-order-items': syncSalesOrderItems,
   'customer-detail': syncCustomerDetails,
   'item-detail': syncItemDetails,
+  'bill-of-material-detail': syncBomDetails,
 }
 
 async function runDetailTask(entity: DetailEntity, deadline: number) {
