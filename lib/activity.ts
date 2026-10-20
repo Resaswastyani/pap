@@ -154,6 +154,7 @@ const RESOURCES: Record<string, Resource> = {
   machines: { module: 'Data Mesin', noun: 'mesin', table: 'machines' },
   'production/results': { module: 'Hasil Produksi', noun: 'laporan hasil produksi', table: 'production_results' },
   repairs: { module: 'Kerusakan Mesin', noun: 'laporan kerusakan mesin', table: 'machine_repairs' },
+  formulations: { module: 'Formulasi Produk', noun: 'formulasi', table: 'formulations' },
   accurate: { module: 'Accurate', noun: 'data Accurate' },
   samples: { module: 'Request Sample', noun: 'request sample', table: 'sample_requests', files: 'sample_attachments' },
   designs: { module: 'Request Desain', noun: 'request desain', table: 'design_requests', files: 'design_request_files' },

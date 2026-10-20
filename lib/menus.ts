@@ -21,6 +21,7 @@ export const MENU_KEYS = {
   'Hasil Produksi': 'hasil-produksi',
   'Data Mesin': 'data-mesin',
   'Kerusakan Mesin': 'perbaikan-mesin',
+  'Formulasi Produk': 'formulasi',
   Karyawan: 'karyawan',
   Absensi: 'absensi',
   Planning: 'planning',
