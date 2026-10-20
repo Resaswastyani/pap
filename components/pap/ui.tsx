@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, type InputHTMLAttributes, type ReactNode } from 'react'
-import { Eye, EyeOff, Search, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Eye, EyeOff, Search, X } from 'lucide-react'
 import { PLANNING_STATUS, type PlanningStatus } from '@/lib/permissions'
 
 // Panggil API JSON; lempar Error berisi pesan dari server bila gagal
@@ -178,4 +178,68 @@ export function formatDate(value: string | null | undefined, withTime = false) {
 export function formatSize(bytes: number | null) {
   if (!bytes) return ''
   return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+// ---------- Pagination (dipakai semua halaman daftar) ----------
+export const PAGE_SIZES = [25, 50, 100] as const
+
+// Nomor halaman ringkas: 1 … 4 5 6 … 20
+function pageNumbers(page: number, count: number): (number | '…')[] {
+  const pages = new Set([1, count, page - 1, page, page + 1].filter((p) => p >= 1 && p <= count))
+  const sorted = [...pages].sort((a, b) => a - b)
+  const out: (number | '…')[] = []
+  sorted.forEach((p, i) => {
+    if (i && p - sorted[i - 1] > 1) out.push('…')
+    out.push(p)
+  })
+  return out
+}
+
+export type PagerProps = { page: number; pageSize: number; total: number; onPage: (page: number) => void; onPageSize?: (size: number) => void; noun?: string }
+
+// Baris pagination di bawah tabel: "1–25 dari 312 data", pilihan baris per halaman, nomor halaman
+export function Pager({ page, pageSize, total, onPage, onPageSize, noun = 'data' }: PagerProps) {
+  const count = Math.max(1, Math.ceil(total / pageSize))
+  if (total <= PAGE_SIZES[0] && !(onPageSize && pageSize < total)) return null
+  const go = (p: number) => onPage(Math.min(count, Math.max(1, p)))
+  return (
+    <nav className="pap-pager" aria-label="Pagination">
+      <span className="pap-pager-info">{total ? `${((page - 1) * pageSize + 1).toLocaleString('id-ID')}–${Math.min(page * pageSize, total).toLocaleString('id-ID')} dari ${total.toLocaleString('id-ID')} ${noun}` : `0 ${noun}`}</span>
+      {onPageSize && (
+        <label className="pap-pager-size">
+          <select className="pap-select" value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))} aria-label="Baris per halaman">
+            {PAGE_SIZES.map((s) => <option key={s} value={s}>{s} / halaman</option>)}
+          </select>
+        </label>
+      )}
+      {count > 1 && (
+        <div className="pap-pager-pages">
+          <button className="pap-icon-button" aria-label="Halaman pertama" disabled={page <= 1} onClick={() => go(1)}><ChevronsLeft /></button>
+          <button className="pap-icon-button" aria-label="Sebelumnya" disabled={page <= 1} onClick={() => go(page - 1)}><ChevronLeft /></button>
+          {pageNumbers(page, count).map((p, i) => p === '…'
+            ? <span key={`gap-${i}`} className="pap-pager-gap">…</span>
+            : <button key={p} className={`pap-pager-num ${p === page ? 'active' : ''}`} aria-current={p === page ? 'page' : undefined} onClick={() => go(p)}>{p}</button>)}
+          <button className="pap-icon-button" aria-label="Berikutnya" disabled={page >= count} onClick={() => go(page + 1)}><ChevronRight /></button>
+          <button className="pap-icon-button" aria-label="Halaman terakhir" disabled={page >= count} onClick={() => go(count)}><ChevronsRight /></button>
+        </div>
+      )}
+    </nav>
+  )
+}
+
+// Pagination di sisi tampilan untuk daftar yang sudah dimuat semua.
+// resetKey berubah (mis. filter / pencarian) -> kembali ke halaman 1; data berkurang -> halaman disesuaikan.
+export function usePaged<T>(items: T[], resetKey: unknown = null, initialSize: number = PAGE_SIZES[0]) {
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(initialSize)
+  const key = JSON.stringify(resetKey)
+  useEffect(() => setPage(1), [key])
+  const count = Math.max(1, Math.ceil(items.length / pageSize))
+  const current = Math.min(page, count)
+  const pageItems = useMemo(() => items.slice((current - 1) * pageSize, current * pageSize), [items, current, pageSize])
+  return {
+    items: pageItems,
+    offset: (current - 1) * pageSize,
+    pager: { page: current, pageSize, total: items.length, onPage: setPage, onPageSize: (s: number) => { setPageSize(s); setPage(1) } } satisfies PagerProps,
+  }
 }

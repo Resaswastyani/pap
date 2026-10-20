@@ -1,6 +1,6 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
-import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
+import { fail, handle, int, readJson, requireUser, str, pageParams } from '@/lib/api'
 import { db } from '@/lib/db'
 import {
   canSupervise, isMarketing, logActivity, MARKETING_DIVISIONS, parseDateTime, PROSPECT_SELECT, PROSPECT_SOURCES, PROSPECT_STATUS,
@@ -63,10 +63,10 @@ export const GET = handle(async (request: Request) => {
     where.push("p.status NOT IN ('handover', 'gagal')")
   }
   const view = url.searchParams.get('view')
-  const page = Math.max(1, int(url.searchParams.get('page')) ?? 1)
+  const { page, pageSize } = pageParams(url.searchParams, PAGE_SIZE)
   // Tampilan kanban butuh semua kartu aktif sekaligus (dibatasi 600)
-  const limit = view === 'kanban' ? 600 : PAGE_SIZE
-  const offset = view === 'kanban' ? 0 : (page - 1) * PAGE_SIZE
+  const limit = view === 'kanban' ? 600 : pageSize
+  const offset = view === 'kanban' ? 0 : (page - 1) * pageSize
   const [[{ total }]] = await db.query<(RowDataPacket & { total: number })[]>(`SELECT COUNT(*) AS total FROM prospects p WHERE ${where.join(' AND ')}`, params)
   const [items] = await db.query<RowDataPacket[]>(
     `${PROSPECT_SELECT} WHERE ${where.join(' AND ')}
@@ -81,7 +81,7 @@ export const GET = handle(async (request: Request) => {
   return NextResponse.json({
     items: items.map((p) => ({ ...p, activity_count: Number(p.activity_count) })),
     total: Number(total),
-    pageSize: PAGE_SIZE,
+    pageSize,
     summary: Object.fromEntries(summaryRows.map((r) => [r.status, Number(r.n)])),
     due: { overdue: Number(due.overdue), today: Number(due.today) },
     users,

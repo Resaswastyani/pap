@@ -48,3 +48,11 @@ export const int = (value: unknown) => {
   const n = Number(value)
   return Number.isInteger(n) ? n : null
 }
+
+// Pagination server: ?page=1&pageSize=25|50|100 (sama dengan pilihan di komponen Pager)
+export function pageParams(params: URLSearchParams, defaultSize = 25) {
+  const size = int(params.get('pageSize'))
+  const pageSize = size && [25, 50, 100].includes(size) ? size : defaultSize
+  const page = Math.max(1, int(params.get('page')) ?? 1)
+  return { page, pageSize, offset: (page - 1) * pageSize }
+}

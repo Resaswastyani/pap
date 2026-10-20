@@ -6,7 +6,7 @@ import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { toInputDateTime } from './marketing'
 import { DesignForm } from './request-page'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
 
 const PLATFORMS: Record<string, string> = { sosmed: 'Semua sosmed (IG/FB/TikTok)', instagram: 'Instagram', tiktok: 'TikTok', facebook: 'Facebook', website: 'Website / blog', whatsapp: 'WhatsApp blast', marketplace: 'Marketplace', google: 'Google (Maps / Ads)', lainnya: 'Lainnya' }
 const TYPES: Record<string, string> = { feed: 'Feed / post', reels: 'Reels / video pendek', story: 'Story', video: 'Video', artikel: 'Artikel', iklan: 'Iklan berbayar', blasting: 'Blasting pesan', lainnya: 'Lainnya' }
@@ -75,6 +75,7 @@ export function ContentPage({ user }: { user: UserProfile }) {
   }, [bulan, items])
   const todayKey = (() => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` })()
 
+  const pagedList = usePaged(items, items.length)
   return (
     <>
       <div className="pap-page-heading">
@@ -132,7 +133,7 @@ export function ContentPage({ user }: { user: UserProfile }) {
             <table>
               <thead><tr><th>Jadwal</th><th>Konten</th><th>PIC</th><th>Desain</th><th className="pap-num">Reach</th><th className="pap-num">Eng.</th><th className="pap-num">Lead</th><th>Status</th></tr></thead>
               <tbody>
-                {items.map((x) => (
+                {pagedList.items.map((x) => (
                   <tr key={x.id} className="pap-row-link" onClick={() => setForm(x)}>
                     <td>{formatDate(x.jadwal_tayang, true)}</td>
                     <td><div className="pap-cell-title">{x.judul}</div><div className="pap-cell-sub">{PLATFORMS[x.platform]} · {TYPES[x.jenis]}{x.target_sektor ? ` · ${x.target_sektor}` : ''}</div></td>
@@ -147,6 +148,7 @@ export function ContentPage({ user }: { user: UserProfile }) {
               </tbody>
             </table>
             {!items.length && <div className="pap-empty">Belum ada rencana konten bulan ini.</div>}
+            <Pager {...pagedList.pager} noun="konten" />
           </div>
         )}
         {tab === 'bank' && <ContentBank />}

@@ -1,6 +1,6 @@
 import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
-import { handle, int, requireUser, str } from '@/lib/api'
+import { handle, int, requireUser, str, pageParams } from '@/lib/api'
 import { requireMenu } from '@/lib/customers'
 import { db } from '@/lib/db'
 import { canManageProduction, canProgressProduction, canViewProduction, JOB_SELECT, JOB_STATUS, PRODUCTION_SO_MAX_AGE_DAYS, serializeJob } from '@/lib/production'
@@ -23,8 +23,7 @@ export const GET = handle(async (request: Request) => {
   if (q) where.push('(j.item_name LIKE ? OR j.so_number LIKE ? OR j.nomor LIKE ? OR j.spk_nomor LIKE ? OR c.name LIKE ?)'), args.push(...Array(5).fill(`%${q}%`))
   const machine = int(params.get('machine'))
   if (machine) where.push('EXISTS (SELECT 1 FROM production_stages s WHERE s.job_id = j.id AND s.machine_id = ?)'), args.push(machine)
-  const page = Math.max(1, int(params.get('page')) ?? 1)
-  const pageSize = 50
+  const { page, pageSize } = pageParams(params, 50)
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
   const [items] = await db.query<Parameters<typeof serializeJob>[0][]>(
     `${JOB_SELECT} ${whereSql}

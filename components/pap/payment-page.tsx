@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Clock3, FileText, Plus, Search, Wallet, XCircle } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
 
 type Status = 'menunggu' | 'diterima' | 'ditolak'
 const STATUS: Record<Status, string> = { menunggu: 'Menunggu verifikasi', diterima: 'Diterima', ditolak: 'Ditolak' }
@@ -57,6 +57,8 @@ export function PaymentPage({ user, focusId }: { user: UserProfile; focusId?: nu
   const flash = (t: string) => { setMessage(t); setTimeout(() => setMessage(''), 5000); load() }
   const piutang = unpaid.reduce((n, u) => n + u.total_amount, 0)
 
+  const paged = usePaged(items, items.length)
+  const pagedUnpaid = usePaged(unpaid, unpaid.length)
   return (
     <>
       <div className="pap-page-heading">
@@ -96,7 +98,7 @@ export function PaymentPage({ user, focusId }: { user: UserProfile; focusId?: nu
               <table>
                 <thead><tr><th>Pembayar</th><th>Jenis</th><th className="pap-num">Nominal</th><th>Tanggal bayar</th><th>Referensi</th><th>Dikirim</th><th>Status</th></tr></thead>
                 <tbody>
-                  {items.map((p) => (
+                  {paged.items.map((p) => (
                     <tr key={p.id} className="pap-row-link" onClick={() => setDetailId(p.id)}>
                       <td><div className="pap-cell-title">{p.pembayar}</div><div className="pap-cell-sub">{[p.customer_no, p.metode].filter(Boolean).join(' · ')}</div></td>
                       <td>{JENIS[p.jenis]}</td>
@@ -111,13 +113,14 @@ export function PaymentPage({ user, focusId }: { user: UserProfile; focusId?: nu
               </table>
               {!items.length && <div className="pap-empty">Belum ada konfirmasi pembayaran.</div>}
             </div>
+            <Pager {...paged.pager} noun="pembayaran" />
           </>
         ) : (
           <div className="pap-table-wrap">
             <table>
               <thead><tr><th>Faktur</th><th>Customer</th><th className="pap-num">Nilai</th><th className="pap-num">Umur</th><th>PIC</th></tr></thead>
               <tbody>
-                {unpaid.map((u, i) => (
+                {pagedUnpaid.items.map((u, i) => (
                   <tr key={`${u.number}-${i}`}>
                     <td>{u.number ?? '—'}<div className="pap-cell-sub">{formatDate(u.trans_date)}</div></td>
                     <td>{u.customer_name ?? '—'}<div className="pap-cell-sub">{u.customer_no ?? ''}</div></td>
@@ -129,6 +132,7 @@ export function PaymentPage({ user, focusId }: { user: UserProfile; focusId?: nu
               </tbody>
             </table>
             {!unpaid.length && <div className="pap-empty">Tidak ada faktur belum lunas{canVerify ? '' : ' untuk customer pegangan Anda'}.</div>}
+            <Pager {...pagedUnpaid.pager} noun="faktur" />
           </div>
         )}
       </div>

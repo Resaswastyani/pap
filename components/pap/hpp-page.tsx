@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Calculator, FileText, History, Layers, Pencil, Plus, Settings2, TrendingDown, TrendingUp } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { HPP_MODEL_LABEL, HPP_PARAM_KEYS, HPP_PARAM_LABEL, hitungHpp, rupiah, type HppModel, type HppParams } from '@/lib/hpp-calc'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
 
 export type Material = {
   id: number; kode: string; nama: string; jenis: 'resin' | 'pewarna' | 'tinta' | 'aditif' | 'lainnya'; satuan: string; harga: number; density: number | null
@@ -95,6 +95,7 @@ export function HppPage({ user: _user }: { user: UserProfile }) {
   const [history, setHistory] = useState<Material | null>(null)
   const flash = (text: string) => { setMessage(text); setTimeout(() => setMessage(''), 5000); reload() }
 
+  const pagedMaterials = usePaged(data?.materials ?? [], (data?.materials ?? []).length)
   return (
     <>
       <div className="pap-page-heading">
@@ -121,7 +122,7 @@ export function HppPage({ user: _user }: { user: UserProfile }) {
             <table>
               <thead><tr><th>Bahan</th><th>Jenis</th><th className="pap-num">Harga</th><th>Perubahan</th><th>Density</th><th>Diperbarui</th><th aria-label="Aksi" /></tr></thead>
               <tbody>
-                {data.materials.map((m) => {
+                {pagedMaterials.items.map((m) => {
                   const diff = m.harga_sebelumnya !== null && m.harga_sebelumnya > 0 ? ((m.harga - m.harga_sebelumnya) / m.harga_sebelumnya) * 100 : null
                   return (
                     <tr key={m.id} className={m.aktif ? '' : 'pap-row-muted'}>
@@ -141,6 +142,7 @@ export function HppPage({ user: _user }: { user: UserProfile }) {
               </tbody>
             </table>
           </div>
+          <Pager {...pagedMaterials.pager} noun="bahan" />
         </div>
       )}
       {data && tab === 'parameter' && <ParamsForm data={data} onSaved={flash} />}

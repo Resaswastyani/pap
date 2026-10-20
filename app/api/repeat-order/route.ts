@@ -1,6 +1,6 @@
 import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
-import { handle, int, requireUser, str } from '@/lib/api'
+import { handle, int, requireUser, str, pageParams } from '@/lib/api'
 import { db } from '@/lib/db'
 import { MARKETING_DIVISIONS } from '@/lib/marketing'
 import { REPEAT_BASE, REPEAT_STATUS, requireRepeatOrder, seesAllCustomers, serializeRepeat } from '@/lib/repeat-order'
@@ -41,11 +41,11 @@ export const GET = handle(async (request: Request) => {
   if (status === 'perlu') filter.push("status IN ('waktunya', 'berisiko')")
   else if (status === 'followup') filter.push('next_followup_at < CURDATE() + INTERVAL 1 DAY')
   else if (status in REPEAT_STATUS) filter.push(`status = ${db.escape(status)}`)
-  const page = Math.max(1, int(url.searchParams.get('page')) ?? 1)
+  const { page, pageSize } = pageParams(url.searchParams, PAGE_SIZE)
   const order = `ORDER BY FIELD(status, 'waktunya', 'berisiko', 'aman', 'nonaktif'), ${status === 'followup' ? 'next_followup_at,' : ''} hari_terlambat DESC, total_amount DESC`
   const filtered = `SELECT * FROM (${base}) y ${filter.length ? `WHERE ${filter.join(' AND ')}` : ''}`
   const [[{ total }]] = await db.query<(RowDataPacket & { total: number })[]>(`SELECT COUNT(*) AS total FROM (${filtered}) z`, params)
-  const [items] = await db.query<RowDataPacket[]>(`${filtered} ${order} LIMIT ? OFFSET ?`, [...params, PAGE_SIZE, (page - 1) * PAGE_SIZE])
+  const [items] = await db.query<RowDataPacket[]>(`${filtered} ${order} LIMIT ? OFFSET ?`, [...params, pageSize, (page - 1) * pageSize])
   const [users] = await db.query<RowDataPacket[]>(
     `SELECT u.id, u.name, d.code AS division_code, d.name AS division_name FROM users u JOIN divisions d ON d.id = u.division_id
      WHERE u.is_active = 1 AND d.code IN (?) ORDER BY d.code = 'marketing_maintenance' DESC, u.name`,
@@ -54,7 +54,7 @@ export const GET = handle(async (request: Request) => {
   return NextResponse.json({
     items: items.map(serializeRepeat),
     total: Number(total),
-    pageSize: PAGE_SIZE,
+    pageSize,
     summary: Object.fromEntries(summaryRows.map((r) => [r.status, Number(r.n)])),
     due: { today: Number(due.today), overdue: Number(due.overdue) },
     users,

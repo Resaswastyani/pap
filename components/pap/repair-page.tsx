@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertOctagon, CheckCircle2, Clock3, PauseCircle, Plus, Search, Siren, Wrench } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AttachmentPanel } from './attachments'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
 
 type Status = 'baru' | 'dikerjakan' | 'menunggu_part' | 'selesai' | 'batal'
 type Priority = 'darurat' | 'tinggi' | 'normal'
@@ -85,6 +85,7 @@ export function RepairPage({ user, focusId }: { user: UserProfile; focusId?: num
     ['selesai', summary.selesai_30, 'Selesai 30 hari', summary.rata_menit ? `Rata-rata ${formatDuration(summary.rata_menit)} sampai selesai` : 'Belum ada perbaikan selesai', CheckCircle2, 'stat-0'],
   ] : []
 
+  const paged = usePaged(items, items.length)
   return (
     <>
       <div className="pap-page-heading">
@@ -125,7 +126,7 @@ export function RepairPage({ user, focusId }: { user: UserProfile; focusId?: num
           <table>
             <thead><tr><th>Mesin</th><th>Keluhan</th><th>Prioritas</th><th>Teknisi</th><th>Status</th><th>Waktu</th></tr></thead>
             <tbody>
-              {items.map((r) => (
+              {paged.items.map((r) => (
                 <tr key={r.id} className="pap-row-link" onClick={() => setDetailId(r.id)}>
                   <td className="pap-nowrap"><div className="pap-cell-title">{r.machine_nama}</div><div className="pap-cell-sub">{r.machine_kode} · {r.machine_tahap}</div></td>
                   <td><div className="pap-repair-keluhan">{r.keluhan}</div><div className="pap-cell-sub">{r.nomor} · {r.reported_name} ({r.reporter_division})</div></td>
@@ -140,6 +141,7 @@ export function RepairPage({ user, focusId }: { user: UserProfile; focusId?: num
           {!loading && !items.length && <div className="pap-empty">{status === 'terbuka' ? 'Tidak ada kerusakan mesin yang terbuka.' : 'Tidak ada laporan yang cocok dengan filter.'}</div>}
           {loading && !items.length && <div className="pap-empty">Memuat laporan...</div>}
         </div>
+        <Pager {...paged.pager} noun="laporan" />
       </div>
       {formOpen && <RepairForm machines={machines} onClose={() => setFormOpen(false)} onSaved={(id) => { setFormOpen(false); flash('Laporan kerusakan terkirim. Teknik sudah mendapat notifikasi.'); setDetailId(id) }} />}
       {detailId && <RepairDetail id={detailId} user={user} onClose={() => setDetailId(null)} onChanged={load} />}

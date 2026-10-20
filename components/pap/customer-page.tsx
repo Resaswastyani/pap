@@ -1,11 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, FileText, Mail, MapPin, Pencil, Phone, Plus, Repeat, Search, UserMinus, UserPlus, Users } from 'lucide-react'
+import { ChevronRight, FileText, Mail, MapPin, Pencil, Phone, Plus, Repeat, Search, UserMinus, UserPlus, Users } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatRupiah } from './accurate'
 import { ProductDetail, ProductForm, type Product } from './product-page'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager } from './ui'
 
 type CrmStatus = 'pelanggan' | 'pembeli' | 'prospek' | 'pelanggan_nonaktif' | 'pembeli_nonaktif'
 type Customer = {
@@ -50,6 +50,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
   const [summary, setSummary] = useState<Record<CrmStatus, number>>({ pelanggan: 0, pembeli: 0, prospek: 0, pelanggan_nonaktif: 0, pembeli_nonaktif: 0 })
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
+  const [size, setSize] = useState(50)
   const [pageSize, setPageSize] = useState(50)
   const [inactiveDays, setInactiveDays] = useState(180)
   const [canManage, setCanManage] = useState(false)
@@ -64,7 +65,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ page: String(page) })
+      const params = new URLSearchParams({ page: String(page), pageSize: String(size) })
       if (q.trim()) params.set('q', q.trim())
       if (status) params.set('status', status)
       const res = await api<{ items: Customer[]; summary: Record<CrmStatus, number>; total: number; pageSize: number; inactiveDays: number; canManage: boolean }>(`/api/customers?${params}`)
@@ -80,7 +81,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
     } finally {
       setLoading(false)
     }
-  }, [q, status, page])
+  }, [q, status, page, size])
 
   useEffect(() => {
     const timer = setTimeout(load, q ? 300 : 0)
@@ -99,7 +100,6 @@ export function CustomerPage({ user }: { user: UserProfile }) {
     ['prospek', 'Prospek', summary.prospek, 'Belum ada transaksi', Users, 'stat-1'],
     ['nonaktif', 'Nonaktif', summary.pelanggan_nonaktif + summary.pembeli_nonaktif, `Tidak order > ${inactiveDays} hari`, UserMinus, 'stat-2'],
   ]
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   return (
     <>
@@ -153,13 +153,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
           {!loading && !items.length && <div className="pap-empty">{q || status ? 'Tidak ada customer yang cocok dengan filter.' : 'Belum ada data customer. Klik "Sinkron sekarang" untuk mengambil dari Accurate.'}</div>}
           {loading && !items.length && <div className="pap-empty">Memuat customer...</div>}
         </div>
-        {total > pageSize && (
-          <div className="pap-pager">
-            <span>{(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} dari {total}</span>
-            <button className="pap-icon-button" aria-label="Sebelumnya" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}><ChevronLeft /></button>
-            <button className="pap-icon-button" aria-label="Berikutnya" disabled={page >= pageCount} onClick={() => setPage((p) => p + 1)}><ChevronRight /></button>
-          </div>
-        )}
+        <Pager page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(v) => { setSize(v); setPage(1) }} />
       </div>
       {form && (
         <CustomerForm

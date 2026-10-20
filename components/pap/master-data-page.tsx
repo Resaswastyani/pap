@@ -1,13 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, ChevronLeft, ChevronRight, Cog, Database, ExternalLink, FileImage, FileText, FolderOpen, Image as ImageIcon, Layers, Package, Pencil, Plus, RefreshCw, Search, Trash2, Truck, Users } from 'lucide-react'
+import { AlertCircle, Cog, Database, ExternalLink, FileImage, FileText, FolderOpen, Image as ImageIcon, Layers, Package, Pencil, Plus, RefreshCw, Search, Trash2, Truck, Users } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { CustomerPage } from './customer-page'
 import { ExpeditionList } from './expedition-list'
 import { MachinePage } from './machine-page'
 import { CustomerSelect, ProductPage, type CustomerOption } from './product-page'
-import { api, Field, formatDate, formatSize, Modal, Notice } from './ui'
+import { api, Field, formatDate, formatSize, Modal, Notice, Pager } from './ui'
 
 type Tab = 'desain' | 'packaging' | 'produk' | 'customer' | 'mesin' | 'ekspedisi'
 const TABS: { key: Tab; label: string; icon: typeof Database; menu?: string }[] = [
@@ -145,7 +145,6 @@ function DesignLibrary() {
   }
 
   const roots = data?.roots ?? []
-  const pageCount = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1
   const lastScan = roots.map((r) => r.last_scan).filter(Boolean).sort().pop()
 
   return (
@@ -220,13 +219,7 @@ function DesignLibrary() {
           <div className="pap-empty">{data?.drive.enabled ? (q || bulan || root ? 'Tidak ada desain yang cocok dengan filter.' : 'Belum ada desain. Admin dapat klik "Sinkron Google Drive".') : 'Desain akan tampil setelah Google Drive terhubung.'}</div>
         )}
         {loading && !data && <div className="pap-empty">Memuat desain...</div>}
-        {data && data.total > data.pageSize && (
-          <div className="pap-pager">
-            <span>{(page - 1) * data.pageSize + 1}–{Math.min(page * data.pageSize, data.total)} dari {data.total}</span>
-            <button className="pap-icon-button" aria-label="Sebelumnya" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}><ChevronLeft /></button>
-            <button className="pap-icon-button" aria-label="Berikutnya" disabled={page >= pageCount} onClick={() => setPage((p) => p + 1)}><ChevronRight /></button>
-          </div>
-        )}
+        {data && <Pager page={page} pageSize={data.pageSize} total={data.total} onPage={setPage} noun="file desain" />}
       </div>
       {open && <DesignViewer file={open} canManage={!!data?.canManage} onClose={() => setOpen(null)} onChanged={() => { setOpen(null); load() }} />}
     </>

@@ -1,11 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, Download, ExternalLink, FileText, ImageIcon, Package, Pencil, Plus, Printer, Search, Trash2, Upload } from 'lucide-react'
+import { Download, ExternalLink, FileText, ImageIcon, Package, Pencil, Plus, Printer, Search, Trash2, Upload } from 'lucide-react'
 import { PRODUCT_FILE_ACCEPT, PRODUCT_FILE_MAX_BYTES } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatNumber, formatRupiah } from './accurate'
-import { api, Field, formatDate, formatSize, Modal, Notice } from './ui'
+import { api, Field, formatDate, formatSize, Modal, Notice, Pager } from './ui'
 
 export type Product = {
   id: number
@@ -71,6 +71,7 @@ export function ProductPage({ user, focusId }: { user: UserProfile; focusId?: nu
   const [status, setStatus] = useState('aktif')
   const [incomplete, setIncomplete] = useState(false)
   const [page, setPage] = useState(1)
+  const [size, setSize] = useState(50)
   const [total, setTotal] = useState(0)
   const [pageSize, setPageSize] = useState(50)
   const [form, setForm] = useState<Product | 'new' | null>(null)
@@ -79,7 +80,7 @@ export function ProductPage({ user, focusId }: { user: UserProfile; focusId?: nu
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ page: String(page) })
+      const params = new URLSearchParams({ page: String(page), pageSize: String(size) })
       if (q.trim()) params.set('q', q.trim())
       if (jenis) params.set('jenis', jenis)
       if (status) params.set('status', status)
@@ -96,9 +97,8 @@ export function ProductPage({ user, focusId }: { user: UserProfile; focusId?: nu
     } finally {
       setLoading(false)
     }
-  }, [q, jenis, status, incomplete, page])
+  }, [q, jenis, status, incomplete, page, size])
   useEffect(() => setPage(1), [q, jenis, status, incomplete])
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   useEffect(() => {
     const timer = setTimeout(load, q ? 300 : 0)
@@ -157,13 +157,7 @@ export function ProductPage({ user, focusId }: { user: UserProfile; focusId?: nu
           {!loading && !items.length && <div className="pap-empty">{q || jenis || incomplete ? 'Tidak ada produk yang cocok dengan filter.' : 'Belum ada produk. Klik "Sinkron sekarang" untuk mengambil dari Sales Order Accurate.'}</div>}
           {loading && !items.length && <div className="pap-empty">Memuat produk...</div>}
         </div>
-        {total > pageSize && (
-          <div className="pap-pager">
-            <span>{(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} dari {total}</span>
-            <button className="pap-icon-button" aria-label="Sebelumnya" disabled={page <= 1} onClick={() => setPage((v) => v - 1)}><ChevronLeft /></button>
-            <button className="pap-icon-button" aria-label="Berikutnya" disabled={page >= pageCount} onClick={() => setPage((v) => v + 1)}><ChevronRight /></button>
-          </div>
-        )}
+        <Pager page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(v) => { setSize(v); setPage(1) }} />
       </div>
       {form && (
         <ProductForm
