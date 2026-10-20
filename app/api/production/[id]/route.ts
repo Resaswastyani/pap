@@ -40,7 +40,7 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   if ('prioritas' in body) sets.push('prioritas = ?'), args.push(body.prioritas === 'tinggi' ? 'tinggi' : 'normal')
   if ('catatan' in body) sets.push('catatan = ?'), args.push(str(body.catatan, 5000) || null)
   // Isi SPK: target hasil, formulasi / campuran bahan, tingkat kualitas, acuan kerja. SPK yang sudah terbit dikunci: tarik dulu untuk merevisi.
-  const spkFields = ['target_qty', 'formulasi', 'tingkat_kualitas', 'acuan_kerja'].filter((key) => key in body)
+  const spkFields = ['target_qty', 'formulasi', 'formulasi_id', 'tingkat_kualitas', 'acuan_kerja'].filter((key) => key in body)
   if (spkFields.length && job.spk_nomor && body.tarik_spk !== true) fail(400, 'SPK sudah terbit. Tarik SPK dulu untuk merevisi isinya.')
   if ('target_qty' in body) {
     const raw = body.target_qty === null || body.target_qty === '' ? null : Number(String(body.target_qty).replace(',', '.'))
@@ -48,6 +48,16 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
     sets.push('target_qty = ?'), args.push(raw)
   }
   if ('formulasi' in body) sets.push('formulasi = ?'), args.push(str(body.formulasi, 10000) || null)
+  // Formulasi dari database Formulasi Produk (teks formulasi tetap disimpan sebagai salinan di SPK)
+  if ('formulasi_id' in body) {
+    const formulasiId = body.formulasi_id ? int(body.formulasi_id) : null
+    if (formulasiId) {
+      const [[f]] = await db.query<RowDataPacket[]>('SELECT status FROM formulations WHERE id = ?', [formulasiId])
+      if (!f) fail(400, 'Formulasi tidak ditemukan.')
+      if (f.status !== 'aktif' && formulasiId !== job.formulasi_id) fail(400, 'Formulasi sudah diarsipkan.')
+    }
+    sets.push('formulasi_id = ?'), args.push(formulasiId)
+  }
   if ('tingkat_kualitas' in body) sets.push('tingkat_kualitas = ?'), args.push(str(body.tingkat_kualitas, 100) || null)
   if ('acuan_kerja' in body) sets.push('acuan_kerja = ?'), args.push(str(body.acuan_kerja, 10000) || null)
   // Terbitkan SPK: nomor SPK-YYYYMM-<id job>, terbit ulang setelah ditarik diberi akhiran revisi (-R1, -R2, ...)

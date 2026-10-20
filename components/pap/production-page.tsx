@@ -6,6 +6,7 @@ import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatNumber } from './accurate'
 import { AttachmentPanel } from './attachments'
 import { QcForm, ResultForm, ResultsTable, type Result } from './results-page'
+import { FormulaBar, formulaSnapshot, type Formulation } from './formulation-page'
 import { api, Field, formatDate, Modal, Notice, Progress, type UserOption } from './ui'
 
 type JobStatus = 'menunggu' | 'dijadwalkan' | 'berjalan' | 'selesai' | 'batal'
@@ -31,6 +32,9 @@ type Job = {
   spk_ditarik_name: string | null
   spk_alasan_tarik: string | null
   formulasi: string | null
+  formulasi_id: number | null
+  formulasi_kode: string | null
+  formulasi_versi: number | null
   tingkat_kualitas: string | null
   acuan_kerja: string | null
   due_date: string | null
@@ -356,7 +360,8 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
   const [users, setUsers] = useState<UserOption[]>([])
   const [editing, setEditing] = useState<EditableStage[] | null>(null)
   const [catatan, setCatatan] = useState('')
-  const [spkForm, setSpkForm] = useState({ target_qty: '', tingkat_kualitas: '', formulasi: '', acuan_kerja: '' })
+  const [spkForm, setSpkForm] = useState({ target_qty: '', tingkat_kualitas: '', formulasi: '', formulasi_id: '', acuan_kerja: '' })
+  const [formulas, setFormulas] = useState<Formulation[] | null>(null)
   const [tarik, setTarik] = useState<string | null>(null)
   const [results, setResults] = useState<Result[]>([])
   const [resultCan, setResultCan] = useState({ report: false, qc: false, manage: false })
@@ -376,7 +381,7 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
       setStock(res.stock)
       setCan(res.can)
       setCatatan(res.item.catatan ?? '')
-      setSpkForm({ target_qty: res.item.target_qty === null ? '' : String(res.item.target_qty), tingkat_kualitas: res.item.tingkat_kualitas ?? '', formulasi: res.item.formulasi ?? '', acuan_kerja: res.item.acuan_kerja ?? '' })
+      setSpkForm({ target_qty: res.item.target_qty === null ? '' : String(res.item.target_qty), tingkat_kualitas: res.item.tingkat_kualitas ?? '', formulasi: res.item.formulasi ?? '', formulasi_id: res.item.formulasi_id ? String(res.item.formulasi_id) : '', acuan_kerja: res.item.acuan_kerja ?? '' })
       const rs = await api<{ items: Result[]; can: typeof resultCan }>(`/api/production/results?job=${id}`)
       setResults(rs.items)
       setResultCan(rs.can)
@@ -390,6 +395,11 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
     api<{ items: Machine[] }>('/api/machines').then((res) => setMachines(res.items.filter((m) => m.status !== 'nonaktif'))).catch(() => {})
     api<{ items: UserOption[] }>('/api/users/options').then((res) => setUsers(res.items)).catch(() => {})
   }, [can.manage])
+
+  useEffect(() => {
+    if (!can.manage || !job || job.spk_nomor || formulas) return
+    api<{ items: Formulation[] }>('/api/formulations?status=aktif').then((r) => setFormulas(r.items)).catch(() => setFormulas([]))
+  }, [can.manage, job, formulas])
 
   async function run(action: () => Promise<unknown>, text?: string) {
     setBusy(true)
@@ -471,12 +481,25 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
           <div className="pap-form-grid">
             <Field label="Target jumlah produksi" hint={`Kosong = jumlah pesanan (${qty(job.quantity, job.unit)}). Satuan: ${job.unit ?? '—'}`}><input className="pap-input" inputMode="decimal" value={spkForm.target_qty} onChange={(e) => setSpkForm((v) => ({ ...v, target_qty: e.target.value }))} placeholder={job.quantity === null ? '' : String(job.quantity)} /></Field>
             <Field label="Tingkat kualitas"><input className="pap-input" maxLength={100} value={spkForm.tingkat_kualitas} onChange={(e) => setSpkForm((v) => ({ ...v, tingkat_kualitas: e.target.value }))} placeholder="mis. Grade A, food grade, reguler" /></Field>
-            <Field label="Formulasi / campuran bahan" full><textarea className="pap-input" rows={3} maxLength={10000} value={spkForm.formulasi} onChange={(e) => setSpkForm((v) => ({ ...v, formulasi: e.target.value }))} placeholder="mis. HD 70% · LLDPE 25% · masterbatch putih 5%" /></Field>
+            <Field label="Formulasi / campuran bahan" full hint="Pilih dari database Formulasi Produk; teks komposisi disalin ke SPK dan masih bisa disesuaikan.">
+              <div className="pap-spk-formula">
+                <select className="pap-select" value={spkForm.formulasi_id} onChange={(e) => {
+                  const f = formulas?.find((x) => String(x.id) === e.target.value)
+                  setSpkForm((v) => ({ ...v, formulasi_id: e.target.value, formulasi: f ? formulaSnapshot(f) : v.formulasi, tingkat_kualitas: v.tingkat_kualitas || f?.tingkat_kualitas || '' }))
+                }} aria-label="Pilih formulasi">
+                  <option value="">{formulas === null ? 'Memuat formulasi...' : formulas.length ? '— Pilih dari database formulasi —' : 'Belum ada formulasi di database'}</option>
+                  {spkForm.formulasi_id && !formulas?.some((f) => String(f.id) === spkForm.formulasi_id) && <option value={spkForm.formulasi_id}>{job.formulasi_kode ?? 'Formulasi'} v{job.formulasi_versi}</option>}
+                  {formulas?.map((f) => <option key={f.id} value={f.id}>{f.kode} v{f.versi} · {f.nama}{f.jenis_plastik ? ` (${f.jenis_plastik})` : ''}</option>)}
+                </select>
+              </div>
+              {(() => { const f = formulas?.find((x) => String(x.id) === spkForm.formulasi_id); return f ? <FormulaBar items={f.items} /> : null })()}
+            </Field>
+            <Field label="Teks formulasi di SPK" full><textarea className="pap-input" rows={3} maxLength={10000} value={spkForm.formulasi} onChange={(e) => setSpkForm((v) => ({ ...v, formulasi: e.target.value }))} placeholder="mis. HD 70% · LLDPE 25% · masterbatch putih 5%" /></Field>
             <Field label="Acuan kerja untuk KA Shift" full><textarea className="pap-input" rows={3} maxLength={10000} value={spkForm.acuan_kerja} onChange={(e) => setSpkForm((v) => ({ ...v, acuan_kerja: e.target.value }))} placeholder="Ukuran, ketebalan, warna cetak, standar seal, sample acuan, dll." /></Field>
             <div className="full pap-inline-actions">
               <span className="pap-spacer" />
-              <button className="pap-btn" disabled={busy || (spkForm.target_qty === (job.target_qty === null ? '' : String(job.target_qty)) && spkForm.tingkat_kualitas === (job.tingkat_kualitas ?? '') && spkForm.formulasi === (job.formulasi ?? '') && spkForm.acuan_kerja === (job.acuan_kerja ?? ''))} onClick={() => run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { ...spkForm, target_qty: spkForm.target_qty || null } }), 'Isi SPK disimpan.')}>Simpan isi SPK</button>
-              {!job.spk_nomor && <button className="pap-primary-button" disabled={busy} onClick={() => window.confirm('Terbitkan SPK untuk job ini? Nomor SPK dibuat dan SPK bisa dicetak untuk Produksi.') && run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { ...spkForm, target_qty: spkForm.target_qty || null, terbitkan_spk: true } }), 'SPK diterbitkan.')}><Stamp /> {job.spk_revisi ? `Terbitkan ulang SPK (revisi R${job.spk_revisi})` : 'Terbitkan SPK'}</button>}
+              <button className="pap-btn" disabled={busy || (spkForm.target_qty === (job.target_qty === null ? '' : String(job.target_qty)) && spkForm.tingkat_kualitas === (job.tingkat_kualitas ?? '') && spkForm.formulasi === (job.formulasi ?? '') && spkForm.formulasi_id === (job.formulasi_id ? String(job.formulasi_id) : '') && spkForm.acuan_kerja === (job.acuan_kerja ?? ''))} onClick={() => run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { ...spkForm, target_qty: spkForm.target_qty || null, formulasi_id: spkForm.formulasi_id || null } }), 'Isi SPK disimpan.')}>Simpan isi SPK</button>
+              {!job.spk_nomor && <button className="pap-primary-button" disabled={busy} onClick={() => window.confirm('Terbitkan SPK untuk job ini? Nomor SPK dibuat dan SPK bisa dicetak untuk Produksi.') && run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { ...spkForm, target_qty: spkForm.target_qty || null, formulasi_id: spkForm.formulasi_id || null, terbitkan_spk: true } }), 'SPK diterbitkan.')}><Stamp /> {job.spk_revisi ? `Terbitkan ulang SPK (revisi R${job.spk_revisi})` : 'Terbitkan SPK'}</button>}
             </div>
           </div>
         ) : (
@@ -484,7 +507,7 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
             <div className="pap-spec-grid">
               <div><span>Target produksi</span><p>{qty(targetOf(job), job.unit)}</p></div>
               <div><span>Tingkat kualitas</span><p>{job.tingkat_kualitas || <span className="pap-muted">—</span>}</p></div>
-              <div><span>Formulasi / campuran bahan</span><p className="pap-prewrap">{job.formulasi || <span className="pap-muted">Belum diisi PPIC.</span>}</p></div>
+              <div><span>Formulasi / campuran bahan{job.formulasi_kode ? ` · ${job.formulasi_kode}` : ''}</span><p className="pap-prewrap">{job.formulasi || <span className="pap-muted">Belum diisi PPIC.</span>}</p></div>
               <div><span>Acuan kerja</span><p className="pap-prewrap">{job.acuan_kerja || <span className="pap-muted">Belum diisi PPIC.</span>}</p></div>
             </div>
             {/* SPK terbit dikunci; revisi lewat Tarik SPK (job produksi & laporan hasil tetap berjalan) */}

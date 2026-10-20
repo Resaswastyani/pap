@@ -1262,3 +1262,26 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 }
 @media (max-width:800px) { .pap-table-wrap table.pap-kpi-table:not(.pap-perm-table):not(.pap-shift-table) td[data-title]::before { display:none; } }
 @media (max-width:640px) { .pap-shift-wrap { max-height:70vh; max-height:70dvh; } }
+
+/* ---------- Formulasi Produk ---------- */
+.pap-fieldset { min-width:0; margin:0; padding:0; border:0; }
+.pap-formula { display:flex; flex-direction:column; gap:6px; min-width:220px; margin-top:6px; }
+.pap-formula-bar { display:flex; height:10px; overflow:hidden; border-radius:99px; background:var(--pap-border); }
+.pap-formula-bar span { height:100%; }
+.pap-formula-legend { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11px; color:var(--pap-muted); }
+.pap-formula-legend span { display:inline-flex; align-items:center; gap:5px; }
+.pap-formula-legend i { width:8px; height:8px; border-radius:2px; }
+.pap-formula-legend b { color:var(--pap-text); }
+.pap-formula-rows { display:flex; flex-direction:column; gap:8px; margin:10px 0; }
+.pap-formula-row { display:grid; grid-template-columns:minmax(0,2fr) 110px minmax(0,2fr) 38px; gap:8px; align-items:center; }
+.pap-input-suffix { position:relative; display:block; }
+.pap-input-suffix input { padding-right:28px; text-align:right; }
+.pap-input-suffix span { position:absolute; top:50%; right:10px; color:var(--pap-muted); font-size:12px; transform:translateY(-50%); }
+.pap-pick-list { display:flex; flex-direction:column; max-height:220px; overflow:auto; margin-top:6px; border:1px solid var(--pap-border); border-radius:10px; }
+.pap-pick-list button { display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:8px 12px; border:0; border-bottom:1px solid var(--pap-border); background:var(--pap-surface); color:var(--pap-text); font-size:12px; text-align:left; cursor:pointer; }
+.pap-pick-list button:hover { background:rgb(124 92 252 / .06); }
+.pap-pick-list small { color:var(--pap-muted); font-size:11px; }
+.pap-formula-jobs { margin:6px 0 0; padding-left:18px; font-size:12px; line-height:1.9; }
+.pap-spk-formula { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:6px; }
+.pap-spk-formula .pap-select { flex:1; min-width:220px; }
+@media (max-width:800px) { .pap-formula-row { grid-template-columns:1fr 100px 38px; } .pap-formula-row > input.pap-input { grid-column:1 / -1; grid-row:2; } }

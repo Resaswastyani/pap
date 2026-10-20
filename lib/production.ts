@@ -90,7 +90,7 @@ export async function refreshJobStatus(jobId: number) {
 export const GOOD_QTY_SQL = "CASE r.status_qc WHEN 'reject' THEN 0 ELSE r.jumlah_hasil - r.jumlah_reject END"
 
 export const JOB_SELECT = `SELECT j.id, j.nomor, j.spk_nomor, j.spk_terbit_at, us.name AS spk_terbit_name, j.spk_revisi, j.spk_ditarik_at, ut.name AS spk_ditarik_name, j.spk_alasan_tarik, j.so_accurate_id, j.so_number, j.line_id, j.customer_id, c.name AS customer_name, j.product_id,
-  j.item_accurate_id, j.item_name, j.quantity, j.unit, j.target_qty, j.due_date, j.status, j.prioritas, j.catatan, j.formulasi, j.tingkat_kualitas, j.acuan_kerja, j.created_at, j.updated_at,
+  j.item_accurate_id, j.item_name, j.quantity, j.unit, j.target_qty, j.due_date, j.status, j.prioritas, j.catatan, j.formulasi, j.formulasi_id, fm.kode AS formulasi_kode, fm.versi AS formulasi_versi, j.tingkat_kualitas, j.acuan_kerja, j.created_at, j.updated_at,
   (SELECT SUM(${GOOD_QTY_SQL}) FROM production_results r WHERE r.stage_id = (
      SELECT s.id FROM production_stages s WHERE s.job_id = j.id AND s.status <> 'dilewati' ORDER BY s.urutan DESC LIMIT 1)) AS hasil_baik,
   so.trans_date AS so_date, so.status AS so_status,
@@ -105,9 +105,10 @@ export const JOB_SELECT = `SELECT j.id, j.nomor, j.spk_nomor, j.spk_terbit_at, u
   LEFT JOIN customers c ON c.id = j.customer_id
   LEFT JOIN accurate_sales_orders so ON so.accurate_id = j.so_accurate_id
   LEFT JOIN users us ON us.id = j.spk_terbit_oleh
-  LEFT JOIN users ut ON ut.id = j.spk_ditarik_oleh`
+  LEFT JOIN users ut ON ut.id = j.spk_ditarik_oleh
+  LEFT JOIN formulations fm ON fm.id = j.formulasi_id`
 
-type JobRow = RowDataPacket & { id: number; status: JobStatus; product_id: number | null; item_accurate_id: number | null; item_name: string; spk_nomor: string | null }
+type JobRow = RowDataPacket & { id: number; status: JobStatus; product_id: number | null; item_accurate_id: number | null; item_name: string; spk_nomor: string | null; formulasi_id: number | null }
 export const serializeJob = (row: JobRow) => ({
   ...row,
   quantity: row.quantity === null ? null : Number(row.quantity),
