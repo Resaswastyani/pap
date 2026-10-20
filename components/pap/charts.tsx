@@ -1,9 +1,22 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 
 // Grafik ringan tanpa library: kolom (1 seri), batang horizontal, dan Gantt.
 // Warna diambil dari token --viz-* di globals.css agar ikut tema terang/gelap.
+
+// true bila media query cocok (mis. layar HP); ikut berubah saat layar diputar / diubah ukurannya
+export function useMediaQuery(query: string) {
+  const [match, setMatch] = useState(false)
+  useEffect(() => {
+    const mql = window.matchMedia(query)
+    const update = () => setMatch(mql.matches)
+    update()
+    mql.addEventListener('change', update)
+    return () => mql.removeEventListener('change', update)
+  }, [query])
+  return match
+}
 
 type Tip = { x: number; y: number; content: ReactNode } | null
 
@@ -177,12 +190,14 @@ export function Gantt({ start, days, rows, legend, empty }: { start: number; day
                 })}
                 {row.markers?.map((m) => {
                   const at = pct(m.at)
-                  if (at < 0 || at > 100) return null
+                  if (at > 100) return null
+                  // Tenggat yang sudah lewat sebelum jendela ditempel di tepi kiri agar tetap terlihat
+                  const clamped = at < 0
                   return (
                     <span
                       key={m.key}
-                      className={`pap-gantt2-marker ${m.tone}`}
-                      style={{ left: `${at}%` }}
+                      className={`pap-gantt2-marker ${m.tone} ${clamped ? 'clamped' : ''}`}
+                      style={{ left: clamped ? '6px' : `${at}%` }}
                       onMouseEnter={(e) => setTip(tipAt(e, m.tip))}
                     />
                   )

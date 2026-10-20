@@ -14,7 +14,9 @@ export const GET = handle(async (request: Request, ctx: Ctx) => {
   // Word mengambil logo lewat URL lengkap
   const body = quotationDocumentHtml(data, jenis, `${url.origin}/logo-pap.png`)
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="utf-8"><title>${nomor}</title><style>${WORD_CSS}</style></head><body>${body}</body></html>`
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${nomor}</title>
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->
+<style>${WORD_CSS}</style></head><body>${body}</body></html>`
   return new Response(`﻿${html}`, {
     headers: {
       'Content-Type': 'application/msword; charset=utf-8',

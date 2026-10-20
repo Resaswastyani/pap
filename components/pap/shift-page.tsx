@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, CalendarX, ChevronLeft, ChevronRight, Clock, ExternalLink, FileSpreadsheet, Moon, RefreshCw, Search, Sun, Sunrise, Truck, Users } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { api, Field, formatDate, Modal, Notice } from './ui'
@@ -36,9 +36,12 @@ export function ShiftPage(_props: { user: UserProfile }) {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [search, setSearch] = useState('')
+  // Di HP tabel bulanan terlalu lebar: mulai dari tampilan per hari
   const [view, setView] = useState<'bulan' | 'hari'>('bulan')
+  useEffect(() => { if (window.matchMedia('(max-width: 640px)').matches) setView('hari') }, [])
   const [day, setDay] = useState(0)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
     try {
@@ -55,6 +58,14 @@ export function ShiftPage(_props: { user: UserProfile }) {
   const now = new Date()
   const thisMonth = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`
   const today = data?.periode === thisMonth ? now.getDate() : 0
+  // Tabel bulanan: geser otomatis agar kolom hari ini terlihat (di sebelah kolom nama yang menempel)
+  useEffect(() => {
+    const wrap = wrapRef.current
+    const cell = wrap?.querySelector<HTMLElement>('th.date.today')
+    const nama = wrap?.querySelector<HTMLElement>('thead th.nama')
+    if (!wrap || !cell || !nama) return
+    wrap.scrollLeft = Math.max(0, cell.offsetLeft - (nama.offsetLeft + nama.offsetWidth) - cell.offsetWidth * 2)
+  }, [view, data, today])
   // Tampilan per hari: default hari ini (atau tanggal 1 di bulan lain)
   const selectedDay = Math.min(day || today || 1, data?.days ?? 31)
   const dates = useMemo(() => Array.from({ length: data?.days ?? 0 }, (_, i) => {
@@ -146,7 +157,7 @@ export function ShiftPage(_props: { user: UserProfile }) {
               {data.schedule && <span className="pap-muted">Sinkron {formatDate(data.schedule.synced_at, true)}{data.schedule.synced_name ? ` oleh ${data.schedule.synced_name}` : ''}</span>}
             </div>
             {view === 'bulan' ? (
-              <div className="pap-shift-wrap">
+              <div className="pap-shift-wrap" ref={wrapRef}>
                 <table className="pap-shift-table">
                   <thead>
                     <tr>

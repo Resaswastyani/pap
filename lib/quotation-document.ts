@@ -98,6 +98,7 @@ ${jenis === 'proforma' ? '<p>Mohon lakukan pembayaran ke rekening di atas dan ki
 export const WORD_CSS = `
 @page { size: 21cm 29.7cm; margin: 1.6cm 1.6cm; }
 body { font-family: Arial, sans-serif; font-size: 10.5pt; color: #111; }
+img { max-width: 100%; height: auto; }
 .pap-sheet-head { width: 100%; border-collapse: collapse; border-bottom: 3px double #1f2a5a; }
 .pap-sheet-head td { vertical-align: middle; padding: 0 12pt 8pt 0; }
 .pap-sheet-head td.logo { width: 100pt; }

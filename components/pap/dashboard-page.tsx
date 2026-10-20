@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle, CalendarClock, CalendarDays, ClipboardList, Factory, FlaskConical, Handshake, ListChecks, MapPin, Palette, Repeat, Target, TrendingDown, TrendingUp } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
-import { BarList, ColumnChart, dayNumber, Gantt, todayNumber, type GanttBar, type GanttRow } from './charts'
+import { BarList, ColumnChart, dayNumber, Gantt, todayNumber, useMediaQuery, type GanttBar, type GanttRow } from './charts'
 import { api, formatDate, Notice, Progress } from './ui'
 
 type Metric = { label: string; satuan: string }
@@ -47,8 +47,9 @@ const STAGE_STATUS: Record<string, string> = { belum: 'Belum mulai', berjalan: '
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 const monthLabel = (ym: string) => `${MONTHS[Number(ym.slice(5, 7)) - 1]} ${ym.slice(2, 4)}`
 const shortRp = (v: number) => (v >= 1e9 ? `${(v / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 1 })} M` : v >= 1e6 ? `${(v / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 })} jt` : v.toLocaleString('id-ID'))
-const GANTT_DAYS = 28
-const GANTT_BEFORE = 7
+// Jendela Gantt: 4 minggu di layar lebar, 2 minggu di HP agar tiap hari tetap terbaca
+const GANTT_WIDE = { days: 28, before: 7 }
+const GANTT_NARROW = { days: 14, before: 3 }
 
 // 12 bulan terakhir lengkap (bulan tanpa faktur tetap tampil bernilai 0)
 function lastMonths(count: number) {
@@ -85,6 +86,10 @@ function productionRows(jobs: GanttJob[], today: number, onOpen: () => void): Ga
       const start = job.so_date ? dayNumber(job.so_date) : due - 7
       bars.push({ key: `w${job.id}`, start, end: due + 1, tone: 'window', label: 'Belum dijadwalkan', tip: <><b>{job.nomor ?? job.item_name}</b><span>Belum ada tahap terjadwal</span><span>SO {formatDate(job.so_date)} · kirim {formatDate(job.due_date)}</span></> })
     }
+    // Keterlambatan: dari tanggal kirim sampai hari ini
+    if (late && due !== null) {
+      bars.push({ key: `late${job.id}`, start: due + 1, end: today + 1, tone: 'overdue', label: `+${today - due} hari`, tip: <><b>{job.nomor ?? job.item_name}</b><span>Tanggal kirim {formatDate(job.due_date)}</span><span>Terlambat {today - due} hari</span></> })
+    }
     return {
       key: `j${job.id}`,
       label: `${job.nomor ? `${job.nomor} · ` : ''}${job.item_name}`,
@@ -110,7 +115,11 @@ function planningRows(items: GanttPlanning[], today: number, onOpen: (id: number
       bars: [{
         key: 'b', start, end, tone: late ? 'plan late' : 'plan', progress: p.progress, label: `${p.progress}%`,
         tip: <><b>{p.judul}</b><span>{formatDate(p.tanggal_mulai)} → {formatDate(p.tanggal_selesai)}</span><span>{p.status === 'berjalan' ? 'Berjalan' : 'Belum mulai'} · progress {p.progress}%{late ? ' · terlambat' : ''}</span></>,
-      }],
+      }, ...(late ? [{
+        key: 'late', start: end, end: today + 1, tone: 'overdue', label: `+${today + 1 - end} hari`,
+        tip: <><b>{p.judul}</b><span>Target selesai {formatDate(p.tanggal_selesai)}</span><span>Terlambat {today + 1 - end} hari · progress {p.progress}%</span></>,
+      }] : [])],
+      markers: late ? [{ key: 'end', at: end - 0.5, tone: 'late' as const, tip: <><b>Target selesai (lewat)</b><span>{formatDate(p.tanggal_selesai)}</span></> }] : [],
       onClick: () => onOpen(p.id),
     }
   })
@@ -119,6 +128,7 @@ function planningRows(items: GanttPlanning[], today: number, onOpen: (id: number
 export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavigate: (menu: string, target?: DashboardTarget) => void }) {
   const [data, setData] = useState<DashboardData | null>(null)
   const [error, setError] = useState('')
+  const narrow = useMediaQuery('(max-width: 640px)')
   useEffect(() => { api<DashboardData>('/api/dashboard').then(setData).catch((e) => setError(e.message)) }, [])
   const hour = new Date().getHours()
   const salam = hour < 11 ? 'Selamat pagi' : hour < 15 ? 'Selamat siang' : hour < 19 ? 'Selamat sore' : 'Selamat malam'
@@ -136,7 +146,8 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
   const avgMonth = fullMonths.length ? fullMonths.reduce((a, b) => a + b, 0) / fullMonths.length : 0
   const topMax = Math.max(1, ...(sales?.top.map((t) => t.omzet) ?? [1]))
   const dayToday = todayNumber()
-  const ganttStart = dayToday - GANTT_BEFORE
+  const gantt = narrow ? GANTT_NARROW : GANTT_WIDE
+  const ganttStart = dayToday - gantt.before
   const funnelTotal = d.marketing ? FUNNEL.reduce((sum, [k]) => sum + (d.marketing!.funnel[k] ?? 0), 0) : 0
   const empty = data && !Object.keys(data).length
 
@@ -212,14 +223,14 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         {d.produksi && (
           <section className="pap-table-card pap-dash-card wide">
             <div className="pap-card-head">
-              <div><h2>Timeline produksi</h2><p>Tahap terjadwal & tanggal kirim · {GANTT_BEFORE} hari lalu s/d 3 minggu ke depan</p></div>
+              <div><h2>Timeline produksi</h2><p>Tahap terjadwal & tanggal kirim · {gantt.before} hari lalu s/d {gantt.days - gantt.before - 1} hari ke depan</p></div>
               <button className="pap-btn" onClick={() => onNavigate('Jadwal Produksi')}>Jadwal lengkap</button>
             </div>
             <Gantt
               start={ganttStart}
-              days={GANTT_DAYS}
+              days={gantt.days}
               rows={productionRows(d.produksi.gantt, dayToday, () => onNavigate('Jadwal Produksi'))}
-              legend={[{ tone: 's1', label: 'Blow' }, { tone: 's2', label: 'Cetak' }, { tone: 's3', label: 'Bag making' }, { tone: 's4', label: 'Lainnya' }, { tone: 'window', label: 'Belum dijadwalkan' }, { tone: 'due', label: 'Tanggal kirim', shape: 'marker' }, { tone: 'late', label: 'Lewat tenggat', shape: 'marker' }]}
+              legend={[{ tone: 's1', label: 'Blow' }, { tone: 's2', label: 'Cetak' }, { tone: 's3', label: 'Bag making' }, { tone: 's4', label: 'Lainnya' }, { tone: 'window', label: 'Belum dijadwalkan' }, { tone: 'overdue', label: 'Keterlambatan' }, { tone: 'due', label: 'Tanggal kirim', shape: 'marker' }, { tone: 'late', label: 'Lewat tenggat', shape: 'marker' }]}
               empty="Tidak ada job aktif dalam rentang ini."
             />
           </section>
@@ -233,9 +244,9 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
             </div>
             <Gantt
               start={ganttStart}
-              days={GANTT_DAYS}
+              days={gantt.days}
               rows={planningRows(d.planningGantt, dayToday, (id) => onNavigate('Planning', { planningId: id }))}
-              legend={[{ tone: 'plan', label: 'Rentang planning' }, { tone: 'plan-done', label: 'Progress' }, { tone: 'late', label: 'Terlambat', shape: 'marker' }]}
+              legend={[{ tone: 'plan', label: 'Rentang planning' }, { tone: 'plan-done', label: 'Progress' }, { tone: 'overdue', label: 'Keterlambatan' }, { tone: 'late', label: 'Target lewat', shape: 'marker' }]}
               empty="Tidak ada planning aktif."
             />
           </section>
