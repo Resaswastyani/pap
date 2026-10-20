@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { History, KeyRound, List, Pencil, Plus, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
-import { api, Field, formatDate, Modal, Notice, PasswordInput } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, PasswordInput, usePaged } from './ui'
 import { UserActivityLog } from './user-activity'
 
 type Division = { id: number; code: string; name: string; has_levels: boolean }
@@ -77,6 +77,7 @@ export function UsersPage({ user }: { user: UserProfile }) {
     }
   }
 
+  const paged = usePaged(visible, visible.length)
   return (
     <>
       <div className="pap-page-heading">
@@ -109,7 +110,7 @@ export function UsersPage({ user }: { user: UserProfile }) {
           <table>
             <thead><tr><th>Nama / Email</th><th>Divisi</th><th>Role</th><th>Status</th><th>Login terakhir</th><th aria-label="Aksi" /></tr></thead>
             <tbody>
-              {visible.map((item) => (
+              {paged.items.map((item) => (
                 <tr key={item.id}>
                   <td><div className="pap-cell-title">{item.name}{item.id === user.id && <span className="pap-chip">Anda</span>}</div><div className="pap-cell-sub">{item.email}</div></td>
                   <td>{item.division_name}</td>
@@ -133,6 +134,7 @@ export function UsersPage({ user }: { user: UserProfile }) {
           </table>
           {!visible.length && <div className="pap-empty">Tidak ada user yang cocok.</div>}
         </div>
+        <Pager {...paged.pager} noun="user" />
       </div>}
       {form && (
         <UserForm

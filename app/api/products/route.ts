@@ -1,6 +1,6 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
-import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
+import { fail, handle, int, readJson, requireUser, str, pageParams } from '@/lib/api'
 import { canManageProduct, canViewProducts, loadCustomer, requireMenu } from '@/lib/customers'
 import { db } from '@/lib/db'
 import { loadProduct, PRODUCT_OF_CUSTOMER, PRODUCT_SELECT, productJenisList, readProductInput, serializeProduct } from '@/lib/products'
@@ -22,8 +22,7 @@ export const GET = handle(async (request: Request) => {
   const status = params.get('status')
   if (status === 'aktif' || status === 'nonaktif') where.push('p.status = ?'), args.push(status)
   if (params.get('lengkap') === '0') where.push("(p.spesifikasi IS NULL OR p.spesifikasi = '' OR NOT EXISTS (SELECT 1 FROM customer_product_files f WHERE f.product_id = p.id))")
-  const page = Math.max(1, int(params.get('page')) ?? 1)
-  const pageSize = 50
+  const { page, pageSize } = pageParams(params, 50)
   const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : ''
   const [items] = await db.query<RowDataPacket[]>(
     `${PRODUCT_SELECT} ${whereSql} ORDER BY (last_order IS NULL), last_order DESC, p.updated_at DESC LIMIT ? OFFSET ?`,

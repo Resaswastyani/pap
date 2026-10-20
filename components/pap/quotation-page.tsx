@@ -8,7 +8,7 @@ import { DocForm, useHppData } from './hpp-page'
 import { ProspectSelect, waLink, type ProspectOption } from './marketing'
 import { PaymentForm } from './payment-page'
 import { CustomerSelect, type CustomerOption } from './product-page'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
 
 type Status = 'draft' | 'dikirim' | 'diterima' | 'ditolak' | 'batal'
 const STATUS_LABEL: Record<Status, string> = { draft: 'Draft', dikirim: 'Dikirim', diterima: 'Diterima', ditolak: 'Ditolak', batal: 'Batal' }
@@ -87,6 +87,7 @@ export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number
   const sum = (s: Status) => summary[s] ?? { n: 0, total: 0 }
   const closed = sum('diterima').n + sum('ditolak').n
 
+  const paged = usePaged(items, items.length)
   return (
     <>
       <div className="pap-page-heading">
@@ -123,7 +124,7 @@ export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number
           <table>
             <thead><tr><th>Nomor</th><th>Kepada</th><th>Tanggal</th><th>Berlaku s/d</th><th className="pap-num">Total</th><th>Sales</th><th>Status</th></tr></thead>
             <tbody>
-              {items.map((x) => (
+              {paged.items.map((x) => (
                 <tr key={x.id} className="pap-row-link" onClick={() => setDetailId(x.id)}>
                   <td><div className="pap-cell-title">{x.nomor}</div><div className="pap-cell-sub">{x.item_count} produk</div></td>
                   <td><div className="pap-cell-title">{x.kepada}</div><div className="pap-cell-sub">{x.kontak ?? (x.prospect_name ? 'Prospek' : x.customer_no ?? '')}</div></td>
@@ -139,6 +140,7 @@ export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number
           {!loading && !items.length && <div className="pap-empty">{q || status ? 'Tidak ada penawaran yang cocok.' : 'Belum ada penawaran. Klik "Buat penawaran".'}</div>}
           {loading && !items.length && <div className="pap-empty">Memuat...</div>}
         </div>
+        <Pager {...paged.pager} noun="penawaran" />
       </div>
       {form && <QuotationForm edit={form.edit} copy={form.copy} onClose={() => setForm(null)} onSaved={(text, id) => { setForm(null); flash(text); setDetailId(id) }} />}
       {detailId && (

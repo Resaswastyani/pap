@@ -1,6 +1,6 @@
 import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
-import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
+import { fail, handle, int, readJson, requireUser, str, pageParams } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canManageCustomer, canViewCustomers, CRM_CASE, CRM_INACTIVE_DAYS, CRM_STATUS, CUSTOMER_SELECT, readCustomerInput, requireMenu, saveCustomerToAccurate, upsertLocalCustomer } from '@/lib/customers'
 
@@ -16,8 +16,7 @@ export const GET = handle(async (request: Request) => {
   const status = params.get('status')
   if (status && status in CRM_STATUS) where.push(`(${CRM_CASE}) = ?`), args.push(status)
   if (params.get('suspended') !== '1') where.push('c.suspended = 0')
-  const page = Math.max(1, int(params.get('page')) ?? 1)
-  const pageSize = 50
+  const { page, pageSize } = pageParams(params, 50)
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
   const [items] = await db.query<RowDataPacket[]>(

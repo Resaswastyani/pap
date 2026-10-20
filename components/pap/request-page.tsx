@@ -6,7 +6,7 @@ import type { UserProfile } from '@/lib/users'
 import { ProspectSelect, type ProspectOption } from './marketing'
 import { CustomerSelect, type CustomerOption } from './product-page'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, uploadNoteAttachments, uploadPendingAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
-import { api, Field, formatDate, formatSize, Modal, Notice } from './ui'
+import { api, Field, formatDate, formatSize, Modal, Notice, Pager, usePaged } from './ui'
 
 // ---------------- Konstanta ----------------
 type SampleStatus = 'diajukan' | 'dijadwalkan' | 'diproduksi' | 'selesai' | 'dikirim' | 'disetujui' | 'revisi' | 'batal'
@@ -172,6 +172,7 @@ export function SamplePage({ user, focusId }: { user: UserProfile; focusId?: num
   }, [load, q])
   const flash = (text: string) => { setMessage(text); setTimeout(() => setMessage(''), 5000); load() }
 
+  const paged = usePaged(items, items.length)
   return (
     <>
       <div className="pap-page-heading">
@@ -193,7 +194,7 @@ export function SamplePage({ user, focusId }: { user: UserProfile; focusId?: num
           <table>
             <thead><tr><th>Nomor</th><th>Produk sample</th><th>Untuk</th><th>Diajukan</th><th>Dibutuhkan</th><th>Jadwal produksi</th><th>Status</th></tr></thead>
             <tbody>
-              {items.map((s) => (
+              {paged.items.map((s) => (
                 <tr key={s.id} className="pap-row-link" onClick={() => setDetailId(s.id)}>
                   <td><div className="pap-cell-title">{s.nomor}</div>{s.revisi_ke > 0 && <div className="pap-cell-sub">Revisi {s.revisi_ke}</div>}</td>
                   <td><div className="pap-cell-title">{s.nama_produk}</div><div className="pap-cell-sub">{s.item_count > 1 ? `${s.item_count} produk` : [s.jenis, s.ukuran, s.jumlah].filter(Boolean).join(' · ')}</div></td>
@@ -209,6 +210,7 @@ export function SamplePage({ user, focusId }: { user: UserProfile; focusId?: num
           {!loading && !items.length && <div className="pap-empty">{status === 'todo' ? 'Tidak ada sample yang menunggu tindakan Anda.' : 'Belum ada request sample.'}</div>}
           {loading && !items.length && <div className="pap-empty">Memuat...</div>}
         </div>
+        <Pager {...paged.pager} noun="request sample" />
       </div>
       {form && <SampleForm onClose={() => setForm(false)} onSaved={(text, id) => { setForm(false); flash(text); setDetailId(id) }} />}
       {detailId && <SampleDetail id={detailId} user={user} onClose={() => setDetailId(null)} onChanged={(text) => flash(text)} />}
@@ -558,6 +560,7 @@ export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: num
   }, [load, q])
   const flash = (text: string) => { setMessage(text); setTimeout(() => setMessage(''), 5000); load() }
 
+  const paged = usePaged(items, items.length)
   return (
     <>
       <div className="pap-page-heading">
@@ -584,7 +587,7 @@ export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: num
           <table>
             <thead><tr><th>Nomor</th><th>Desain</th><th>Untuk</th><th>Sales</th><th>Desainer</th><th>Deadline</th><th>Status</th></tr></thead>
             <tbody>
-              {items.map((d) => (
+              {paged.items.map((d) => (
                 <tr key={d.id} className="pap-row-link" onClick={() => setDetailId(d.id)}>
                   <td><div className="pap-cell-title">{d.nomor}</div>{d.revisi_ke > 0 && <div className="pap-cell-sub">Revisi {d.revisi_ke}</div>}</td>
                   <td><div className="pap-cell-title">{d.judul} <span className={`pap-chip ${d.kategori === 'konten' ? 'konten' : ''}`}>{d.kategori === 'konten' ? `Konten ${d.jenis_konten ?? ''}` : 'Klise'}</span></div><div className="pap-cell-sub">{[d.jenis, d.ukuran, d.design_count ? `${d.design_count} file desain` : null].filter(Boolean).join(' · ')}</div></td>
@@ -600,6 +603,7 @@ export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: num
           {!loading && !items.length && <div className="pap-empty">{status === 'todo' ? 'Tidak ada desain yang menunggu tindakan Anda.' : 'Belum ada request desain.'}</div>}
           {loading && !items.length && <div className="pap-empty">Memuat...</div>}
         </div>
+        <Pager {...paged.pager} noun="request desain" />
       </div>
       {form && <DesignForm onClose={() => setForm(false)} onSaved={(text, id) => { setForm(false); flash(text); setDetailId(id) }} />}
       {detailId && <DesignDetail id={detailId} user={user} onClose={() => setDetailId(null)} onChanged={flash} />}

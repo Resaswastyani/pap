@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Moon, Pencil, Plus, Sun, Sunrise, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatNumber } from './accurate'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
 
 export type QcStatus = 'menunggu' | 'lolos' | 'perbaikan' | 'reject'
 export type Result = {
@@ -147,6 +147,7 @@ export function ResultsTable({ items, can, showDate, showJob = true, currentUser
   items: Result[]; can: Can; showDate?: boolean; showJob?: boolean; currentUserId?: number
   onEdit: (r: Result) => void; onQc: (r: Result) => void; onDeleted: () => void; onError: (message: string) => void
 }) {
+  const paged = usePaged(items, items.length)
   if (!items.length) return null
   const editable = (r: Result) => can.manage || (can.report && r.status_qc === 'menunggu' && (currentUserId === undefined || r.reported_by === currentUserId))
   async function remove(r: Result) {
@@ -163,7 +164,7 @@ export function ResultsTable({ items, can, showDate, showJob = true, currentUser
       <table className="pap-results-table">
         <thead><tr><th>Shift</th>{showJob && <th>SPK / Produk</th>}<th>Tahap · Mesin</th><th className="pap-num">Hasil</th><th className="pap-num">Reject</th><th className="pap-num">Baik</th><th>Operator / Pelapor</th><th>QC</th><th></th></tr></thead>
         <tbody>
-          {items.map((r) => (
+          {paged.items.map((r) => (
             <tr key={r.id}>
               <td className="pap-nowrap"><b>Shift {r.shift}</b>{(showDate || !showJob) && <div className="pap-cell-sub">{formatDate(r.tanggal)}</div>}</td>
               {showJob && <td><div className="pap-cell-title">{r.item_name}</div><div className="pap-cell-sub">{r.spk_nomor ?? r.nomor}{r.customer_name ? ` · ${r.customer_name}` : ''}</div></td>}
@@ -192,6 +193,7 @@ export function ResultsTable({ items, can, showDate, showJob = true, currentUser
           ))}
         </tbody>
       </table>
+      <Pager {...paged.pager} noun="laporan" />
     </div>
   )
 }

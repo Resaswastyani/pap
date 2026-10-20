@@ -5,7 +5,7 @@ import { CalendarDays, CheckCircle2, ClipboardList, Clock3, ExternalLink, FileTe
 import { FILE_MAX_BYTES, PERMISSIONS, PLANNING_STATUS, type PlanningStatus } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
 import { prepareFiles } from './attachments'
-import { api, Field, formatDate, formatSize, Modal, Notice, Progress, StatusBadge, UserPicker, type UserOption } from './ui'
+import { api, Field, formatDate, formatSize, Modal, Notice, Pager, Progress, StatusBadge, usePaged, type UserOption, UserPicker } from './ui'
 
 type Division = { id: number; code: string; name: string }
 type Abilities = { edit: boolean; delete: boolean; progress: boolean; attach: boolean }
@@ -114,6 +114,7 @@ export function PlanningPage({ user, focusId, onOpenMeeting }: { user: UserProfi
     ['Selesai', summary.selesai, 'Progress 100%', 'stat-0'],
   ]
 
+  const paged = usePaged(items, items.length)
   return (
     <>
       <div className="pap-page-heading">
@@ -160,7 +161,7 @@ export function PlanningPage({ user, focusId, onOpenMeeting }: { user: UserProfi
           <table>
             <thead><tr><th>Nomor / Judul</th><th>Divisi</th><th>Periode</th><th>Progress</th><th>Status</th><th aria-label="Aksi" /></tr></thead>
             <tbody>
-              {items.map((item) => (
+              {paged.items.map((item) => (
                 <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
                   <td>
                     <div className="pap-cell-title">{item.judul}</div>
@@ -178,6 +179,7 @@ export function PlanningPage({ user, focusId, onOpenMeeting }: { user: UserProfi
           {!loading && !items.length && <div className="pap-empty">Belum ada planning{q || status || mine ? ' yang cocok dengan filter' : ''}.</div>}
           {loading && !items.length && <div className="pap-empty">Memuat planning...</div>}
         </div>
+        <Pager {...paged.pager} noun="planning" />
       </div>
 
       {form && (

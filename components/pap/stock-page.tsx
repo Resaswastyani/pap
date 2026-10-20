@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, Boxes, PackageX, Search } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatNumber } from './accurate'
-import { api, formatDate, Notice } from './ui'
+import { api, formatDate, Notice, Pager } from './ui'
 
 type StockItem = { accurate_id: number; item_no: string | null; name: string; item_type: string | null; category: string | null; unit: string | null; quantity: number | null; quantity_on_hand: number | null; min_quantity: number | null; synced_at: string }
 type Summary = { total: number; low: number; empty: number; synced_at: string | null }
@@ -28,17 +28,21 @@ export function StockPage({ user }: { user: UserProfile }) {
   const [category, setCategory] = useState('')
   const [low, setLow] = useState(false)
   const [inventoryOnly, setInventoryOnly] = useState(true)
+  const [page, setPage] = useState(1)
+  const [size, setSize] = useState(50)
+  const [total, setTotal] = useState(0)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams()
+      const params = new URLSearchParams({ page: String(page), pageSize: String(size) })
       if (q.trim()) params.set('q', q.trim())
       if (category) params.set('category', category)
       if (low) params.set('low', '1')
       if (inventoryOnly) params.set('type', 'inventory')
-      const res = await api<{ items: StockItem[]; categories: string[]; summary: Summary }>(`/api/stock?${params}`)
+      const res = await api<{ items: StockItem[]; total: number; categories: string[]; summary: Summary }>(`/api/stock?${params}`)
       setItems(res.items)
+      setTotal(res.total)
       setCategories(res.categories)
       setSummary(res.summary)
       setError('')
@@ -47,7 +51,9 @@ export function StockPage({ user }: { user: UserProfile }) {
     } finally {
       setLoading(false)
     }
-  }, [q, category, low, inventoryOnly])
+  }, [q, category, low, inventoryOnly, page, size])
+  // Filter berubah -> kembali ke halaman 1
+  useEffect(() => setPage(1), [q, category, low, inventoryOnly])
 
   useEffect(() => {
     const timer = setTimeout(load, q ? 300 : 0)
@@ -111,6 +117,7 @@ export function StockPage({ user }: { user: UserProfile }) {
           </table>
           {!loading && !items.length && <div className="pap-empty">{q || category || low ? 'Tidak ada barang yang cocok dengan filter.' : 'Belum ada data stok. Klik "Sinkron sekarang" untuk mengambil dari Accurate.'}</div>}
           {loading && !items.length && <div className="pap-empty">Memuat stok...</div>}
+          <Pager page={page} pageSize={size} total={total} onPage={setPage} onPageSize={(v) => { setSize(v); setPage(1) }} noun="barang" />
         </div>
       </div>
     </>

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Pencil, Plus, Search, Trash2, Truck } from 'lucide-react'
 import { formatRupiah } from './accurate'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
 
 type Expedition = {
   id: number; nama: string; kontak: string | null; telepon: string | null; tujuan: string; tarif_per_kg: number | null; minimal_kg: number | null
@@ -39,6 +39,7 @@ export function ExpeditionList() {
     if (!cheapest.has(key) || e.tarif_per_kg < (items.find((x) => x.id === cheapest.get(key))?.tarif_per_kg ?? Infinity)) cheapest.set(key, e.id)
   }
 
+  const paged = usePaged(items, items.length)
   return (
     <>
       <div className="pap-page-heading">
@@ -57,7 +58,7 @@ export function ExpeditionList() {
           <table>
             <thead><tr><th>Tujuan</th><th>Ekspedisi</th><th className="pap-num">Tarif / kg</th><th>Minimal</th><th>Estimasi</th><th>Kontak</th>{canEdit && <th aria-label="Aksi" />}</tr></thead>
             <tbody>
-              {items.map((e) => (
+              {paged.items.map((e) => (
                 <tr key={e.id} className={e.aktif ? '' : 'pap-row-muted'}>
                   <td><div className="pap-cell-title">{e.tujuan}</div></td>
                   <td>{e.nama} {cheapest.get(e.tujuan.toLowerCase()) === e.id && <span className="pap-status success">Termurah</span>}{e.keterangan && <div className="pap-cell-sub">{e.keterangan}</div>}</td>
@@ -72,6 +73,7 @@ export function ExpeditionList() {
           </table>
           {!items.length && <div className="pap-empty"><Truck className="pap-inline-icon" /> {tujuan ? 'Tidak ada ekspedisi untuk tujuan ini.' : 'Belum ada data ekspedisi.'}</div>}
         </div>
+        <Pager {...paged.pager} noun="ekspedisi" />
       </div>
       {form && <ExpeditionForm initial={form === 'new' ? null : form} onClose={() => setForm(null)} onSaved={(t) => { setForm(null); setMessage(t); load() }} />}
     </>

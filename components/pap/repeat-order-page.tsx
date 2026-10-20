@@ -1,12 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, CalendarClock, CalendarPlus, ChevronLeft, ChevronRight, Clock3, PhoneCall, Repeat, Search, UserMinus } from 'lucide-react'
+import { AlertTriangle, CalendarClock, CalendarPlus, Clock3, PhoneCall, Repeat, Search, UserMinus } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { nowInput, toInputDateTime, VisitForm, WaButton, type MarketingUser } from './marketing'
 import { AttachmentInput, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
-import { api, formatDate, Modal, Notice } from './ui'
+import { api, formatDate, Modal, Notice, Pager } from './ui'
 
 type Status = 'waktunya' | 'berisiko' | 'nonaktif' | 'aman'
 const STATUS_LABEL: Record<Status, string> = { waktunya: 'Waktunya order', berisiko: 'Berisiko berhenti', nonaktif: 'Nonaktif', aman: 'Aman' }
@@ -39,6 +39,7 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
   const [pic, setPic] = useState('')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
+  const [size, setSize] = useState(50)
   const [total, setTotal] = useState(0)
   const [pageSize, setPageSize] = useState(50)
   const [loading, setLoading] = useState(true)
@@ -49,7 +50,7 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ status, page: String(page) })
+      const params = new URLSearchParams({ status, page: String(page), pageSize: String(size) })
       if (pic) params.set('pic', pic)
       if (q.trim()) params.set('q', q.trim())
       const res = await api<{ items: Row[]; summary: typeof summary; due: typeof due; users: MarketingUser[]; seesAll: boolean; total: number; pageSize: number }>(`/api/repeat-order?${params}`)
@@ -66,7 +67,7 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
     } finally {
       setLoading(false)
     }
-  }, [status, pic, q, page])
+  }, [status, pic, q, page, size])
   useEffect(() => {
     const t = setTimeout(load, q ? 300 : 0)
     return () => clearTimeout(t)
@@ -80,7 +81,6 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
     ['aman', 'Aman', count('aman'), 'Belum waktunya order', Repeat, 'stat-0'],
     ['nonaktif', 'Nonaktif', count('nonaktif'), 'Tidak order > 180 hari', UserMinus, 'stat-1'],
   ]
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   return (
     <>
@@ -139,13 +139,7 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
           {!loading && !items.length && <div className="pap-empty">{status === 'perlu' ? 'Tidak ada customer yang perlu dihubungi saat ini.' : 'Tidak ada customer yang cocok.'}{!seesAll && ' Customer muncul di sini setelah Lead menetapkan Anda sebagai PIC (atau lewat handover prospek).'}</div>}
           {loading && !items.length && <div className="pap-empty">Memuat...</div>}
         </div>
-        {total > pageSize && (
-          <div className="pap-pager">
-            <span>{(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} dari {total}</span>
-            <button className="pap-icon-button" aria-label="Sebelumnya" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}><ChevronLeft /></button>
-            <button className="pap-icon-button" aria-label="Berikutnya" disabled={page >= pageCount} onClick={() => setPage((p) => p + 1)}><ChevronRight /></button>
-          </div>
-        )}
+        <Pager page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(v) => { setSize(v); setPage(1) }} />
       </div>
       {detailId && <RepeatDetail id={detailId} user={user} users={users} onClose={() => setDetailId(null)} onChanged={flash} />}
     </>

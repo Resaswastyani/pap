@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Cog, ExternalLink, FileSpreadsheet, FileText, ListChecks, Pencil, Plus, RefreshCw, Trash2, Wrench } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
-import { api, Field, Modal, Notice } from './ui'
+import { api, Field, Modal, Notice, Pager, usePaged } from './ui'
 
 type Machine = { id: number; kode: string; nama: string; tahap: string; kapasitas: string | null; status: 'aktif' | 'maintenance' | 'nonaktif'; keterangan: string | null; lini: string | null; antrian: number; sedang_dikerjakan: string | null; critical_point: number; perbaikan_terbuka: number }
 
@@ -44,7 +44,8 @@ export function MachinePage({ user }: { user: UserProfile }) {
   const count = (status: Machine['status']) => items.filter((m) => m.status === status).length
   const busyCount = items.filter((m) => m.sedang_dikerjakan).length
   // Dikelompokkan per lini produksi (dari sheet mapping teknis); mesin tanpa lini di akhir
-  const groups = [...new Set(items.map((m) => m.lini ?? ''))].map((lini) => ({ lini, list: items.filter((m) => (m.lini ?? '') === lini) }))
+  const paged = usePaged(items, items.length)
+  const groups = [...new Set(paged.items.map((m) => m.lini ?? ''))].map((lini) => ({ lini, list: paged.items.filter((m) => (m.lini ?? '') === lini) }))
 
   return (
     <>
@@ -91,6 +92,7 @@ export function MachinePage({ user }: { user: UserProfile }) {
           </table>
           {!loading && !items.length && <div className="pap-empty">Belum ada mesin. {canManage ? 'Klik "Google Sheet" untuk mengambil data mesin dari spreadsheet Mapping Teknis Mesin, atau "Tambah mesin".' : 'PPIC / Teknik dapat menambahkan mesin.'}</div>}
           {loading && !items.length && <div className="pap-empty">Memuat mesin...</div>}
+          <Pager {...paged.pager} noun="mesin" />
         </div>
       </div>
       {form && <MachineForm initial={form === 'new' ? null : form} tahapList={tahapList} onClose={() => setForm(null)} onSaved={(text) => { setForm(null); flash(text); load() }} />}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, FileText, FlaskConical, Package, Palette, CalendarClock, CalendarPlus, ChevronLeft, ChevronRight, Columns3, Handshake, LayoutList, Link2, Mail, MapPin, Pencil, Phone, Plus, Search, Send, Trash2, Upload, UserPlus } from 'lucide-react'
+import { AlertTriangle, FileText, FlaskConical, Package, Palette, CalendarClock, CalendarPlus, Columns3, Handshake, LayoutList, Link2, Mail, MapPin, Pencil, Phone, Plus, Search, Send, Trash2, Upload, UserPlus } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { CustomerSelect, type CustomerOption } from './product-page'
 import {
@@ -11,7 +11,7 @@ import {
 import { QuotationForm } from './quotation-page'
 import { DesignForm, SampleForm } from './request-page'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager } from './ui'
 
 export type Prospect = {
   id: number
@@ -77,6 +77,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
   const [owner, setOwner] = useState('')
   const [followup, setFollowup] = useState('')
   const [page, setPage] = useState(1)
+  const [size, setSize] = useState(50)
   const [form, setForm] = useState<Prospect | 'new' | null>(null)
   const [importing, setImporting] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
@@ -84,7 +85,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ page: String(page), view })
+      const params = new URLSearchParams({ page: String(page), pageSize: String(size), view })
       if (q.trim()) params.set('q', q.trim())
       if (status && view === 'list') params.set('status', status)
       if (view === 'kanban') params.set('status', 'aktif')
@@ -98,7 +99,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
     } finally {
       setLoading(false)
     }
-  }, [q, status, sumber, owner, followup, page, view])
+  }, [q, status, sumber, owner, followup, page, view, size])
   useEffect(() => {
     const timer = setTimeout(load, q ? 300 : 0)
     return () => clearTimeout(timer)
@@ -114,7 +115,6 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
   const activeTotal = PIPELINE.filter((s) => s !== 'handover').reduce((n, s) => n + count(s), 0)
   const won = count('order_pertama') + count('handover')
   const closed = won + count('gagal')
-  const pageCount = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1
   const isDigital = user.division.code === 'marketing_digital'
 
   return (
@@ -210,13 +210,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
         ) : (
           <Kanban items={data?.items ?? []} onOpen={setDetailId} />
         )}
-        {view === 'list' && data && data.total > data.pageSize && (
-          <div className="pap-pager">
-            <span>{(page - 1) * data.pageSize + 1}–{Math.min(page * data.pageSize, data.total)} dari {data.total}</span>
-            <button className="pap-icon-button" aria-label="Sebelumnya" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}><ChevronLeft /></button>
-            <button className="pap-icon-button" aria-label="Berikutnya" disabled={page >= pageCount} onClick={() => setPage((p) => p + 1)}><ChevronRight /></button>
-          </div>
-        )}
+        {view === 'list' && data && <Pager page={page} pageSize={data.pageSize} total={data.total} onPage={setPage} onPageSize={(v) => { setSize(v); setPage(1) }} />}
       </div>
 
       {form && (

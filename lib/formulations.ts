@@ -45,7 +45,7 @@ const BOM_SELECT = `SELECT b.accurate_id, b.number, b.trans_date, b.description,
   LEFT JOIN customers c ON c.id = p.customer_id`
 
 // Daftar formulasi dari BOM Accurate: ?q (nomor, barang jadi, bahan), status aktif/arsip, cocok barang tertentu dulu
-export async function loadFormulations(opts: { q?: string; status?: string; itemAccurateId?: number | null; bomId?: number; limit?: number }) {
+export async function loadFormulations(opts: { q?: string; status?: string; itemAccurateId?: number | null; bomId?: number; limit?: number; offset?: number; withTotal?: { total: number } }) {
   const where: string[] = []
   const args: unknown[] = []
   if (opts.bomId) where.push('b.accurate_id = ?'), args.push(opts.bomId)
@@ -58,9 +58,13 @@ export async function loadFormulations(opts: { q?: string; status?: string; item
   }
   const [boms] = await db.query<BomRow[]>(
     `${BOM_SELECT} ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-     ORDER BY ${opts.itemAccurateId ? '(b.item_accurate_id = ?) DESC, ' : ''}b.trans_date DESC, b.accurate_id DESC LIMIT ?`,
-    [...args, ...(opts.itemAccurateId ? [opts.itemAccurateId] : []), opts.limit ?? 100],
+     ORDER BY ${opts.itemAccurateId ? '(b.item_accurate_id = ?) DESC, ' : ''}b.trans_date DESC, b.accurate_id DESC LIMIT ? OFFSET ?`,
+    [...args, ...(opts.itemAccurateId ? [opts.itemAccurateId] : []), opts.limit ?? 100, opts.offset ?? 0],
   )
+  if (opts.withTotal) {
+    const [[{ count }]] = await db.query<(RowDataPacket & { count: number })[]>(`SELECT COUNT(*) AS count FROM accurate_boms b LEFT JOIN formulations f ON f.bom_accurate_id = b.accurate_id LEFT JOIN customer_products p ON p.accurate_item_id = b.item_accurate_id LEFT JOIN customers c ON c.id = p.customer_id ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`, args)
+    opts.withTotal.total = Number(count)
+  }
   const ids = boms.map((b) => b.accurate_id)
   const [mats] = ids.length
     ? await db.query<MatRow[]>(

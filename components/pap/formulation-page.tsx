@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FlaskConical, Layers, PackageSearch, Plus, Search, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatNumber } from './accurate'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager } from './ui'
 
 // Formulasi = Bill of Material (Formula Produksi) Accurate + data PPIC (jenis plastik, kualitas, catatan)
 type Item = { line_id?: number; item_accurate_id: number | null; item_no: string | null; nama: string; quantity: number; unit: string | null; per_unit: number; persentase: number; stok: number | null }
@@ -15,7 +15,7 @@ export type Formulation = {
   items: Item[]; total_bahan: number; komposisi: string
 }
 type AccItem = { accurate_id: number; item_no: string | null; name: string; unit: string | null; category: string | null; stok: number | null; murni: boolean }
-type ListResponse = { items: Formulation[]; plasticTypes: string[]; bom: { total: number; synced: number }; can: { manage: boolean } }
+type ListResponse = { items: Formulation[]; total: number; page: number; pageSize: number; plasticTypes: string[]; bom: { total: number; synced: number }; can: { manage: boolean } }
 
 const qtyText = (v: number | null | undefined, unit: string | null | undefined, digits = 4) => (v === null || v === undefined ? '—' : `${formatNumber(v, digits)} ${unit ?? ''}`.trim())
 // Teks formulasi yang disalin ke SPK; dengan target: kebutuhan bahan = jumlah per hasil × target
@@ -34,17 +34,20 @@ export function FormulationPage(_props: { user: UserProfile }) {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [open, setOpen] = useState<number | 'new' | null>(null)
+  const [page, setPage] = useState(1)
+  const [size, setSize] = useState(25)
 
   const load = useCallback(async () => {
     try {
-      const params = new URLSearchParams({ status })
+      const params = new URLSearchParams({ status, page: String(page), pageSize: String(size) })
       if (q.trim()) params.set('q', q.trim())
       setData(await api<ListResponse>(`/api/formulations?${params}`))
       setError('')
     } catch (e) {
       setError((e as Error).message)
     }
-  }, [status, q])
+  }, [status, q, page, size])
+  useEffect(() => setPage(1), [status, q])
   useEffect(() => {
     const timer = setTimeout(load, q ? 300 : 0)
     return () => clearTimeout(timer)
@@ -72,7 +75,7 @@ export function FormulationPage(_props: { user: UserProfile }) {
       {data && (
         <div className="pap-stat-grid">
           <div className="pap-stat-card"><div><span>Formula di Accurate</span><strong>{data.bom.total.toLocaleString('id-ID')}</strong><small className="neutral">{data.bom.synced < data.bom.total ? `bahan ${data.bom.synced.toLocaleString('id-ID')} formula sudah tersinkron` : 'semua bahan sudah tersinkron'}</small></div><div className="pap-stat-icon stat-1"><FlaskConical /></div></div>
-          <div className="pap-stat-card"><div><span>Dipakai SPK aktif</span><strong>{items.filter((f) => f.dipakai_aktif > 0).length}</strong><small className="neutral">dari {items.length} formula yang tampil</small></div><div className="pap-stat-icon stat-0"><Layers /></div></div>
+          <div className="pap-stat-card"><div><span>Dipakai SPK aktif</span><strong>{items.filter((f) => f.dipakai_aktif > 0).length}</strong><small className="neutral">dari {items.length} formula di halaman ini</small></div><div className="pap-stat-icon stat-0"><Layers /></div></div>
           <div className="pap-stat-card"><div><span>Bahan stok kosong</span><strong>{new Set(items.flatMap((f) => f.items.filter((i) => i.stok !== null && i.stok <= 0).map((i) => i.item_accurate_id))).size}</strong><small className="neutral">bahan pada formula yang tampil</small></div><div className="pap-stat-icon stat-2"><PackageSearch /></div></div>
         </div>
       )}
@@ -101,7 +104,7 @@ export function FormulationPage(_props: { user: UserProfile }) {
             </tbody>
           </table>
           {data && !items.length && <div className="pap-empty">{q ? 'Tidak ada formula yang cocok.' : data.bom.total ? 'Tidak ada formula pada filter ini.' : 'Belum ada formula. Klik "Sinkron sekarang" untuk mengambil Bill of Material dari Accurate.'}</div>}
-          {data && items.length >= 100 && <p className="pap-muted pap-table-note">Menampilkan 100 formula terbaru. Gunakan pencarian untuk formula lain.</p>}
+          {data && <Pager page={page} pageSize={size} total={data.total} onPage={setPage} onPageSize={(v) => { setSize(v); setPage(1) }} noun="formula" />}
           {!data && <div className="pap-empty">Memuat formulasi...</div>}
         </div>
       </div>

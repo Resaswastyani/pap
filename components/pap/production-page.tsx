@@ -7,7 +7,7 @@ import { AccurateSyncBar, formatNumber } from './accurate'
 import { AttachmentPanel } from './attachments'
 import { QcForm, ResultForm, ResultsTable, type Result } from './results-page'
 import { FormulaBar, formulaSnapshot, type Formulation } from './formulation-page'
-import { api, Field, formatDate, Modal, Notice, Progress, type UserOption } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, Progress, type UserOption } from './ui'
 
 type JobStatus = 'menunggu' | 'dijadwalkan' | 'berjalan' | 'selesai' | 'batal'
 type StageStatus = 'belum' | 'berjalan' | 'selesai' | 'dilewati'
@@ -101,6 +101,7 @@ export function ProductionPage({ user, focusId, mode = 'jadwal' }: { user: UserP
   const [maxAge, setMaxAge] = useState(30)
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
+  const [size, setSize] = useState(50)
   const [pageSize, setPageSize] = useState(50)
   const [status, setStatus] = useState('aktif')
   const [q, setQ] = useState('')
@@ -112,7 +113,7 @@ export function ProductionPage({ user, focusId, mode = 'jadwal' }: { user: UserP
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ page: String(page) })
+      const params = new URLSearchParams({ page: String(page), pageSize: String(size) })
       if (status) params.set('status', status)
       if (spk) params.set('spk', spk)
       if (q.trim()) params.set('q', q.trim())
@@ -129,7 +130,7 @@ export function ProductionPage({ user, focusId, mode = 'jadwal' }: { user: UserP
     } finally {
       setLoading(false)
     }
-  }, [page, status, spk, q])
+  }, [page, status, spk, q, size])
   useEffect(() => {
     const timer = setTimeout(load, q ? 300 : 0)
     return () => clearTimeout(timer)
@@ -152,7 +153,6 @@ export function ProductionPage({ user, focusId, mode = 'jadwal' }: { user: UserP
     ['berjalan', summary.berjalan, 'Sedang diproduksi', `${summary.selesai_minggu} selesai 7 hari terakhir`, Factory, 'stat-0'],
     ['terlambat', summary.terlambat, 'Lewat tanggal kirim', 'Belum selesai, perlu perhatian', AlertTriangle, 'stat-2'],
   ]
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   return (
     <>
@@ -230,13 +230,7 @@ export function ProductionPage({ user, focusId, mode = 'jadwal' }: { user: UserP
               {!loading && !items.length && <div className="pap-empty">{q || status !== 'aktif' ? 'Tidak ada job yang cocok dengan filter.' : 'Belum ada job produksi. Job dibuat otomatis dari Sales Order berisi barang “Diproduksi”.'}</div>}
               {loading && !items.length && <div className="pap-empty">Memuat jadwal produksi...</div>}
             </div>
-            {total > pageSize && (
-              <div className="pap-pager">
-                <span>{(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} dari {total}</span>
-                <button className="pap-icon-button" aria-label="Sebelumnya" disabled={page <= 1} onClick={() => setPage((v) => v - 1)}><ChevronLeft /></button>
-                <button className="pap-icon-button" aria-label="Berikutnya" disabled={page >= pageCount} onClick={() => setPage((v) => v + 1)}><ChevronRight /></button>
-              </div>
-            )}
+            <Pager page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(v) => { setSize(v); setPage(1) }} />
           </>
         )}
       </div>
@@ -399,7 +393,7 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
 
   useEffect(() => {
     if (!can.manage || !job || job.spk_nomor || formulas) return
-    api<{ items: Formulation[] }>(`/api/formulations?status=aktif${job.item_accurate_id ? `&item=${job.item_accurate_id}` : ''}`).then((r) => setFormulas(r.items)).catch(() => setFormulas([]))
+    api<{ items: Formulation[] }>(`/api/formulations?for=spk&status=aktif${job.item_accurate_id ? `&item=${job.item_accurate_id}` : ''}`).then((r) => setFormulas(r.items)).catch(() => setFormulas([]))
   }, [can.manage, job, formulas])
 
   async function run(action: () => Promise<unknown>, text?: string) {

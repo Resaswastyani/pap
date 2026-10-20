@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, Copy, Target, TrendingDown, TrendingUp } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
-import { api, Field, Modal, Notice } from './ui'
+import { api, Field, Modal, Notice, Pager, usePaged } from './ui'
 
 type MetricInfo = { label: string; hint: string; satuan: string }
 type KpiRow = {
@@ -54,6 +54,7 @@ export function KpiPage({ user }: { user: UserProfile }) {
     }
   }
 
+  const paged = usePaged(data?.rows ?? [], (data?.rows ?? []).length)
   return (
     <>
       <div className="pap-page-heading">
@@ -98,7 +99,7 @@ export function KpiPage({ user }: { user: UserProfile }) {
           <table className="pap-kpi-table">
             <thead><tr><th>Sales</th>{metrics.map(([k, m]) => <th key={k} className="pap-num" title={m.hint}>{m.label}</th>)}</tr></thead>
             <tbody>
-              {(data?.rows ?? []).map((r) => (
+              {paged.items.map((r) => (
                 <tr key={r.id} className={data?.canSetTarget ? 'pap-row-link' : ''} onClick={() => data?.canSetTarget && setEditing(r)}>
                   <td><div className="pap-cell-title">{r.name}{r.id === user.id ? ' (saya)' : ''}</div><div className="pap-cell-sub">{r.division_name}</div></td>
                   {metrics.map(([k, m]) => {
@@ -118,6 +119,7 @@ export function KpiPage({ user }: { user: UserProfile }) {
           </table>
           {data && !data.rows.length && <div className="pap-empty">Belum ada user di divisi marketing.</div>}
         </div>
+        <Pager {...paged.pager} noun="sales" />
       </div>
       {editing && data && <TargetForm row={editing} periode={current} metrics={data.metrics} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setMessage(`Target ${editing.name} disimpan.`); load() }} />}
     </>
