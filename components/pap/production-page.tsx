@@ -33,8 +33,9 @@ type Job = {
   spk_alasan_tarik: string | null
   formulasi: string | null
   formulasi_id: number | null
+  formulasi_bom_id: number | null
   formulasi_kode: string | null
-  formulasi_versi: number | null
+  item_accurate_id: number | null
   tingkat_kualitas: string | null
   acuan_kerja: string | null
   due_date: string | null
@@ -360,7 +361,7 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
   const [users, setUsers] = useState<UserOption[]>([])
   const [editing, setEditing] = useState<EditableStage[] | null>(null)
   const [catatan, setCatatan] = useState('')
-  const [spkForm, setSpkForm] = useState({ target_qty: '', tingkat_kualitas: '', formulasi: '', formulasi_id: '', acuan_kerja: '' })
+  const [spkForm, setSpkForm] = useState({ target_qty: '', tingkat_kualitas: '', formulasi: '', formulasi_bom_id: '', acuan_kerja: '' })
   const [formulas, setFormulas] = useState<Formulation[] | null>(null)
   const [tarik, setTarik] = useState<string | null>(null)
   const [results, setResults] = useState<Result[]>([])
@@ -381,7 +382,7 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
       setStock(res.stock)
       setCan(res.can)
       setCatatan(res.item.catatan ?? '')
-      setSpkForm({ target_qty: res.item.target_qty === null ? '' : String(res.item.target_qty), tingkat_kualitas: res.item.tingkat_kualitas ?? '', formulasi: res.item.formulasi ?? '', formulasi_id: res.item.formulasi_id ? String(res.item.formulasi_id) : '', acuan_kerja: res.item.acuan_kerja ?? '' })
+      setSpkForm({ target_qty: res.item.target_qty === null ? '' : String(res.item.target_qty), tingkat_kualitas: res.item.tingkat_kualitas ?? '', formulasi: res.item.formulasi ?? '', formulasi_bom_id: res.item.formulasi_bom_id ? String(res.item.formulasi_bom_id) : '', acuan_kerja: res.item.acuan_kerja ?? '' })
       const rs = await api<{ items: Result[]; can: typeof resultCan }>(`/api/production/results?job=${id}`)
       setResults(rs.items)
       setResultCan(rs.can)
@@ -398,7 +399,7 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
 
   useEffect(() => {
     if (!can.manage || !job || job.spk_nomor || formulas) return
-    api<{ items: Formulation[] }>('/api/formulations?status=aktif').then((r) => setFormulas(r.items)).catch(() => setFormulas([]))
+    api<{ items: Formulation[] }>(`/api/formulations?status=aktif${job.item_accurate_id ? `&item=${job.item_accurate_id}` : ''}`).then((r) => setFormulas(r.items)).catch(() => setFormulas([]))
   }, [can.manage, job, formulas])
 
   async function run(action: () => Promise<unknown>, text?: string) {
@@ -481,25 +482,27 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
           <div className="pap-form-grid">
             <Field label="Target jumlah produksi" hint={`Kosong = jumlah pesanan (${qty(job.quantity, job.unit)}). Satuan: ${job.unit ?? '—'}`}><input className="pap-input" inputMode="decimal" value={spkForm.target_qty} onChange={(e) => setSpkForm((v) => ({ ...v, target_qty: e.target.value }))} placeholder={job.quantity === null ? '' : String(job.quantity)} /></Field>
             <Field label="Tingkat kualitas"><input className="pap-input" maxLength={100} value={spkForm.tingkat_kualitas} onChange={(e) => setSpkForm((v) => ({ ...v, tingkat_kualitas: e.target.value }))} placeholder="mis. Grade A, food grade, reguler" /></Field>
-            <Field label="Formulasi / campuran bahan" full hint="Pilih dari database Formulasi Produk; teks komposisi disalin ke SPK dan masih bisa disesuaikan.">
+            <Field label="Formulasi / campuran bahan" full hint="Formula produksi (Bill of Material) dari Accurate. Komposisi dan kebutuhan bahan untuk target disalin ke teks SPK dan masih bisa disesuaikan.">
               <div className="pap-spk-formula">
-                <select className="pap-select" value={spkForm.formulasi_id} onChange={(e) => {
-                  const f = formulas?.find((x) => String(x.id) === e.target.value)
-                  setSpkForm((v) => ({ ...v, formulasi_id: e.target.value, formulasi: f ? formulaSnapshot(f) : v.formulasi, tingkat_kualitas: v.tingkat_kualitas || f?.tingkat_kualitas || '' }))
+                <select className="pap-select" value={spkForm.formulasi_bom_id} onChange={(e) => {
+                  const f = formulas?.find((x) => String(x.bom_accurate_id) === e.target.value)
+                  const target = Number(spkForm.target_qty.replace(',', '.')) || targetOf(job)
+                  setSpkForm((v) => ({ ...v, formulasi_bom_id: e.target.value, formulasi: f ? formulaSnapshot(f, target, job.unit) : v.formulasi, tingkat_kualitas: v.tingkat_kualitas || f?.tingkat_kualitas || '' }))
                 }} aria-label="Pilih formulasi">
-                  <option value="">{formulas === null ? 'Memuat formulasi...' : formulas.length ? '— Pilih dari database formulasi —' : 'Belum ada formulasi di database'}</option>
-                  {spkForm.formulasi_id && !formulas?.some((f) => String(f.id) === spkForm.formulasi_id) && <option value={spkForm.formulasi_id}>{job.formulasi_kode ?? 'Formulasi'} v{job.formulasi_versi}</option>}
-                  {formulas?.map((f) => <option key={f.id} value={f.id}>{f.kode} v{f.versi} · {f.nama}{f.jenis_plastik ? ` (${f.jenis_plastik})` : ''}</option>)}
+                  <option value="">{formulas === null ? 'Memuat formula dari Accurate...' : formulas.length ? '— Pilih formula produksi (BOM Accurate) —' : 'Belum ada formula. Sinkron di menu Formulasi Produk.'}</option>
+                  {spkForm.formulasi_bom_id && !formulas?.some((f) => String(f.bom_accurate_id) === spkForm.formulasi_bom_id) && <option value={spkForm.formulasi_bom_id}>{job.formulasi_kode ?? 'Formula'}</option>}
+                  {formulas?.map((f) => <option key={f.bom_accurate_id} value={f.bom_accurate_id}>{f.item_accurate_id && f.item_accurate_id === job.item_accurate_id ? '★ ' : ''}{f.kode} · {f.nama}{f.jenis_plastik ? ` (${f.jenis_plastik})` : ''}</option>)}
                 </select>
               </div>
-              {(() => { const f = formulas?.find((x) => String(x.id) === spkForm.formulasi_id); return f ? <FormulaBar items={f.items} /> : null })()}
+              {(() => { const f = formulas?.find((x) => String(x.bom_accurate_id) === spkForm.formulasi_bom_id); return f ? <FormulaBar items={f.items} /> : null })()}
+              {formulas?.some((f) => f.item_accurate_id && f.item_accurate_id === job.item_accurate_id) && <small className="pap-hint">★ = formula untuk barang yang sama dengan SPK ini.</small>}
             </Field>
             <Field label="Teks formulasi di SPK" full><textarea className="pap-input" rows={3} maxLength={10000} value={spkForm.formulasi} onChange={(e) => setSpkForm((v) => ({ ...v, formulasi: e.target.value }))} placeholder="mis. HD 70% · LLDPE 25% · masterbatch putih 5%" /></Field>
             <Field label="Acuan kerja untuk KA Shift" full><textarea className="pap-input" rows={3} maxLength={10000} value={spkForm.acuan_kerja} onChange={(e) => setSpkForm((v) => ({ ...v, acuan_kerja: e.target.value }))} placeholder="Ukuran, ketebalan, warna cetak, standar seal, sample acuan, dll." /></Field>
             <div className="full pap-inline-actions">
               <span className="pap-spacer" />
-              <button className="pap-btn" disabled={busy || (spkForm.target_qty === (job.target_qty === null ? '' : String(job.target_qty)) && spkForm.tingkat_kualitas === (job.tingkat_kualitas ?? '') && spkForm.formulasi === (job.formulasi ?? '') && spkForm.formulasi_id === (job.formulasi_id ? String(job.formulasi_id) : '') && spkForm.acuan_kerja === (job.acuan_kerja ?? ''))} onClick={() => run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { ...spkForm, target_qty: spkForm.target_qty || null, formulasi_id: spkForm.formulasi_id || null } }), 'Isi SPK disimpan.')}>Simpan isi SPK</button>
-              {!job.spk_nomor && <button className="pap-primary-button" disabled={busy} onClick={() => window.confirm('Terbitkan SPK untuk job ini? Nomor SPK dibuat dan SPK bisa dicetak untuk Produksi.') && run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { ...spkForm, target_qty: spkForm.target_qty || null, formulasi_id: spkForm.formulasi_id || null, terbitkan_spk: true } }), 'SPK diterbitkan.')}><Stamp /> {job.spk_revisi ? `Terbitkan ulang SPK (revisi R${job.spk_revisi})` : 'Terbitkan SPK'}</button>}
+              <button className="pap-btn" disabled={busy || (spkForm.target_qty === (job.target_qty === null ? '' : String(job.target_qty)) && spkForm.tingkat_kualitas === (job.tingkat_kualitas ?? '') && spkForm.formulasi === (job.formulasi ?? '') && spkForm.formulasi_bom_id === (job.formulasi_bom_id ? String(job.formulasi_bom_id) : '') && spkForm.acuan_kerja === (job.acuan_kerja ?? ''))} onClick={() => run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { ...spkForm, target_qty: spkForm.target_qty || null, formulasi_bom_id: spkForm.formulasi_bom_id || null } }), 'Isi SPK disimpan.')}>Simpan isi SPK</button>
+              {!job.spk_nomor && <button className="pap-primary-button" disabled={busy} onClick={() => window.confirm('Terbitkan SPK untuk job ini? Nomor SPK dibuat dan SPK bisa dicetak untuk Produksi.') && run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { ...spkForm, target_qty: spkForm.target_qty || null, formulasi_bom_id: spkForm.formulasi_bom_id || null, terbitkan_spk: true } }), 'SPK diterbitkan.')}><Stamp /> {job.spk_revisi ? `Terbitkan ulang SPK (revisi R${job.spk_revisi})` : 'Terbitkan SPK'}</button>}
             </div>
           </div>
         ) : (

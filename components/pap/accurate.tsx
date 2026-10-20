@@ -4,11 +4,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react'
 import { api, formatDate, Notice } from './ui'
 
-export type SyncEntity = 'customer' | 'sales-invoice' | 'sales-order' | 'item' | 'stock' | 'sales-order-items' | 'customer-detail' | 'item-detail'
+export type SyncEntity = 'customer' | 'sales-invoice' | 'sales-order' | 'item' | 'stock' | 'sales-order-items' | 'customer-detail' | 'item-detail' | 'bill-of-material' | 'bill-of-material-detail'
   | 'manufacture-order' | 'manufacture-order-detail' | 'finished-good-slip' | 'finished-good-slip-detail'
 type SyncRow = { entity: SyncEntity; last_success: string | null; status: 'ok' | 'berjalan' | 'gagal'; message: string | null; updated_at: string }
 
-const LABEL: Record<SyncEntity, string> = { customer: 'Customer', 'sales-invoice': 'Faktur penjualan', 'sales-order': 'Sales order', item: 'Data barang', stock: 'Stok fisik', 'sales-order-items': 'Produk dari pesanan', 'customer-detail': 'Alamat customer', 'item-detail': 'Tanda "Diproduksi" barang',
+const LABEL: Record<SyncEntity, string> = { customer: 'Customer', 'sales-invoice': 'Faktur penjualan', 'sales-order': 'Sales order', item: 'Data barang', stock: 'Stok fisik', 'sales-order-items': 'Produk dari pesanan', 'customer-detail': 'Alamat customer', 'item-detail': 'Tanda "Diproduksi" barang', 'bill-of-material': 'Formula produksi (BOM)', 'bill-of-material-detail': 'Bahan formula produksi',
   'manufacture-order': 'Rencana produksi', 'manufacture-order-detail': 'Formula rencana produksi', 'finished-good-slip': 'Penyelesaian barang jadi', 'finished-good-slip-detail': 'Barang jadi' }
 
 export const formatRupiah = (value: number | null | undefined) =>
