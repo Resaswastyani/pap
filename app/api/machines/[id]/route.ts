@@ -1,9 +1,18 @@
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
+import { loadMachineDetail } from '@/lib/machine-sheet'
 import { canManageMachines, readMachineInput } from '@/lib/production'
 
 type Ctx = { params: Promise<{ id: string }> }
+
+// Detail mesin: critical point perawatan per komponen, data pembantu (SOP), laporan kerusakan terakhir
+export const GET = handle(async (_request: Request, ctx: Ctx) => {
+  const user = await requireUser()
+  if (!['data-mesin', 'jadwal-produksi', 'perbaikan-mesin'].some((m) => user.menus.includes(m as never))) fail(403, 'Anda tidak punya akses ke Data Mesin.')
+  const id = int((await ctx.params).id) ?? fail(404, 'Mesin tidak ditemukan.')
+  return NextResponse.json({ ...(await loadMachineDetail(id)), canManage: canManageMachines(user) })
+})
 
 export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()

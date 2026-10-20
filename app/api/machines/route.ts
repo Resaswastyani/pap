@@ -15,10 +15,12 @@ export const GET = handle(async () => {
     `SELECT m.*, (SELECT COUNT(*) FROM production_stages s JOIN production_jobs j ON j.id = s.job_id AND j.status <> 'batal'
        WHERE s.machine_id = m.id AND s.status IN ('belum', 'berjalan')) AS antrian,
        (SELECT CONCAT(j.nomor, ' · ', j.item_name) FROM production_stages s JOIN production_jobs j ON j.id = s.job_id
-       WHERE s.machine_id = m.id AND s.status = 'berjalan' ORDER BY s.actual_start DESC LIMIT 1) AS sedang_dikerjakan
-     FROM machines m ORDER BY FIELD(m.status, 'aktif', 'maintenance', 'nonaktif'), FIELD(m.tahap, 'Blow', 'Cetak', 'Bag making'), m.kode`,
+       WHERE s.machine_id = m.id AND s.status = 'berjalan' ORDER BY s.actual_start DESC LIMIT 1) AS sedang_dikerjakan,
+       (SELECT COUNT(*) FROM machine_checkpoints c WHERE c.machine_id = m.id AND c.jenis = 'langkah') AS critical_point,
+       (SELECT COUNT(*) FROM machine_repairs r WHERE r.machine_id = m.id AND r.status IN ('baru', 'dikerjakan', 'menunggu_part')) AS perbaikan_terbuka
+     FROM machines m ORDER BY FIELD(m.status, 'aktif', 'maintenance', 'nonaktif'), m.lini IS NULL, m.lini, FIELD(m.tahap, 'Blow', 'Cetak', 'Bag making'), m.kode`,
   )
-  return NextResponse.json({ items: items.map((m) => ({ ...m, antrian: Number(m.antrian) })), tahap: PRODUCTION_STAGES, canManage: canManageMachines(user) })
+  return NextResponse.json({ items: items.map((m) => ({ ...m, antrian: Number(m.antrian), critical_point: Number(m.critical_point), perbaikan_terbuka: Number(m.perbaikan_terbuka) })), tahap: PRODUCTION_STAGES, canManage: canManageMachines(user) })
 })
 
 export const POST = handle(async (request: Request) => {
