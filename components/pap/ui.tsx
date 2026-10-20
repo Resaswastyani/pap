@@ -136,6 +136,37 @@ export function Progress({ value }: { value: number }) {
   )
 }
 
+// Tabel tampil sebagai kartu di layar HP (lihat CSS .pap-table-wrap @max-width:640px): setiap sel diberi
+// data-label dari judul kolomnya, dan sel judul pertama ditandai data-title. Tabel matriks dikecualikan.
+const CARD_TABLES = '.pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table)'
+function labelTables(root: ParentNode) {
+  root.querySelectorAll<HTMLTableElement>(CARD_TABLES).forEach((table) => {
+    const heads = [...table.querySelectorAll('thead th')].map((th) => th.textContent?.trim() ?? '')
+    if (!heads.length) return
+    const titleIndex = heads.findIndex((h) => h && h !== '#')
+    table.querySelectorAll('tbody tr').forEach((tr) => {
+      let col = 0
+      for (const cell of tr.children) {
+        const label = heads[col] ?? ''
+        if (cell.getAttribute('data-label') !== label) cell.setAttribute('data-label', label)
+        cell.toggleAttribute('data-title', col === titleIndex)
+        col += (cell as HTMLTableCellElement).colSpan || 1
+      }
+    })
+  })
+}
+
+export function useCardTables() {
+  useEffect(() => {
+    let frame = 0
+    const run = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => labelTables(document)) }
+    const observer = new MutationObserver(run)
+    observer.observe(document.body, { childList: true, subtree: true })
+    run()
+    return () => { observer.disconnect(); cancelAnimationFrame(frame) }
+  }, [])
+}
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 export function formatDate(value: string | null | undefined, withTime = false) {
   if (!value) return '—'

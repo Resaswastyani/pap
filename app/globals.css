@@ -1141,3 +1141,64 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-result-repair { display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; padding:10px 12px; border:1px dashed rgb(239 68 68 / .45); border-radius:10px; }
 .pap-result-repair .pap-select { width:auto; min-height:34px; font-size:12px; }
 .pap-spk-withdrawn { margin:0 0 12px; font-size:12px; }
+
+/* ---------- Responsif: tombol judul halaman & tabel kartu di HP ---------- */
+.pap-page-heading .pap-inline-actions { flex-wrap:wrap; }
+@media (max-width:800px) {
+  .pap-page-heading > .pap-inline-actions { width:100%; justify-content:flex-start; }
+  .pap-page-heading > .pap-inline-actions > * { flex:1 1 auto; justify-content:center; }
+}
+/* Tabel jadi kartu (HP & tablet portrait): setiap baris satu kartu, label kolom di kiri (data-label diisi useCardTables) */
+@media (max-width:800px) {
+  .pap-table-wrap:has(> table:not(.pap-perm-table):not(.pap-shift-table)) { overflow:visible; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) { display:block; min-width:0 !important; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) thead { display:none; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) tbody { display:flex; flex-direction:column; gap:10px; padding:12px; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) tr { display:block; padding:4px 14px; border:1px solid var(--pap-border); border-radius:12px; background:var(--pap-surface); }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td { position:relative; display:block; min-height:30px; padding:7px 0 7px 38%; border:0; border-top:1px dashed var(--pap-border); text-align:left; white-space:normal; overflow-wrap:anywhere; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td::before { content:attr(data-label); position:absolute; top:8px; left:0; width:34%; color:var(--pap-muted); font-size:10.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; line-height:1.35; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td[data-title] { padding:10px 0 8px; border-top:0; font-size:13.5px; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td[data-title]::before,
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td[data-label=""]::before,
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td[colspan]::before { display:none; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td[data-label=""],
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td[colspan] { padding-left:0; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td:empty { display:none; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) tr.pap-group-row { padding:6px 4px; border:0; background:transparent; font-weight:800; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) .pap-num { text-align:left; }
+}
+/* Segmented (tab) tidak boleh melebihi lebar kartu: di HP mengisi baris dan teks boleh turun */
+.pap-segmented { max-width:100%; }
+@media (max-width:640px) {
+  .pap-visit-bar > .pap-segmented, .pap-calendar-bar > .pap-segmented { width:100%; }
+  .pap-segmented button { min-width:0; padding:6px 8px; white-space:normal; text-align:center; line-height:1.25; }
+}
+@media (max-width:800px) { .pap-inline-actions { flex-wrap:wrap; } }
+@media (max-width:640px) {
+  .pap-inline-actions > .pap-segmented { width:100%; }
+  /* Jadwal shift bulanan: kolom kode & pilihan disembunyikan agar lebih banyak tanggal terlihat */
+  .pap-shift-table .induk, .pap-shift-table .pilihan { display:none; }
+  .pap-shift-table .no { min-width:26px; }
+  .pap-shift-table .nama { left:26px; min-width:108px; max-width:118px; }
+}
+/* Tablet portrait: kartu tabel dua kolom */
+@media (min-width:641px) and (max-width:800px) {
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) tbody { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); align-items:start; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) tr.pap-group-row,
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) tr:has(> td[colspan]) { grid-column:1 / -1; }
+}
+/* Tablet landscape / laptop kecil: sidebar jadi rail ikon agar konten lebih lega (nama menu di tooltip) */
+@media (min-width:801px) and (max-width:1100px) {
+  .pap-sidebar { position:sticky; top:0; width:76px; flex:0 0 76px; height:100vh; padding:22px 10px 16px; }
+  .pap-brand { justify-content:center; padding:0 0 22px; }
+  .pap-brand-text, .pap-nav-group p, .pap-upgrade, .pap-user > div:not(.pap-avatar) { display:none; }
+  .pap-nav { overflow-y:auto; overflow-x:hidden; scrollbar-width:none; }
+  .pap-nav-group { margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid rgb(255 255 255 / .08); }
+  .pap-nav-item { justify-content:center; gap:0; min-height:42px; padding:0; }
+  .pap-nav-item > span:not(.pap-nav-badge) { display:none; }
+  .pap-nav-item svg { width:19px; height:19px; }
+  .pap-nav-item.active::before { left:-10px; }
+  .pap-nav-badge { position:absolute; top:4px; right:4px; margin:0; padding:1px 5px; font-size:9px; }
+  .pap-user { flex-direction:column; gap:8px; padding:0; }
+  .pap-content { padding-left:28px; padding-right:28px; }
+}
