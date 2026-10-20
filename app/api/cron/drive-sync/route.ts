@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { syncDamageSheet } from '@/lib/damage-log'
 import { driveEnabled, syncDrive } from '@/lib/drive'
 
 export const maxDuration = 60
@@ -11,7 +12,10 @@ export async function GET(request: Request) {
   if (!secret || given !== secret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!(await driveEnabled())) return NextResponse.json({ ok: false, error: 'Google Drive belum dikonfigurasi.' })
   try {
-    return NextResponse.json({ ok: true, ...(await syncDrive(25_000)) })
+    const result = await syncDrive(20_000)
+    // Rekap kerusakan mesin dari spreadsheet Laporan Kerusakan Mesin (satu file, cepat)
+    const kerusakan = await syncDamageSheet().catch((error) => ({ error: (error as Error).message }))
+    return NextResponse.json({ ok: true, ...result, kerusakan })
   } catch (error) {
     console.error('[cron/drive-sync]', error)
     return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 500 })

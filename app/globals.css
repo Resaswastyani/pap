@@ -1311,3 +1311,19 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-bom-info { color:var(--pap-muted); font-size:11px; white-space:nowrap; }
 .pap-table-note { padding:10px 22px 16px; font-size:12px; }
 @media (max-width:800px) { .pap-bom-row { grid-template-columns:1fr 90px 70px 38px; } .pap-bom-row .pap-bom-info { grid-column:1 / -1; grid-row:2; } }
+
+/* ---------- Rekap & Form Laporan Kerusakan Mesin ---------- */
+.pap-damage-period { margin:-6px 0 10px; text-align:center; font-size:12px; color:#444; }
+.pap-damage-items td { font-size:11.5px; }
+.pap-damage-items tr.blank td { height:26px; }
+.pap-damage-items .pre { white-space:pre-wrap; }
+.pap-damage-cards { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:16px; margin-bottom:16px; }
+.pap-damage-text { white-space:pre-wrap; }
+.pap-damage-source { margin-left:6px; }
+@media (max-width:1000px) { .pap-damage-cards { grid-template-columns:1fr; } }
+.pap-view-switch { margin-bottom:18px; }
+.pap-damage-subtitle { margin:16px 0 6px; font-size:12px; color:var(--pap-muted); }
+.pap-sync-tab { display:flex; align-items:center; gap:10px; padding:9px 10px; border:1px solid var(--pap-border); border-radius:10px; font-size:12.5px; }
+.pap-sync-tab svg { flex:none; width:16px; height:16px; color:#1db98a; }
+.pap-load-more { display:flex; justify-content:center; padding:14px; border-top:1px solid var(--pap-border); }
+@media (max-width:800px) { .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td.pap-damage-text { white-space:pre-wrap; } }
