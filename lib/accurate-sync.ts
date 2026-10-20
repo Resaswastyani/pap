@@ -7,13 +7,21 @@ import { syncProductionJobs } from '@/lib/production'
 // - Inkremental memakai filter lastUpdate (hanya data yang berubah sejak sinkron terakhir)
 // - Bisa terpotong batas waktu (Vercel); halaman berikutnya dilanjutkan pada run berikutnya
 
-// Daftar (list.do): customer, sales-invoice, sales-order, item, stock (stok fisik)
-// Detail (per data): sales-order-items (baris barang SO -> Data Produk), customer-detail (alamat customer)
-type ListEntity = 'customer' | 'sales-invoice' | 'sales-order' | 'item' | 'stock'
-type DetailEntity = 'sales-order-items' | 'customer-detail' | 'item-detail'
+// Daftar (list.do): customer, sales-invoice, sales-order, item, stock (stok fisik),
+//   manufacture-order (Rencana Produksi, MP), finished-good-slip (Penyelesaian Barang Jadi, FGS)
+// Detail (per data): sales-order-items (baris barang SO -> Data Produk), customer-detail (alamat customer),
+//   manufacture-order-detail (baris formula MP), finished-good-slip-detail (barang jadi FGS)
+type ListEntity = 'customer' | 'sales-invoice' | 'sales-order' | 'item' | 'stock' | 'manufacture-order' | 'finished-good-slip'
+type DetailEntity = 'sales-order-items' | 'customer-detail' | 'item-detail' | 'manufacture-order-detail' | 'finished-good-slip-detail'
 export type SyncEntity = ListEntity | DetailEntity
 // Urutan: data kecil & inkremental dulu, stok (selalu penuh, paling lama) terakhir
-export const SYNC_ENTITIES: SyncEntity[] = ['customer', 'sales-invoice', 'sales-order', 'sales-order-items', 'customer-detail', 'item', 'item-detail', 'stock']
+export const SYNC_ENTITIES: SyncEntity[] = [
+  'customer', 'sales-invoice', 'sales-order', 'sales-order-items', 'customer-detail', 'item', 'item-detail',
+  'manufacture-order', 'manufacture-order-detail', 'finished-good-slip', 'finished-good-slip-detail', 'stock',
+]
+export const PRODUCTION_SYNC_ENTITIES: SyncEntity[] = ['manufacture-order', 'manufacture-order-detail', 'finished-good-slip', 'finished-good-slip-detail']
+// Baris barang MP/FGS hanya diambil untuk dokumen beberapa hari terakhir (detail.do = satu request per dokumen)
+const PRODUCTION_DAYS = Number(process.env.ACCURATE_PRODUCTION_DAYS || 120)
 
 const PATHS: Record<ListEntity, string> = {
   customer: '/api/customer/list.do',
@@ -21,6 +29,8 @@ const PATHS: Record<ListEntity, string> = {
   'sales-order': '/api/sales-order/list.do',
   item: '/api/item/list.do',
   stock: '/api/item/list-stock.do',
+  'manufacture-order': '/api/manufacture-order/list.do',
+  'finished-good-slip': '/api/finished-good-slip/list.do',
 }
 // Stok selalu disinkron penuh: jumlahnya berubah karena transaksi lain tanpa mengubah lastUpdate barang
 const FULL_SYNC: ListEntity[] = ['item', 'stock']
@@ -38,6 +48,8 @@ const FIELDS: Record<ListEntity, string> = {
   'sales-invoice': 'id,number,transDate,customer,totalAmount,statusName,lastUpdate',
   item: 'id,no,name,itemType,itemCategory,unit1,availableToSell,balance,quantity,minimumQuantity,suspended,lastUpdate',
   stock: '', // list-stock memakai field bawaan: id, no, name, quantity
+  'manufacture-order': 'id,number,name,transDate,statusName,portion,lastUpdate',
+  'finished-good-slip': 'id,number,transDate,description,workOrder,lastUpdate',
 }
 
 // Penyimpanan per halaman (satu query untuk banyak baris) agar sinkron cepat ke database jarak jauh.
@@ -116,7 +128,37 @@ async function saveSalesOrders(rows: Row[]) {
   )
 }
 
-const SAVERS: Record<ListEntity, (rows: Row[]) => Promise<void>> = { customer: storeCustomerRows, 'sales-invoice': saveInvoices, 'sales-order': saveSalesOrders, item: saveItems, stock: saveStock }
+// Rencana Produksi (MP): header dari daftar; tanggal mulai/selesai & status dilengkapi dari detail
+async function saveManufactureOrders(rows: Row[]) {
+  if (!rows.length) return
+  await db.query(
+    `INSERT INTO accurate_manufacture_orders (accurate_id, number, name, trans_date, status_name, progress, last_update)
+     VALUES ?
+     ON DUPLICATE KEY UPDATE number = VALUES(number), name = VALUES(name), trans_date = VALUES(trans_date), status_name = VALUES(status_name),
+       progress = VALUES(progress), last_update = VALUES(last_update)`,
+    [rows.map((row) => [num(row.id), str(row.number, 80), str(row.name), fromAccurateDate(row.transDate), str(row.statusName, 80), num(row.portion), str(row.lastUpdate, 20)])],
+  )
+}
+
+// Penyelesaian Barang Jadi (FGS): perintah kerja (WO) & rencana produksi asalnya ikut di objek workOrder
+async function saveFinishedGoodSlips(rows: Row[]) {
+  if (!rows.length) return
+  await db.query(
+    `INSERT INTO accurate_finished_good_slips (accurate_id, number, trans_date, wo_accurate_id, wo_number, mo_accurate_id, description, last_update)
+     VALUES ?
+     ON DUPLICATE KEY UPDATE number = VALUES(number), trans_date = VALUES(trans_date), wo_accurate_id = VALUES(wo_accurate_id), wo_number = VALUES(wo_number),
+       mo_accurate_id = VALUES(mo_accurate_id), description = VALUES(description), last_update = VALUES(last_update)`,
+    [rows.map((row) => {
+      const wo = (row.workOrder && typeof row.workOrder === 'object' ? row.workOrder : {}) as Row
+      return [num(row.id), str(row.number, 80), fromAccurateDate(row.transDate), num(wo.id), str(wo.number, 80), num(wo.manufactureOrderId), str(row.description, 5000), str(row.lastUpdate, 20)]
+    })],
+  )
+}
+
+const SAVERS: Record<ListEntity, (rows: Row[]) => Promise<void>> = {
+  customer: storeCustomerRows, 'sales-invoice': saveInvoices, 'sales-order': saveSalesOrders, item: saveItems, stock: saveStock,
+  'manufacture-order': saveManufactureOrders, 'finished-good-slip': saveFinishedGoodSlips,
+}
 
 // Jalankan fn untuk tiap item dengan beberapa permintaan paralel ke Accurate
 async function eachParallel<T>(items: T[], limit: number, deadline: number, fn: (item: T) => Promise<void>) {
@@ -243,10 +285,111 @@ async function syncItemDetails(deadline: number) {
   return { saved, done: saved === pending.length && pending.length < 400 }
 }
 
+const unitName = (v: unknown) => (v && typeof v === 'object' ? str((v as Row).name, 40) : str(v, 40))
+
+// Dokumen produksi (MP/FGS) terbaru yang baris barangnya belum diambil atau sudah berubah
+async function pendingProductionDocs(table: 'accurate_manufacture_orders' | 'accurate_finished_good_slips') {
+  const [rows] = await db.query<(RowDataPacket & { accurate_id: number; last_update: string | null })[]>(
+    `SELECT accurate_id, last_update FROM ${table}
+     WHERE trans_date >= CURDATE() - INTERVAL ? DAY AND (detail_synced_update IS NULL OR detail_synced_update <> COALESCE(last_update, ''))
+     ORDER BY trans_date DESC, accurate_id DESC LIMIT 300`,
+    [PRODUCTION_DAYS],
+  )
+  return rows
+}
+
+// Baris formula Rencana Produksi (produk utama, BOM, kuantitas, status, progres, jadwal, kuantitas jadi)
+async function syncManufactureOrderDetails(deadline: number) {
+  const pending = await pendingProductionDocs('accurate_manufacture_orders')
+  let saved = 0
+  const failed: string[] = []
+  await eachParallel(pending, 4, deadline, async (mo) => {
+    let res
+    try {
+      res = await accurate<Row>('/api/manufacture-order/detail.do', { params: { id: mo.accurate_id } })
+    } catch (error) {
+      failed.push(`${mo.accurate_id}: ${(error as Error).message}`)
+      return
+    }
+    const d = res.d ?? {}
+    const lines = ((d.detailManufactureOrder ?? []) as Row[]).map((line) => {
+      const item = (line.item ?? {}) as Row
+      const bom = (line.billOfMaterial ?? {}) as Row
+      return [
+        mo.accurate_id, num(line.id), num(line.seq), num(item.id ?? line.itemId), str(item.no, 80), str(item.name ?? line.detailName, 500),
+        num(bom.id ?? line.billOfMaterialId), str(bom.number, 80), num(line.quantity), unitName(line.itemUnit),
+        fromAccurateDate(line.startDate), fromAccurateDate(line.endDate), str(line.status, 40), str(line.statusName, 80),
+        num(line.portionProgress), num(line.workOrderQuantity), num(line.finishedGoodSlipQuantity), num(line.percentMaterialSliped), str(line.detailNotes, 1000),
+      ]
+    }).filter((line) => line[1] !== null)
+    await db.query('DELETE FROM accurate_manufacture_order_items WHERE mo_accurate_id = ?', [mo.accurate_id])
+    if (lines.length) {
+      await db.query(
+        `INSERT INTO accurate_manufacture_order_items (mo_accurate_id, line_id, seq, item_accurate_id, item_no, item_name, bom_accurate_id, bom_number, quantity, unit,
+           start_date, end_date, status, status_name, progress, wo_quantity, fgs_quantity, material_percent, notes) VALUES ?
+         ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), status = VALUES(status), status_name = VALUES(status_name), progress = VALUES(progress),
+           wo_quantity = VALUES(wo_quantity), fgs_quantity = VALUES(fgs_quantity), material_percent = VALUES(material_percent)`,
+        [lines],
+      )
+    }
+    await db.query(
+      `UPDATE accurate_manufacture_orders SET start_date = ?, end_date = ?, status = ?, status_name = COALESCE(?, status_name), progress = COALESCE(?, progress),
+         description = ?, detail_synced_update = ? WHERE accurate_id = ?`,
+      [fromAccurateDate(d.startDate), fromAccurateDate(d.endDate), str(d.status, 40), str(d.statusName, 80), num(d.portion), str(d.description, 5000), mo.last_update ?? '', mo.accurate_id],
+    )
+    saved++
+  })
+  if (failed.length && !saved) throw new Error(`Gagal mengambil detail Rencana Produksi: ${failed[0]}`)
+  return { saved, done: saved === pending.length && pending.length < 300 }
+}
+
+// Barang jadi pada Penyelesaian Barang Jadi (biasanya satu barang per dokumen)
+async function syncFinishedGoodSlipDetails(deadline: number) {
+  const pending = await pendingProductionDocs('accurate_finished_good_slips')
+  let saved = 0
+  const failed: string[] = []
+  await eachParallel(pending, 4, deadline, async (fgs) => {
+    let res
+    try {
+      res = await accurate<Row>('/api/finished-good-slip/detail.do', { params: { id: fgs.accurate_id } })
+    } catch (error) {
+      failed.push(`${fgs.accurate_id}: ${(error as Error).message}`)
+      return
+    }
+    const d = res.d ?? {}
+    const lines = ((d.detailItem ?? []) as Row[]).map((line) => {
+      const item = (line.item ?? {}) as Row
+      return [
+        fgs.accurate_id, num(line.id), num(line.seq), num(item.id ?? line.itemId), str(item.no, 80), str(line.detailName ?? item.name, 500),
+        num(line.quantity), unitName(line.itemUnit), nameOf(line.warehouse), str(line.detailNotes, 1000),
+      ]
+    }).filter((line) => line[1] !== null)
+    await db.query('DELETE FROM accurate_finished_good_slip_items WHERE fgs_accurate_id = ?', [fgs.accurate_id])
+    if (lines.length) {
+      await db.query(
+        `INSERT INTO accurate_finished_good_slip_items (fgs_accurate_id, line_id, seq, item_accurate_id, item_no, item_name, quantity, unit, warehouse, notes) VALUES ?
+         ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), unit = VALUES(unit), warehouse = VALUES(warehouse)`,
+        [lines],
+      )
+    }
+    const wo = (d.workOrder && typeof d.workOrder === 'object' ? d.workOrder : {}) as Row
+    await db.query(
+      `UPDATE accurate_finished_good_slips SET wo_accurate_id = COALESCE(?, wo_accurate_id), wo_number = COALESCE(?, wo_number),
+         mo_accurate_id = COALESCE(?, mo_accurate_id), detail_synced_update = ? WHERE accurate_id = ?`,
+      [num(wo.id ?? d.workOrderId), str(wo.number, 80), num(wo.manufactureOrderId), fgs.last_update ?? '', fgs.accurate_id],
+    )
+    saved++
+  })
+  if (failed.length && !saved) throw new Error(`Gagal mengambil detail Penyelesaian Barang Jadi: ${failed[0]}`)
+  return { saved, done: saved === pending.length && pending.length < 300 }
+}
+
 const DETAIL_TASKS: Record<DetailEntity, (deadline: number) => Promise<{ saved: number; done: boolean }>> = {
   'sales-order-items': syncSalesOrderItems,
   'customer-detail': syncCustomerDetails,
   'item-detail': syncItemDetails,
+  'manufacture-order-detail': syncManufactureOrderDetails,
+  'finished-good-slip-detail': syncFinishedGoodSlipDetails,
 }
 
 async function runDetailTask(entity: DetailEntity, deadline: number) {

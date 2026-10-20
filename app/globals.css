@@ -1285,3 +1285,22 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-spk-formula { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:6px; }
 .pap-spk-formula .pap-select { flex:1; min-width:220px; }
 @media (max-width:800px) { .pap-formula-row { grid-template-columns:1fr 100px 38px; } .pap-formula-row > input.pap-input { grid-column:1 / -1; grid-row:2; } }
+
+/* ---------- Rencana Produksi & Hasil Produksi dari Accurate ---------- */
+.pap-month-nav { display:flex; align-items:center; gap:8px; flex:none; }
+.pap-month-nav strong { min-width:120px; font-size:14px; }
+.pap-plan-head td { text-transform:none !important; letter-spacing:0 !important; font-size:12px !important; color:var(--pap-text) !important; }
+.pap-plan-title { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:4px 16px; }
+.pap-plan-title b { font-weight:800; }
+.pap-plan-item { max-width:420px; }
+.pap-plan-table .pap-progress { min-width:110px; }
+.pap-ok-icon { color:#1db98a; }
+.pap-fgs-grid { grid-template-columns:minmax(0,2fr) minmax(0,1fr); margin-bottom:16px; }
+@media (max-width:1000px) { .pap-fgs-grid { grid-template-columns:1fr; } }
+@media (max-width:800px) {
+  .pap-card-head .pap-month-nav { align-self:stretch; }
+  .pap-plan-head td { padding:10px 4px 2px !important; background:transparent; }
+  .pap-plan-item { max-width:none; }
+}
+@media (min-width:801px) { .pap-plan-table th, .pap-plan-table td { padding-left:14px; padding-right:14px; } .pap-plan-table .pap-progress { min-width:96px; } }
+@media (max-width:640px) { .pap-stat-grid.four .pap-stat-text { font-size:17px !important; white-space:nowrap; } }

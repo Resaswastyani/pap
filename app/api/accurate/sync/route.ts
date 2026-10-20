@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser } from '@/lib/api'
 import { accurateEnabled } from '@/lib/accurate'
-import { SYNC_ENTITIES, syncAll, syncStatus, type SyncEntity } from '@/lib/accurate-sync'
+import { PRODUCTION_SYNC_ENTITIES, SYNC_ENTITIES, syncAll, syncStatus, type SyncEntity } from '@/lib/accurate-sync'
 import { canManageCustomer } from '@/lib/customers'
+import { canViewProduction } from '@/lib/production'
 
 export const maxDuration = 60
 
@@ -20,7 +21,9 @@ export const POST = handle(async (request: Request) => {
   const only = Array.isArray(body.entities) ? (body.entities.filter((e) => SYNC_ENTITIES.includes(e as SyncEntity)) as SyncEntity[]) : undefined
   // Stok boleh disinkron oleh semua pengguna menu Stok; data customer hanya oleh pengelola customer/admin
   const stockOnly = !!only?.length && only.every((e) => e === 'item' || e === 'stock')
-  const allowed = canManageCustomer(user) || user.role.isAdmin || (stockOnly && user.menus.includes('stok'))
+  // Rencana produksi & penyelesaian barang jadi boleh disinkron oleh pengguna menu produksi
+  const productionOnly = !!only?.length && only.every((e) => PRODUCTION_SYNC_ENTITIES.includes(e))
+  const allowed = canManageCustomer(user) || user.role.isAdmin || (stockOnly && user.menus.includes('stok')) || (productionOnly && canViewProduction(user))
   if (!allowed) fail(403, 'Anda tidak punya akses untuk menjalankan sinkronisasi.')
   const results = await syncAll(45_000, only?.length ? only : undefined)
   return NextResponse.json({ results, status: await syncStatus() })
