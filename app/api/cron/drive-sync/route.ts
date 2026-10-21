@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { syncDamageSheet } from '@/lib/damage-log'
+import { syncMaintenanceSheet } from '@/lib/maintenance-sheet'
 import { driveEnabled, syncDrive } from '@/lib/drive'
 
 export const maxDuration = 60
@@ -15,7 +16,9 @@ export async function GET(request: Request) {
     const result = await syncDrive(20_000)
     // Rekap kerusakan mesin dari spreadsheet Laporan Kerusakan Mesin (satu file, cepat)
     const kerusakan = await syncDamageSheet().catch((error) => ({ error: (error as Error).message }))
-    return NextResponse.json({ ok: true, ...result, kerusakan })
+    // Lembar perawatan mesin (satu file)
+    const perawatan = await syncMaintenanceSheet().catch((error) => ({ error: (error as Error).message }))
+    return NextResponse.json({ ok: true, ...result, kerusakan, perawatan })
   } catch (error) {
     console.error('[cron/drive-sync]', error)
     return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 500 })

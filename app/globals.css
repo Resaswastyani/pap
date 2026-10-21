@@ -1374,3 +1374,27 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-sop-player iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
 @media (max-width:640px) { .pap-sop-group { padding:4px 14px 16px; } .pap-sop-grid { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; } }
 .pap-page-tabs { margin-bottom:14px; }
+
+/* ---------- Lembar Perawatan Mesin (Google Drive) ---------- */
+.pap-msheet { display:grid; grid-template-columns:280px minmax(0,1fr); gap:16px; align-items:start; }
+.pap-msheet-machines { position:sticky; top:16px; }
+.pap-msheet-select { display:none; margin:0 16px 14px; width:calc(100% - 32px); }
+.pap-msheet-list { display:flex; flex-direction:column; gap:4px; max-height:calc(100vh - 220px); overflow:auto; margin:0; padding:0 12px 14px; list-style:none; }
+.pap-msheet-list button { display:flex; flex-direction:column; gap:2px; width:100%; padding:9px 12px; border:1px solid transparent; border-radius:10px; background:transparent; color:var(--pap-text); font:inherit; text-align:left; cursor:pointer; }
+.pap-msheet-list button:hover { background:rgb(124 92 252 / .05); }
+.pap-msheet-list button.active { border-color:#7c5cfc; background:rgb(124 92 252 / .08); }
+.pap-msheet-list b { font-size:13px; }
+.pap-msheet-list small { color:var(--pap-muted); font-size:11px; }
+.pap-msheet-parts { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:12px; padding:0 22px 22px; }
+.pap-msheet-part { padding:14px 16px; border:1px solid var(--pap-border); border-radius:12px; }
+.pap-msheet-part header { display:flex; align-items:flex-start; gap:10px; margin-bottom:8px; }
+.pap-msheet-part header b { display:block; margin-bottom:4px; font-size:13.5px; }
+.pap-msheet-no { display:grid; place-items:center; flex:none; width:26px; height:26px; border-radius:8px; background:rgb(124 92 252 / .12); color:#7050e7; font-size:12px; font-weight:800; }
+.pap-msheet-part ol { display:flex; flex-direction:column; gap:5px; margin:0; padding-left:20px; font-size:12.5px; line-height:1.45; }
+@media (max-width:1000px) {
+  .pap-msheet { grid-template-columns:1fr; }
+  .pap-msheet-machines { position:static; }
+  .pap-msheet-machines .pap-card-head, .pap-msheet-list { display:none; }
+  .pap-msheet-select { display:block; margin:14px 16px; }
+}
+@media (max-width:640px) { .pap-msheet-parts { grid-template-columns:1fr; padding:0 12px 14px; } }
