@@ -6,7 +6,7 @@ export const REMINDER_MINUTES = 15
 // Sales butuh waktu perjalanan: reminder visit dikirim 60 menit sebelumnya
 export const VISIT_REMINDER_MINUTES = 60
 
-export type NotificationType = 'meeting_baru' | 'meeting_diubah' | 'meeting_reminder' | 'planning_pic' | 'planning_baru' | 'sistem' | 'prospek_baru' | 'visit_reminder' | 'followup_due' | 'sample_update' | 'desain_update' | 'repeat_order' | 'pembayaran' | 'quotation' | 'perbaikan_mesin'
+export type NotificationType = 'meeting_baru' | 'meeting_diubah' | 'meeting_reminder' | 'planning_pic' | 'planning_baru' | 'sistem' | 'prospek_baru' | 'visit_reminder' | 'followup_due' | 'sample_update' | 'desain_update' | 'repeat_order' | 'pembayaran' | 'quotation' | 'perbaikan_mesin' | 'perawatan_mesin' | 'stok_sparepart' | 'pengajuan_pembelian'
 
 type NotificationInput = {
   type: NotificationType
@@ -22,6 +22,9 @@ type NotificationInput = {
   paymentId?: number | null
   quotationId?: number | null
   repairId?: number | null
+  // Tujuan umum: nama menu (mis. 'Perawatan Mesin') + id data yang dibuka; dipakai fitur baru tanpa kolom khusus
+  page?: string | null
+  pageId?: number | null
   // Kunci unik per user; notifikasi dengan kunci sama tidak dibuat dua kali
   refKey: string
 }
@@ -34,8 +37,8 @@ export async function notify(userIds: number[], input: NotificationInput, conn: 
   const created: number[] = []
   for (const userId of new Set(userIds)) {
     const [result] = await conn.query<ResultSetHeader>(
-      'INSERT IGNORE INTO notifications (user_id, type, title, body, meeting_id, planning_id, prospect_id, visit_id, sample_id, design_id, customer_id, payment_id, quotation_id, repair_id, ref_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [userId, input.type, input.title.slice(0, 200), input.body?.slice(0, 500) ?? null, input.meetingId ?? null, input.planningId ?? null, input.prospectId ?? null, input.visitId ?? null, input.sampleId ?? null, input.designId ?? null, input.customerId ?? null, input.paymentId ?? null, input.quotationId ?? null, input.repairId ?? null, input.refKey.slice(0, 120)],
+      'INSERT IGNORE INTO notifications (user_id, type, title, body, meeting_id, planning_id, prospect_id, visit_id, sample_id, design_id, customer_id, payment_id, quotation_id, repair_id, target_page, target_id, ref_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, input.type, input.title.slice(0, 200), input.body?.slice(0, 500) ?? null, input.meetingId ?? null, input.planningId ?? null, input.prospectId ?? null, input.visitId ?? null, input.sampleId ?? null, input.designId ?? null, input.customerId ?? null, input.paymentId ?? null, input.quotationId ?? null, input.repairId ?? null, input.page?.slice(0, 40) ?? null, input.pageId ?? null, input.refKey.slice(0, 120)],
     )
     if (result.affectedRows) created.push(userId)
   }
@@ -74,6 +77,8 @@ export async function createDueReminders(userId?: number) {
     })))
   }
   created.push(...(await createMarketingReminders(userId)))
+  // Jadwal perawatan mesin jatuh tempo (impor dinamis: lib/teknik juga memakai notify)
+  created.push(...(await (await import('@/lib/teknik')).createMaintenanceReminders(userId)))
   await pushToUsers(created)
   return created
 }

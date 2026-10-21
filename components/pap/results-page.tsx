@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Moon, Pencil, Plus, Sun, Sunrise, Trash2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Moon, Pencil, Plus, Printer, Sun, Sunrise, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatNumber } from './accurate'
 import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
@@ -91,7 +91,21 @@ export function ResultsPage(_props: { user: UserProfile }) {
           <h1>Hasil Produksi & QC</h1>
           <span>Laporan hasil produksi per shift dari KA Shift terhadap target SPK, lalu diperiksa QC. Progress tahap di Jadwal Produksi dihitung otomatis dari hasil baik.</span>
         </div>
-        {can.report && <button className="pap-primary-button" onClick={() => setForm('new')}><Plus /> Lapor hasil</button>}
+        <div className="pap-inline-actions pap-wrap">
+          {/* Dokumen rangkuman hasil produksi & monitoring QC (harian sesuai tanggal terpilih, atau sebulan) */}
+          {(tanggal || current) && (() => {
+            const day = tanggal || current!.tanggal
+            const shiftQ = shift ? `&shift=${shift}` : ''
+            const lastDay = new Date(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)), 0)).toISOString().slice(0, 10)
+            return (
+              <>
+                <a className="pap-btn" href={`/cetak/hasil-produksi?dari=${day}&sampai=${day}${shiftQ}`} target="_blank" rel="noreferrer"><Printer /> Rangkuman harian</a>
+                <a className="pap-btn" href={`/cetak/hasil-produksi?dari=${day.slice(0, 8)}01&sampai=${lastDay}${shiftQ}`} target="_blank" rel="noreferrer"><Printer /> Rangkuman bulanan</a>
+              </>
+            )
+          })()}
+          {can.report && <button className="pap-primary-button" onClick={() => setForm('new')}><Plus /> Lapor hasil</button>}
+        </div>
       </div>
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}

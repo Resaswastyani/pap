@@ -165,6 +165,10 @@ const RESOURCES: Record<string, Resource> = {
   master: { module: 'Master Data', noun: 'master data' },
   'master/packaging': { module: 'Master Data', noun: 'jenis packaging', table: 'packaging_types' },
   'master/designs': { module: 'Master Data', noun: 'file desain', table: 'drive_files' },
+  maintenance: { module: 'Perawatan Mesin', noun: 'jadwal perawatan', table: 'maintenance_plans' },
+  'machine-settings': { module: 'Standar Setting', noun: 'parameter setting', table: 'machine_settings' },
+  'tech-items': { module: 'Sparepart & Peralatan', noun: 'barang teknik', table: 'tech_items' },
+  'purchase-requests': { module: 'Pengajuan Pembelian', noun: 'pengajuan pembelian', table: 'purchase_requests' },
 }
 
 type Plan = {
@@ -236,6 +240,10 @@ function planFor(method: string, path: string): Plan | null {
     return { ...base, action: 'update', always: true, describe: () => 'Memutus koneksi akun Google Drive desain' }
   if (res === 'master' && a === 'drive')
     return { ...base, action: 'sync', describe: () => 'Menyinkronkan folder Google Drive desain' }
+  if (res === 'maintenance' && a === 'checkup')
+    return { ...base, action: 'create', entityType: 'checkup perawatan', table: 'maintenance_logs', describe: (_l, f) => `Mencatat checkup perawatan${f.hasil ? ` (hasil: ${f.hasil.replace('_', ' ')})` : ''}` }
+  if (res === 'tech-items' && isId(a) && b === 'moves')
+    return { ...base, action: 'update', always: true, table: r.table, id: a, describe: (l, f) => `Mencatat stok ${f.jenis ?? ''} ${f.jumlah ?? ''} untuk ${l}` }
   if (res === 'accurate' && a === 'sync')
     return { ...base, action: 'sync', describe: (_l, f) => `Menjalankan sinkron data Accurate${f.entity ? ` (${f.entity})` : ''}` }
 
@@ -246,7 +254,7 @@ function planFor(method: string, path: string): Plan | null {
 }
 
 const SKIP_COLS = new Set(['id', 'created_at', 'updated_at', 'synced_at', 'raw', 'data', 'foto', 'password_hash', 'last_update', 'items_synced_update', 'detail_synced_update', 'created_by', 'updated_by', 'uploaded_by'])
-const LABEL_COLS = ['judul', 'nama_usaha', 'nama_produk', 'nama', 'kepada', 'name', 'item_name', 'tahap', 'tujuan']
+const LABEL_COLS = ['judul', 'nama_usaha', 'nama_produk', 'nama', 'kepada', 'name', 'item_name', 'tahap', 'tujuan', 'parameter']
 
 // Parameter HPP & data dokumen disimpan sebagai baris key-value
 async function settingsSnapshot() {
