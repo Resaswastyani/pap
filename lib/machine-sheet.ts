@@ -65,13 +65,14 @@ export function parseMachineTabs(tabs: SheetTab[]) {
       }
       // Judul mesin: "A." | "MC BLOW"
       if (/^mc\b/i.test(b) && (/^[a-z]\.?$/i.test(a) || !a)) {
-        // MC Gusset di lini HD tidak memakai Buffer: "MC Gusset & Buffer" -> "MC Gusset"
-        const name = lini && /\bHD\b/i.test(lini) && /gusset/i.test(b) ? titleCase(b).replace(/\s*&\s*buffer\b/i, '') : titleCase(b)
+        // Nama & kode MC Gusset tanpa kata "Buffer": "MC GUSSET & BUFFER" -> "MC Gusset" / PP-GUSSET
+        const b2 = /gusset/i.test(b) ? b.replace(/\s*&\s*buffer\b/i, '') : b
+        const name = titleCase(b2)
         const short = lini ? lini.replace(/^INLINE\s*/i, '') : ''
         const key = `${(lini ?? tab.title).toLowerCase()}|${b.toLowerCase()}`.slice(0, 80)
         machine = machines.find((m) => m.key === key) ?? null
         if (!machine) {
-          machine = { key, kode: `${short ? `${slug(short)}-` : ''}${slug(b)}`.slice(0, 30), nama: `${name}${lini ? ` · ${titleCase(lini)}` : ''}`.slice(0, 150), lini, tahap: stageOf(b), docs: [], checkpoints: [] }
+          machine = { key, kode: `${short ? `${slug(short)}-` : ''}${slug(b2)}`.slice(0, 30), nama: `${name}${lini ? ` · ${titleCase(lini)}` : ''}`.slice(0, 150), lini, tahap: stageOf(b), docs: [], checkpoints: [] }
           machines.push(machine)
         }
         docCol = null

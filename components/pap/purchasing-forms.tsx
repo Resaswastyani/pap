@@ -22,7 +22,7 @@ const dec = (v: string) => Number(v.replace(',', '.')) || 0
 const today = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
 
 // Pilih barang Accurate: ketik nama / kode, saran dari data barang (+ harga beli terakhir)
-function ItemPicker({ line, onPick, onText }: { line: Line; onPick: (item: ItemHit) => void; onText: (text: string) => void }) {
+export function ItemPicker({ line, onPick, onText }: { line: Pick<Line, 'key' | 'item_no' | 'nama'>; onPick: (item: ItemHit) => void; onText: (text: string) => void }) {
   const [text, setText] = useState(line.item_no ? `${line.item_no} · ${line.nama}` : '')
   const [hits, setHits] = useState<ItemHit[]>([])
   const listId = `pap-po-items-${line.key}`

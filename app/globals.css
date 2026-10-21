@@ -1452,3 +1452,10 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-po-actions .pap-btn { min-height:28px; padding:0 10px; font-size:11px; }
 .pap-price-logs { margin:10px 0 0; padding-left:18px; color:var(--pap-muted); font-size:11px; line-height:1.7; }
 @media (max-width:700px) { .pap-po-sections { grid-template-columns:1fr; } }
+.pap-pager-simple { justify-content:center; padding:12px; }
+/* Tombol aksi di kepala kartu: satu baris, ukuran tetap; teks judul yang menyusut */
+.pap-card-head > div:first-child { flex:1; min-width:0; }
+.pap-card-head .pap-primary-button, .pap-card-head .pap-btn { flex:none; justify-content:center; white-space:nowrap; }
+.pap-card-head .pap-primary-button svg { flex:none; }
+@media (max-width:800px) { .pap-card-head > .pap-primary-button, .pap-card-head > .pap-inline-actions { align-self:stretch; } .pap-card-head > .pap-primary-button { width:100%; } }
+@media (max-width:640px) { .pap-page-tabs { display:flex; width:100%; } .pap-page-tabs button { flex:1; justify-content:center; padding:6px 8px; font-size:11px; white-space:nowrap; } }

@@ -93,14 +93,14 @@ export async function readMaintenanceSheet(url: string) {
 }
 
 // ---------- Tautan ke Data Mesin ----------
-// "Mesin Blow PP" -> PP-BLOW; "Mesin Gusset HD" / "Buffer Time HD" -> HD-GUSSET-BUFFER; "Cut Seal PP" -> PP-CUTSEAL
+// "Mesin Blow PP" -> PP-BLOW; "Mesin Gusset HD" / "Buffer Time HD" -> HD-GUSSET; "Cut Seal PP" -> PP-CUTSEAL
 export function machineCodeFor(mesin: string) {
   const v = mesin.toLowerCase().replace(/\s+/g, ' ')
   const lini = /\bpp\b/.test(v) ? 'PP' : /\bhd\b/.test(v) ? 'HD' : null
   if (!lini) return null
   if (/\bblow\b/.test(v)) return `${lini}-BLOW`
   if (/roto/.test(v)) return `${lini}-ROTOGRAVURE`
-  if (/gusset|buffer ?time/.test(v)) return `${lini}-GUSSET-BUFFER`
+  if (/gusset|buffer ?time/.test(v)) return `${lini}-GUSSET`
   if (/cut ?seal/.test(v)) return `${lini}-CUTSEAL`
   return null
 }

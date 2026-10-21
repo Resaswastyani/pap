@@ -7,6 +7,7 @@ import { AccurateSyncBar, formatNumber, formatRupiah, type SyncEntity } from './
 import { MonthNav, monthLabel, useDebounced } from './accurate-production'
 import { BarList, ColumnChart } from './charts'
 import { PoFormModal, PriceEditor, VendorFormModal } from './purchasing-forms'
+import { VendorPriceList } from './vendor-price-list'
 import { api, Field, formatDate, Modal, Notice, Pager, Progress, usePaged } from './ui'
 
 // Purchasing: supplier, PO pembelian, harga bahan, hutang supplier. Data dari Accurate Online; supplier, PO, dan harga beli acuan
@@ -430,10 +431,16 @@ export function MaterialPricePage(_props: { user: UserProfile }) {
   const paged = usePaged(data?.items ?? [], [query, kategori, berubah])
   const s = data?.stats
   const toggle = (k: string) => setBerubah(berubah === k ? '' : k)
+  const [tab, setTab] = useState<'po' | 'pemasok'>('po')
 
   return (
     <>
       <Heading title="Harga Bahan">Database harga beli bahan baku, bahan pendukung, dan perlengkapan produksi (tinta, dll.) dari baris PO Accurate: harga terakhir, perubahan dari pembelian sebelumnya, rentang 12 bulan, dan perbandingan antar supplier.</Heading>
+      <div className="pap-segmented pap-page-tabs" role="tablist" aria-label="Jenis harga">
+        <button role="tab" aria-selected={tab === 'po'} className={tab === 'po' ? 'active' : ''} onClick={() => setTab('po')}><Tags /> Harga dari PO</button>
+        <button role="tab" aria-selected={tab === 'pemasok'} className={tab === 'pemasok' ? 'active' : ''} onClick={() => setTab('pemasok')}><Building2 /> Harga Pemasok (Accurate)</button>
+      </div>
+      {tab === 'pemasok' ? <VendorPriceList /> : <>
       <AccurateSyncBar entities={['purchase-order', 'purchase-order-detail']} canSync onSynced={load} />
       <Tiles tiles={[
         { label: 'Barang tercatat', value: `${s?.barang ?? 0}`, note: kategori || 'Semua kategori', icon: Tags, tone: 'stat-1' },
@@ -478,6 +485,7 @@ export function MaterialPricePage(_props: { user: UserProfile }) {
           <Pager {...paged.pager} noun="barang" />
         </div>
       </div>
+      </>}
       {detailId && <PriceDetailModal id={detailId} onClose={() => setDetailId(null)} onChanged={load} />}
     </>
   )
