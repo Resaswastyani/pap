@@ -9,7 +9,7 @@ import { isManagement, type UserProfile } from '@/lib/users'
 
 // ---------- Hak akses ----------
 const hasMenu = (user: UserProfile, key: string) => user.menus.includes(key as never)
-export function requireTeknikMenu(user: UserProfile, key: 'perawatan-mesin' | 'standar-setting' | 'sparepart' | 'pengajuan-pembelian', label: string) {
+export function requireTeknikMenu(user: UserProfile, key: 'perawatan-mesin' | 'sop-mesin' | 'sparepart' | 'pengajuan-pembelian', label: string) {
   if (!hasMenu(user, key)) fail(403, `Anda tidak punya akses ke menu ${label}.`)
 }
 // Pengelola data teknik: divisi Teknik, GM, admin

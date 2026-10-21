@@ -413,3 +413,18 @@ export async function readSpreadsheet(id: string): Promise<SheetTab[]> {
   }
   return readXlsx(Buffer.from(await res.arrayBuffer()))
 }
+
+// Isi satu folder Drive (dipakai SOP Mesin); shortcut diganti dengan file tujuannya
+export async function listDriveFolder(folderId: string) {
+  return (await listChildren(folderId)).map((item) => {
+    const shortcut = item.mimeType === SHORTCUT && item.shortcutDetails
+    return {
+      id: shortcut ? item.shortcutDetails!.targetId : item.id,
+      name: item.name,
+      mimeType: shortcut ? item.shortcutDetails!.targetMimeType : item.mimeType,
+      size: item.size ? Number(item.size) : null,
+      modified: toWib(item.modifiedTime),
+      isFolder: (shortcut ? item.shortcutDetails!.targetMimeType : item.mimeType) === FOLDER,
+    }
+  })
+}

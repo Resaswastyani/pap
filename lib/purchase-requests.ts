@@ -10,6 +10,7 @@ import { decimal, divisionUserIds, isDate, PR_PRIORITY, PR_STATUS, type PrPriori
 import type { UserProfile } from '@/lib/users'
 
 export const PR_SELECT = `SELECT p.id, p.nomor, p.keperluan, p.prioritas, p.dibutuhkan, p.status, p.repair_id, r.nomor AS repair_nomor, rm.nama AS repair_mesin,
+  p.vendor_accurate_id, av.name AS vendor_name, COALESCE(av.mobile_phone, av.work_phone) AS vendor_phone,
   p.catatan_purchasing, p.requested_by, ur.name AS requested_name, ud.name AS requester_division, p.processed_by, upr.name AS processed_name,
   p.processed_at, p.received_at, p.created_at, p.updated_at,
   (SELECT COUNT(*) FROM purchase_request_items i WHERE i.request_id = p.id) AS item_count,
@@ -19,9 +20,10 @@ export const PR_SELECT = `SELECT p.id, p.nomor, p.keperluan, p.prioritas, p.dibu
   JOIN divisions ud ON ud.id = ur.division_id
   LEFT JOIN users upr ON upr.id = p.processed_by
   LEFT JOIN machine_repairs r ON r.id = p.repair_id
-  LEFT JOIN machines rm ON rm.id = r.machine_id`
+  LEFT JOIN machines rm ON rm.id = r.machine_id
+  LEFT JOIN accurate_vendors av ON av.accurate_id = p.vendor_accurate_id`
 
-type PrRow = RowDataPacket & { id: number; nomor: string; status: string; prioritas: string; requested_by: number; requested_name: string; item_names: string | null; dibutuhkan: string | null; catatan_purchasing: string | null }
+type PrRow = RowDataPacket & { id: number; nomor: string; status: string; prioritas: string; requested_by: number; requested_name: string; item_names: string | null; dibutuhkan: string | null; catatan_purchasing: string | null; vendor_name: string | null }
 export const serializePr = (r: RowDataPacket) => ({ ...(r as PrRow), item_count: Number(r.item_count ?? 0) })
 
 export async function loadPr(id: number) {
@@ -98,7 +100,7 @@ export async function notifyPr(id: number, actor: UserProfile, isNew: boolean) {
   await pushToUsers(await notify(recipients.filter((uid) => uid !== actor.id), {
     type: 'pengajuan_pembelian',
     title,
-    body: [pr.item_names, pr.dibutuhkan && `dibutuhkan ${pr.dibutuhkan}`, !isNew && pr.catatan_purchasing].filter(Boolean).join(' · '),
+    body: [pr.item_names, pr.dibutuhkan && `dibutuhkan ${pr.dibutuhkan}`, !isNew && pr.vendor_name && `supplier ${pr.vendor_name}`, !isNew && pr.catatan_purchasing].filter(Boolean).join(' · '),
     page: 'Pengajuan Pembelian',
     pageId: pr.id,
     refKey: `pr:${pr.id}:${pr.status}`,
