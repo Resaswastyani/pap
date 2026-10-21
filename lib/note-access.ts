@@ -60,6 +60,6 @@ export async function noteAccess(owner: NoteOwner, id: number, user: UserProfile
   const table = owner === 'stage' ? 'production_stages' : 'production_jobs'
   const [[row]] = await db.query<RowDataPacket[]>(`SELECT id FROM ${table} WHERE id = ?`, [id])
   if (!row) fail(404, owner === 'stage' ? 'Tahap produksi tidak ditemukan.' : 'Job produksi tidak ditemukan.')
-  if (!canViewProduction(user)) fail(403, 'Anda tidak punya akses ke Jadwal Produksi.')
+  if (!canViewProduction(user)) fail(403, 'Anda tidak punya akses ke Rencana Produksi.')
   return { canAdd: owner === 'stage' ? canProgressProduction(user) : canManageProduction(user) }
 }

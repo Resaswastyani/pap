@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CalendarDays, CalendarX, ChevronLeft, ChevronRight, Clock, ExternalLink, FileSpreadsheet, Moon, RefreshCw, Search, Sun, Sunrise, Truck, Users } from 'lucide-react'
+import { CalendarDays, CalendarX, ChevronLeft, ChevronRight, Clock, Download, ExternalLink, FileSpreadsheet, Moon, RefreshCw, Search, Sun, Sunrise, Truck, Upload, Users } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { api, Field, formatDate, Modal, Notice } from './ui'
 
@@ -41,6 +41,7 @@ export function ShiftPage(_props: { user: UserProfile }) {
   useEffect(() => { if (window.matchMedia('(max-width: 640px)').matches) setView('hari') }, [])
   const [day, setDay] = useState(0)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [uploadOpen, setUploadOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
@@ -99,10 +100,13 @@ export function ShiftPage(_props: { user: UserProfile }) {
           <h1>Jadwal Shift</h1>
           <span>{data?.schedule?.judul ?? 'Jadwal karyawan produksi per bulan'}: shift, jam kerja, dan libur per karyawan, disinkron dari spreadsheet di Google Drive.</span>
         </div>
-        <div className="pap-inline-actions">
+        <div className="pap-inline-actions pap-wrap">
+          <a className="pap-btn" href={`/api/shift-schedule/template?periode=${shiftMonth(thisMonth, 1)}`} title="Template Excel jadwal bulan depan beserta contoh pengisian"><Download /> Unduh template</a>
+          {data?.canSync && <button className="pap-btn" onClick={() => setUploadOpen(true)}><Upload /> Unggah file</button>}
           <button className="pap-btn" onClick={() => setSheetOpen(true)}><FileSpreadsheet /> Google Sheet</button>
         </div>
       </div>
+      {uploadOpen && <UploadShift nextMonth={shiftMonth(thisMonth, 1)} onClose={() => setUploadOpen(false)} onImported={(t, p) => { setUploadOpen(false); setMessage(t); if (p === periode) load(); else setPeriode(p) }} />}
       {sheetOpen && <SheetSync onClose={() => setSheetOpen(false)} onImported={(t) => { setSheetOpen(false); setMessage(t); load() }} />}
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
@@ -234,6 +238,74 @@ type SheetPreview = {
   url: string; account: string | null; canSync: boolean
   tabs: { title: string; periode: string | null; rows: number; note: string | null }[]
   schedules: { periode: string; judul: string | null; tab: string; karyawan: number }[]
+}
+
+// Unggah jadwal dari file Excel (template bulan depan): pratinjau dulu, lalu simpan
+type UploadPreview = {
+  file: string; tabs: { title: string; periode: string | null; rows: number; note: string | null }[]
+  schedules: { periode: string; judul: string | null; tab: string; karyawan: number; sudah_ada: boolean; terisi: number; contoh: string[] }[]
+}
+function UploadShift({ nextMonth, onClose, onImported }: { nextMonth: string; onClose: () => void; onImported: (message: string, periode: string) => void }) {
+  const [file, setFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<UploadPreview | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  async function send(mode: 'preview' | 'import', f = file) {
+    if (!f) return
+    setBusy(true)
+    setError('')
+    try {
+      const body = new FormData()
+      body.append('file', f)
+      body.append('mode', mode)
+      const res = await fetch('/api/shift-schedule/upload', { method: 'POST', body })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Gagal membaca file.')
+      if (mode === 'preview') setPreview(json)
+      else onImported(`Jadwal ${preview?.schedules.map((s) => monthLabel(s.periode)).join(', ')} tersimpan (${json.karyawan} baris karyawan).`, preview?.schedules.at(-1)?.periode ?? nextMonth)
+    } catch (e) {
+      setError((e as Error).message)
+      if (mode === 'preview') setPreview(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const replaced = preview?.schedules.filter((s) => s.sudah_ada) ?? []
+  return (
+    <Modal
+      title="Unggah jadwal shift"
+      subtitle={`File Excel (.xlsx) jadwal bulan depan, mis. ${monthLabel(nextMonth)}`}
+      onClose={onClose}
+      footer={<><a className="pap-btn" href={`/api/shift-schedule/template?periode=${nextMonth}`}><Download /> Template {monthLabel(nextMonth)}</a><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" disabled={busy || !preview?.schedules.length} onClick={() => send('import')}>{busy && preview ? 'Menyimpan...' : `Simpan ${preview?.schedules.length ?? 0} bulan`}</button></>}
+    >
+      {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      <p className="pap-muted">Isi template (sheet pertama) lalu unggah di sini. Judul baris pertama menentukan bulan; kolom NAMA dan tanggal 1 sampai akhir bulan wajib ada. Petunjuk dan contoh pengisian ada di sheet PETUNJUK pada template.</p>
+      <label className="pap-file-drop">
+        <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xls" onChange={(e) => { const f = e.target.files?.[0] ?? null; setFile(f); setPreview(null); if (f) send('preview', f) }} />
+        <Upload /> <span>{file ? file.name : 'Pilih file Excel jadwal shift (.xlsx)'}</span>
+      </label>
+      {busy && !preview && <p className="pap-muted">Membaca file...</p>}
+      {preview && (
+        <div className="pap-table-wrap bordered">
+          <table>
+            <thead><tr><th>Bulan</th><th>Karyawan</th><th>Hari terisi</th><th>Keterangan</th></tr></thead>
+            <tbody>
+              {preview.schedules.map((s) => (
+                <tr key={s.periode}>
+                  <td><div className="pap-cell-title">{monthLabel(s.periode)}</div><div className="pap-cell-sub">{s.judul ?? s.tab}</div></td>
+                  <td>{s.karyawan}<div className="pap-cell-sub">{s.contoh.join(', ')}{s.karyawan > s.contoh.length ? ', ...' : ''}</div></td>
+                  <td>{s.terisi}</td>
+                  <td>{s.sudah_ada ? <span className="pap-status warning">Mengganti jadwal yang ada</span> : <span className="pap-status success">Jadwal baru</span>}{!s.terisi && <div className="pap-cell-sub">Semua tanggal kosong (dianggap libur)</div>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {replaced.length > 0 && <p className="pap-hint">Jadwal {replaced.map((s) => monthLabel(s.periode)).join(', ')} yang sudah ada akan diganti seluruhnya dengan isi file ini.</p>}
+      {preview?.tabs.filter((t) => t.note).map((t) => <p key={t.title} className="pap-hint">Sheet “{t.title}”: {t.note}</p>)}
+    </Modal>
+  )
 }
 
 function SheetSync({ onClose, onImported }: { onClose: () => void; onImported: (message: string) => void }) {

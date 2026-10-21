@@ -21,8 +21,8 @@ export type StageStatus = keyof typeof STAGE_STATUS
 // Permission production.manage tetap bisa diberikan per user (Manajemen User) bila perlu pengecualian.
 export const canManageProduction = (user: UserProfile) => can(user, PERMISSIONS.productionManage) || isManagement(user) || isLeadOf(user, 'ppic')
 export const canProgressProduction = (user: UserProfile) => canManageProduction(user) || can(user, PERMISSIONS.productionProgress) || user.division.code === 'produksi'
-// Job produksi dibuka dari menu Jadwal Produksi, SPK, atau Hasil Produksi
-export const canViewProduction = (user: UserProfile) => ['jadwal-produksi', 'sbk', 'hasil-produksi'].some((m) => user.menus.includes(m as never))
+// Job produksi dibuka dari menu Rencana Produksi atau Hasil Produksi
+export const canViewProduction = (user: UserProfile) => ['jadwal-produksi', 'hasil-produksi'].some((m) => user.menus.includes(m as never))
 // Verifikasi QC hasil produksi: Kepala Produksi, PPIC (kelola), GM, atau permission production.qc
 export const canQcProduction = (user: UserProfile) => canManageProduction(user) || can(user, PERMISSIONS.productionQc) || isLeadOf(user, 'produksi')
 // Data mesin: PPIC & Teknik

@@ -6,6 +6,8 @@ import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/prom
 import { db } from '@/lib/db'
 import { readSpreadsheet, spreadsheetId, type SheetTab } from '@/lib/drive'
 import { fail } from '@/lib/api'
+import { readXlsx } from '@/lib/xlsx-lite'
+import { colName, writeXlsx, type XlsxCell } from '@/lib/xlsx-write'
 import type { UserProfile } from '@/lib/users'
 
 const SETTING_KEY = 'jadwal_shift.sheet_url'
@@ -85,7 +87,7 @@ function detectHeader(rows: string[][]) {
     return {
       index: i, days, lastDay: Math.max(...days.values()),
       cols: {
-        no: find(/^(no|no\.|nomor)$/), nama, induk: find(/(kd ?karyawan|kode ?karyawan|induk|nik|nip|id karyawan)/), shift: find(/shift/),
+        no: find(/^(no|no\.|nomor)$/), nama, bagian: find(/^(bagian|divisi|jabatan|posisi)$/), induk: find(/(kd ?karyawan|kode ?karyawan|induk|nik|nip|id karyawan)/), shift: find(/shift/),
         awal: find(/^(tgl|tanggal) ?(awal|mulai)|^(mulai|start)/), akhir: find(/^(tgl|tanggal) ?(akhir|selesai)|^(selesai|end)/),
       },
     }
@@ -186,7 +188,10 @@ export function parseShiftTabs(tabs: SheetTab[], fallbackPeriode: string) {
         jadwal[date - 1] = kode
         if (!schedule.seen.has(kode)) schedule.seen.set(kode, raw)
       }
-      const { nama, bagian } = splitName(rawName)
+      const split = splitName(rawName)
+      const nama = split.nama
+      // Kolom Bagian (template unggah) menang atas "Nama - Bagian"
+      const bagian = (cols.bagian >= 0 ? (row[cols.bagian] ?? '').trim() : '') || split.bagian
       count++
       schedule.rows.push({
         urut: Number.parseInt(row[cols.no] ?? '', 10) || schedule.rows.length + 1,
@@ -281,5 +286,87 @@ export async function getShiftSchedule(periode: string | null) {
       } catch {}
       return { id: r.id, urut: r.urut, nama: r.nama, bagian: r.bagian, nomor_induk: r.nomor_induk, pilihan_shift: r.pilihan_shift, jadwal: Array.from({ length: total }, (_, i) => jadwal[i] ?? NO_DATA) }
     }),
+  }
+}
+
+// ---------- Unggah file Excel & template ----------
+const nextMonth = () => {
+  const now = new Date(Date.now() + 7 * 3600e3)
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}`
+}
+const MONTH_NAMES = ['JANUARI', 'FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI', 'JULI', 'AGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DESEMBER']
+export const TEMPLATE_GUIDE_TAB = 'PETUNJUK'
+
+// File .xlsx yang diunggah (mis. jadwal bulan depan dari template): dibaca dengan parser yang sama seperti spreadsheet Drive
+export function readShiftFile(buf: Buffer, name: string) {
+  if (/\.xls$/i.test(name) || buf.subarray(0, 4).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0]))) {
+    fail(400, 'File Excel 97-2003 (.xls) belum didukung. Buka di Excel lalu Simpan Sebagai "Excel Workbook (.xlsx)", atau pakai template dari tombol Unduh template.')
+  }
+  let tabs: SheetTab[]
+  try {
+    tabs = readXlsx(buf)
+  } catch {
+    return fail(400, 'File tidak bisa dibaca. Pastikan formatnya Excel .xlsx.')
+  }
+  const parsed = parseShiftTabs(tabs.filter((t) => t.title.toUpperCase() !== TEMPLATE_GUIDE_TAB), nextMonth())
+  return parsed
+}
+
+// Template pengisian jadwal satu bulan (default bulan depan): daftar karyawan & kode shift dari jadwal terakhir
+export async function shiftTemplate(periodeParam: string | null) {
+  const periode = periodeParam && /^\d{4}-\d{2}$/.test(periodeParam) ? periodeParam : nextMonth()
+  const [[last]] = await db.query<(RowDataPacket & { periode: string })[]>('SELECT periode FROM shift_schedules WHERE periode <= ? ORDER BY periode DESC LIMIT 1', [periode])
+  const source = last ? await getShiftSchedule(last.periode) : null
+  const total = daysIn(periode)
+  const year = Number(periode.slice(0, 4))
+  const month = Number(periode.slice(5, 7))
+  const dow = (day: number) => new Date(Date.UTC(year, month - 1, day)).getUTCDay()
+  const INITIAL = ['M', 'S', 'S', 'R', 'K', 'J', 'S']
+  const left = ['NO', 'NAMA', 'BAGIAN', 'KD KARYAWAN', 'PILIHAN SHIFT']
+  const lastCol = colName(left.length + total - 1)
+  const title = `JADWAL SHIFT KARYAWAN PRODUKSI BULAN ${MONTH_NAMES[month - 1]} ${year}`
+
+  const people = source?.rows ?? []
+  const rows: XlsxCell[][] = [
+    [{ v: title, s: 'title' }],
+    [{ v: 'Isi kolom tanggal: 1 / 2 / 3 = Shift 1-3, OFF atau kosong = libur, kode lain sesuai tabel Keterangan di bawah. Jangan ubah judul bulan dan baris judul kolom. Satu baris = satu karyawan.', s: 'note' }],
+    [...left.map((v) => ({ v, s: 'head' as const })), ...Array.from({ length: total }, (_, i) => ({ v: i + 1, s: dow(i + 1) === 0 ? 'sunday' as const : 'head' as const }))],
+    [...left.map(() => ({ v: null, s: 'head' as const })), ...Array.from({ length: total }, (_, i) => ({ v: INITIAL[dow(i + 1)], s: dow(i + 1) === 0 ? 'sunday' as const : 'head' as const }))],
+  ]
+  // Karyawan dari jadwal terakhir; baris kosong tambahan untuk karyawan baru
+  people.forEach((p, i) => rows.push([i + 1, p.nama, p.bagian, p.nomor_induk, p.pilihan_shift]))
+  for (let i = 0; i < (people.length ? 5 : 15); i++) rows.push([people.length + i + 1])
+  rows.push([])
+  const codes = source?.keterangan?.length ? source.keterangan : (['1', '2', '3', ''] as const).map((kode) => ({ kode, label: DEFAULT_LABEL[kode], jam: null }))
+  rows.push([null, { v: 'Keterangan :', s: 'head' }, { v: 'Jam kerja', s: 'head' }])
+  for (const c of codes) rows.push([null, c.label, c.jam ?? (c.kode === '' ? 'Libur' : '')])
+
+  const guide: XlsxCell[][] = [
+    [{ v: 'PETUNJUK PENGISIAN JADWAL SHIFT', s: 'title' }],
+    [],
+    ['1. Isi jadwal di sheet pertama. Judul baris pertama menentukan bulan jadwal (mis. "... BULAN NOVEMBER 2026").'],
+    ['2. Kolom NAMA wajib diisi. BAGIAN, KD KARYAWAN, dan PILIHAN SHIFT opsional.'],
+    ['3. Kolom tanggal 1 sampai akhir bulan: isi 1, 2, atau 3 untuk shift; OFF atau kosongkan untuk libur.'],
+    ['4. Kode lain (mis. Normal1, Driver1, Cuti) boleh dipakai; tulis juga di tabel Keterangan beserta jam kerjanya.'],
+    ['5. Kolom Minggu ditandai merah. Baris bertanda hari (M S S R K J S) di bawah judul kolom tidak perlu diubah.'],
+    ['6. Simpan sebagai Excel (.xlsx), lalu unggah lewat Jadwal Shift > Unggah file. Jadwal bulan yang sama akan diganti seluruhnya.'],
+    [],
+    [{ v: 'Contoh pengisian', s: 'head' }, { v: '1', s: 'head' }, { v: '2', s: 'head' }, { v: '3', s: 'head' }, { v: '4', s: 'head' }, { v: '5', s: 'head' }, { v: '6', s: 'head' }, { v: '7', s: 'head' }],
+    ['Budi (Operator Blow)', { v: '1', s: 'example' }, { v: '1', s: 'example' }, { v: '1', s: 'example' }, { v: 'OFF', s: 'example' }, { v: '2', s: 'example' }, { v: '2', s: 'example' }, { v: '2', s: 'example' }],
+    ['Sari (QC)', { v: 'Normal1', s: 'example' }, { v: 'Normal1', s: 'example' }, { v: 'OFF', s: 'example' }, { v: 'Normal1', s: 'example' }, { v: 'Normal1', s: 'example' }, { v: 'Cuti', s: 'example' }, { v: 'Normal1', s: 'example' }],
+  ]
+  return {
+    periode,
+    filename: `Template Jadwal Shift ${MONTH_NAMES[month - 1].charAt(0)}${MONTH_NAMES[month - 1].slice(1).toLowerCase()} ${year}.xlsx`,
+    buffer: writeXlsx([
+      {
+        title: `${MONTH_NAMES[month - 1]} ${year}`, rows,
+        widths: [5, 26, 16, 13, 12, ...Array(total).fill(4.5)],
+        merges: [`A1:${lastCol}1`, `A2:${lastCol}2`],
+        freeze: { row: 4, col: 2 },
+      },
+      { title: TEMPLATE_GUIDE_TAB, rows: guide, widths: [24, 9, 9, 9, 9, 9, 9, 9] },
+    ]),
   }
 }

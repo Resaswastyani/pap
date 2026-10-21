@@ -32,7 +32,7 @@ type Data = {
     baris: number; laporan: number; tahun_ini: number; bulan_ini: number; mesin: number; terakhir: string | null
     per_mesin: { key: string; label: string; jumlah: number; terakhir: string | null }[]; per_komponen: { komponen: string; jumlah: number }[]; per_bulan: { bulan: string; jumlah: number }[]
   }
-  options: { machines: { key: string; label: string; jumlah: number }[]; components: string[]; years: number[] }
+  options: { machines: { key: string; label: string; jumlah: number }[]; components: string[]; parts: SheetPart[]; years: number[] }
   synced_at: string | null
   can: { create: boolean; sync: boolean }
 }
@@ -220,7 +220,7 @@ export function DamageLogView({ user: _user }: { user: UserProfile }) {
         <DamageForm
           item={form === 'new' ? null : form}
           machines={data?.options.machines.map((m) => m.label) ?? []}
-          components={data?.options.components ?? []}
+          parts={data?.options.parts ?? []}
           onClose={() => setForm(null)}
           onSaved={(text) => { setForm(null); setMessage(text); load() }}
         />
@@ -231,7 +231,17 @@ export function DamageLogView({ user: _user }: { user: UserProfile }) {
 }
 
 // Form Laporan Kerusakan Mesin, kolom sama dengan tab FORM KERUSAKAN di spreadsheet
-function DamageForm({ item, machines, components, onClose, onSaved }: { item: Damage | null; machines: string[]; components: string[]; onClose: () => void; onSaved: (text: string) => void }) {
+type SheetPart = { mesin: string; part: string }
+// Cocokkan nama mesin yang diketik ("Mc Cutseal HD") dengan mesin di Lembar Perawatan ("Mesin Cut Seal HD")
+const machineTokens = (s: string) => s.toLowerCase().replace(/cut\s*seal|custeal/g, 'cutseal').replace(/buffer\s*time|bufertime/g, 'buffertime').replace(/\broto(gravure|ttogravure)?\b/g, 'rotogravure')
+  .replace(/\b(mesin|mc|warna|\d)\b/g, ' ').split(/[^a-z]+/).filter(Boolean)
+function matchSheetMachines(mesin: string, names: string[]) {
+  const want = machineTokens(mesin)
+  if (!want.length) return []
+  return names.filter((n) => { const have = new Set(machineTokens(n)); return want.every((t) => have.has(t)) })
+}
+
+function DamageForm({ item, machines, parts, onClose, onSaved }: { item: Damage | null; machines: string[]; parts: SheetPart[]; onClose: () => void; onSaved: (text: string) => void }) {
   const today = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
   const [v, setV] = useState({
     tanggal: item?.tanggal?.slice(0, 10) ?? today, mesin: item?.mesin ?? '', komponen: item?.komponen ?? '',
@@ -240,6 +250,12 @@ function DamageForm({ item, machines, components, onClose, onSaved }: { item: Da
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const set = (k: keyof typeof v) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value })
+  // Komponen dari Lembar Perawatan: mesin yang cocok dengan nama mesin tampil paling atas
+  const sheetMachines = [...new Set(parts.map((p) => p.mesin))]
+  const matched = matchSheetMachines(v.mesin, sheetMachines)
+  const groups = [...matched, ...sheetMachines.filter((m) => !matched.includes(m))]
+  const known = parts.some((p) => p.part === v.komponen)
+  const [manual, setManual] = useState(!parts.length || (!!item?.komponen && !known))
 
   async function save() {
     setBusy(true)
@@ -268,9 +284,23 @@ function DamageForm({ item, machines, components, onClose, onSaved }: { item: Da
           <input className="pap-input" list="pap-damage-machines" value={v.mesin} onChange={set('mesin')} placeholder="Mis. Cutseal HD" />
           <datalist id="pap-damage-machines">{machines.map((m) => <option key={m} value={m} />)}</datalist>
         </Field>
-        <Field label="Komponen" hint="Opsional, mis. EPC, Kelistrikan, Pisau Potong" full>
-          <input className="pap-input" list="pap-damage-components" value={v.komponen} onChange={set('komponen')} />
-          <datalist id="pap-damage-components">{components.map((c) => <option key={c} value={c} />)}</datalist>
+        <Field label="Komponen" hint={matched.length ? `Dari Lembar Perawatan · ${matched.join(', ')} di atas` : 'Opsional · daftar dari Lembar Perawatan Mesin'} full>
+          {manual ? (
+            <div className="pap-inline-actions">
+              <input className="pap-input" value={v.komponen} onChange={set('komponen')} placeholder="Ketik nama komponen" autoFocus />
+              {parts.length > 0 && <button type="button" className="pap-btn" onClick={() => { setManual(false); setV({ ...v, komponen: '' }) }}>Pilih dari daftar</button>}
+            </div>
+          ) : (
+            <select className="pap-select" value={known ? v.komponen : ''} onChange={(e) => (e.target.value === '__lain' ? (setManual(true), setV({ ...v, komponen: '' })) : set('komponen')(e))}>
+              <option value="">— Pilih komponen —</option>
+              {groups.map((m) => (
+                <optgroup key={m} label={m}>
+                  {parts.filter((p) => p.mesin === m).map((p) => <option key={`${m}|${p.part}`} value={p.part}>{p.part}</option>)}
+                </optgroup>
+              ))}
+              <option value="__lain">Lainnya (ketik manual)...</option>
+            </select>
+          )}
         </Field>
         <Field label="Kerusakan" full><textarea className="pap-input" rows={3} value={v.kerusakan} onChange={set('kerusakan')} placeholder="Gejala / kerusakan yang terjadi" /></Field>
         <Field label="Tindakan" full><textarea className="pap-input" rows={3} value={v.tindakan} onChange={set('tindakan')} placeholder="Perbaikan yang dilakukan" /></Field>

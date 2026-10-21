@@ -57,7 +57,7 @@ const FIELDS: Record<ListEntity, string> = {
   'sales-order': 'id,number,transDate,shipDate,customer,totalAmount,statusName,lastUpdate',
   customer: 'id,customerNo,name,email,mobilePhone,workPhone,billStreet,billCity,billProvince,billZipCode,npwpNo,suspended,category,notes,lastUpdate',
   'sales-invoice': 'id,number,transDate,customer,totalAmount,statusName,lastUpdate',
-  item: 'id,no,name,itemType,itemCategory,unit1,availableToSell,balance,quantity,minimumQuantity,suspended,lastUpdate',
+  item: 'id,no,name,itemType,itemCategory,unit1,availableToSell,balance,quantity,minimumQuantity,vendorPrice,suspended,lastUpdate',
   stock: '', // list-stock memakai field bawaan: id, no, name, quantity
   'manufacture-order': 'id,number,name,transDate,statusName,portion,lastUpdate',
   'finished-good-slip': 'id,number,transDate,description,workOrder,lastUpdate',
@@ -110,14 +110,14 @@ async function saveInvoices(rows: Row[]) {
 async function saveItems(rows: Row[]) {
   if (!rows.length) return
   await db.query(
-    `INSERT INTO accurate_items (accurate_id, item_no, name, item_type, category, unit, quantity, min_quantity, suspended, last_update)
+    `INSERT INTO accurate_items (accurate_id, item_no, name, item_type, category, unit, quantity, min_quantity, vendor_price, suspended, last_update)
      VALUES ?
      ON DUPLICATE KEY UPDATE item_no = VALUES(item_no), name = VALUES(name), item_type = VALUES(item_type), category = VALUES(category),
-       unit = VALUES(unit), quantity = VALUES(quantity), min_quantity = VALUES(min_quantity), suspended = VALUES(suspended),
+       unit = VALUES(unit), quantity = VALUES(quantity), min_quantity = VALUES(min_quantity), vendor_price = VALUES(vendor_price), suspended = VALUES(suspended),
        last_update = VALUES(last_update), synced_at = NOW()`,
     [rows.map((row) => [
       num(row.id), str(row.no, 80), str(row.name) ?? '(tanpa nama)', str(row.itemType, 40), nameOf(row.itemCategory), nameOf(row.unit1),
-      num(row.availableToSell ?? row.balance ?? row.quantity), num(row.minimumQuantity), row.suspended === true ? 1 : 0, str(row.lastUpdate, 20),
+      num(row.availableToSell ?? row.balance ?? row.quantity), num(row.minimumQuantity), num(row.vendorPrice), row.suspended === true ? 1 : 0, str(row.lastUpdate, 20),
     ])],
   )
 }
@@ -491,6 +491,32 @@ async function syncBomDetails(deadline: number) {
   return { saved, done: saved === pending.length && pending.length < 400 }
 }
 
+// Satu PO dibaca ulang dari Accurate (setelah dibuat / diubah dari PAP-MS): header + baris barang
+export async function refreshPurchaseOrder(id: number) {
+  const res = await accurate<Row>('/api/purchase-order/detail.do', { params: { id } })
+  const d = res.d
+  await savePurchaseOrders([{ ...d, vendor: d.vendor ?? d.vendorId, lastUpdate: null }])
+  await storePurchaseOrderLines(id, (d.detailItem ?? []) as Row[])
+  await db.query("UPDATE accurate_purchase_orders SET detail_synced_update = COALESCE(last_update, '') WHERE accurate_id = ?", [id])
+  return d
+}
+
+async function storePurchaseOrderLines(poId: number, detail: Row[]) {
+  const lines = detail.map((line) => {
+    const item = (line.item ?? {}) as Row
+    return [poId, num(line.id), num(line.seq), num(item.id ?? line.itemId), str(item.no, 80), str(line.detailName ?? item.name, 500),
+      num(line.quantity), unitName(line.itemUnit), num(line.unitPrice), num(line.totalPrice), num(line.shipQuantity), str(line.detailNotes, 1000)]
+  }).filter((line) => line[1] !== null)
+  await db.query('DELETE FROM accurate_purchase_order_items WHERE po_accurate_id = ?', [poId])
+  if (lines.length) {
+    await db.query(
+      `INSERT INTO accurate_purchase_order_items (po_accurate_id, line_id, seq, item_accurate_id, item_no, item_name, quantity, unit, unit_price, total_price, quantity_shipped, notes)
+       VALUES ? ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), unit_price = VALUES(unit_price), total_price = VALUES(total_price), quantity_shipped = VALUES(quantity_shipped)`,
+      [lines],
+    )
+  }
+}
+
 // Baris barang PO (harga beli per barang -> database harga bahan; jumlah diterima -> monitoring PO)
 async function syncPurchaseOrderDetails(deadline: number) {
   const [pending] = await db.query<(RowDataPacket & { accurate_id: number; last_update: string | null })[]>(
@@ -508,19 +534,7 @@ async function syncPurchaseOrderDetails(deadline: number) {
       failed.push(`${po.accurate_id}: ${(error as Error).message}`)
       return
     }
-    const lines = ((res.d?.detailItem ?? []) as Row[]).map((line) => {
-      const item = (line.item ?? {}) as Row
-      return [po.accurate_id, num(line.id), num(line.seq), num(item.id ?? line.itemId), str(item.no, 80), str(line.detailName ?? item.name, 500),
-        num(line.quantity), unitName(line.itemUnit), num(line.unitPrice), num(line.totalPrice), num(line.shipQuantity), str(line.detailNotes, 1000)]
-    }).filter((line) => line[1] !== null)
-    await db.query('DELETE FROM accurate_purchase_order_items WHERE po_accurate_id = ?', [po.accurate_id])
-    if (lines.length) {
-      await db.query(
-        `INSERT INTO accurate_purchase_order_items (po_accurate_id, line_id, seq, item_accurate_id, item_no, item_name, quantity, unit, unit_price, total_price, quantity_shipped, notes)
-         VALUES ? ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), unit_price = VALUES(unit_price), total_price = VALUES(total_price), quantity_shipped = VALUES(quantity_shipped)`,
-        [lines],
-      )
-    }
+    await storePurchaseOrderLines(po.accurate_id, (res.d?.detailItem ?? []) as Row[])
     await db.query('UPDATE accurate_purchase_orders SET detail_synced_update = ? WHERE accurate_id = ?', [po.last_update ?? '', po.accurate_id])
     saved++
   })

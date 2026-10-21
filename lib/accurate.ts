@@ -89,17 +89,24 @@ async function throttle() {
 
 type Params = Record<string, string | number | boolean | undefined | null>
 
-// Panggil API data: path seperti "/api/customer/list.do"
-export async function accurate<T = unknown>(path: string, options: { method?: 'GET' | 'POST' | 'DELETE'; params?: Params; body?: unknown } = {}): Promise<AccurateResponse<T>> {
+// Panggil API data: path seperti "/api/customer/list.do".
+// form = isian save.do (x-www-form-urlencoded, mis. "detailItem[0].itemNo"); dikirim POST.
+export async function accurate<T = unknown>(path: string, options: { method?: 'GET' | 'POST' | 'DELETE'; params?: Params; body?: unknown; form?: Params } = {}): Promise<AccurateResponse<T>> {
   const { host } = await accurateDatabase()
   const url = new URL(`${host}/accurate${path}`)
   for (const [key, value] of Object.entries(options.params ?? {})) if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value))
+  const form = options.form
+    ? new URLSearchParams(Object.entries(options.form).filter(([, v]) => v !== undefined && v !== null).map(([k, v]) => [k, String(v)]))
+    : null
   for (let attempt = 0; ; attempt++) {
     await throttle()
     const res = await fetch(url, {
-      method: options.method ?? 'GET',
-      headers: { ...authHeaders(), ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      method: options.method ?? (form ? 'POST' : 'GET'),
+      headers: {
+        ...authHeaders(),
+        ...(form ? { 'Content-Type': 'application/x-www-form-urlencoded' } : options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: form ?? (options.body !== undefined ? JSON.stringify(options.body) : undefined),
       cache: 'no-store',
       redirect: 'follow', // Accurate membalas 308 bila host database pindah
       signal: AbortSignal.timeout(20000),

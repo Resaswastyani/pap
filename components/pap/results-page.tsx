@@ -89,7 +89,7 @@ export function ResultsPage(_props: { user: UserProfile }) {
         <div>
           <p className="pap-eyebrow">PRODUKSI</p>
           <h1>Hasil Produksi & QC</h1>
-          <span>Laporan hasil produksi per shift dari KA Shift terhadap target SPK, lalu diperiksa QC. Progress tahap di Jadwal Produksi dihitung otomatis dari hasil baik.</span>
+          <span>Laporan hasil produksi per shift dari KA Shift terhadap target SPK, lalu diperiksa QC. Progress tahap di Rencana Produksi dihitung otomatis dari hasil baik.</span>
         </div>
         <div className="pap-inline-actions pap-wrap">
           {/* Dokumen rangkuman hasil produksi & monitoring QC (harian sesuai tanggal terpilih, atau sebulan) */}

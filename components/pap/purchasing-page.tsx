@@ -1,14 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Building2, CalendarClock, CircleDollarSign, Clock3, PackageCheck, Save, Search, ShoppingCart, Tags, TrendingDown, TrendingUp, Truck } from 'lucide-react'
+import { AlertTriangle, Building2, CalendarClock, CircleDollarSign, Clock3, PackageCheck, Pencil, Plus, Save, Search, ShoppingCart, Tags, Trash2, TrendingDown, TrendingUp, Truck } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatNumber, formatRupiah, type SyncEntity } from './accurate'
 import { MonthNav, monthLabel, useDebounced } from './accurate-production'
 import { BarList, ColumnChart } from './charts'
+import { PoFormModal, PriceEditor, VendorFormModal } from './purchasing-forms'
 import { api, Field, formatDate, Modal, Notice, Pager, Progress, usePaged } from './ui'
 
-// Purchasing: supplier, PO pembelian, harga bahan, hutang supplier. Data transaksi dari Accurate Online (hanya baca).
+// Purchasing: supplier, PO pembelian, harga bahan, hutang supplier. Data dari Accurate Online; supplier, PO, dan harga beli acuan
+// bisa ditambah / diubah / dihapus dari PAP-MS sesuai permission modul Purchasing (lihat lib/purchasing-write.ts).
 
 const JENIS = { bahan_baku: 'Bahan baku', bahan_pendukung: 'Bahan pendukung', teknik: 'Teknik / sparepart', atk: 'ATK', jasa: 'Jasa', lainnya: 'Lainnya' } as const
 type Jenis = keyof typeof JENIS
@@ -77,7 +79,10 @@ type VendorDetail = {
 const SUPPLIER_SYNC: SyncEntity[] = ['vendor', 'purchase-order', 'purchase-invoice-open']
 
 export function SupplierPage(_props: { user: UserProfile }) {
-  const { data, loading, error, setError, load } = useLoad<{ items: Vendor[]; can: { edit: boolean } }>('/api/purchasing/vendors')
+  const { data, loading, error, setError, load } = useLoad<{ items: Vendor[]; can: { edit: boolean; manage: boolean } }>('/api/purchasing/vendors')
+  const [vendorForm, setVendorForm] = useState<number | 'baru' | null>(null)
+  const [message, setMessage] = useState('')
+  const flash = (text: string) => { setMessage(text); setTimeout(() => setMessage(''), 6000); load() }
   const [q, setQ] = useState('')
   const [jenis, setJenis] = useState('')
   const [nonaktif, setNonaktif] = useState(false)
@@ -99,6 +104,7 @@ export function SupplierPage(_props: { user: UserProfile }) {
     <>
       <Heading title="Supplier">Database supplier dari Accurate (bahan baku, pendukung, teknik, ATK) beserta riwayat pembelian, harga barang yang dipasok, dan hutang. Purchasing dapat menambah catatan: jenis, kontak, lead time, penilaian.</Heading>
       <AccurateSyncBar entities={SUPPLIER_SYNC} canSync onSynced={load} />
+      {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       <Tiles tiles={[
         { label: 'Supplier aktif', value: `${active.length}`, note: `${active.filter((v) => v.po_12m > 0).length} dengan PO 12 bulan terakhir`, icon: Building2, tone: 'stat-1', active: filter === 'aktif12', onClick: () => toggle('aktif12') },
         { label: 'Pembelian 12 bulan', value: rupiahShort(sum('total_12m')), note: `${all.reduce((s, v) => s + v.po_12m, 0)} PO`, icon: ShoppingCart, tone: 'stat-1' },
@@ -106,7 +112,10 @@ export function SupplierPage(_props: { user: UserProfile }) {
         { label: 'Hutang supplier', value: rupiahShort(sum('owing')), note: sum('overdue') ? `${rupiahShort(sum('overdue'))} lewat jatuh tempo` : 'Tidak ada yang lewat jatuh tempo', icon: CircleDollarSign, tone: sum('overdue') ? 'stat-3' : 'stat-0', active: filter === 'hutang', onClick: () => toggle('hutang') },
       ]} />
       <div className="pap-table-card">
-        <div className="pap-card-head"><div><h2>Daftar supplier</h2><p>Urut nilai pembelian 12 bulan terakhir. Ubah data pemasok di Accurate; catatan Purchasing tersimpan di PAP-MS.</p></div></div>
+        <div className="pap-card-head">
+          <div><h2>Daftar supplier</h2><p>Urut nilai pembelian 12 bulan terakhir. Data pemasok tersimpan di Accurate; catatan Purchasing tersimpan di PAP-MS.</p></div>
+          {data?.can.manage && <button className="pap-primary-button" onClick={() => setVendorForm('baru')}><Plus /> Tambah pemasok</button>}
+        </div>
         <div className="pap-filters">
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama, kode, kategori, kontak..." /></label>
           <select className="pap-select" value={jenis} onChange={(e) => setJenis(e.target.value)} aria-label="Filter jenis">
@@ -138,12 +147,13 @@ export function SupplierPage(_props: { user: UserProfile }) {
           <Pager {...paged.pager} noun="supplier" />
         </div>
       </div>
-      {detailId && <SupplierDetail id={detailId} onClose={() => setDetailId(null)} onSaved={load} />}
+      {detailId && <SupplierDetail id={detailId} canManage={!!data?.can.manage} onClose={() => setDetailId(null)} onSaved={load} onEdit={() => setVendorForm(detailId)} onDeleted={(name) => { setDetailId(null); flash(`Pemasok ${name} dihapus dari Accurate.`) }} />}
+      {vendorForm && <VendorFormModal id={vendorForm === 'baru' ? null : vendorForm} onClose={() => setVendorForm(null)} onSaved={(text) => { const wasEdit = vendorForm !== 'baru'; setVendorForm(null); if (wasEdit) setDetailId(null); flash(text) }} />}
     </>
   )
 }
 
-function SupplierDetail({ id, onClose, onSaved }: { id: number; onClose: () => void; onSaved: () => void }) {
+function SupplierDetail({ id, canManage, onClose, onSaved, onEdit, onDeleted }: { id: number; canManage: boolean; onClose: () => void; onSaved: () => void; onEdit: () => void; onDeleted: (name: string) => void }) {
   const { data, error, setError, load } = useLoad<VendorDetail>(`/api/purchasing/vendors/${id}`)
   const [form, setForm] = useState<{ jenis: Jenis[]; kontak: string; telepon: string; lead_time_hari: string; penilaian: string; catatan: string } | null>(null)
   const [busy, setBusy] = useState(false)
@@ -170,12 +180,23 @@ function SupplierDetail({ id, onClose, onSaved }: { id: number; onClose: () => v
       setBusy(false)
     }
   }
+  async function remove() {
+    if (!data || !window.confirm(`Hapus pemasok ${data.item.name} dari Accurate? Tindakan ini tidak bisa dibatalkan.`)) return
+    setBusy(true)
+    try {
+      await api(`/api/purchasing/vendors/${id}`, { method: 'DELETE' })
+      onDeleted(data.item.name)
+    } catch (err) {
+      setError((err as Error).message)
+      setBusy(false)
+    }
+  }
   if (!data || !form) return <Modal title="Supplier" onClose={onClose}>{error ? <Notice>{error}</Notice> : <p className="pap-muted">Memuat...</p>}</Modal>
   const v = data.item
   const edit = data.can.edit
   return (
     <Modal title={v.name} subtitle={[v.vendor_no, v.category, v.suspended && 'Nonaktif di Accurate'].filter(Boolean).join(' · ')} wide onClose={onClose}
-      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Tutup</button>{edit && <button className="pap-primary-button" form="vendor-form" disabled={busy}><Save /> {busy ? 'Menyimpan...' : 'Simpan catatan'}</button>}</>}>
+      footer={<>{canManage && <><button className="pap-btn danger" disabled={busy} onClick={remove}><Trash2 /> Hapus</button><button className="pap-btn" disabled={busy} onClick={onEdit}><Pencil /> Ubah data Accurate</button></>}<span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Tutup</button>{edit && <button className="pap-primary-button" form="vendor-form" disabled={busy}><Save /> {busy ? 'Menyimpan...' : 'Simpan catatan'}</button>}</>}>
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       {saved && <Notice kind="success">Catatan supplier disimpan.</Notice>}
       <dl className="pap-detail-grid">
@@ -271,7 +292,10 @@ type Po = {
   id: number; number: string; trans_date: string; ship_date: string | null; vendor_id: number | null; vendor_name: string | null; total_amount: number | null
   status: string | null; status_name: string | null; percent_shipped: number | null; detail_synced: boolean; terbuka: boolean; terlambat: boolean; lines: PoLine[]
 }
-type PoRes = { periode: string; today: string; items: Po[]; stats: { po: number; nilai: number; supplier: number; terbuka: number; terlambat: number; nilai_terbuka: number; tertua: string | null }; vendors: { id: number; name: string }[] }
+type PoRes = {
+  periode: string; today: string; items: Po[]; stats: { po: number; nilai: number; supplier: number; terbuka: number; terlambat: number; nilai_terbuka: number; tertua: string | null }
+  vendors: { id: number; name: string }[]; can: { create: boolean; update: boolean; delete: boolean }
+}
 
 export function PurchaseOrderPage(_props: { user: UserProfile }) {
   const [periode, setPeriode] = useState('')
@@ -290,11 +314,24 @@ export function PurchaseOrderPage(_props: { user: UserProfile }) {
   const s = data?.stats
   const perMonth = status === '' || status === 'diterima'
   const toggle = (k: string) => setStatus(status === k ? '' : k)
+  const [poForm, setPoForm] = useState<number | 'baru' | null>(null)
+  const [message, setMessage] = useState('')
+  const flash = (text: string) => { setMessage(text); setTimeout(() => setMessage(''), 6000); load() }
+  async function removePo(o: Po) {
+    if (!window.confirm(`Hapus PO ${o.number} (${o.vendor_name ?? '-'}) dari Accurate? Tindakan ini tidak bisa dibatalkan.`)) return
+    try {
+      await api(`/api/purchasing/orders/${o.id}`, { method: 'DELETE' })
+      flash(`PO ${o.number} dihapus dari Accurate.`)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
 
   return (
     <>
       <Heading title="PO Pembelian">Monitoring PO pembelian dari Accurate: barang, harga, supplier, dan progres penerimaan barang. PO yang melewati tanggal kirim tetapi belum diterima penuh ditandai terlambat.</Heading>
       <AccurateSyncBar entities={['purchase-order', 'purchase-order-detail']} canSync onSynced={load} />
+      {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       <Tiles tiles={[
         { label: `PO ${monthLabel(data?.periode ?? '')}`, value: `${s?.po ?? 0}`, note: `${s?.supplier ?? 0} supplier`, icon: ShoppingCart, tone: 'stat-1' },
         { label: 'Nilai PO bulan ini', value: rupiahShort(s?.nilai ?? 0), note: 'Termasuk pajak', icon: CircleDollarSign, tone: 'stat-1' },
@@ -303,8 +340,11 @@ export function PurchaseOrderPage(_props: { user: UserProfile }) {
       ]} />
       <div className="pap-table-card">
         <div className="pap-card-head">
-          <div><h2>{status === 'terbuka' ? 'PO menunggu barang' : status === 'terlambat' ? 'PO terlambat' : 'Daftar PO'}</h2><p>{perMonth ? monthLabel(periode) : 'Semua tanggal, urut tanggal kirim'} · harga satuan sebelum pajak · data hanya-baca dari Accurate</p></div>
-          {perMonth && periode && <MonthNav periode={periode} onChange={setPeriode} />}
+          <div><h2>{status === 'terbuka' ? 'PO menunggu barang' : status === 'terlambat' ? 'PO terlambat' : 'Daftar PO'}</h2><p>{perMonth ? monthLabel(periode) : 'Semua tanggal, urut tanggal kirim'} · harga satuan sebelum pajak · data dari Accurate</p></div>
+          <div className="pap-inline-actions pap-wrap">
+            {perMonth && periode && <MonthNav periode={periode} onChange={setPeriode} />}
+            {data?.can.create && <button className="pap-primary-button" onClick={() => setPoForm('baru')}><Plus /> Buat PO</button>}
+          </div>
         </div>
         <div className="pap-filters">
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor PO, supplier, barang..." /></label>
@@ -332,6 +372,12 @@ export function PurchaseOrderPage(_props: { user: UserProfile }) {
                       <span className="pap-cell-sub">{formatDate(o.trans_date)}{o.ship_date ? ` · kirim ${formatDate(o.ship_date)}` : ''} · {formatRupiah(o.total_amount)}</span>
                     </div>
                     <div className="pap-po-progress"><Progress value={Math.round(o.percent_shipped ?? 0)} /></div>
+                    {(data?.can.update || data?.can.delete) && !(o.percent_shipped ?? 0) && o.terbuka && (
+                      <div className="pap-po-actions">
+                        {data.can.update && <button className="pap-btn" onClick={() => setPoForm(o.id)}><Pencil /> Ubah</button>}
+                        {data.can.delete && <button className="pap-btn danger" onClick={() => removePo(o)}><Trash2 /> Hapus</button>}
+                      </div>
+                    )}
                   </td>
                 </tr>,
                 ...(o.lines.length ? o.lines.map((l) => (
@@ -351,6 +397,7 @@ export function PurchaseOrderPage(_props: { user: UserProfile }) {
           <Pager {...paged.pager} noun="PO" />
         </div>
       </div>
+      {poForm && <PoFormModal id={poForm === 'baru' ? null : poForm} onClose={() => setPoForm(null)} onSaved={(text) => { setPoForm(null); flash(text) }} />}
     </>
   )
 }
@@ -359,10 +406,12 @@ export function PurchaseOrderPage(_props: { user: UserProfile }) {
 type Price = {
   id: number; item_no: string | null; item_name: string; unit: string | null; po_unit: string | null; category: string | null; harga: number; tanggal: string; po_number: string
   vendor_name: string | null; prev_price: number | null; prev_date: string | null; perubahan: number | null; pembelian: number; min_12m: number | null; max_12m: number | null
-  avg_12m: number | null; supplier_12m: number | null
+  avg_12m: number | null; supplier_12m: number | null; harga_acuan: number | null
 }
 type PriceDetail = {
-  item: { id: number; item_no: string | null; name: string; category: string | null; unit: string | null; stok: number | null }
+  item: { id: number; item_no: string | null; name: string; category: string | null; unit: string | null; stok: number | null; harga_acuan: number | null }
+  logs: { harga_lama: number | null; harga_baru: number; catatan: string | null; created_at: string; user_name: string | null }[]
+  can: { price: boolean }
   history: { po_id: number; number: string; trans_date: string; vendor_name: string | null; quantity: number | null; unit: string | null; unit_price: number; total_price: number | null }[]
   vendors: { vendor_name: string; terakhir: number; tanggal: string; termurah: number; pembelian: number }[]
 }
@@ -376,7 +425,7 @@ export function MaterialPricePage(_props: { user: UserProfile }) {
   if (query) params.set('q', query)
   if (kategori) params.set('kategori', kategori)
   if (berubah) params.set('berubah', berubah)
-  const { data, loading, error, setError, load } = useLoad<{ items: Price[]; stats: { barang: number; naik: number; turun: number; bulan_ini: number }; categories: string[] }>(`/api/purchasing/prices?${params}`)
+  const { data, loading, error, setError, load } = useLoad<{ items: Price[]; stats: { barang: number; naik: number; turun: number; bulan_ini: number }; categories: string[]; can: { price: boolean } }>(`/api/purchasing/prices?${params}`)
   const [detailId, setDetailId] = useState<number | null>(null)
   const paged = usePaged(data?.items ?? [], [query, kategori, berubah])
   const s = data?.stats
@@ -393,7 +442,7 @@ export function MaterialPricePage(_props: { user: UserProfile }) {
         { label: 'Dibeli bulan ini', value: `${s?.bulan_ini ?? 0}`, note: 'Barang dengan harga terbaru', icon: CalendarClock, tone: 'stat-1' },
       ]} />
       <div className="pap-table-card">
-        <div className="pap-card-head"><div><h2>Harga terakhir per barang</h2><p>Harga satuan di PO (sebelum pajak). Klik barang untuk riwayat harga & perbandingan supplier.</p></div></div>
+        <div className="pap-card-head"><div><h2>Harga terakhir per barang</h2><p>Harga satuan di PO (sebelum pajak). Klik barang untuk riwayat harga & perbandingan supplier{data?.can.price ? ', atau untuk mengubah harga beli acuan di Accurate' : ''}.</p></div></div>
         <div className="pap-filters">
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari barang, kode, supplier..." /></label>
           <select className="pap-select" value={kategori} onChange={(e) => setKategori(e.target.value)} aria-label="Filter kategori">
@@ -409,7 +458,7 @@ export function MaterialPricePage(_props: { user: UserProfile }) {
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Barang</th><th className="pap-num">Harga terakhir</th><th className="pap-num">Sebelumnya</th><th className="pap-num">Perubahan</th><th className="pap-num">Rentang 12 bln</th><th>Supplier terakhir</th></tr></thead>
+            <thead><tr><th>Barang</th><th className="pap-num">Harga terakhir</th><th className="pap-num">Sebelumnya</th><th className="pap-num">Perubahan</th><th className="pap-num">Rentang 12 bln</th><th className="pap-num">Harga acuan</th><th>Supplier terakhir</th></tr></thead>
             <tbody>
               {paged.items.map((p) => (
                 <tr key={p.id} className="pap-row-link" onClick={() => setDetailId(p.id)}>
@@ -418,6 +467,7 @@ export function MaterialPricePage(_props: { user: UserProfile }) {
                   <td className="pap-num pap-nowrap">{p.prev_price ? <>{formatRupiah(p.prev_price)}<div className="pap-cell-sub">{formatDate(p.prev_date)}</div></> : '—'}</td>
                   <td className="pap-num pap-nowrap">{p.perubahan === null ? '—' : <span className={`pap-status ${p.perubahan > 0 ? 'danger' : p.perubahan < 0 ? 'success' : 'neutral'}`}>{pct(p.perubahan)}</span>}</td>
                   <td className="pap-num pap-nowrap">{p.min_12m === null ? '—' : p.min_12m === p.max_12m ? formatRupiah(p.min_12m) : <>{formatRupiah(p.min_12m)}<div className="pap-cell-sub">s/d {formatRupiah(p.max_12m)}</div></>}</td>
+                  <td className="pap-num pap-nowrap">{p.harga_acuan ? formatRupiah(p.harga_acuan) : '—'}</td>
                   <td><div>{p.vendor_name ?? '—'}</div><div className="pap-cell-sub">{p.po_number} · {p.pembelian}× dibeli{p.supplier_12m && p.supplier_12m > 1 ? ` · ${p.supplier_12m} supplier` : ''}</div></td>
                 </tr>
               ))}
@@ -428,13 +478,13 @@ export function MaterialPricePage(_props: { user: UserProfile }) {
           <Pager {...paged.pager} noun="barang" />
         </div>
       </div>
-      {detailId && <PriceDetailModal id={detailId} onClose={() => setDetailId(null)} />}
+      {detailId && <PriceDetailModal id={detailId} onClose={() => setDetailId(null)} onChanged={load} />}
     </>
   )
 }
 
-function PriceDetailModal({ id, onClose }: { id: number; onClose: () => void }) {
-  const { data, error } = useLoad<PriceDetail>(`/api/purchasing/prices/${id}`)
+function PriceDetailModal({ id, onClose, onChanged }: { id: number; onClose: () => void; onChanged: () => void }) {
+  const { data, error, load } = useLoad<PriceDetail>(`/api/purchasing/prices/${id}`)
   const paged = usePaged(data?.history ?? [], id)
   if (!data) return <Modal title="Riwayat harga" onClose={onClose}>{error ? <Notice>{error}</Notice> : <p className="pap-muted">Memuat...</p>}</Modal>
   const unit = data.history[0]?.unit
@@ -449,6 +499,7 @@ function PriceDetailModal({ id, onClose }: { id: number; onClose: () => void }) 
   return (
     <Modal title={data.item.name} subtitle={[data.item.item_no, data.item.category, data.item.stok !== null && `stok ${qty(data.item.stok, data.item.unit)}`].filter(Boolean).join(' · ')} wide onClose={onClose}
       footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Tutup</button></>}>
+      {data.can.price && <PriceEditor id={id} current={data.item.harga_acuan} lastPrice={data.history[0]?.unit_price ?? null} unit={data.item.unit} logs={data.logs} onSaved={() => { load(); onChanged() }} />}
       <section className="pap-detail-section">
         <h3>Harga per pembelian{unit ? ` (per ${unit})` : ''}</h3>
         <ColumnChart ariaLabel={`Riwayat harga ${data.item.name}`} format={(v) => formatRupiah(v)} axisFormat={(v) => formatNumber(v / 1000, 1) + 'rb'} data={chart} />

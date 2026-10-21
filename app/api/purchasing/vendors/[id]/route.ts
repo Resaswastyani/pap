@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canEditVendor, n, requirePurchasingMenu, VENDOR_JENIS, type Row } from '@/lib/purchasing'
+import { deleteVendor, readVendorInput, requirePurchasingCan, saveVendor } from '@/lib/purchasing-write'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -72,4 +73,21 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
     [v.id, jenis.join(',') || null, str(body.kontak, 150) || null, str(body.telepon, 80) || null, lead, nilai, str(body.catatan, 5000) || null, user.id],
   )
   return NextResponse.json({ ok: true })
+})
+
+// Ubah data pemasok di Accurate: { name, category, mobile_phone, work_phone, email, alamat, kota, npwp }
+export const PATCH = handle(async (request: Request, ctx: Ctx) => {
+  const user = await requireUser()
+  requirePurchasingCan(user, 'supplier', 'mengubah data supplier')
+  const v = await loadVendor(ctx)
+  return NextResponse.json({ item: await saveVendor(readVendorInput(await readJson(request)), Number(v.id)) })
+})
+
+// Hapus pemasok di Accurate (hanya bila belum punya PO / faktur)
+export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
+  const user = await requireUser()
+  requirePurchasingCan(user, 'supplier', 'menghapus supplier')
+  const v = await loadVendor(ctx)
+  await deleteVendor(Number(v.id))
+  return NextResponse.json({ ok: true, name: v.name })
 })

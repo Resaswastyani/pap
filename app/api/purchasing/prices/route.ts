@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { handle, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { n, requirePurchasingMenu, type Row } from '@/lib/purchasing'
+import { purchasingCan } from '@/lib/purchasing-write'
 
 // Database harga bahan: harga beli terakhir per barang dari baris PO Accurate, dibanding pembelian sebelumnya
 // dan rentang 12 bulan. ?q=&kategori=&berubah=naik|turun
@@ -32,7 +33,7 @@ export const GET = handle(async (request: Request) => {
        WHERE i.unit_price > 0 AND po.trans_date >= CURDATE() - INTERVAL 12 MONTH GROUP BY i.item_accurate_id
      )
      SELECT h.item_accurate_id AS id, h.item_no, h.item_name, COALESCE(it.unit, h.unit) AS unit, h.unit AS po_unit, it.category,
-       h.unit_price AS harga, h.trans_date AS tanggal, h.number AS po_number, v.name AS vendor_name, h.prev_price, h.prev_date, h.pembelian,
+       h.unit_price AS harga, it.vendor_price AS harga_acuan, h.trans_date AS tanggal, h.number AS po_number, v.name AS vendor_name, h.prev_price, h.prev_date, h.pembelian,
        r.min_12m, r.max_12m, r.avg_12m, r.supplier_12m
      FROM h LEFT JOIN r ON r.item_accurate_id = h.item_accurate_id
      LEFT JOIN accurate_items it ON it.accurate_id = h.item_accurate_id
@@ -49,7 +50,7 @@ export const GET = handle(async (request: Request) => {
     const harga = Number(r.harga)
     const prev = n(r.prev_price)
     return {
-      ...(r as Record<string, unknown>), tanggal: r.tanggal as string | null, harga, prev_price: prev, pembelian: Number(r.pembelian), min_12m: n(r.min_12m), max_12m: n(r.max_12m), avg_12m: n(r.avg_12m), supplier_12m: n(r.supplier_12m),
+      ...(r as Record<string, unknown>), tanggal: r.tanggal as string | null, harga, harga_acuan: n(r.harga_acuan), prev_price: prev, pembelian: Number(r.pembelian), min_12m: n(r.min_12m), max_12m: n(r.max_12m), avg_12m: n(r.avg_12m), supplier_12m: n(r.supplier_12m),
       perubahan: prev ? Math.round(((harga - prev) / prev) * 1000) / 10 : null,
     }
   })
@@ -63,5 +64,6 @@ export const GET = handle(async (request: Request) => {
       bulan_ini: items.filter((i) => String(i.tanggal ?? '').slice(0, 7) === new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 7)).length,
     },
     categories: categories.map((c) => String(c.category)),
+    can: { price: purchasingCan(user).price },
   })
 })

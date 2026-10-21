@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
-import { handle, requireUser } from '@/lib/api'
+import { handle, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canEditVendor, n, requirePurchasingMenu, type Row } from '@/lib/purchasing'
+import { purchasingCan, readVendorInput, requirePurchasingCan, saveVendor } from '@/lib/purchasing-write'
 
 // Database supplier: data pemasok Accurate + catatan Purchasing + ringkasan pembelian 12 bulan & hutang
 export const GET = handle(async () => {
@@ -31,6 +32,14 @@ export const GET = handle(async () => {
       ...r, suspended: !!r.suspended, jenis: r.jenis ? String(r.jenis).split(',') : [], penilaian: n(r.penilaian), lead_time_hari: n(r.lead_time_hari),
       po_12m: Number(r.po_12m ?? 0), total_12m: Number(r.total_12m ?? 0), open_po: Number(r.open_po ?? 0), owing: Number(r.owing ?? 0), overdue: Number(r.overdue ?? 0),
     })),
-    can: { edit: canEditVendor(user) },
+    can: { edit: canEditVendor(user), manage: purchasingCan(user).supplier },
   })
 })
+
+// Tambah pemasok baru di Accurate
+export const POST = handle(async (request: Request) => {
+  const user = await requireUser()
+  requirePurchasingCan(user, 'supplier', 'menambah supplier')
+  return NextResponse.json({ item: await saveVendor(readVendorInput(await readJson(request))) })
+})
+

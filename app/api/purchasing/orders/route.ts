@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
-import { handle, requireUser } from '@/lib/api'
+import { handle, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { n, PO_OPEN, requirePurchasingMenu, todayWib, type Row } from '@/lib/purchasing'
+import { createPo, purchasingCan, readPoInput, requirePurchasingCan } from '@/lib/purchasing-write'
 
 // PO pembelian dari Accurate: ?periode=YYYY-MM (per bulan) | ?status=terbuka|terlambat (semua tanggal) &q=&vendor=
 export const GET = handle(async (request: Request) => {
@@ -74,5 +75,13 @@ export const GET = handle(async (request: Request) => {
       terbuka: Number(open.terbuka), terlambat: Number(open.terlambat), nilai_terbuka: Number(open.nilai_terbuka), tertua: open.tertua ?? null,
     },
     vendors,
+    can: (({ poCreate, poUpdate, poDelete }) => ({ create: poCreate, update: poUpdate, delete: poDelete }))(purchasingCan(user)),
   })
+})
+
+// Buat PO baru: dikirim ke Accurate (save.do), lalu disimpan dari detail Accurate
+export const POST = handle(async (request: Request) => {
+  const user = await requireUser()
+  requirePurchasingCan(user, 'poCreate', 'membuat PO pembelian')
+  return NextResponse.json(await createPo(readPoInput(await readJson(request)), user.id))
 })

@@ -65,7 +65,8 @@ export function parseMachineTabs(tabs: SheetTab[]) {
       }
       // Judul mesin: "A." | "MC BLOW"
       if (/^mc\b/i.test(b) && (/^[a-z]\.?$/i.test(a) || !a)) {
-        const name = titleCase(b)
+        // MC Gusset di lini HD tidak memakai Buffer: "MC Gusset & Buffer" -> "MC Gusset"
+        const name = lini && /\bHD\b/i.test(lini) && /gusset/i.test(b) ? titleCase(b).replace(/\s*&\s*buffer\b/i, '') : titleCase(b)
         const short = lini ? lini.replace(/^INLINE\s*/i, '') : ''
         const key = `${(lini ?? tab.title).toLowerCase()}|${b.toLowerCase()}`.slice(0, 80)
         machine = machines.find((m) => m.key === key) ?? null

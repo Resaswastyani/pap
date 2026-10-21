@@ -1412,3 +1412,37 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-msheet-pics img { display:block; width:100%; height:auto; max-height:160px; object-fit:contain; }
 @media (max-width:640px) { .pap-msheet-content.with-pic { grid-template-columns:96px minmax(0,1fr); gap:10px; } }
 .pap-damage-items td img.pap-part-pic { display:block; width:100%; max-width:110px; height:auto; margin-top:6px; }
+.pap-total-row td { background:rgb(124 92 252 / .05); }
+.pap-capacity-note { margin-top:16px; padding:18px 22px; }
+.pap-capacity-note h3 { margin:0 0 8px; font-size:13px; }
+.pap-capacity-note ul { margin:0 0 10px; padding-left:18px; font-size:12px; line-height:1.7; }
+.pap-capacity-note p { margin:0; font-size:11px; }
+.pap-file-drop { display:flex; align-items:center; gap:10px; margin:12px 0; padding:18px; border:1.5px dashed var(--pap-border); border-radius:12px; color:var(--pap-muted); font-size:12px; cursor:pointer; }
+.pap-file-drop:hover { border-color:#7c5cfc; color:#7050e7; }
+.pap-file-drop svg { width:18px; flex:none; }
+.pap-file-drop input { position:absolute; width:1px; height:1px; opacity:0; }
+.pap-po-form { display:flex; flex-direction:column; gap:16px; }
+.pap-po-sections { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.pap-po-sections fieldset { display:flex; flex-direction:column; gap:10px; min-width:0; margin:0; padding:12px 14px 14px; border:1px solid var(--pap-border); border-radius:12px; }
+.pap-po-sections legend { padding:0 6px; color:#7050e7; font-size:12px; font-weight:700; }
+.pap-po-sections .pap-po-legend2 { margin-top:6px; padding:0; float:none; }
+.pap-po-lines table { min-width:760px; }
+.pap-po-lines td { padding:8px 10px; vertical-align:top; }
+.pap-po-lines th { padding:10px; }
+.pap-po-lines td:first-child { min-width:240px; }
+.pap-po-lines td .pap-input { min-width:0; width:100%; }
+.pap-po-lines td:nth-child(2), .pap-po-lines td:nth-child(4) { width:110px; }
+.pap-po-lines td:nth-child(3), .pap-po-lines td:nth-child(5) { width:80px; }
+.pap-po-note { margin-top:6px; font-size:11px; }
+.pap-input.pap-num { text-align:right; }
+.pap-po-totals { display:flex; flex-direction:column; gap:6px; align-self:flex-end; width:min(100%, 340px); margin:0; }
+.pap-po-totals div { display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:12px; }
+.pap-po-totals dt { display:flex; align-items:center; gap:6px; color:var(--pap-muted); }
+.pap-po-totals dt .pap-input { width:64px; height:30px; }
+.pap-po-totals dd { margin:0; font-weight:600; }
+.pap-po-totals .total { padding-top:8px; border-top:1px solid var(--pap-border); font-size:14px; }
+.pap-po-totals .total dt { color:var(--pap-text); font-weight:700; }
+.pap-po-actions { display:flex; gap:6px; margin-top:8px; }
+.pap-po-actions .pap-btn { min-height:28px; padding:0 10px; font-size:11px; }
+.pap-price-logs { margin:10px 0 0; padding-left:18px; color:var(--pap-muted); font-size:11px; line-height:1.7; }
+@media (max-width:700px) { .pap-po-sections { grid-template-columns:1fr; } }
