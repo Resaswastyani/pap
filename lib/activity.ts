@@ -166,9 +166,10 @@ const RESOURCES: Record<string, Resource> = {
   'master/packaging': { module: 'Master Data', noun: 'jenis packaging', table: 'packaging_types' },
   'master/designs': { module: 'Master Data', noun: 'file desain', table: 'drive_files' },
   maintenance: { module: 'Perawatan Mesin', noun: 'jadwal perawatan', table: 'maintenance_plans' },
-  'machine-settings': { module: 'Standar Setting', noun: 'parameter setting', table: 'machine_settings' },
+  sop: { module: 'SOP Mesin', noun: 'video SOP', table: 'sop_videos' },
   'tech-items': { module: 'Sparepart & Peralatan', noun: 'barang teknik', table: 'tech_items' },
   'purchase-requests': { module: 'Pengajuan Pembelian', noun: 'pengajuan pembelian', table: 'purchase_requests' },
+  vendors: { module: 'Pengajuan Pembelian', noun: 'supplier' },
 }
 
 type Plan = {
@@ -240,6 +241,12 @@ function planFor(method: string, path: string): Plan | null {
     return { ...base, action: 'update', always: true, describe: () => 'Memutus koneksi akun Google Drive desain' }
   if (res === 'master' && a === 'drive')
     return { ...base, action: 'sync', describe: () => 'Menyinkronkan folder Google Drive desain' }
+  if (res === 'sop' && !a)
+    return { ...base, action: method === 'POST' ? 'sync' : 'update', describe: () => (method === 'POST' ? 'Menyinkronkan video SOP dari Google Drive' : 'Mengganti link folder SOP Mesin') }
+  // Supplier Accurate (kunci accurate_id, bukan id): sinkron & penandaan supplier teknik
+  if (res === 'vendors' && !a) return { ...base, action: 'sync', describe: () => 'Menyinkronkan daftar supplier dari Accurate' }
+  if (res === 'vendors' && isId(a))
+    return { ...base, action: 'update', describe: (_l, f) => `${f.teknik === 'true' ? 'Menandai' : f.teknik === 'false' ? 'Membatalkan tanda' : 'Mengembalikan otomatis'} supplier teknik (vendor Accurate #${a})` }
   if (res === 'maintenance' && a === 'checkup')
     return { ...base, action: 'create', entityType: 'checkup perawatan', table: 'maintenance_logs', describe: (_l, f) => `Mencatat checkup perawatan${f.hasil ? ` (hasil: ${f.hasil.replace('_', ' ')})` : ''}` }
   if (res === 'tech-items' && isId(a) && b === 'moves')
@@ -298,7 +305,7 @@ async function readFields(request: Request): Promise<Fields> {
     const type = request.headers.get('content-type') ?? ''
     if (type.includes('application/json')) {
       const body = await request.json()
-      for (const [k, v] of Object.entries(body ?? {})) if (typeof v === 'string' || typeof v === 'number') fields[k] = String(v)
+      for (const [k, v] of Object.entries(body ?? {})) if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') fields[k] = String(v)
     } else if (type.includes('multipart/form-data')) {
       for (const [k, v] of (await request.formData()).entries()) fields[k] = typeof v === 'string' ? v : v.name
     }

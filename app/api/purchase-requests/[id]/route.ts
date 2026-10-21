@@ -1,4 +1,4 @@
-import type { ResultSetHeader } from 'mysql2'
+import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
@@ -27,6 +27,18 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   requireTeknikMenu(user, 'pengajuan-pembelian', 'Pengajuan Pembelian')
   const pr = await loadPr(await prId(ctx))
   const body = await readJson(request)
+  // Pilih / ganti supplier (Purchasing), bisa sendiri atau bersama perubahan status: { vendor_id }
+  if ('vendor_id' in body) {
+    if (!canProcessPurchase(user)) fail(403, 'Supplier dipilih oleh divisi Purchasing.')
+    if (['diterima', 'ditolak', 'batal'].includes(pr.status)) fail(400, 'Pengajuan ini sudah selesai.')
+    const vendorId = body.vendor_id ? int(body.vendor_id) : null
+    if (vendorId) {
+      const [[v]] = await db.query<RowDataPacket[]>('SELECT accurate_id FROM accurate_vendors WHERE accurate_id = ?', [vendorId])
+      if (!v) fail(400, 'Supplier tidak ditemukan. Sinkron ulang data supplier dari Accurate.')
+    }
+    await db.query('UPDATE purchase_requests SET vendor_accurate_id = ? WHERE id = ?', [vendorId, pr.id])
+    if (!body.status) return NextResponse.json({ item: await loadPr(pr.id) })
+  }
   const to = str(body.status, 20) as PrStatus
   if (!(to in PR_STATUS)) fail(400, 'Status tidak valid.')
   const from = pr.status as PrStatus

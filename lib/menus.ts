@@ -22,7 +22,7 @@ export const MENU_KEYS = {
   'Data Mesin': 'data-mesin',
   'Kerusakan Mesin': 'perbaikan-mesin',
   'Perawatan Mesin': 'perawatan-mesin',
-  'Standar Setting': 'standar-setting',
+  'SOP Mesin': 'sop-mesin',
   'Sparepart & Peralatan': 'sparepart',
   'Pengajuan Pembelian': 'pengajuan-pembelian',
   Supplier: 'supplier',

@@ -1,16 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Ban, CheckCircle2, PackageCheck, Plus, Search, ShoppingCart, Trash2, XCircle } from 'lucide-react'
+import { Ban, CheckCircle2, PackageCheck, Phone, Plus, Search, ShoppingCart, Trash2, Truck, XCircle } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AttachmentPanel } from './attachments'
+import { SupplierList, SupplierSelect } from './supplier-list'
 import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
 
 type Status = 'diajukan' | 'disetujui' | 'dipesan' | 'diterima' | 'ditolak' | 'batal'
 type Priority = 'darurat' | 'tinggi' | 'normal'
 type Pr = {
   id: number; nomor: string; keperluan: string; prioritas: Priority; dibutuhkan: string | null; status: Status; repair_id: number | null; repair_nomor: string | null
-  repair_mesin: string | null; catatan_purchasing: string | null; po_number: string | null; po_status: string | null; po_percent: number | null; requested_by: number; requested_name: string; requester_division: string
+  repair_mesin: string | null; vendor_accurate_id: number | null; vendor_name: string | null; vendor_phone: string | null; catatan_purchasing: string | null; po_number: string | null; po_status: string | null; po_percent: number | null; requested_by: number; requested_name: string; requester_division: string
   processed_name: string | null; processed_at: string | null; received_at: string | null; created_at: string; item_count: number; item_names: string | null
 }
 type PrItem = { id: number; item_id: number | null; item_kode: string | null; item_stok: number | null; nama: string; spesifikasi: string | null; jumlah: number; satuan: string }
@@ -36,6 +37,7 @@ export function PurchaseRequestPage({ user, focusId }: { user: UserProfile; focu
   const [message, setMessage] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
+  const [tab, setTab] = useState<'pengajuan' | 'supplier'>('pengajuan')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -75,10 +77,14 @@ export function PurchaseRequestPage({ user, focusId }: { user: UserProfile; focu
           <h1>Pengajuan Pembelian</h1>
           <span>Teknik mengajukan sparepart / peralatan, PPIC mengajukan bahan baku / pendukung; Purchasing menyetujui, memesan (nomor PO Accurate), dan menandai diterima. Barang yang terhubung ke data sparepart otomatis masuk stok saat diterima.</span>
         </div>
-        {can.create && <button className="pap-primary-button" onClick={() => setFormOpen(true)}><Plus /> Ajukan pembelian</button>}
+        {can.create && tab === 'pengajuan' && <button className="pap-primary-button" onClick={() => setFormOpen(true)}><Plus /> Ajukan pembelian</button>}
       </div>
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
-      <div className="pap-table-card">
+      <div className="pap-segmented pap-page-tabs" role="tablist" aria-label="Pengajuan pembelian">
+        <button role="tab" aria-selected={tab === 'pengajuan'} className={tab === 'pengajuan' ? 'active' : ''} onClick={() => setTab('pengajuan')}><ShoppingCart /> Pengajuan</button>
+        <button role="tab" aria-selected={tab === 'supplier'} className={tab === 'supplier' ? 'active' : ''} onClick={() => setTab('supplier')}><Truck /> Supplier (Accurate)</button>
+      </div>
+      {tab === 'supplier' ? <SupplierList /> : <div className="pap-table-card">
         <div className="pap-filters pap-filters-top">
           <div className="pap-segmented" role="tablist" aria-label="Status pengajuan">
             {[['terbuka', `Berjalan (${open})`], ['diajukan', `Menunggu (${counts.diajukan ?? 0})`], ['diterima', 'Diterima'], ['semua', 'Semua']].map(([k, l]) => (
@@ -98,7 +104,7 @@ export function PurchaseRequestPage({ user, focusId }: { user: UserProfile; focu
                   <td><div className="pap-repair-keluhan">{p.item_names}</div><div className="pap-cell-sub">{p.item_count} barang · {p.keperluan}</div></td>
                   <td><span className={`pap-status ${PRIORITY_TONE[p.prioritas]}`}>{PRIORITY_LABEL[p.prioritas]}</span></td>
                   <td className="pap-nowrap">{p.dibutuhkan ? formatDate(p.dibutuhkan) : '—'}</td>
-                  <td><span className={`pap-status ${STATUS_TONE[p.status]}`}>{STATUS_LABEL[p.status]}</span>{(p.po_number || p.processed_name) && <div className="pap-cell-sub">{[p.po_number, p.processed_name].filter(Boolean).join(' · ')}</div>}</td>
+                  <td><span className={`pap-status ${STATUS_TONE[p.status]}`}>{STATUS_LABEL[p.status]}</span>{(p.vendor_name || p.po_number || p.processed_name) && <div className="pap-cell-sub">{[p.vendor_name, p.po_number, p.processed_name].filter(Boolean).join(' · ')}</div>}</td>
                 </tr>
               ))}
             </tbody>
@@ -107,7 +113,7 @@ export function PurchaseRequestPage({ user, focusId }: { user: UserProfile; focu
           {loading && !items.length && <div className="pap-empty">Memuat pengajuan...</div>}
         </div>
         <Pager {...paged.pager} noun="pengajuan" />
-      </div>
+      </div>}
       {formOpen && <PrForm techItems={techItems} repairs={repairs} onClose={() => setFormOpen(false)} onSaved={(id) => { setFormOpen(false); flash('Pengajuan terkirim. Purchasing sudah mendapat notifikasi.'); setDetailId(id) }} />}
       {detailId && <PrDetail id={detailId} user={user} onClose={() => setDetailId(null)} onChanged={load} />}
     </>
@@ -232,6 +238,20 @@ function PrDetail({ id, user, onClose, onChanged }: { id: number; user: UserProf
     if (!can.process || !user.menus.includes('po-pembelian' as never)) return
     api<{ items: { number: string; vendor_name: string | null }[] }>('/api/purchasing/orders?status=terbuka').then((res) => setOpenPos(res.items)).catch(() => {})
   }, [can.process, user.menus])
+
+  async function pickVendor(vendor_id: number | null) {
+    setBusy(true)
+    setError('')
+    try {
+      await api(`/api/purchase-requests/${id}`, { method: 'PATCH', json: { vendor_id } })
+      await load()
+      onChanged()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
   async function act(status: Status) {
     if (status === 'ditolak' && !catatan.trim()) return setError('Tuliskan alasan penolakan di kolom catatan.')
     if (status === 'batal' && !window.confirm('Batalkan pengajuan ini?')) return
@@ -275,6 +295,7 @@ function PrDetail({ id, user, onClose, onChanged }: { id: number; user: UserProf
         <div><dt>Prioritas</dt><dd><span className={`pap-status ${PRIORITY_TONE[item.prioritas]}`}>{PRIORITY_LABEL[item.prioritas]}</span></dd></div>
         <div><dt>Dibutuhkan</dt><dd>{item.dibutuhkan ? formatDate(item.dibutuhkan) : '—'}</dd></div>
         {item.repair_nomor && <div><dt>Untuk perbaikan</dt><dd>{item.repair_nomor} · {item.repair_mesin}</dd></div>}
+        {item.vendor_name && <div><dt>Supplier</dt><dd>{item.vendor_name}{item.vendor_phone && <> · <a href={`tel:${item.vendor_phone}`}><Phone className="pap-inline-icon" /> {item.vendor_phone}</a></>}</dd></div>}
         {item.processed_name && <div><dt>Diproses</dt><dd>{item.processed_name} · {formatDate(item.processed_at, true)}</dd></div>}
         {item.po_number && <div><dt>PO Accurate</dt><dd>{item.po_number}{item.po_status ? ` · ${item.po_status}${item.po_percent !== null ? ` (${Math.round(item.po_percent)}% diterima)` : ''}` : ''}</dd></div>}
       </dl>
@@ -300,7 +321,8 @@ function PrDetail({ id, user, onClose, onChanged }: { id: number; user: UserProf
       {can.process && ['diajukan', 'disetujui', 'dipesan'].includes(s) && (
         <section className="pap-detail-section">
           <h3>Proses Purchasing</h3>
-          <textarea className="pap-input" rows={2} maxLength={5000} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Catatan: vendor, harga, estimasi tiba, atau alasan ditolak" />
+          <Field label="Supplier (dari Accurate)"><SupplierSelect value={item.vendor_accurate_id} disabled={busy} onChange={pickVendor} /></Field>
+          <textarea className="pap-input" rows={2} maxLength={5000} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Catatan: harga, estimasi tiba, atau alasan ditolak" />
           {(s === 'disetujui' || s === 'dipesan') && (
             <>
               <input className="pap-input" list={`pr-po-${item.id}`} maxLength={80} value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder={item.po_number ? `No. PO Accurate: ${item.po_number}` : 'No. PO Accurate (mis. PO.2026.10.00021)'} aria-label="Nomor PO Accurate" />
