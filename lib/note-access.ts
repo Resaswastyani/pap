@@ -7,6 +7,7 @@ import { canManageProduction, canProgressProduction, canViewProduction } from '@
 import { canHandleRepair, requireRepairs } from '@/lib/repairs'
 import { loadRepeatCustomer, requireRepeatOrder } from '@/lib/repeat-order'
 import { loadDesign, loadSample, requireRequestMenu } from '@/lib/requests'
+import { canManageTeknik, canProcessPurchase, requireTeknikMenu } from '@/lib/teknik'
 import type { UserProfile } from '@/lib/users'
 
 // Hak akses lampiran catatan mengikuti data induknya. canAdd: penulis catatan / yang berwenang mengubah.
@@ -41,6 +42,20 @@ export async function noteAccess(owner: NoteOwner, id: number, user: UserProfile
     const [[row]] = await db.query<RowDataPacket[]>('SELECT reported_by FROM machine_repairs WHERE id = ?', [id])
     if (!row) fail(404, 'Laporan kerusakan tidak ditemukan.')
     return { canAdd: row.reported_by === user.id || canHandleRepair(user) }
+  }
+  if (owner === 'maintenance_log') {
+    // Foto / dokumen checkup perawatan: yang mengerjakan & Teknik
+    requireTeknikMenu(user, 'perawatan-mesin', 'Perawatan Mesin')
+    const [[row]] = await db.query<RowDataPacket[]>('SELECT dikerjakan_oleh FROM maintenance_logs WHERE id = ?', [id])
+    if (!row) fail(404, 'Catatan checkup tidak ditemukan.')
+    return { canAdd: row.dikerjakan_oleh === user.id || canManageTeknik(user) }
+  }
+  if (owner === 'purchase_request') {
+    // Foto barang, penawaran / nota vendor: pengaju, Teknik, & Purchasing
+    requireTeknikMenu(user, 'pengajuan-pembelian', 'Pengajuan Pembelian')
+    const [[row]] = await db.query<RowDataPacket[]>('SELECT requested_by FROM purchase_requests WHERE id = ?', [id])
+    if (!row) fail(404, 'Pengajuan pembelian tidak ditemukan.')
+    return { canAdd: row.requested_by === user.id || canManageTeknik(user) || canProcessPurchase(user) }
   }
   const table = owner === 'stage' ? 'production_stages' : 'production_jobs'
   const [[row]] = await db.query<RowDataPacket[]>(`SELECT id FROM ${table} WHERE id = ?`, [id])

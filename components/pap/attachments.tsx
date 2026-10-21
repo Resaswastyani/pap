@@ -205,7 +205,7 @@ export function AttachmentPanel({ title = 'Lampiran', basePath, fileBase, canAdd
 }
 
 // ---- Lampiran catatan (follow-up, catatan status request, catatan produksi) ----
-export type NoteOwner = 'activity' | 'request_log' | 'stage' | 'job' | 'repair'
+export type NoteOwner = 'activity' | 'request_log' | 'stage' | 'job' | 'repair' | 'maintenance_log' | 'purchase_request'
 export type NoteAttachment = Attachment
 export const pendingCount = (p: PendingAttachments) => p.files.length + p.links.length
 

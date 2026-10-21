@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bell, BellRing, CalendarClock, CalendarDays, CheckCircle2, ClipboardCheck, ClipboardList, FileText, FlaskConical, MapPin, Palette, PhoneCall, Repeat, Wallet, Smartphone, UserPlus, Wrench, X } from 'lucide-react'
 import { api } from './ui'
 
-export type NotificationTarget = { meetingId?: number | null; planningId?: number | null; prospectId?: number | null; visitId?: number | null; sampleId?: number | null; designId?: number | null; customerId?: number | null; paymentId?: number | null; quotationId?: number | null; repairId?: number | null }
+export type NotificationTarget = { meetingId?: number | null; planningId?: number | null; prospectId?: number | null; visitId?: number | null; sampleId?: number | null; designId?: number | null; customerId?: number | null; paymentId?: number | null; quotationId?: number | null; repairId?: number | null; page?: string | null; pageId?: number | null }
 
 type Item = {
   id: number
@@ -21,6 +21,8 @@ type Item = {
   payment_id: number | null
   quotation_id: number | null
   repair_id: number | null
+  target_page: string | null
+  target_id: number | null
   read_at: string | null
   created_at: string
 }
@@ -91,7 +93,7 @@ async function showOsNotification(item: Item) {
     tag: `pap-${item.id}`,
     icon: '/icon-192.png',
     badge: '/notification-badge.png',
-    data: { meetingId: item.meeting_id, planningId: item.planning_id, prospectId: item.prospect_id, visitId: item.visit_id, sampleId: item.sample_id, designId: item.design_id, customerId: item.customer_id, paymentId: item.payment_id, quotationId: item.quotation_id, repairId: item.repair_id },
+    data: { meetingId: item.meeting_id, planningId: item.planning_id, prospectId: item.prospect_id, visitId: item.visit_id, sampleId: item.sample_id, designId: item.design_id, customerId: item.customer_id, paymentId: item.payment_id, quotationId: item.quotation_id, repairId: item.repair_id, page: item.target_page, pageId: item.target_id },
     requireInteraction: item.type === 'meeting_reminder',
   }
   try {
@@ -205,7 +207,7 @@ export function NotificationCenter({ userId, onOpen }: { userId: number; onOpen:
     if (!item.read_at) markRead({ ids: [item.id] })
     dismissToast(item.id)
     setOpen(false)
-    onOpen({ meetingId: item.meeting_id, planningId: item.planning_id, prospectId: item.prospect_id, visitId: item.visit_id, sampleId: item.sample_id, designId: item.design_id, customerId: item.customer_id, paymentId: item.payment_id, quotationId: item.quotation_id, repairId: item.repair_id })
+    onOpen({ meetingId: item.meeting_id, planningId: item.planning_id, prospectId: item.prospect_id, visitId: item.visit_id, sampleId: item.sample_id, designId: item.design_id, customerId: item.customer_id, paymentId: item.payment_id, quotationId: item.quotation_id, repairId: item.repair_id, page: item.target_page, pageId: item.target_id })
   }
 
   async function enableOs() {

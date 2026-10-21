@@ -36,7 +36,7 @@ async function showPending() {
         renotify: true,
         vibrate: [200, 100, 200],
         requireInteraction: item.type === 'meeting_reminder' || item.type === 'visit_reminder',
-        data: { meetingId: item.meeting_id, planningId: item.planning_id, prospectId: item.prospect_id, visitId: item.visit_id, sampleId: item.sample_id, designId: item.design_id, customerId: item.customer_id, paymentId: item.payment_id, quotationId: item.quotation_id, repairId: item.repair_id },
+        data: { meetingId: item.meeting_id, planningId: item.planning_id, prospectId: item.prospect_id, visitId: item.visit_id, sampleId: item.sample_id, designId: item.design_id, customerId: item.customer_id, paymentId: item.payment_id, quotationId: item.quotation_id, repairId: item.repair_id, page: item.target_page, pageId: item.target_id },
       }),
     ),
   )
@@ -58,13 +58,17 @@ self.addEventListener('notificationclick', (event) => {
   else if (data.paymentId) params.set('bayar', data.paymentId)
   else if (data.quotationId) params.set('quotation', data.quotationId)
   else if (data.repairId) params.set('perbaikan', data.repairId)
+  else if (data.page) {
+    params.set('buka', data.page)
+    if (data.pageId) params.set('id', data.pageId)
+  }
   const url = `/${params.size ? `?${params}` : ''}`
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       const client = clients.find((c) => new URL(c.url).origin === self.location.origin)
       if (client) {
-        client.postMessage({ type: 'pap-open', meetingId: data.meetingId, planningId: data.planningId, prospectId: data.prospectId, visitId: data.visitId, sampleId: data.sampleId, designId: data.designId, customerId: data.customerId, paymentId: data.paymentId, quotationId: data.quotationId, repairId: data.repairId })
+        client.postMessage({ type: 'pap-open', meetingId: data.meetingId, planningId: data.planningId, prospectId: data.prospectId, visitId: data.visitId, sampleId: data.sampleId, designId: data.designId, customerId: data.customerId, paymentId: data.paymentId, quotationId: data.quotationId, repairId: data.repairId, page: data.page, pageId: data.pageId })
         return client.focus()
       }
       return self.clients.openWindow(url)
