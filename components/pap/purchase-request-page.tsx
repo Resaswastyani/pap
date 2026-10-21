@@ -10,7 +10,7 @@ type Status = 'diajukan' | 'disetujui' | 'dipesan' | 'diterima' | 'ditolak' | 'b
 type Priority = 'darurat' | 'tinggi' | 'normal'
 type Pr = {
   id: number; nomor: string; keperluan: string; prioritas: Priority; dibutuhkan: string | null; status: Status; repair_id: number | null; repair_nomor: string | null
-  repair_mesin: string | null; catatan_purchasing: string | null; requested_by: number; requested_name: string; requester_division: string
+  repair_mesin: string | null; catatan_purchasing: string | null; po_number: string | null; po_status: string | null; po_percent: number | null; requested_by: number; requested_name: string; requester_division: string
   processed_name: string | null; processed_at: string | null; received_at: string | null; created_at: string; item_count: number; item_names: string | null
 }
 type PrItem = { id: number; item_id: number | null; item_kode: string | null; item_stok: number | null; nama: string; spesifikasi: string | null; jumlah: number; satuan: string }
@@ -73,7 +73,7 @@ export function PurchaseRequestPage({ user, focusId }: { user: UserProfile; focu
         <div>
           <p className="pap-eyebrow">TEKNIK · PURCHASING</p>
           <h1>Pengajuan Pembelian</h1>
-          <span>Teknik mengajukan pembelian sparepart / peralatan; Purchasing menyetujui, memesan, dan menandai diterima. Barang yang terhubung ke data sparepart otomatis masuk stok saat diterima.</span>
+          <span>Teknik mengajukan sparepart / peralatan, PPIC mengajukan bahan baku / pendukung; Purchasing menyetujui, memesan (nomor PO Accurate), dan menandai diterima. Barang yang terhubung ke data sparepart otomatis masuk stok saat diterima.</span>
         </div>
         {can.create && <button className="pap-primary-button" onClick={() => setFormOpen(true)}><Plus /> Ajukan pembelian</button>}
       </div>
@@ -85,7 +85,7 @@ export function PurchaseRequestPage({ user, focusId }: { user: UserProfile; focu
               <button key={k} role="tab" aria-selected={status === k} className={status === k ? 'active' : ''} onClick={() => setStatus(k)}>{l}</button>
             ))}
           </div>
-          <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor, keperluan, barang..." /></label>
+          <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor, keperluan, barang, no. PO..." /></label>
         </div>
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
@@ -98,7 +98,7 @@ export function PurchaseRequestPage({ user, focusId }: { user: UserProfile; focu
                   <td><div className="pap-repair-keluhan">{p.item_names}</div><div className="pap-cell-sub">{p.item_count} barang · {p.keperluan}</div></td>
                   <td><span className={`pap-status ${PRIORITY_TONE[p.prioritas]}`}>{PRIORITY_LABEL[p.prioritas]}</span></td>
                   <td className="pap-nowrap">{p.dibutuhkan ? formatDate(p.dibutuhkan) : '—'}</td>
-                  <td><span className={`pap-status ${STATUS_TONE[p.status]}`}>{STATUS_LABEL[p.status]}</span>{p.processed_name && <div className="pap-cell-sub">{p.processed_name}</div>}</td>
+                  <td><span className={`pap-status ${STATUS_TONE[p.status]}`}>{STATUS_LABEL[p.status]}</span>{(p.po_number || p.processed_name) && <div className="pap-cell-sub">{[p.po_number, p.processed_name].filter(Boolean).join(' · ')}</div>}</td>
                 </tr>
               ))}
             </tbody>
@@ -212,6 +212,8 @@ function PrDetail({ id, user, onClose, onChanged }: { id: number; user: UserProf
   const [rows, setRows] = useState<PrItem[]>([])
   const [can, setCan] = useState({ process: false, cancel: false })
   const [catatan, setCatatan] = useState('')
+  const [poNumber, setPoNumber] = useState('')
+  const [openPos, setOpenPos] = useState<{ number: string; vendor_name: string | null }[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const load = useCallback(async () => {
@@ -225,14 +227,20 @@ function PrDetail({ id, user, onClose, onChanged }: { id: number; user: UserProf
     }
   }, [id])
   useEffect(() => { load() }, [load])
+  // Saran nomor PO: PO Accurate yang masih menunggu barang (hanya bila punya akses menu PO Pembelian)
+  useEffect(() => {
+    if (!can.process || !user.menus.includes('po-pembelian' as never)) return
+    api<{ items: { number: string; vendor_name: string | null }[] }>('/api/purchasing/orders?status=terbuka').then((res) => setOpenPos(res.items)).catch(() => {})
+  }, [can.process, user.menus])
   async function act(status: Status) {
     if (status === 'ditolak' && !catatan.trim()) return setError('Tuliskan alasan penolakan di kolom catatan.')
     if (status === 'batal' && !window.confirm('Batalkan pengajuan ini?')) return
     setBusy(true)
     setError('')
     try {
-      await api(`/api/purchase-requests/${id}`, { method: 'PATCH', json: { status, catatan } })
+      await api(`/api/purchase-requests/${id}`, { method: 'PATCH', json: { status, catatan, po_number: poNumber } })
       setCatatan('')
+      setPoNumber('')
       await load()
       onChanged()
     } catch (e) {
@@ -268,6 +276,7 @@ function PrDetail({ id, user, onClose, onChanged }: { id: number; user: UserProf
         <div><dt>Dibutuhkan</dt><dd>{item.dibutuhkan ? formatDate(item.dibutuhkan) : '—'}</dd></div>
         {item.repair_nomor && <div><dt>Untuk perbaikan</dt><dd>{item.repair_nomor} · {item.repair_mesin}</dd></div>}
         {item.processed_name && <div><dt>Diproses</dt><dd>{item.processed_name} · {formatDate(item.processed_at, true)}</dd></div>}
+        {item.po_number && <div><dt>PO Accurate</dt><dd>{item.po_number}{item.po_status ? ` · ${item.po_status}${item.po_percent !== null ? ` (${Math.round(item.po_percent)}% diterima)` : ''}` : ''}</dd></div>}
       </dl>
       <section className="pap-detail-section"><h3>Keperluan</h3><p className="pap-prewrap">{item.keperluan}</p></section>
       <section className="pap-detail-section">
@@ -292,6 +301,12 @@ function PrDetail({ id, user, onClose, onChanged }: { id: number; user: UserProf
         <section className="pap-detail-section">
           <h3>Proses Purchasing</h3>
           <textarea className="pap-input" rows={2} maxLength={5000} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Catatan: vendor, harga, estimasi tiba, atau alasan ditolak" />
+          {(s === 'disetujui' || s === 'dipesan') && (
+            <>
+              <input className="pap-input" list={`pr-po-${item.id}`} maxLength={80} value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder={item.po_number ? `No. PO Accurate: ${item.po_number}` : 'No. PO Accurate (mis. PO.2026.10.00021)'} aria-label="Nomor PO Accurate" />
+              <datalist id={`pr-po-${item.id}`}>{openPos.map((p) => <option key={p.number} value={p.number}>{p.vendor_name ?? ''}</option>)}</datalist>
+            </>
+          )}
           <div className="pap-inline-actions pap-wrap">
             {s === 'diajukan' && <button className="pap-btn danger" disabled={busy} onClick={() => act('ditolak')}><XCircle /> Tolak</button>}
             {s === 'diajukan' && <button className="pap-primary-button" disabled={busy} onClick={() => act('disetujui')}><CheckCircle2 /> Setujui</button>}

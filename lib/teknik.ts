@@ -14,6 +14,8 @@ export function requireTeknikMenu(user: UserProfile, key: 'perawatan-mesin' | 's
 }
 // Pengelola data teknik: divisi Teknik, GM, admin
 export const canManageTeknik = (user: UserProfile) => isManagement(user) || user.division.code === 'teknik'
+// Pengaju pembelian: Teknik (sparepart/peralatan) dan PPIC (bahan baku/pendukung), GM, admin
+export const canRequestPurchase = (user: UserProfile) => canManageTeknik(user) || user.division.code === 'ppic'
 // Pemroses pengajuan pembelian: divisi Purchasing, GM, admin
 export const canProcessPurchase = (user: UserProfile) => isManagement(user) || user.division.code === 'purchasing'
 

@@ -4,7 +4,7 @@ import { fail, handle, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { notifyPr, PR_SELECT, readPrInput, serializePr } from '@/lib/purchase-requests'
 import { OPEN_STATUSES } from '@/lib/repairs'
-import { canManageTeknik, canProcessPurchase, PR_STATUS, requireTeknikMenu } from '@/lib/teknik'
+import { canProcessPurchase, canRequestPurchase, PR_STATUS, requireTeknikMenu } from '@/lib/teknik'
 
 // Daftar pengajuan: ?status=terbuka|<status>|semua &q=
 export const GET = handle(async (request: Request) => {
@@ -18,8 +18,8 @@ export const GET = handle(async (request: Request) => {
   else if (status in PR_STATUS) where.push('p.status = ?'), args.push(status)
   const q = str(params.get('q'), 100)
   if (q) {
-    where.push('(p.nomor LIKE ? OR p.keperluan LIKE ? OR EXISTS (SELECT 1 FROM purchase_request_items i WHERE i.request_id = p.id AND i.nama LIKE ?))')
-    args.push(...Array(3).fill(`%${q}%`))
+    where.push('(p.nomor LIKE ? OR p.keperluan LIKE ? OR p.po_number LIKE ? OR EXISTS (SELECT 1 FROM purchase_request_items i WHERE i.request_id = p.id AND i.nama LIKE ?))')
+    args.push(...Array(4).fill(`%${q}%`))
   }
   const [rows] = await db.query<RowDataPacket[]>(
     `${PR_SELECT} ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
@@ -37,15 +37,15 @@ export const GET = handle(async (request: Request) => {
     counts: Object.fromEntries(counts.map((c) => [c.status, Number(c.n)])),
     techItems: items.map((i) => ({ ...i, stok: Number(i.stok), stok_minimum: Number(i.stok_minimum) })),
     repairs,
-    can: { create: canManageTeknik(user), process: canProcessPurchase(user) },
+    can: { create: canRequestPurchase(user), process: canProcessPurchase(user) },
   })
 })
 
-// Ajukan pembelian (Teknik) -> notifikasi Purchasing
+// Ajukan pembelian (Teknik / PPIC) -> notifikasi Purchasing
 export const POST = handle(async (request: Request) => {
   const user = await requireUser()
   requireTeknikMenu(user, 'pengajuan-pembelian', 'Pengajuan Pembelian')
-  if (!canManageTeknik(user)) fail(403, 'Pengajuan pembelian dibuat oleh divisi Teknik.')
+  if (!canRequestPurchase(user)) fail(403, 'Pengajuan pembelian dibuat oleh divisi Teknik atau PPIC.')
   const input = await readPrInput(await readJson(request))
   const conn = await db.getConnection()
   let id: number

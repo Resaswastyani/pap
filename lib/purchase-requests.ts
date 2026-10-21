@@ -1,5 +1,6 @@
-// Pengajuan pembelian peralatan / sparepart dari Teknik ke Purchasing (Guidance Tehnik & Purchasing:
-// "Request pembelian barang tehnik oleh divisi tehnik").
+// Pengajuan pembelian dari Teknik (peralatan / sparepart) dan PPIC (bahan baku / pendukung) ke Purchasing
+// (Guidance Tehnik & Purchasing: "Request pembelian barang tehnik oleh divisi tehnik", "PPIC request pembelian bahan").
+// Purchasing mencatat nomor PO Accurate yang memenuhi pengajuan (po_number).
 // Alur: diajukan -> disetujui -> dipesan -> diterima (stok sparepart bertambah otomatis); bisa ditolak / dibatalkan.
 import type { RowDataPacket } from 'mysql2'
 import { fail, int, str } from '@/lib/api'
@@ -10,7 +11,7 @@ import { decimal, divisionUserIds, isDate, PR_PRIORITY, PR_STATUS, type PrPriori
 import type { UserProfile } from '@/lib/users'
 
 export const PR_SELECT = `SELECT p.id, p.nomor, p.keperluan, p.prioritas, p.dibutuhkan, p.status, p.repair_id, r.nomor AS repair_nomor, rm.nama AS repair_mesin,
-  p.catatan_purchasing, p.requested_by, ur.name AS requested_name, ud.name AS requester_division, p.processed_by, upr.name AS processed_name,
+  p.catatan_purchasing, p.po_number, po.accurate_id AS po_accurate_id, po.status_name AS po_status, po.percent_shipped AS po_percent, p.requested_by, ur.name AS requested_name, ud.name AS requester_division, p.processed_by, upr.name AS processed_name,
   p.processed_at, p.received_at, p.created_at, p.updated_at,
   (SELECT COUNT(*) FROM purchase_request_items i WHERE i.request_id = p.id) AS item_count,
   (SELECT GROUP_CONCAT(i.nama ORDER BY i.urut SEPARATOR ', ') FROM purchase_request_items i WHERE i.request_id = p.id) AS item_names
@@ -19,10 +20,11 @@ export const PR_SELECT = `SELECT p.id, p.nomor, p.keperluan, p.prioritas, p.dibu
   JOIN divisions ud ON ud.id = ur.division_id
   LEFT JOIN users upr ON upr.id = p.processed_by
   LEFT JOIN machine_repairs r ON r.id = p.repair_id
-  LEFT JOIN machines rm ON rm.id = r.machine_id`
+  LEFT JOIN machines rm ON rm.id = r.machine_id
+  LEFT JOIN accurate_purchase_orders po ON po.number = p.po_number`
 
-type PrRow = RowDataPacket & { id: number; nomor: string; status: string; prioritas: string; requested_by: number; requested_name: string; item_names: string | null; dibutuhkan: string | null; catatan_purchasing: string | null }
-export const serializePr = (r: RowDataPacket) => ({ ...(r as PrRow), item_count: Number(r.item_count ?? 0) })
+type PrRow = RowDataPacket & { id: number; nomor: string; status: string; prioritas: string; requested_by: number; requested_name: string; item_names: string | null; dibutuhkan: string | null; catatan_purchasing: string | null; po_number: string | null }
+export const serializePr = (r: RowDataPacket) => ({ ...(r as PrRow), item_count: Number(r.item_count ?? 0), po_percent: r.po_percent === null ? null : Number(r.po_percent) })
 
 export async function loadPr(id: number) {
   const [[row]] = await db.query<RowDataPacket[]>(`${PR_SELECT} WHERE p.id = ?`, [id])
@@ -98,7 +100,7 @@ export async function notifyPr(id: number, actor: UserProfile, isNew: boolean) {
   await pushToUsers(await notify(recipients.filter((uid) => uid !== actor.id), {
     type: 'pengajuan_pembelian',
     title,
-    body: [pr.item_names, pr.dibutuhkan && `dibutuhkan ${pr.dibutuhkan}`, !isNew && pr.catatan_purchasing].filter(Boolean).join(' · '),
+    body: [pr.item_names, pr.dibutuhkan && `dibutuhkan ${pr.dibutuhkan}`, !isNew && pr.po_number && `PO ${pr.po_number}`, !isNew && pr.catatan_purchasing].filter(Boolean).join(' · '),
     page: 'Pengajuan Pembelian',
     pageId: pr.id,
     refKey: `pr:${pr.id}:${pr.status}`,

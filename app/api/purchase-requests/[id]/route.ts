@@ -19,7 +19,7 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
   })
 })
 
-// Ubah status: { status, catatan }
+// Ubah status: { status, catatan, po_number } (po_number = nomor PO Accurate, diisi saat dipesan / diterima)
 // Purchasing / GM: disetujui, ditolak, dipesan, diterima. Pengaju / Teknik: batal (sebelum diterima).
 // Diterima: barang yang terhubung ke data sparepart otomatis masuk stok.
 export const PATCH = handle(async (request: Request, ctx: Ctx) => {
@@ -38,14 +38,15 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
     fail(403, 'Pengajuan diproses oleh divisi Purchasing.')
   }
   if (to === 'ditolak' && !catatan) fail(400, 'Tuliskan alasan penolakan.')
+  const poNumber = str(body.po_number, 80) || null
 
   const [result] = await db.query<ResultSetHeader>(
-    `UPDATE purchase_requests SET status = ?, catatan_purchasing = COALESCE(?, catatan_purchasing),
+    `UPDATE purchase_requests SET status = ?, catatan_purchasing = COALESCE(?, catatan_purchasing), po_number = COALESCE(?, po_number),
        processed_by = IF(? IN ('disetujui', 'ditolak', 'dipesan', 'diterima'), ?, processed_by),
        processed_at = IF(? IN ('disetujui', 'ditolak', 'dipesan', 'diterima'), NOW(), processed_at),
        received_at = IF(? = 'diterima', NOW(), received_at)
      WHERE id = ? AND status = ?`,
-    [to, catatan, to, user.id, to, to, pr.id, from],
+    [to, catatan, poNumber, to, user.id, to, to, pr.id, from],
   )
   if (!result.affectedRows) fail(409, 'Status pengajuan baru saja berubah. Muat ulang lalu coba lagi.')
   if (to === 'diterima') {

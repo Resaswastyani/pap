@@ -6,10 +6,12 @@ import { api, formatDate, Notice } from './ui'
 
 export type SyncEntity = 'customer' | 'sales-invoice' | 'sales-order' | 'item' | 'stock' | 'sales-order-items' | 'customer-detail' | 'item-detail' | 'bill-of-material' | 'bill-of-material-detail'
   | 'manufacture-order' | 'manufacture-order-detail' | 'finished-good-slip' | 'finished-good-slip-detail'
+  | 'vendor' | 'purchase-order' | 'purchase-order-detail' | 'purchase-invoice' | 'purchase-invoice-open'
 type SyncRow = { entity: SyncEntity; last_success: string | null; status: 'ok' | 'berjalan' | 'gagal'; message: string | null; updated_at: string }
 
 const LABEL: Record<SyncEntity, string> = { customer: 'Customer', 'sales-invoice': 'Faktur penjualan', 'sales-order': 'Sales order', item: 'Data barang', stock: 'Stok fisik', 'sales-order-items': 'Produk dari pesanan', 'customer-detail': 'Alamat customer', 'item-detail': 'Tanda "Diproduksi" barang', 'bill-of-material': 'Formula produksi (BOM)', 'bill-of-material-detail': 'Bahan formula produksi',
-  'manufacture-order': 'Rencana produksi', 'manufacture-order-detail': 'Formula rencana produksi', 'finished-good-slip': 'Penyelesaian barang jadi', 'finished-good-slip-detail': 'Barang jadi' }
+  'manufacture-order': 'Rencana produksi', 'manufacture-order-detail': 'Formula rencana produksi', 'finished-good-slip': 'Penyelesaian barang jadi', 'finished-good-slip-detail': 'Barang jadi',
+  vendor: 'Supplier', 'purchase-order': 'PO pembelian', 'purchase-order-detail': 'Barang & harga PO', 'purchase-invoice': 'Faktur pembelian', 'purchase-invoice-open': 'Sisa hutang' }
 
 export const formatRupiah = (value: number | null | undefined) =>
   value === null || value === undefined ? '—' : `Rp ${Math.round(value).toLocaleString('id-ID')}`

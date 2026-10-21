@@ -10,7 +10,7 @@ import { api, formatDate, Notice, Pager, Progress, usePaged } from './ui'
 // Rencana Produksi (MP) dan Penyelesaian Barang Jadi (FGS) langsung dari Accurate Online (hanya baca)
 
 const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
-const monthLabel = (ym: string) => (ym ? `${MONTHS[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}` : '')
+export const monthLabel = (ym: string) => (ym ? `${MONTHS[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}` : '')
 const shiftMonth = (ym: string, delta: number) => {
   const d = new Date(Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1 + delta, 1))
   return d.toISOString().slice(0, 7)
@@ -18,7 +18,7 @@ const shiftMonth = (ym: string, delta: number) => {
 const qty = (v: number | null | undefined, unit?: string | null) => (v === null || v === undefined ? '—' : `${formatNumber(v)}${unit ? ` ${unit}` : ''}`)
 const range = (a: string | null, b: string | null) => (!a && !b ? '—' : a === b || !b ? formatDate(a) : `${formatDate(a)} – ${formatDate(b)}`)
 
-function MonthNav({ periode, onChange }: { periode: string; onChange: (p: string) => void }) {
+export function MonthNav({ periode, onChange }: { periode: string; onChange: (p: string) => void }) {
   return (
     <div className="pap-month-nav">
       <button className="pap-icon-button" onClick={() => onChange(shiftMonth(periode, -1))} aria-label="Bulan sebelumnya"><ChevronLeft /></button>
@@ -28,7 +28,7 @@ function MonthNav({ periode, onChange }: { periode: string; onChange: (p: string
   )
 }
 
-function useDebounced<T>(value: T, ms = 300) {
+export function useDebounced<T>(value: T, ms = 300) {
   const [v, setV] = useState(value)
   useEffect(() => {
     const t = setTimeout(() => setV(value), ms)

@@ -12,15 +12,21 @@ import { syncProductionJobs } from '@/lib/production'
 // Detail (per data): sales-order-items (baris barang SO -> Data Produk), customer-detail (alamat customer),
 //   manufacture-order-detail (baris formula MP), finished-good-slip-detail (barang jadi FGS)
 // Bill of Material (Formula Produksi): daftar BOM + detail bahan (bill-of-material-detail) -> menu Formulasi Produk
+// Purchasing: vendor (supplier), purchase-order + purchase-order-detail (baris barang & harga), purchase-invoice
+//   + purchase-invoice-open (sisa hutang faktur belum lunas; pembayaran tidak selalu mengubah lastUpdate faktur)
 type ListEntity = 'customer' | 'sales-invoice' | 'sales-order' | 'item' | 'stock' | 'bill-of-material' | 'manufacture-order' | 'finished-good-slip'
+  | 'vendor' | 'purchase-order' | 'purchase-invoice'
 type DetailEntity = 'sales-order-items' | 'customer-detail' | 'item-detail' | 'bill-of-material-detail' | 'manufacture-order-detail' | 'finished-good-slip-detail'
+  | 'purchase-order-detail' | 'purchase-invoice-open'
 export type SyncEntity = ListEntity | DetailEntity
 // Urutan: data kecil & inkremental dulu, stok (selalu penuh, paling lama) terakhir
 export const SYNC_ENTITIES: SyncEntity[] = [
   'customer', 'sales-invoice', 'sales-order', 'sales-order-items', 'customer-detail', 'item', 'item-detail', 'bill-of-material', 'bill-of-material-detail',
-  'manufacture-order', 'manufacture-order-detail', 'finished-good-slip', 'finished-good-slip-detail', 'stock',
+  'manufacture-order', 'manufacture-order-detail', 'finished-good-slip', 'finished-good-slip-detail',
+  'vendor', 'purchase-order', 'purchase-order-detail', 'purchase-invoice', 'purchase-invoice-open', 'stock',
 ]
 export const PRODUCTION_SYNC_ENTITIES: SyncEntity[] = ['manufacture-order', 'manufacture-order-detail', 'finished-good-slip', 'finished-good-slip-detail']
+export const PURCHASING_SYNC_ENTITIES: SyncEntity[] = ['vendor', 'purchase-order', 'purchase-order-detail', 'purchase-invoice', 'purchase-invoice-open']
 // Baris barang MP/FGS hanya diambil untuk dokumen beberapa hari terakhir (detail.do = satu request per dokumen)
 const PRODUCTION_DAYS = Number(process.env.ACCURATE_PRODUCTION_DAYS || 120)
 
@@ -33,6 +39,9 @@ const PATHS: Record<ListEntity, string> = {
   'manufacture-order': '/api/manufacture-order/list.do',
   'finished-good-slip': '/api/finished-good-slip/list.do',
   'bill-of-material': '/api/bill-of-material/list.do',
+  vendor: '/api/vendor/list.do',
+  'purchase-order': '/api/purchase-order/list.do',
+  'purchase-invoice': '/api/purchase-invoice/list.do',
 }
 // Stok selalu disinkron penuh: jumlahnya berubah karena transaksi lain tanpa mengubah lastUpdate barang
 const FULL_SYNC: ListEntity[] = ['item', 'stock']
@@ -53,6 +62,9 @@ const FIELDS: Record<ListEntity, string> = {
   'manufacture-order': 'id,number,name,transDate,statusName,portion,lastUpdate',
   'finished-good-slip': 'id,number,transDate,description,workOrder,lastUpdate',
   'bill-of-material': 'id,number,transDate,description,item,itemUnit,suspended,lastUpdate',
+  vendor: 'id,vendorNo,name,category,email,mobilePhone,workPhone,suspended,lastUpdate',
+  'purchase-order': 'id,number,transDate,shipDate,vendor,totalAmount,status,statusName,percentShipped,lastUpdate',
+  'purchase-invoice': 'id,number,transDate,dueDate,vendor,totalAmount,primeOwing,statusName,lastUpdate',
 }
 
 // Penyimpanan per halaman (satu query untuk banyak baris) agar sinkron cepat ke database jarak jauh.
@@ -194,9 +206,48 @@ export async function storeBomDetail(d: Row, lastUpdate: string | null) {
   }
 }
 
+// ---------- Purchasing ----------
+async function saveVendors(rows: Row[]) {
+  if (!rows.length) return
+  await db.query(
+    `INSERT INTO accurate_vendors (accurate_id, vendor_no, name, category, email, mobile_phone, work_phone, suspended, last_update)
+     VALUES ?
+     ON DUPLICATE KEY UPDATE vendor_no = VALUES(vendor_no), name = VALUES(name), category = VALUES(category), email = VALUES(email),
+       mobile_phone = VALUES(mobile_phone), work_phone = VALUES(work_phone), suspended = VALUES(suspended), last_update = VALUES(last_update), synced_at = NOW()`,
+    [rows.map((row) => [num(row.id), str(row.vendorNo, 50), str(row.name) ?? '(tanpa nama)', nameOf(row.category), str(row.email), str(row.mobilePhone, 80),
+      str(row.workPhone, 80), row.suspended === true ? 1 : 0, str(row.lastUpdate, 20)])],
+  )
+}
+
+async function savePurchaseOrders(rows: Row[]) {
+  if (!rows.length) return
+  await db.query(
+    `INSERT INTO accurate_purchase_orders (accurate_id, number, trans_date, ship_date, vendor_accurate_id, total_amount, status, status_name, percent_shipped, last_update)
+     VALUES ?
+     ON DUPLICATE KEY UPDATE number = VALUES(number), trans_date = VALUES(trans_date), ship_date = VALUES(ship_date), vendor_accurate_id = VALUES(vendor_accurate_id),
+       total_amount = VALUES(total_amount), status = VALUES(status), status_name = VALUES(status_name), percent_shipped = VALUES(percent_shipped),
+       last_update = VALUES(last_update), synced_at = NOW()`,
+    [rows.map((row) => [num(row.id), str(row.number, 80), fromAccurateDate(row.transDate), fromAccurateDate(row.shipDate), idOf(row.vendor), num(row.totalAmount),
+      str(row.status, 40), str(row.statusName, 80), num(row.percentShipped), str(row.lastUpdate, 20)])],
+  )
+}
+
+async function savePurchaseInvoices(rows: Row[]) {
+  if (!rows.length) return
+  await db.query(
+    `INSERT INTO accurate_purchase_invoices (accurate_id, number, trans_date, due_date, vendor_accurate_id, total_amount, owing, status_name, last_update)
+     VALUES ?
+     ON DUPLICATE KEY UPDATE number = VALUES(number), trans_date = VALUES(trans_date), due_date = VALUES(due_date), vendor_accurate_id = VALUES(vendor_accurate_id),
+       total_amount = VALUES(total_amount), owing = VALUES(owing), status_name = VALUES(status_name), last_update = VALUES(last_update), synced_at = NOW()`,
+    [rows.map((row) => [num(row.id), str(row.number, 80), fromAccurateDate(row.transDate), fromAccurateDate(row.dueDate), idOf(row.vendor),
+      num(row.totalAmount), num(row.primeOwing), str(row.statusName, 80), str(row.lastUpdate, 20)])],
+  )
+}
+
 const SAVERS: Record<ListEntity, (rows: Row[]) => Promise<void>> = {
   customer: storeCustomerRows, 'sales-invoice': saveInvoices, 'sales-order': saveSalesOrders, item: saveItems, stock: saveStock, 'bill-of-material': saveBoms,
   'manufacture-order': saveManufactureOrders, 'finished-good-slip': saveFinishedGoodSlips,
+  vendor: saveVendors, 'purchase-order': savePurchaseOrders, 'purchase-invoice': savePurchaseInvoices,
 }
 
 // Jalankan fn untuk tiap item dengan beberapa permintaan paralel ke Accurate
@@ -440,6 +491,64 @@ async function syncBomDetails(deadline: number) {
   return { saved, done: saved === pending.length && pending.length < 400 }
 }
 
+// Baris barang PO (harga beli per barang -> database harga bahan; jumlah diterima -> monitoring PO)
+async function syncPurchaseOrderDetails(deadline: number) {
+  const [pending] = await db.query<(RowDataPacket & { accurate_id: number; last_update: string | null })[]>(
+    `SELECT accurate_id, last_update FROM accurate_purchase_orders
+     WHERE detail_synced_update IS NULL OR detail_synced_update <> COALESCE(last_update, '')
+     ORDER BY trans_date DESC, accurate_id DESC LIMIT 300`,
+  )
+  let saved = 0
+  const failed: string[] = []
+  await eachParallel(pending, 4, deadline, async (po) => {
+    let res
+    try {
+      res = await accurate<Row>('/api/purchase-order/detail.do', { params: { id: po.accurate_id } })
+    } catch (error) {
+      failed.push(`${po.accurate_id}: ${(error as Error).message}`)
+      return
+    }
+    const lines = ((res.d?.detailItem ?? []) as Row[]).map((line) => {
+      const item = (line.item ?? {}) as Row
+      return [po.accurate_id, num(line.id), num(line.seq), num(item.id ?? line.itemId), str(item.no, 80), str(line.detailName ?? item.name, 500),
+        num(line.quantity), unitName(line.itemUnit), num(line.unitPrice), num(line.totalPrice), num(line.shipQuantity), str(line.detailNotes, 1000)]
+    }).filter((line) => line[1] !== null)
+    await db.query('DELETE FROM accurate_purchase_order_items WHERE po_accurate_id = ?', [po.accurate_id])
+    if (lines.length) {
+      await db.query(
+        `INSERT INTO accurate_purchase_order_items (po_accurate_id, line_id, seq, item_accurate_id, item_no, item_name, quantity, unit, unit_price, total_price, quantity_shipped, notes)
+         VALUES ? ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), unit_price = VALUES(unit_price), total_price = VALUES(total_price), quantity_shipped = VALUES(quantity_shipped)`,
+        [lines],
+      )
+    }
+    await db.query('UPDATE accurate_purchase_orders SET detail_synced_update = ? WHERE accurate_id = ?', [po.last_update ?? '', po.accurate_id])
+    saved++
+  })
+  if (failed.length && !saved) throw new Error(`Gagal mengambil detail PO: ${failed[0]}`)
+  return { saved, done: saved === pending.length && pending.length < 300 }
+}
+
+// Sisa hutang terkini: semua faktur belum lunas dari Accurate; yang tidak ada lagi di daftar berarti sudah lunas
+async function syncOpenPurchaseInvoices(deadline: number) {
+  const open: Row[] = []
+  for (let page = 1; ; page++) {
+    const res = await accurate<Row[]>(PATHS['purchase-invoice'], {
+      params: { fields: FIELDS['purchase-invoice'], 'filter.outstanding': 'true', 'sp.page': page, 'sp.pageSize': 100, 'sp.sort': 'id|asc' },
+    })
+    open.push(...(res.d ?? []))
+    if (page >= (res.sp?.pageCount ?? 1) || !(res.d ?? []).length) break
+    if (Date.now() > deadline) return { saved: 0, done: false }
+  }
+  await savePurchaseInvoices(open)
+  const ids = open.map((row) => num(row.id)).filter((id): id is number => id !== null)
+  await db.query(
+    `UPDATE accurate_purchase_invoices SET owing = 0, status_name = IF(status_name = 'Belum Lunas', 'Lunas', status_name)
+     WHERE owing > 0${ids.length ? ' AND accurate_id NOT IN (?)' : ''}`,
+    ids.length ? [ids] : [],
+  )
+  return { saved: open.length, done: true }
+}
+
 const DETAIL_TASKS: Record<DetailEntity, (deadline: number) => Promise<{ saved: number; done: boolean }>> = {
   'sales-order-items': syncSalesOrderItems,
   'customer-detail': syncCustomerDetails,
@@ -447,6 +556,8 @@ const DETAIL_TASKS: Record<DetailEntity, (deadline: number) => Promise<{ saved: 
   'bill-of-material-detail': syncBomDetails,
   'manufacture-order-detail': syncManufactureOrderDetails,
   'finished-good-slip-detail': syncFinishedGoodSlipDetails,
+  'purchase-order-detail': syncPurchaseOrderDetails,
+  'purchase-invoice-open': syncOpenPurchaseInvoices,
 }
 
 async function runDetailTask(entity: DetailEntity, deadline: number) {
