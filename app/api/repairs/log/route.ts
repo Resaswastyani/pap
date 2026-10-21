@@ -40,6 +40,10 @@ export const GET = handle(async (request: Request) => {
   // Pilihan filter
   const [machines] = await db.query<Row[]>('SELECT mesin_key, COUNT(*) AS jumlah FROM machine_damage_logs WHERE mesin_key IS NOT NULL GROUP BY mesin_key ORDER BY mesin_key')
   const [components] = await db.query<Row[]>('SELECT komponen FROM machine_damage_logs WHERE komponen IS NOT NULL GROUP BY komponen ORDER BY komponen')
+  // Pilihan komponen di form laporan: daftar part per mesin dari Lembar Perawatan Mesin
+  const [parts] = await db.query<Row[]>(
+    'SELECT mesin, part FROM maintenance_sheet_items GROUP BY mesin, part ORDER BY MIN(mesin_urut), MIN(part_no), part',
+  )
   const [years] = await db.query<Row[]>('SELECT DISTINCT YEAR(tanggal) AS tahun FROM machine_damage_logs WHERE tanggal IS NOT NULL ORDER BY tahun DESC')
   const [[synced]] = await db.query<Row[]>("SELECT value FROM app_settings WHERE `key` = 'kerusakan_mesin.synced_at'")
 
@@ -54,6 +58,7 @@ export const GET = handle(async (request: Request) => {
     options: {
       machines: machines.map((m) => ({ key: m.mesin_key, label: machineLabel(String(m.mesin_key)), jumlah: Number(m.jumlah) })),
       components: components.map((c) => c.komponen),
+      parts: parts.map((p) => ({ mesin: String(p.mesin), part: String(p.part) })),
       years: years.map((y) => Number(y.tahun)),
     },
     synced_at: synced?.value ?? null,

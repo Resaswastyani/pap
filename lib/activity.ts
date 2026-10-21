@@ -150,7 +150,13 @@ const RESOURCES: Record<string, Resource> = {
   visits: { module: 'Jadwal Visit', noun: 'visit', table: 'visits', files: 'visit_attachments' },
   customers: { module: 'Customer', noun: 'customer', table: 'customers' },
   products: { module: 'Data Produk', noun: 'produk', table: 'customer_products', files: 'customer_product_files' },
-  production: { module: 'Jadwal Produksi', noun: 'job produksi', table: 'production_jobs' },
+  production: { module: 'Rencana Produksi', noun: 'job produksi', table: 'production_jobs' },
+  capacity: { module: 'Kapasitas Produksi', noun: 'kapasitas mesin', table: 'production_capacities' },
+  'shift-schedule': { module: 'Jadwal Shift', noun: 'jadwal shift' },
+  // Purchasing: data Accurate (kunci accurate_id), dicatat dari isian form
+  'purchasing/orders': { module: 'PO Pembelian', noun: 'PO pembelian' },
+  'purchasing/prices': { module: 'Harga Bahan', noun: 'harga beli acuan' },
+  'purchasing/vendors': { module: 'Supplier', noun: 'supplier' },
   machines: { module: 'Data Mesin', noun: 'mesin', table: 'machines' },
   'production/results': { module: 'Hasil Produksi', noun: 'laporan hasil produksi', table: 'production_results' },
   repairs: { module: 'Kerusakan Mesin', noun: 'laporan kerusakan mesin', table: 'machine_repairs' },
@@ -180,6 +186,7 @@ type Plan = {
   id?: string
   always?: boolean // tetap dicatat walau baris utamanya tidak berubah (mis. data di tabel anak)
   snapshot?: () => Promise<Record<string, unknown> | null> // pengganti baca baris tabel (mis. pengaturan key-value)
+  skip?: (fields: Fields) => boolean // tidak dicatat, mis. pratinjau unggahan
   describe: (label: string, body: Fields, changes: ActivityChange[]) => string
 }
 type Fields = Record<string, string>
@@ -241,6 +248,25 @@ function planFor(method: string, path: string): Plan | null {
     return { ...base, action: 'update', always: true, describe: () => 'Memutus koneksi akun Google Drive desain' }
   if (res === 'master' && a === 'drive')
     return { ...base, action: 'sync', describe: () => 'Menyinkronkan folder Google Drive desain' }
+  if (res === 'purchasing/orders' && !a && method === 'POST')
+    return { ...base, action: 'create', describe: (l, f) => `Membuat PO pembelian ${f.nomor || l} di Accurate (pemasok ${f.vendor_no ?? '-'})` }
+  if (res === 'purchasing/orders' && isId(a))
+    return { ...base, action: method === 'DELETE' ? 'delete' : 'update', id: a, describe: () => `${method === 'DELETE' ? 'Menghapus' : 'Mengubah'} PO pembelian Accurate #${a}` }
+  if (res === 'purchasing/prices' && isId(a))
+    return { ...base, action: 'update', always: true, id: a, describe: (_l, f) => `Mengubah harga beli acuan barang Accurate #${a} menjadi Rp ${Number(f.harga ?? 0).toLocaleString('id-ID')}${f.catatan ? ` (${f.catatan})` : ''}` }
+  if (res === 'purchasing/vendors' && !a && method === 'POST')
+    return { ...base, action: 'create', describe: (_l, f) => `Menambah supplier ${f.name ?? ''} di Accurate` }
+  if (res === 'purchasing/vendors' && isId(a))
+    return {
+      ...base, action: method === 'DELETE' ? 'delete' : 'update', always: true, id: a,
+      describe: (_l, f) => (method === 'DELETE' ? `Menghapus supplier Accurate #${a}` : method === 'PATCH' ? `Mengubah data supplier ${f.name ?? `#${a}`} di Accurate` : `Mengubah catatan Purchasing supplier #${a}`),
+    }
+  if (res === 'shift-schedule' && a === 'upload')
+    return { ...base, action: 'import', skip: (f) => f.mode !== 'import', describe: (_l, f) => `Mengunggah jadwal shift dari file${f.file ? ` ${f.file}` : ''}` }
+  if (res === 'shift-schedule' && a === 'sheet')
+    return { ...base, action: method === 'PUT' ? 'update' : 'sync', describe: () => (method === 'PUT' ? 'Mengganti link spreadsheet Jadwal Shift' : 'Menyinkronkan Jadwal Shift dari Google Sheet') }
+  if (res === 'capacity' && !a && method === 'PUT')
+    return { ...base, action: 'update', describe: () => 'Mengubah keterangan dokumen Kapasitas Produksi' }
   if (res === 'sop' && !a)
     return { ...base, action: method === 'POST' ? 'sync' : 'update', describe: () => (method === 'POST' ? 'Menyinkronkan video SOP dari Google Drive' : 'Mengganti link folder SOP Mesin') }
   // Supplier Accurate (kunci accurate_id, bukan id): sinkron & penandaan supplier teknik
@@ -325,7 +351,7 @@ export async function withActivity(request: Request | null, run: () => Promise<R
   const before = !plan || plan.action === 'create' ? null : plan.snapshot ? await plan.snapshot() : await loadRow(plan.table, plan.id)
 
   const response = await store.run(ctx, run)
-  if (!plan || ctx.logged || response.status >= 400) return response
+  if (!plan || ctx.logged || response.status >= 400 || plan.skip?.(fields)) return response
 
   try {
     const actor = ctx.actor ?? (await getCurrentUser())

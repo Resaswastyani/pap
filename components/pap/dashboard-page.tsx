@@ -173,8 +173,8 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
           {d.repeat && <Tile label="Customer perlu dihubungi" value={d.repeat.waktunya + d.repeat.berisiko} note={`${d.repeat.berisiko} berisiko berhenti order`} icon={Repeat} tone={d.repeat.berisiko ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Repeat Order')} />}
           {d.sample && <Tile label="Request sample" value={d.sample.todo} note={`perlu tindakan · ${d.sample.aktif} berjalan`} icon={FlaskConical} tone={d.sample.todo ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Request Sample')} />}
           {d.desain && <Tile label="Request desain" value={d.desain.todo} note={`perlu tindakan · ${d.desain.aktif} berjalan`} icon={Palette} tone={d.desain.todo ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Request Desain')} />}
-          {d.produksi && <Tile label="Produksi berjalan" value={d.produksi.berjalan} note={`${d.produksi.menunggu} menunggu · ${d.produksi.dijadwalkan} terjadwal`} icon={Factory} onClick={() => onNavigate('Jadwal Produksi')} />}
-          {d.produksi && <Tile label="Produksi lewat tenggat" value={d.produksi.terlambat} note={`${d.produksi.selesai_bulan_ini} selesai bulan ini`} icon={AlertTriangle} tone={d.produksi.terlambat ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Jadwal Produksi')} />}
+          {d.produksi && <Tile label="Produksi berjalan" value={d.produksi.berjalan} note={`${d.produksi.menunggu} menunggu · ${d.produksi.dijadwalkan} terjadwal`} icon={Factory} onClick={() => onNavigate('Rencana Produksi')} />}
+          {d.produksi && <Tile label="Produksi lewat tenggat" value={d.produksi.terlambat} note={`${d.produksi.selesai_bulan_ini} selesai bulan ini`} icon={AlertTriangle} tone={d.produksi.terlambat ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Rencana Produksi')} />}
         </div>
       )}
 
@@ -224,12 +224,12 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
           <section className="pap-table-card pap-dash-card wide">
             <div className="pap-card-head">
               <div><h2>Timeline produksi</h2><p>Tahap terjadwal & tanggal kirim · {gantt.before} hari lalu s/d {gantt.days - gantt.before - 1} hari ke depan</p></div>
-              <button className="pap-btn" onClick={() => onNavigate('Jadwal Produksi')}>Jadwal lengkap</button>
+              <button className="pap-btn" onClick={() => onNavigate('Rencana Produksi')}>Jadwal lengkap</button>
             </div>
             <Gantt
               start={ganttStart}
               days={gantt.days}
-              rows={productionRows(d.produksi.gantt, dayToday, () => onNavigate('Jadwal Produksi'))}
+              rows={productionRows(d.produksi.gantt, dayToday, () => onNavigate('Rencana Produksi'))}
               legend={[{ tone: 's1', label: 'Blow' }, { tone: 's2', label: 'Cetak' }, { tone: 's3', label: 'Bag making' }, { tone: 's4', label: 'Lainnya' }, { tone: 'window', label: 'Belum dijadwalkan' }, { tone: 'overdue', label: 'Keterlambatan' }, { tone: 'due', label: 'Tanggal kirim', shape: 'marker' }, { tone: 'late', label: 'Lewat tenggat', shape: 'marker' }]}
               empty="Tidak ada job aktif dalam rentang ini."
             />
@@ -309,7 +309,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
           <section className="pap-table-card pap-dash-card">
             <div className="pap-card-head"><div><h2>Produksi mendekati tanggal kirim</h2><p>Job yang belum selesai</p></div></div>
             <ul className="pap-dash-agenda">
-              {d.produksi.jatuh_tempo.map((j) => <li key={j.id}><button onClick={() => onNavigate('Jadwal Produksi')}><Factory /><span><b>{formatDate(j.due_date)}</b> {j.nomor} · {j.item_name}{j.customer ? ` · ${j.customer}` : ''}</span></button></li>)}
+              {d.produksi.jatuh_tempo.map((j) => <li key={j.id}><button onClick={() => onNavigate('Rencana Produksi')}><Factory /><span><b>{formatDate(j.due_date)}</b> {j.nomor} · {j.item_name}{j.customer ? ` · ${j.customer}` : ''}</span></button></li>)}
             </ul>
           </section>
         )}
