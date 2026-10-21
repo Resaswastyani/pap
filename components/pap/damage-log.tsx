@@ -5,7 +5,7 @@ import { ClipboardList, ExternalLink, FileSpreadsheet, Pencil, Plus, Printer, Re
 import type { UserProfile } from '@/lib/users'
 import { BarList, ColumnChart } from './charts'
 import { RepairPage } from './repair-page'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
 
 // Menu Kerusakan Mesin: Rekap kerusakan (Google Drive + form) dan Permintaan perbaikan (alur Produksi -> Teknik)
 export function KerusakanMesinPage({ user, focusId }: { user: UserProfile; focusId?: number | null }) {
@@ -58,7 +58,6 @@ export function DamageLogView({ user: _user }: { user: UserProfile }) {
   const [message, setMessage] = useState('')
   const [form, setForm] = useState<Damage | 'new' | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [shown, setShown] = useState(50)
 
   useEffect(() => {
     const t = setTimeout(() => setQuery(q.trim()), 300)
@@ -78,7 +77,6 @@ export function DamageLogView({ user: _user }: { user: UserProfile }) {
     setLoading(true)
     try {
       setData(await api<Data>(`/api/repairs/log?${filterParams()}`))
-      setShown(50)
       setError('')
     } catch (e) {
       setError((e as Error).message)
@@ -106,6 +104,7 @@ export function DamageLogView({ user: _user }: { user: UserProfile }) {
   const filtered = !!(query || mesin || komponen || tahun)
   // Rekap di Drive tidak punya kolom Tindakan: kolom tampil hanya bila ada isian tindakan (dari form)
   const hasTindakan = !!data?.items.some((d) => d.tindakan)
+  const paged = usePaged(data?.items ?? [], [query, mesin, komponen, tahun])
 
   return (
     <>
@@ -192,7 +191,7 @@ export function DamageLogView({ user: _user }: { user: UserProfile }) {
           <table className="pap-plan-table">
             <thead><tr><th>Mesin</th><th>Tanggal</th><th>Kerusakan</th>{hasTindakan && <th>Tindakan</th>}<th>Keterangan</th><th>Sumber</th><th aria-label="Aksi" /></tr></thead>
             <tbody>
-              {(data?.items ?? []).slice(0, shown).map((d) => (
+              {paged.items.map((d) => (
                 <tr key={d.id}>
                   <td><div className="pap-cell-title">{d.mesin_label ?? d.mesin ?? '—'}</div>{d.komponen && <div className="pap-cell-sub">{d.komponen}</div>}</td>
                   <td className="pap-nowrap">{formatDate(d.tanggal)}</td>
@@ -214,7 +213,7 @@ export function DamageLogView({ user: _user }: { user: UserProfile }) {
           </table>
           {!loading && !data?.items.length && <div className="pap-empty">{filtered ? 'Tidak ada kerusakan yang cocok dengan filter.' : 'Belum ada data. Klik "Google Drive" lalu Sinkron untuk mengambil rekap dari spreadsheet, atau isi form kerusakan.'}</div>}
           {loading && !data && <div className="pap-empty">Memuat rekap kerusakan...</div>}
-          {(data?.items.length ?? 0) > shown && <div className="pap-load-more"><button className="pap-btn" onClick={() => setShown(shown + 50)}>Tampilkan 50 lagi ({(data?.items.length ?? 0) - shown} tersisa)</button></div>}
+          <Pager {...paged.pager} noun="kerusakan" />
         </div>
       </div>
       {form && (

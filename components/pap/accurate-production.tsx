@@ -5,7 +5,7 @@ import { CalendarRange, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, 
 import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatNumber } from './accurate'
 import { BarList, ColumnChart } from './charts'
-import { api, formatDate, Notice, Progress } from './ui'
+import { api, formatDate, Notice, Pager, Progress, usePaged } from './ui'
 
 // Rencana Produksi (MP) dan Penyelesaian Barang Jadi (FGS) langsung dari Accurate Online (hanya baca)
 
@@ -80,6 +80,8 @@ export function ProductionPlanPage(_props: { user: UserProfile }) {
     }
   }, [periode, status, query])
   useEffect(() => { load() }, [load])
+  // Paginasi per dokumen MP (baris formula ikut dokumennya)
+  const paged = usePaged(items, [periode, status, query])
 
   // Satuan utama (terbanyak) di angka besar; satuan lain disebut di catatan
   const [main, ...others] = stats?.per_satuan ?? []
@@ -129,7 +131,7 @@ export function ProductionPlanPage(_props: { user: UserProfile }) {
           <table className="pap-plan-table">
             <thead><tr><th>Produk utama</th><th>Formula produksi</th><th className="pap-num">Kuantitas</th><th>Status</th><th>Progres</th><th>Jadwal produksi</th><th className="pap-num">Kts produk jadi</th></tr></thead>
             <tbody>
-              {items.flatMap((p) => [
+              {paged.items.flatMap((p) => [
                 <tr key={`mo${p.id}`} className="pap-group-row pap-plan-head">
                   <td colSpan={7}>
                     <div className="pap-plan-title">
@@ -156,6 +158,7 @@ export function ProductionPlanPage(_props: { user: UserProfile }) {
           </table>
           {!loading && !items.length && <div className="pap-empty">{q || status ? 'Tidak ada rencana produksi yang cocok.' : `Belum ada rencana produksi di ${monthLabel(periode)}. Klik "Sinkron sekarang" untuk mengambil dari Accurate.`}</div>}
           {loading && !items.length && <div className="pap-empty">Memuat rencana produksi...</div>}
+          <Pager {...paged.pager} noun="rencana produksi" />
         </div>
       </div>
     </>
@@ -200,6 +203,7 @@ export function FinishedGoodsPage(_props: { user: UserProfile }) {
     }
   }, [periode, tanggal, query])
   useEffect(() => { load() }, [load])
+  const paged = usePaged(data?.items ?? [], [periode, tanggal, query])
 
   const satuan = data?.satuan ?? 'kg'
   const s = data?.stats
@@ -271,7 +275,7 @@ export function FinishedGoodsPage(_props: { user: UserProfile }) {
           <table className="pap-plan-table">
             <thead><tr><th>Barang jadi</th><th>No. penyelesaian</th><th>Tanggal</th><th className="pap-num">Kuantitas</th><th>Perintah kerja</th><th>Rencana produksi</th><th>Gudang</th></tr></thead>
             <tbody>
-              {(data?.items ?? []).map((r) => (
+              {paged.items.map((r) => (
                 <tr key={`${r.id}-${r.line_id ?? 0}`}>
                   <td><div className="pap-cell-title">{r.item_name ?? (r.detail_synced ? '—' : 'Belum diambil dari Accurate')}</div><div className="pap-cell-sub">{r.item_no ?? ''}</div></td>
                   <td className="pap-nowrap"><CheckCircle2 className="pap-inline-icon pap-ok-icon" /> {r.number}</td>
@@ -286,6 +290,7 @@ export function FinishedGoodsPage(_props: { user: UserProfile }) {
           </table>
           {!loading && !data?.items.length && <div className="pap-empty">{q || tanggal ? 'Tidak ada penyelesaian yang cocok.' : `Belum ada penyelesaian barang jadi di ${monthLabel(periode)}. Klik "Sinkron sekarang" untuk mengambil dari Accurate.`}</div>}
           {loading && !data && <div className="pap-empty">Memuat hasil produksi...</div>}
+          <Pager {...paged.pager} noun="penyelesaian" />
         </div>
       </div>
     </>
