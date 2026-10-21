@@ -22,7 +22,8 @@ export function PerawatanMesinPage({ user, focusId }: { user: UserProfile; focus
 
 type SheetMachine = { tab: string; mesin: string; machine_id: number | null; machine_nama: string | null; machine_kode: string | null; parts: number; langkah: number }
 type Step = { id: number; part_no: number | null; part: string; kelompok: string | null; langkah_urut: number; langkah: string; keterangan: string | null }
-type Data = { tab: string | null; machines: SheetMachine[]; items: Step[]; synced_at: string | null; can: { sync: boolean } }
+type PartImage = { id: number; part_no: number | null; part: string; urut: number }
+type Data = { tab: string | null; machines: SheetMachine[]; items: Step[]; images: PartImage[]; synced_at: string | null; can: { sync: boolean } }
 
 function MaintenanceSheetView() {
   const [data, setData] = useState<Data | null>(null)
@@ -115,17 +116,31 @@ function MaintenanceSheetView() {
               <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari part, kelompok, atau langkah..." /></label>
             </div>
             <div className="pap-msheet-parts">
-              {shown.map((p, i) => (
-                <article key={p.key} className="pap-msheet-part">
-                  <header>
-                    <span className="pap-msheet-no">{p.no ?? i + 1}</span>
-                    <div><b>{p.part}</b>{p.kelompok && <span className="pap-chip">{p.kelompok}</span>}</div>
-                  </header>
-                  <ol>
-                    {p.steps.map((s) => <li key={s.id}>{s.langkah}{s.keterangan && <small className="pap-muted"> — {s.keterangan}</small>}</li>)}
-                  </ol>
-                </article>
-              ))}
+              {shown.map((p, i) => {
+                const pics = (data?.images ?? []).filter((g) => g.part === p.part && g.part_no === p.no)
+                return (
+                  <article key={p.key} className="pap-msheet-part">
+                    <header>
+                      <span className="pap-msheet-no">{p.no ?? i + 1}</span>
+                      <div><b>{p.part}</b>{p.kelompok && <span className="pap-chip">{p.kelompok}</span>}</div>
+                    </header>
+                    <div className={pics.length ? 'pap-msheet-content with-pic' : 'pap-msheet-content'}>
+                      {!!pics.length && (
+                        <div className="pap-msheet-pics">
+                          {pics.map((g) => (
+                            <a key={g.id} href={`/api/maintenance/sheet-image/${g.id}`} target="_blank" rel="noreferrer" title={`Buka gambar ${p.part}`}>
+                              <img src={`/api/maintenance/sheet-image/${g.id}`} alt={p.part} loading="lazy" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                      <ol>
+                        {p.steps.map((s) => <li key={s.id}>{s.langkah}{s.keterangan && <small className="pap-muted"> — {s.keterangan}</small>}</li>)}
+                      </ol>
+                    </div>
+                  </article>
+                )
+              })}
               {!loading && data?.machines.length && !shown.length && <div className="pap-empty">Tidak ada part atau langkah yang cocok.</div>}
               {loading && !data && <div className="pap-empty">Memuat lembar perawatan...</div>}
             </div>

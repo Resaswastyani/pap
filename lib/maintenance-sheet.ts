@@ -2,10 +2,12 @@
 // yang terhubung di Master Data > Logo & Desain, sama seperti Rekap Kerusakan & Jadwal Shift).
 // Satu tab per mesin: judul "MAINTENANCE MESIN BLOW PP", lalu NO | NAMA PART | KELOMPOK | MAINTENANCE | CHECK LIST | KETERANGAN.
 // Baris ber-NO memulai part baru; baris berikutnya tanpa NO adalah langkah maintenance lanjutan part itu.
+import { createHash } from 'node:crypto'
 import type { RowDataPacket } from 'mysql2'
 import { fail } from '@/lib/api'
 import { db } from '@/lib/db'
-import { readSpreadsheet, spreadsheetId, type SheetTab } from '@/lib/drive'
+import { downloadSpreadsheetXlsx, readSpreadsheet, spreadsheetId, type SheetTab } from '@/lib/drive'
+import { readXlsxImages, type XlsxImage } from '@/lib/xlsx-lite'
 import { canManageTeknik } from '@/lib/teknik'
 import type { UserProfile } from '@/lib/users'
 
@@ -130,11 +132,72 @@ export async function importMaintenanceSheet(machines: SheetMachine[]) {
   return { mesin: machines.length, part: machines.reduce((n, m) => n + new Set(m.steps.map((s) => s.part)).size, 0), langkah: machines.reduce((n, m) => n + m.steps.length, 0) }
 }
 
+// ---------- Gambar part ----------
+// Gambar ditempel di kolom NAMA PART di samping baris part-nya: pasangkan ke part terakhir yang mulai di/atas baris gambar
+export type PartImage = { tab: string; part_no: number | null; part: string; urut: number; name: string; mime: string; data: Buffer; sheet_row: number }
+export function mapPartImages(machines: SheetMachine[], tabs: { title: string; images: XlsxImage[] }[]) {
+  const out: PartImage[] = []
+  for (const m of machines) {
+    const images = tabs.find((t) => t.title === m.tab)?.images ?? []
+    // Baris awal tiap part (urut sesuai sheet)
+    const starts: { row: number; part_no: number | null; part: string }[] = []
+    for (const s of m.steps) if (s.langkah_urut === 1) starts.push({ row: s.sheet_row, part_no: s.part_no, part: s.part })
+    if (!starts.length) continue
+    const count = new Map<string, number>()
+    for (const img of [...images].sort((a, b) => a.row - b.row || a.col - b.col)) {
+      const row = img.row + 1
+      const owner = [...starts].reverse().find((p) => p.row <= row + 1) ?? starts[0]
+      const key = `${owner.part_no}|${owner.part}`
+      count.set(key, (count.get(key) ?? 0) + 1)
+      out.push({ tab: m.tab, part_no: owner.part_no, part: owner.part, urut: count.get(key)!, name: img.name, mime: img.mime, data: img.data, sheet_row: row })
+    }
+  }
+  return out
+}
+
+// Gambar disimpan ulang hanya bila isinya berubah (hash seluruh gambar), agar sinkron rutin tidak menulis ulang megabyte data
+export async function importMaintenanceImages(images: PartImage[]) {
+  const hash = createHash('sha1')
+  for (const img of images) hash.update(`${img.tab}|${img.part_no}|${img.part}|${img.urut}|`).update(img.data)
+  const digest = hash.digest('hex')
+  const [[prev]] = await db.query<(RowDataPacket & { value: string })[]>("SELECT value FROM app_settings WHERE `key` = 'perawatan.images_hash'")
+  if (prev?.value === digest) return { gambar: images.length, berubah: false }
+  const conn = await db.getConnection()
+  try {
+    await conn.beginTransaction()
+    await conn.query('DELETE FROM maintenance_sheet_images')
+    // Beberapa gambar per query (batas max_allowed_packet MySQL)
+    for (let i = 0; i < images.length; i += 8) {
+      await conn.query(
+        'INSERT INTO maintenance_sheet_images (sheet_tab, part_no, part, urut, name, mime, size, data, sheet_row) VALUES ?',
+        [images.slice(i, i + 8).map((g) => [g.tab.slice(0, 120), g.part_no, g.part.slice(0, 200), g.urut, g.name.slice(0, 255), g.mime, g.data.length, g.data, g.sheet_row])],
+      )
+    }
+    await conn.query("INSERT INTO app_settings (`key`, value) VALUES ('perawatan.images_hash', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)", [digest])
+    await conn.commit()
+  } catch (error) {
+    await conn.rollback()
+    throw error
+  } finally {
+    conn.release()
+  }
+  return { gambar: images.length, berubah: true }
+}
+
+// Gambar dibaca dari file XLSX (Sheets API tidak menyertakan gambar yang ditempel di sel)
+export async function syncMaintenanceImages(url: string, machines: SheetMachine[]) {
+  const id = spreadsheetId(url) ?? fail(400, 'Link spreadsheet tidak valid.')
+  return importMaintenanceImages(mapPartImages(machines, readXlsxImages(await downloadSpreadsheetXlsx(id))))
+}
+
 // Dipakai cron Drive: sinkron otomatis tanpa pengguna
 export async function syncMaintenanceSheet() {
-  const { machines } = await readMaintenanceSheet(await loadMaintenanceSheetUrl())
+  const url = await loadMaintenanceSheetUrl()
+  const { machines } = await readMaintenanceSheet(url)
   if (!machines.length) return { mesin: 0, part: 0, langkah: 0 }
-  return importMaintenanceSheet(machines)
+  const result = await importMaintenanceSheet(machines)
+  const gambar = await syncMaintenanceImages(url, machines).catch((error) => ({ error: (error as Error).message }))
+  return { ...result, gambar }
 }
 
 export const requireMaintenanceSheet = (user: UserProfile) => {

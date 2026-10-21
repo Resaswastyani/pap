@@ -400,18 +400,24 @@ export async function readSpreadsheet(id: string): Promise<SheetTab[]> {
     if (!res.ok) throw new DriveError(res.status, json.error?.message ?? `Google Sheets error ${res.status}`)
     return titles.map((title, i) => ({ title, rows: ((json.valueRanges?.[i]?.values ?? []) as unknown[][]).map((r) => r.map((c) => String(c ?? ''))) }))
   }
+  return readXlsx(await downloadSpreadsheetXlsx(id, headers))
+}
+
+// File XLSX spreadsheet (berisi juga gambar yang ditempel di sel): Google Sheet diekspor, file Excel di Drive diunduh apa adanya
+export async function downloadSpreadsheetXlsx(id: string, headers?: Record<string, string>): Promise<Buffer> {
+  headers ??= { Authorization: `Bearer ${await accessToken()}` }
   const xlsx = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}/export?mimeType=${encodeURIComponent(xlsx)}`, { headers })
   if (!res.ok) {
     // File Excel (.xlsx) yang diunggah ke Drive bukan Google Sheet sehingga tidak bisa diekspor: unduh file aslinya
     const media = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media&supportsAllDrives=true`, { headers })
-    if (media.ok) return readXlsx(Buffer.from(await media.arrayBuffer()))
+    if (media.ok) return Buffer.from(await media.arrayBuffer())
     const j = await res.json().catch(() => ({}))
     throw new DriveError(res.status, res.status === 404 || res.status === 403
       ? 'Spreadsheet tidak ditemukan atau belum dibagikan ke akun Google yang terhubung. Bagikan spreadsheet ke akun tersebut (Viewer).'
       : j.error?.message ?? `Google Drive error ${res.status}`)
   }
-  return readXlsx(Buffer.from(await res.arrayBuffer()))
+  return Buffer.from(await res.arrayBuffer())
 }
 
 // Isi satu folder Drive (dipakai SOP Mesin); shortcut diganti dengan file tujuannya

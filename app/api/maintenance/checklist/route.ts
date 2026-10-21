@@ -24,11 +24,16 @@ export const GET = handle(async (request: Request) => {
       [tab],
     )
     : [[] as Row[]]
+  // Gambar part (id saja; file diambil lewat /api/maintenance/sheet-image/<id>)
+  const [images] = tab
+    ? await db.query<Row[]>('SELECT id, part_no, part, urut FROM maintenance_sheet_images WHERE sheet_tab = ? ORDER BY sheet_row, urut', [tab])
+    : [[] as Row[]]
   const [[synced]] = await db.query<Row[]>("SELECT value FROM app_settings WHERE `key` = 'perawatan.synced_at'")
   return NextResponse.json({
     tab,
     machines: machines.map((m) => ({ ...m, urut: Number(m.urut), parts: Number(m.parts), langkah: Number(m.langkah) })),
     items,
+    images,
     synced_at: synced?.value ?? null,
     can: { sync: canSyncMaintenanceSheet(user) },
   })

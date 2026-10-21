@@ -29,12 +29,13 @@ function zipEntries(buf: Buffer) {
   return entries
 }
 
-function readEntry(buf: Buffer, e: ZipEntry | undefined) {
-  if (!e) return ''
+function readEntryBuffer(buf: Buffer, e: ZipEntry | undefined) {
+  if (!e) return Buffer.alloc(0)
   const start = e.offset + 30 + buf.readUInt16LE(e.offset + 26) + buf.readUInt16LE(e.offset + 28)
   const data = buf.subarray(start, start + e.size)
-  return (e.method === 8 ? inflateRawSync(data) : data).toString('utf8')
+  return e.method === 8 ? inflateRawSync(data) : Buffer.from(data)
 }
+const readEntry = (buf: Buffer, e: ZipEntry | undefined) => readEntryBuffer(buf, e).toString('utf8')
 
 const decode = (s: string) =>
   s.replace(/&(lt|gt|quot|apos|amp|#\d+|#x[0-9a-f]+);/gi, (_, x: string) =>
@@ -84,6 +85,62 @@ export function readXlsx(buf: Buffer): { title: string; rows: string[][] }[] {
       rows[index] = row
     }
     out.push({ title: decode(attr(tag, 'name') ?? `Sheet${out.length + 1}`), rows })
+  }
+  return out
+}
+
+// Path relatif di rels ("../drawings/drawing1.xml") -> path di zip ("xl/drawings/drawing1.xml")
+function resolvePath(base: string, target: string) {
+  if (target.startsWith('/')) return target.slice(1)
+  const parts = base.split('/').slice(0, -1)
+  for (const seg of target.split('/')) {
+    if (seg === '..') parts.pop()
+    else if (seg !== '.') parts.push(seg)
+  }
+  return parts.join('/')
+}
+const relsOf = (buf: Buffer, zip: Map<string, ZipEntry>, path: string) => {
+  const relsPath = path.replace(/([^/]+)$/, '_rels/$1.rels')
+  return new Map([...readEntry(buf, zip.get(relsPath)).matchAll(/<Relationship\b[^>]*>/g)].map((m) => [attr(m[0], 'Id'), resolvePath(path, attr(m[0], 'Target') ?? '')]))
+}
+const MIME: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp' }
+
+export type XlsxImage = { row: number; col: number; name: string; mime: string; data: Buffer }
+
+// Gambar yang ditempel di atas sel (drawing) per tab: posisi sel kiri-atas (0-based) + isi file gambar
+export function readXlsxImages(buf: Buffer): { title: string; images: XlsxImage[] }[] {
+  const zip = zipEntries(buf)
+  const wbRels = relsOf(buf, zip, 'xl/workbook.xml')
+  const out: { title: string; images: XlsxImage[] }[] = []
+  for (const m of readEntry(buf, zip.get('xl/workbook.xml')).matchAll(/<sheet\b[^>]*>/g)) {
+    const tag = m[0]
+    if (attr(tag, 'state') === 'hidden' || attr(tag, 'state') === 'veryHidden') continue
+    const sheetPath = wbRels.get(attr(tag, 'r:id'))
+    if (!sheetPath) continue
+    const sheetRels = relsOf(buf, zip, sheetPath)
+    const images: XlsxImage[] = []
+    for (const d of readEntry(buf, zip.get(sheetPath)).matchAll(/<drawing\b[^>]*>/g)) {
+      const drawingPath = sheetRels.get(attr(d[0], 'r:id'))
+      if (!drawingPath) continue
+      const drawingRels = relsOf(buf, zip, drawingPath)
+      for (const a of readEntry(buf, zip.get(drawingPath)).matchAll(/<xdr:(?:oneCellAnchor|twoCellAnchor|absoluteAnchor)\b[\s\S]*?<\/xdr:(?:oneCellAnchor|twoCellAnchor|absoluteAnchor)>/g)) {
+        const xml = a[0]
+        const embed = xml.match(/<a:blip\b[^>]*r:embed="([^"]+)"/)?.[1]
+        const mediaPath = embed ? drawingRels.get(embed) : undefined
+        if (!mediaPath) continue
+        const ext = mediaPath.split('.').pop()?.toLowerCase() ?? ''
+        if (!MIME[ext]) continue
+        const from = xml.match(/<xdr:from>([\s\S]*?)<\/xdr:from>/)?.[1] ?? ''
+        images.push({
+          row: Number(from.match(/<xdr:row>(\d+)<\/xdr:row>/)?.[1] ?? 0),
+          col: Number(from.match(/<xdr:col>(\d+)<\/xdr:col>/)?.[1] ?? 0),
+          name: decode(xml.match(/<xdr:cNvPr\b[^>]*descr="([^"]*)"/)?.[1] ?? mediaPath.split('/').pop() ?? ''),
+          mime: MIME[ext],
+          data: readEntryBuffer(buf, zip.get(mediaPath)),
+        })
+      }
+    }
+    out.push({ title: decode(attr(tag, 'name') ?? `Sheet${out.length + 1}`), images })
   }
   return out
 }

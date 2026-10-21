@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { ApiError, fail, handle, readJson, requireUser, str } from '@/lib/api'
 import { DriveError, driveAccount } from '@/lib/drive'
-import { canSyncMaintenanceSheet, importMaintenanceSheet, loadMaintenanceSheetUrl, readMaintenanceSheet, requireMaintenanceSheet, saveMaintenanceSheetUrl } from '@/lib/maintenance-sheet'
+import { canSyncMaintenanceSheet, importMaintenanceSheet, loadMaintenanceSheetUrl, readMaintenanceSheet, requireMaintenanceSheet, saveMaintenanceSheetUrl, syncMaintenanceImages } from '@/lib/maintenance-sheet'
 
 export const maxDuration = 60
 
@@ -48,7 +48,11 @@ export const POST = handle(async () => {
   const user = await requireUser()
   requireMaintenanceSheet(user)
   if (!canSyncMaintenanceSheet(user)) fail(403, 'Sinkron dijalankan divisi Teknik dan GM.')
-  const { machines } = await readSheet(await loadMaintenanceSheetUrl())
+  const url = await loadMaintenanceSheetUrl()
+  const { machines } = await readSheet(url)
   if (!machines.length) fail(400, 'Tidak ada lembar perawatan yang dikenali. Pastikan tiap tab punya kolom NAMA PART dan MAINTENANCE.')
-  return NextResponse.json(await importMaintenanceSheet(machines))
+  const result = await importMaintenanceSheet(machines)
+  // Gambar part dari file XLSX; gagal mengambil gambar tidak membatalkan sinkron teks
+  const gambar = await syncMaintenanceImages(url, machines).catch((error) => ({ error: (error as Error).message }))
+  return NextResponse.json({ ...result, gambar })
 })

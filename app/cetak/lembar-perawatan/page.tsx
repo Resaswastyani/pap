@@ -28,6 +28,7 @@ export default async function CetakLembarPerawatanPage({ searchParams }: { searc
   )
   if (!rows.length) return <main className="pap-print-error">Lembar perawatan tidak ditemukan. Sinkron dulu dari Google Drive di menu Perawatan Mesin.</main>
   const doc = await loadSettings('doc.')
+  const [images] = await db.query<RowDataPacket[]>('SELECT id, part_no, part FROM maintenance_sheet_images WHERE sheet_tab = ? ORDER BY sheet_row, urut', [tab ?? ''])
   // Kelompokkan langkah per part (baris pertama part membawa NO, nama part, kelompok)
   const parts: { no: number | null; part: string; kelompok: string | null; steps: RowDataPacket[] }[] = []
   for (const r of rows) {
@@ -62,7 +63,12 @@ export default async function CetakLembarPerawatanPage({ searchParams }: { searc
             {parts.flatMap((p, i) => p.steps.map((s, j) => (
               <tr key={`${i}-${j}`}>
                 {j === 0 && <td className="c" rowSpan={p.steps.length}>{p.no ?? i + 1}</td>}
-                {j === 0 && <td rowSpan={p.steps.length}><b>{p.part}</b></td>}
+                {j === 0 && (
+                  <td rowSpan={p.steps.length}>
+                    <b>{p.part}</b>
+                    {images.filter((g) => g.part === p.part && g.part_no === p.no).map((g) => <img key={g.id} className="pap-part-pic" src={`/api/maintenance/sheet-image/${g.id}`} alt={p.part} />)}
+                  </td>
+                )}
                 {j === 0 && <td rowSpan={p.steps.length}>{p.kelompok}</td>}
                 <td>{s.langkah_urut}. {s.langkah}</td>
                 <td className="c">☐</td>
