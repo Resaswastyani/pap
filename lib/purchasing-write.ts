@@ -17,6 +17,8 @@ export const purchasingCan = (user: UserProfile) => ({
   poUpdate: hasMenu(user, 'po-pembelian') && can(user, PERMISSIONS.purchasingPoUpdate),
   poDelete: hasMenu(user, 'po-pembelian') && can(user, PERMISSIONS.purchasingPoDelete),
   price: hasMenu(user, 'harga-bahan') && can(user, PERMISSIONS.purchasingPrice),
+  priceCreate: hasMenu(user, 'harga-bahan') && can(user, PERMISSIONS.purchasingPriceCreate),
+  priceDelete: hasMenu(user, 'harga-bahan') && can(user, PERMISSIONS.purchasingPriceDelete),
 })
 export function requirePurchasingCan(user: UserProfile, key: keyof ReturnType<typeof purchasingCan>, label: string) {
   if (!purchasingCan(user)[key]) fail(403, `Anda tidak punya izin untuk ${label}. Atur di Manajemen Role / Manajemen User (modul Purchasing).`)

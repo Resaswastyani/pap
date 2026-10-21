@@ -156,6 +156,7 @@ const RESOURCES: Record<string, Resource> = {
   // Purchasing: data Accurate (kunci accurate_id), dicatat dari isian form
   'purchasing/orders': { module: 'PO Pembelian', noun: 'PO pembelian' },
   'purchasing/prices': { module: 'Harga Bahan', noun: 'harga beli acuan' },
+  'purchasing/vendor-prices': { module: 'Harga Bahan', noun: 'harga pemasok' },
   'purchasing/vendors': { module: 'Supplier', noun: 'supplier' },
   machines: { module: 'Data Mesin', noun: 'mesin', table: 'machines' },
   'production/results': { module: 'Hasil Produksi', noun: 'laporan hasil produksi', table: 'production_results' },
@@ -254,6 +255,10 @@ function planFor(method: string, path: string): Plan | null {
     return { ...base, action: method === 'DELETE' ? 'delete' : 'update', id: a, describe: () => `${method === 'DELETE' ? 'Menghapus' : 'Mengubah'} PO pembelian Accurate #${a}` }
   if (res === 'purchasing/prices' && isId(a))
     return { ...base, action: 'update', always: true, id: a, describe: (_l, f) => `Mengubah harga beli acuan barang Accurate #${a} menjadi Rp ${Number(f.harga ?? 0).toLocaleString('id-ID')}${f.catatan ? ` (${f.catatan})` : ''}` }
+  if (res === 'purchasing/vendor-prices' && !a && method === 'POST')
+    return { ...base, action: 'create', describe: (l) => `Menambah harga pemasok ${l} di Accurate` }
+  if (res === 'purchasing/vendor-prices' && isId(a))
+    return { ...base, action: method === 'DELETE' ? 'delete' : 'update', always: true, id: a, describe: () => `${method === 'DELETE' ? 'Menghapus' : 'Mengubah'} harga pemasok Accurate #${a}` }
   if (res === 'purchasing/vendors' && !a && method === 'POST')
     return { ...base, action: 'create', describe: (_l, f) => `Menambah supplier ${f.name ?? ''} di Accurate` }
   if (res === 'purchasing/vendors' && isId(a))
