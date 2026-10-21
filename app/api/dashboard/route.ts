@@ -108,6 +108,15 @@ export const GET = handle(async () => {
          LEFT JOIN customers c ON c.accurate_id = i.customer_accurate_id
          WHERE i.trans_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01') GROUP BY i.customer_accurate_id ORDER BY omzet DESC LIMIT 5`,
       )
+      // Top 5 customer bulan ini per sektor (untuk filter sektor di dashboard)
+      const [topSector] = await db.query<Row[]>(
+        `SELECT sektor, name, omzet FROM (
+           SELECT ${sectorSql('MAX(c.category)')} AS sektor, COALESCE(MAX(c.name), i.customer_accurate_id) AS name, SUM(i.total_amount) AS omzet,
+             ROW_NUMBER() OVER (PARTITION BY ${sectorSql('MAX(c.category)')} ORDER BY SUM(i.total_amount) DESC) AS rn
+           FROM accurate_sales_invoices i LEFT JOIN customers c ON c.accurate_id = i.customer_accurate_id
+           WHERE i.trans_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01') GROUP BY i.customer_accurate_id
+         ) x WHERE rn <= 5 ORDER BY sektor, omzet DESC`,
+      )
       const [[so]] = await db.query<Row[]>(
         `SELECT COUNT(*) AS jumlah, COALESCE(SUM(total_amount), 0) AS nilai FROM accurate_sales_orders WHERE trans_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')`,
       )
@@ -121,6 +130,7 @@ export const GET = handle(async () => {
         bulan: months.map((m) => ({ bulan: m.bulan, omzet: n(m.omzet), faktur: n(m.faktur), customer: n(m.customer) })),
         sektor: sectors.map((r) => ({ bulan: r.bulan, sektor: r.sektor, omzet: n(r.omzet), faktur: n(r.faktur), customer: n(r.customer) })),
         top: top.map((t) => ({ name: t.name, omzet: n(t.omzet) })),
+        top_sektor: topSector.map((t) => ({ sektor: t.sektor, name: t.name, omzet: n(t.omzet) })),
         so: { jumlah: n(so.jumlah), nilai: n(so.nilai) },
       }
     })())
