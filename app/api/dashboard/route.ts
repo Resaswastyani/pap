@@ -8,6 +8,7 @@ import { canViewAllDivisions } from '@/lib/planning'
 import { canApproveQuotation, QUOTATION_APPROVAL_REQUIRED } from '@/lib/quotations'
 import { REPEAT_BASE, seesAllCustomers } from '@/lib/repeat-order'
 import { designScope, designTodoSql, sampleScope, sampleTodoSql } from '@/lib/requests'
+import { sectorSql } from '@/lib/sectors'
 
 type Row = RowDataPacket & Record<string, unknown>
 const n = (v: unknown) => Number(v ?? 0)
@@ -95,6 +96,13 @@ export const GET = handle(async () => {
         `SELECT DATE_FORMAT(trans_date, '%Y-%m') AS bulan, SUM(total_amount) AS omzet, COUNT(*) AS faktur, COUNT(DISTINCT customer_accurate_id) AS customer
          FROM accurate_sales_invoices WHERE trans_date >= DATE_FORMAT(CURDATE() - INTERVAL 11 MONTH, '%Y-%m-01') GROUP BY bulan ORDER BY bulan`,
       )
+      // Omzet per sektor customer (kategori Accurate) per bulan
+      const [sectors] = await db.query<Row[]>(
+        `SELECT DATE_FORMAT(i.trans_date, '%Y-%m') AS bulan, ${sectorSql('c.category')} AS sektor, SUM(i.total_amount) AS omzet, COUNT(*) AS faktur,
+           COUNT(DISTINCT i.customer_accurate_id) AS customer
+         FROM accurate_sales_invoices i LEFT JOIN customers c ON c.accurate_id = i.customer_accurate_id
+         WHERE i.trans_date >= DATE_FORMAT(CURDATE() - INTERVAL 11 MONTH, '%Y-%m-01') GROUP BY bulan, sektor`,
+      )
       const [top] = await db.query<Row[]>(
         `SELECT COALESCE(c.name, i.customer_accurate_id) AS name, SUM(i.total_amount) AS omzet FROM accurate_sales_invoices i
          LEFT JOIN customers c ON c.accurate_id = i.customer_accurate_id
@@ -111,6 +119,7 @@ export const GET = handle(async () => {
       out.penjualan = {
         omzet_bulan_lalu_sd_hari_ini: n(mtd.omzet),
         bulan: months.map((m) => ({ bulan: m.bulan, omzet: n(m.omzet), faktur: n(m.faktur), customer: n(m.customer) })),
+        sektor: sectors.map((r) => ({ bulan: r.bulan, sektor: r.sektor, omzet: n(r.omzet), faktur: n(r.faktur), customer: n(r.customer) })),
         top: top.map((t) => ({ name: t.name, omzet: n(t.omzet) })),
         so: { jumlah: n(so.jumlah), nilai: n(so.nilai) },
       }

@@ -6,6 +6,7 @@ import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { BarList, ColumnChart, dayNumber, Gantt, todayNumber, useMediaQuery, type GanttBar, type GanttRow } from './charts'
 import { api, formatDate, Notice, Progress } from './ui'
+import { SECTORS } from '@/lib/sectors'
 
 type Metric = { label: string; satuan: string }
 type GanttStage = { id: number; tahap: string; plan_start: string; plan_end: string | null; status: string; progress: number }
@@ -21,7 +22,7 @@ type DashboardData = {
   quotation?: { menunggu: number; nilai_menunggu: number; draft: number; diterima_bulan_ini: number; persetujuan: number }
   repeat?: { waktunya: number; berisiko: number; followup: number; tim: boolean }
   kpi?: { periode: string; nilai?: Record<string, number>; target: Record<string, number> }
-  penjualan?: { omzet_bulan_lalu_sd_hari_ini: number; bulan: { bulan: string; omzet: number; faktur: number; customer: number }[]; top: { name: string; omzet: number }[]; so: { jumlah: number; nilai: number } }
+  penjualan?: { omzet_bulan_lalu_sd_hari_ini: number; bulan: { bulan: string; omzet: number; faktur: number; customer: number }[]; sektor: { bulan: string; sektor: string; omzet: number; faktur: number; customer: number }[]; top: { name: string; omzet: number }[]; so: { jumlah: number; nilai: number } }
   produksi?: {
     menunggu: number; dijadwalkan: number; berjalan: number; terlambat: number; selesai_bulan_ini: number
     jatuh_tempo: { id: number; nomor: string; item_name: string; due_date: string; status: string; customer: string | null }[]
@@ -145,6 +146,9 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
   const fullMonths = months.slice(0, 11).map((m) => byMonth.get(m)?.omzet ?? 0)
   const avgMonth = fullMonths.length ? fullMonths.reduce((a, b) => a + b, 0) / fullMonths.length : 0
   const topMax = Math.max(1, ...(sales?.top.map((t) => t.omzet) ?? [1]))
+  // Omzet per sektor: kunci "bulan|sektor"
+  const bySector = new Map(sales?.sektor.map((r) => [`${r.bulan}|${r.sektor}`, r]))
+  const sectorNow = SECTORS.map((s) => ({ ...s, row: bySector.get(`${months[11]}|${s.key}`) }))
   const dayToday = todayNumber()
   const gantt = narrow ? GANTT_NARROW : GANTT_WIDE
   const ganttStart = dayToday - gantt.before
@@ -182,7 +186,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         {sales && (
           <section className="pap-table-card pap-dash-card wide">
             <div className="pap-card-head">
-              <div><h2>Penjualan (faktur Accurate)</h2><p>Omzet per bulan, 12 bulan terakhir · bulan ini {thisMonth ? `${thisMonth.faktur} faktur, ${thisMonth.customer} customer` : 'belum ada faktur'}</p></div>
+              <div><h2>Penjualan per sektor (faktur Accurate)</h2><p>Omzet per bulan per sektor customer, 12 bulan terakhir · bulan ini {thisMonth ? `${thisMonth.faktur} faktur, ${thisMonth.customer} customer` : 'belum ada faktur'}</p></div>
               <div className="pap-dash-total">
                 <small>Bulan ini</small>
                 <strong>{formatRupiah(thisMonth?.omzet ?? 0)}</strong>
@@ -195,13 +199,19 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
               <div><span>Sales order bulan ini</span><b>{sales.so.jumlah} SO · {shortRp(sales.so.nilai)}</b></div>
             </div>
             <ColumnChart
-              ariaLabel="Grafik omzet faktur 12 bulan terakhir"
+              ariaLabel="Grafik omzet faktur per sektor, 12 bulan terakhir"
               format={shortRp}
               data={months.map((m, i) => {
                 const b = byMonth.get(m)
-                return { key: m, label: monthLabel(m), value: b?.omzet ?? 0, partial: i === 11, detail: <span>{b?.faktur ?? 0} faktur · {b?.customer ?? 0} customer</span> }
+                const parts = SECTORS.map((s) => { const r = bySector.get(`${m}|${s.key}`); return { ...s, omzet: r?.omzet ?? 0, customer: r?.customer ?? 0 } })
+                return {
+                  key: m, label: monthLabel(m), value: b?.omzet ?? 0, partial: i === 11,
+                  segments: parts.map((p) => ({ key: p.key, value: p.omzet, tone: p.tone })),
+                  detail: <>{parts.filter((p) => p.omzet > 0).map((p) => <span key={p.key}>{p.label}: {shortRp(p.omzet)} · {p.customer} customer</span>)}<span>{b?.faktur ?? 0} faktur · {b?.customer ?? 0} customer</span></>,
+                }
               })}
             />
+            <div className="pap-viz-legend">{SECTORS.map((s) => <span key={s.key}><i className={`swatch ${s.tone}`} />{s.label}</span>)}</div>
             <div className="pap-dash-split">
               <div>
                 <h3>Top customer bulan ini</h3>
@@ -209,12 +219,12 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
                   ? <BarList max={topMax} items={sales.top.map((t) => ({ key: t.name, label: t.name, value: t.omzet, display: formatRupiah(t.omzet) }))} />
                   : <p className="pap-muted">Belum ada faktur bulan ini.</p>}
               </div>
-              <div className="pap-dash-share">
-                <h3>Porsi top 5 dari omzet bulan ini</h3>
-                {thisMonth?.omzet ? (() => {
-                  const share = Math.min(100, (sales.top.reduce((s, t) => s + t.omzet, 0) / thisMonth.omzet) * 100)
-                  return <><p className="pap-dash-big">{share.toFixed(0)}%</p><div className="pap-share-bar"><span style={{ width: `${share}%` }} /></div><small className="pap-muted">Sisanya {(100 - share).toFixed(0)}% dari {Math.max(0, thisMonth.customer - sales.top.length)} customer lain</small></>
-                })() : <p className="pap-muted">—</p>}
+              <div>
+                <h3>Per sektor bulan ini</h3>
+                {thisMonth?.omzet
+                  ? <BarList max={thisMonth.omzet} items={sectorNow.map((s) => ({ key: s.key, label: s.label, value: s.row?.omzet ?? 0, tone: s.tone, display: `${shortRp(s.row?.omzet ?? 0)} · ${(((s.row?.omzet ?? 0) / thisMonth.omzet) * 100).toFixed(0)}%` }))} />
+                  : <p className="pap-muted">Belum ada faktur bulan ini.</p>}
+                <small className="pap-muted">Sektor dari kategori customer di Accurate (LAU, BRS, SU); kategori lain masuk Lainnya.</small>
               </div>
             </div>
           </section>
