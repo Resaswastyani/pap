@@ -43,7 +43,9 @@ function niceMax(value: number, ticks = 4) {
   return step * ticks
 }
 
-export type ColumnDatum = { key: string; label: string; value: number; partial?: boolean; detail?: ReactNode }
+// segments: kolom bertumpuk (mis. omzet per sektor); tone = kelas warna s1..s4, urutan dari bawah ke atas
+export type ColumnSegment = { key: string; value: number; tone: string }
+export type ColumnDatum = { key: string; label: string; value: number; partial?: boolean; detail?: ReactNode; segments?: ColumnSegment[] }
 
 export function ColumnChart({ data, format, axisFormat, ariaLabel }: { data: ColumnDatum[]; format: (v: number) => string; axisFormat?: (v: number) => string; ariaLabel: string }) {
   const [tip, setTip] = useState<Tip>(null)
@@ -72,7 +74,8 @@ export function ColumnChart({ data, format, axisFormat, ariaLabel }: { data: Col
                 onBlur={() => setTip(null)}
                 aria-label={`${d.label}: ${format(d.value)}`}
               >
-                <span className="pap-colchart-fill" style={{ height: `${Math.max(d.value > 0 ? 1.5 : 0, (d.value / top) * 100)}%` }}>
+                <span className={`pap-colchart-fill ${d.segments ? 'stacked' : ''}`} style={{ height: `${Math.max(d.value > 0 ? 1.5 : 0, (d.value / top) * 100)}%` }}>
+                  {d.segments?.filter((s) => s.value > 0).map((s) => <i key={s.key} className={s.tone} style={{ flexGrow: s.value }} />)}
                   {showLabel && d.value > 0 && <em>{format(d.value)}</em>}
                 </span>
               </button>
@@ -88,7 +91,7 @@ export function ColumnChart({ data, format, axisFormat, ariaLabel }: { data: Col
   )
 }
 
-export type BarItem = { key: string; label: string; value: number; display?: string; tone?: 'critical' | 'muted'; icon?: ReactNode; onClick?: () => void }
+export type BarItem = { key: string; label: string; value: number; display?: string; tone?: 'critical' | 'muted' | 's1' | 's2' | 's3' | 's4'; icon?: ReactNode; onClick?: () => void }
 
 export function BarList({ items, max }: { items: BarItem[]; max?: number }) {
   const top = max ?? Math.max(1, ...items.map((i) => i.value))
