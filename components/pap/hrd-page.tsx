@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Award, Calculator, ExternalLink, FileSpreadsheet, RefreshCw, Search, UserCheck, UserMinus, Users, Wallet } from 'lucide-react'
+import { AlertTriangle, Award, Calculator, ExternalLink, FileSpreadsheet, Pencil, Plus, RefreshCw, Search, Trash2, UserCheck, UserMinus, Users, Wallet } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
 import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
@@ -248,8 +248,21 @@ export function GradeGajiPage(_props: { user: UserProfile }) {
   const [message, setMessage] = useState('')
   const [tab, setTab] = useState<'grade' | 'gaji' | 'hitung'>('grade')
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [gradeForm, setGradeForm] = useState<{ item: Grade | null } | null>(null)
+  const [salaryForm, setSalaryForm] = useState<{ item: Salary | null } | null>(null)
   const load = useCallback(() => api<Payroll>('/api/hrd/payroll').then((r) => { setData(r); setError('') }).catch((e) => setError(e.message)), [])
   useEffect(() => { load() }, [load])
+  const saved = (text: string) => { setGradeForm(null); setSalaryForm(null); setMessage(text); load() }
+  async function remove(jenis: 'grade' | 'gaji', item: { id: number; nama: string }) {
+    if (!window.confirm(`Hapus ${item.nama} dari tab ${jenis === 'grade' ? 'grade' : 'kebijakan gaji'} di spreadsheet?`)) return
+    try {
+      await api(`/api/hrd/payroll/${item.id}?jenis=${jenis}`, { method: 'DELETE' })
+      saved(`${item.nama} dihapus dari spreadsheet.`)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+  const edit = data?.can.manage ?? false
   return (
     <>
       <div className="pap-page-heading">
@@ -268,7 +281,13 @@ export function GradeGajiPage(_props: { user: UserProfile }) {
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       {!data && !error && <div className="pap-table-card"><div className="pap-empty">Memuat...</div></div>}
-      {data && (tab === 'grade' ? <GradeView data={data} /> : tab === 'gaji' ? <SalaryView data={data} /> : <OvertimeCalc data={data} />)}
+      {data && (tab === 'grade'
+        ? <GradeView data={data} onAdd={edit ? () => setGradeForm({ item: null }) : undefined} onEdit={(item) => setGradeForm({ item })} onDelete={(item) => remove('grade', item)} />
+        : tab === 'gaji'
+        ? <SalaryView data={data} onAdd={edit ? () => setSalaryForm({ item: null }) : undefined} onEdit={(item) => setSalaryForm({ item })} onDelete={(item) => remove('gaji', item)} />
+        : <OvertimeCalc data={data} />)}
+      {gradeForm && data && <GradeForm item={gradeForm.item} penilai={data.meta?.penilai ?? []} onClose={() => setGradeForm(null)} onSaved={saved} />}
+      {salaryForm && <SalaryForm item={salaryForm.item} onClose={() => setSalaryForm(null)} onSaved={saved} />}
       {sheetOpen && <HrSheetSync jenis="grade" onClose={() => setSheetOpen(false)} onImported={(t) => { setSheetOpen(false); setMessage(t); load() }} />}
     </>
   )
@@ -276,7 +295,9 @@ export function GradeGajiPage(_props: { user: UserProfile }) {
 
 const notInHr = <span className="pap-status warning">Belum ada di Data Karyawan</span>
 
-function GradeView({ data }: { data: Payroll }) {
+type RowActions<T> = { onAdd?: () => void; onEdit: (item: T) => void; onDelete: (item: T) => void }
+
+function GradeView({ data, onAdd, onEdit, onDelete }: { data: Payroll } & RowActions<Grade>) {
   const [q, setQ] = useState('')
   const [urut, setUrut] = useState<'no' | 'nilai'>('no')
   const [grade, setGrade] = useState('')
@@ -296,7 +317,7 @@ function GradeView({ data }: { data: Payroll }) {
         { label: 'Belum dinilai', value: `${data.grades.length - rated.length}`, note: `${rated.length} dari ${data.grades.length} operator sudah dinilai`, icon: AlertTriangle, tone: 'stat-3', active: grade === '-', onClick: () => toggle('-') },
       ]} />
       <div className="pap-table-card">
-        <div className="pap-card-head"><div><h2>Penilaian operator</h2><p>Nilai Teknis Mesin & QC Product dari tiap kepala shift; rata-rata dihitung dari total penilai yang sudah mengisi.</p></div></div>
+        <div className="pap-card-head"><div><h2>Penilaian operator</h2><p>Nilai Teknis Mesin & QC Product dari tiap kepala shift; rata-rata dihitung dari total penilai yang sudah mengisi.</p></div>{onAdd && <button className="pap-primary-button" onClick={onAdd}><Plus /> Tambah operator</button>}</div>
         <div className="pap-filters">
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari operator..." /></label>
           <select className="pap-select" value={urut} onChange={(e) => setUrut(e.target.value as 'no' | 'nilai')} aria-label="Urutan">
@@ -306,7 +327,7 @@ function GradeView({ data }: { data: Payroll }) {
         </div>
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Operator</th>{penilai.map((p) => <th key={p} className="pap-num">{p}</th>)}<th className="pap-num">Rata-rata</th><th>Grade</th></tr></thead>
+            <thead><tr><th>Operator</th>{penilai.map((p) => <th key={p} className="pap-num">{p}</th>)}<th className="pap-num">Rata-rata</th><th>Grade</th>{onAdd && <th aria-label="Aksi" />}</tr></thead>
             <tbody>
               {shown.map((g) => (
                 <tr key={g.id}>
@@ -317,6 +338,7 @@ function GradeView({ data }: { data: Payroll }) {
                   })}
                   {g.rata_rata !== null && <td className="pap-num"><strong>{formatNumber(g.rata_rata, 1)}</strong></td>}
                   {g.rata_rata !== null && <td>{g.grade ? <span className={`pap-status ${GRADE_TONE[g.grade] ?? 'neutral'}`}>{g.grade}</span> : <span className="pap-muted">—</span>}</td>}
+                  {onAdd && <td><RowButtons label={g.nama} onEdit={() => onEdit(g)} onDelete={() => onDelete(g)} /></td>}
                 </tr>
               ))}
             </tbody>
@@ -328,7 +350,7 @@ function GradeView({ data }: { data: Payroll }) {
   )
 }
 
-function SalaryView({ data }: { data: Payroll }) {
+function SalaryView({ data, onAdd, onEdit, onDelete }: { data: Payroll } & RowActions<Salary>) {
   const [q, setQ] = useState('')
   const p = data.meta?.kebijakan
   const term = q.trim().toLowerCase()
@@ -367,11 +389,11 @@ function SalaryView({ data }: { data: Payroll }) {
         </div>
       )}
       <div className="pap-table-card">
-        <div className="pap-card-head"><div><h2>Gaji per karyawan</h2><p>Sesuai tab kebijakan gaji di spreadsheet (ubah di spreadsheet, lalu sinkron)</p></div></div>
+        <div className="pap-card-head"><div><h2>Gaji per karyawan</h2><p>Sesuai tab kebijakan gaji di spreadsheet{onAdd ? '; perubahan dari SIMPAP ditulis ke spreadsheet' : ''}</p></div>{onAdd && <button className="pap-primary-button" onClick={onAdd}><Plus /> Tambah karyawan</button>}</div>
         <div className="pap-filters"><label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari karyawan..." /></label></div>
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Karyawan</th><th>Grade</th><th className="pap-num">Upah harian</th><th className="pap-num">Upah {p?.hari_kerja ?? 25} hari</th><th className="pap-num">Kenaikan</th><th className="pap-num">Tunjangan</th><th className="pap-num">Total terima</th><th className="pap-num">THR</th><th className="pap-num">Per jam</th><th className="pap-num">Lembur / jam</th></tr></thead>
+            <thead><tr><th>Karyawan</th><th>Grade</th><th className="pap-num">Upah harian</th><th className="pap-num">Upah {p?.hari_kerja ?? 25} hari</th><th className="pap-num">Kenaikan</th><th className="pap-num">Tunjangan</th><th className="pap-num">Total terima</th><th className="pap-num">THR</th><th className="pap-num">Per jam</th><th className="pap-num">Lembur / jam</th>{onAdd && <th aria-label="Aksi" />}</tr></thead>
             <tbody>
               {paged.items.map((s) => (
                 <tr key={s.id}>
@@ -385,6 +407,7 @@ function SalaryView({ data }: { data: Payroll }) {
                   <td className="pap-num pap-nowrap">{rp(s.thr)}</td>
                   <td className="pap-num pap-nowrap">{rp(s.tarif_jam)}</td>
                   <td className="pap-num pap-nowrap">{rp(s.lembur_jam)}<div className="pap-cell-sub">libur {rp(s.lembur_libur_jam)}</div></td>
+                  {onAdd && <td><RowButtons label={s.nama} onEdit={() => onEdit(s)} onDelete={() => onDelete(s)} /></td>}
                 </tr>
               ))}
             </tbody>
@@ -394,6 +417,112 @@ function SalaryView({ data }: { data: Payroll }) {
         </div>
       </div>
     </>
+  )
+}
+
+function RowButtons({ label, onEdit, onDelete }: { label: string; onEdit: () => void; onDelete: () => void }) {
+  return (
+    <div className="pap-row-actions">
+      <button className="pap-icon-button" title="Ubah" aria-label={`Ubah ${label}`} onClick={onEdit}><Pencil /></button>
+      <button className="pap-icon-button" title="Hapus" aria-label={`Hapus ${label}`} onClick={onDelete}><Trash2 /></button>
+    </div>
+  )
+}
+
+const FORMULA_HINT = 'Disimpan ke spreadsheet Data Grade dan Kenaikan Gaji, lalu disinkron ulang. Kolom yang di spreadsheet berisi rumus tetap dihitung spreadsheet (isian untuk kolom itu diabaikan).'
+const val = (v: number | string | null | undefined) => (v === null || v === undefined ? '' : String(v))
+
+function useSave(path: string, method: 'POST' | 'PATCH', onSaved: (text: string) => void, text: string) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  async function save(e: React.FormEvent, json: unknown) {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      await api(path, { method, json })
+      onSaved(text)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return { busy, error, setError, save }
+}
+
+function GradeForm({ item, penilai, onClose, onSaved }: { item: Grade | null; penilai: string[]; onClose: () => void; onSaved: (text: string) => void }) {
+  const [v, setV] = useState({ no: val(item?.no), nama: item?.nama ?? '', grade: item?.grade ?? '' })
+  const [skor, setSkor] = useState(() => penilai.map((p) => {
+    const s = item?.skor.find((x) => x.penilai === p)
+    return { penilai: p, teknis: val(s?.teknis), qc: val(s?.qc) }
+  }))
+  const { busy, error, setError, save } = useSave(item ? `/api/hrd/payroll/${item.id}?jenis=grade` : '/api/hrd/payroll', item ? 'PATCH' : 'POST', onSaved,
+    item ? `Grade ${v.nama} diperbarui di spreadsheet.` : `${v.nama} ditambahkan ke spreadsheet grade.`)
+  const setScore = (i: number, key: 'teknis' | 'qc', value: string) => setSkor(skor.map((s, j) => (j === i ? { ...s, [key]: value } : s)))
+  return (
+    <Modal title={item ? `Ubah grade ${item.nama}` : 'Tambah operator'} subtitle={FORMULA_HINT} wide onClose={onClose}
+      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="grade-form" disabled={busy}>{busy ? 'Menyimpan...' : 'Simpan ke spreadsheet'}</button></>}>
+      <form id="grade-form" className="pap-form-grid" onSubmit={(e) => save(e, { jenis: 'grade', ...v, skor })}>
+        {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        <Field label="Nama operator *"><input className="pap-input" required maxLength={150} value={v.nama} onChange={(e) => setV({ ...v, nama: e.target.value })} /></Field>
+        <Field label="No" hint={item ? undefined : 'Kosongkan untuk nomor berikutnya'}><input className="pap-input" type="number" min={1} value={v.no} onChange={(e) => setV({ ...v, no: e.target.value })} /></Field>
+        <Field label="Grade">
+          <select className="pap-select" value={v.grade} onChange={(e) => setV({ ...v, grade: e.target.value })}>
+            <option value="">—</option>
+            {['A', 'B', 'C'].map((g) => <option key={g} value={g}>Grade {g}</option>)}
+          </select>
+        </Field>
+        {skor.map((s, i) => (
+          <div className="full pap-form-grid" key={s.penilai}>
+            <Field label={`${s.penilai} · Teknis Mesin`}><input className="pap-input" type="number" min={0} max={100} step="0.01" value={s.teknis} onChange={(e) => setScore(i, 'teknis', e.target.value)} placeholder="Belum dinilai" /></Field>
+            <Field label={`${s.penilai} · QC Product`}><input className="pap-input" type="number" min={0} max={100} step="0.01" value={s.qc} onChange={(e) => setScore(i, 'qc', e.target.value)} placeholder="Belum dinilai" /></Field>
+          </div>
+        ))}
+        {!penilai.length && <p className="full pap-muted">Kolom kepala shift belum terbaca. Sinkron spreadsheet dulu agar nilai per kepala shift bisa diisi.</p>}
+      </form>
+    </Modal>
+  )
+}
+
+const SALARY_GROUPS: { title: string; fields: [keyof Salary, string][] }[] = [
+  { title: 'Upah & grade', fields: [['upah_harian', 'Upah harian (7 jam)'], ['nominal_grade', 'Nominal grade / hari'], ['upah_harian_total', 'Upah harian + tunjangan grade'], ['upah_bulanan', 'Upah bulanan']] },
+  { title: 'Kenaikan', fields: [['kenaikan_harian', 'Kenaikan harian'], ['kenaikan_bulanan', 'Kenaikan bulanan'], ['kenaikan_persen', 'Kenaikan (%)']] },
+  { title: 'Tunjangan, BPJS & THR', fields: [['tunjangan', 'Tunjangan'], ['total_terima', 'Total terima'], ['bpjs_laka', 'BPJS Laka Kerja'], ['bpjs_kematian', 'BPJS Kematian'], ['bpjs_kesehatan', 'BPJS Kesehatan'], ['thr', 'THR'], ['total_bpjs_thr', 'Total terima (+ BPJS & THR)'], ['tanpa_thr', 'Tanpa THR']] },
+  { title: 'Tarif per jam & lembur', fields: [['tarif_jam', 'Tarif per jam'], ['lembur_jam', 'Lembur hari kerja / jam'], ['lembur_libur_jam', 'Lembur hari libur / jam']] },
+]
+
+function SalaryForm({ item, onClose, onSaved }: { item: Salary | null; onClose: () => void; onSaved: (text: string) => void }) {
+  const [v, setV] = useState<Record<string, string>>(() => {
+    const keys = ['no', 'nama', 'no_rek_cimb', 'no_rek_lain', 'grade', ...SALARY_GROUPS.flatMap((g) => g.fields.map(([k]) => k))]
+    return Object.fromEntries(keys.map((k) => [k, val(item?.[k as keyof Salary] as number | string | null | undefined)]))
+  })
+  const { busy, error, setError, save } = useSave(item ? `/api/hrd/payroll/${item.id}?jenis=gaji` : '/api/hrd/payroll', item ? 'PATCH' : 'POST', onSaved,
+    item ? `Gaji ${v.nama} diperbarui di spreadsheet.` : `${v.nama} ditambahkan ke spreadsheet kebijakan gaji.`)
+  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setV({ ...v, [k]: e.target.value })
+  return (
+    <Modal title={item ? `Ubah gaji ${item.nama}` : 'Tambah karyawan ke kebijakan gaji'} subtitle={FORMULA_HINT} wide onClose={onClose}
+      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="salary-form" disabled={busy}>{busy ? 'Menyimpan...' : 'Simpan ke spreadsheet'}</button></>}>
+      <form id="salary-form" className="pap-form-grid" onSubmit={(e) => save(e, { jenis: 'gaji', ...v })}>
+        {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        <Field label="Nama karyawan *"><input className="pap-input" required maxLength={150} value={v.nama} onChange={set('nama')} /></Field>
+        <Field label="No" hint={item ? undefined : 'Kosongkan untuk nomor berikutnya'}><input className="pap-input" type="number" min={1} value={v.no} onChange={set('no')} /></Field>
+        <Field label="Grade">
+          <select className="pap-select" value={v.grade} onChange={set('grade')}>
+            <option value="">—</option>
+            {['A', 'B', 'C'].map((g) => <option key={g} value={g}>Grade {g}</option>)}
+          </select>
+        </Field>
+        <Field label="No. rekening CIMB"><input className="pap-input" maxLength={60} value={v.no_rek_cimb} onChange={set('no_rek_cimb')} /></Field>
+        <Field label="No. rekening bank lain" full><input className="pap-input" maxLength={150} value={v.no_rek_lain} onChange={set('no_rek_lain')} /></Field>
+        {SALARY_GROUPS.map((g) => (
+          <div className="full pap-form-grid" key={g.title}>
+            <h3 className="full">{g.title}</h3>
+            {g.fields.map(([k, label]) => <Field key={k} label={label}><input className="pap-input" type="number" step="any" value={v[k]} onChange={set(k)} /></Field>)}
+          </div>
+        ))}
+      </form>
+    </Modal>
   )
 }
 

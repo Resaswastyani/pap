@@ -67,6 +67,13 @@ export async function readTab(sheet: Sheet, title: string, range = '') {
   return (json.values ?? []).map((r) => r.map((c) => String(c ?? '')))
 }
 
+// Isi tab sebagai rumus (sel berumus diawali "="), mis. untuk tidak menimpa kolom hitungan saat menulis
+export async function readFormulas(sheet: Sheet, title: string, range = '') {
+  const json = await call<{ values?: unknown[][] }>(`${sheet.id}/values/${encodeURIComponent(`${q(title)}${range ? `!${range}` : ''}`)}?valueRenderOption=FORMULA`)
+  return (json.values ?? []).map((r) => r.map((c) => String(c ?? '')))
+}
+export const isFormula = (cell: string | undefined) => !!cell && cell.startsWith('=')
+
 // Tulis beberapa sel sekaligus: [{ row (1-based), col (0-based), value }]
 export async function writeCells(sheet: Sheet, title: string, cells: { row: number; col: number; value: string | number }[]) {
   if (!cells.length) return
@@ -98,6 +105,23 @@ export async function insertRowAfter(sheet: Sheet, title: string, after: number,
   })
   await writeCells(sheet, title, values.map((value, col) => ({ row: after + 1, col, value })))
   return after + 1
+}
+
+// Baris baru di akhir tabel tanpa keluar dari rentang rumus (mis. SUM di baris TOTAL): sisipkan baris di atas baris
+// terakhir `lastRow` (1-based), salin baris terakhir ke sana (rumus ikut, referensi relatif menyesuaikan).
+// Hasil = nomor baris terakhir (berisi salinan data lama) yang siap ditimpa dengan data baru.
+export async function insertRowAtEnd(sheet: Sheet, title: string, lastRow: number) {
+  const tab = tabOf(sheet, title)
+  await call(`${sheet.id}:batchUpdate`, {
+    method: 'POST',
+    body: JSON.stringify({
+      requests: [
+        { insertDimension: { range: { sheetId: tab.sheetId, dimension: 'ROWS', startIndex: lastRow - 1, endIndex: lastRow }, inheritFromBefore: lastRow > 1 } },
+        { copyPaste: { source: { sheetId: tab.sheetId, startRowIndex: lastRow, endRowIndex: lastRow + 1 }, destination: { sheetId: tab.sheetId, startRowIndex: lastRow - 1, endRowIndex: lastRow }, pasteType: 'PASTE_NORMAL' } },
+      ],
+    }),
+  })
+  return lastRow + 1
 }
 
 export async function deleteRow(sheet: Sheet, title: string, row: number) {

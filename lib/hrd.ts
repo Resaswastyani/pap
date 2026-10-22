@@ -140,20 +140,28 @@ export type GradeScore = { penilai: string; teknis: number | null; qc: number | 
 export type GradeRow = { no: number | null; nama: string; nama_key: string; skor: GradeScore[]; rata_rata: number | null; grade: string | null; sheet_row: number }
 export type GradeRule = { grade: string; jumlah: number | null; kriteria: string }
 
-export function parseGradeTab(tab: SheetTab) {
-  const index = tab.rows.slice(0, 20).findIndex((r) => r.some((c) => norm(c) === 'nama') && r.some((c) => norm(c) === 'grade') && r.some((c) => /kashift|kepala shift|penilai/.test(norm(c))))
+// Posisi kolom tab grade (dipakai juga untuk tulis balik ke sheet)
+export function gradeLayout(rows: string[][]) {
+  const index = rows.slice(0, 20).findIndex((r) => r.some((c) => norm(c) === 'nama') && r.some((c) => norm(c) === 'grade') && r.some((c) => /kashift|kepala shift|penilai/.test(norm(c))))
   if (index < 0) return null
-  const header = tab.rows[index]
-  const sub = (tab.rows[index + 1] ?? []).map(norm)
-  const no = header.findIndex((c) => /^no\.?$/.test(norm(c)))
-  const nama = header.findIndex((c) => norm(c) === 'nama')
-  const gradeCol = header.findIndex((c) => norm(c) === 'grade')
+  const header = rows[index]
+  const sub = (rows[index + 1] ?? []).map(norm)
   // Tiap kepala shift: 3 kolom (TEKNIS MESIN, QC PRODUCT, TOTAL) mulai dari kolom judulnya
   const penilai = header.map((c, j) => ({ c: clean(c), j })).filter((x) => /kashift|kepala shift|penilai/i.test(x.c)).map((x) => {
     const span = [x.j, x.j + 1, x.j + 2]
     const find = (re: RegExp) => span.find((j) => re.test(sub[j] ?? '')) ?? -1
     return { nama: x.c.replace(/^kashift\s*/i, '').replace(/^kepala shift\s*/i, ''), teknis: find(/teknis/), qc: find(/qc/), total: find(/total/) }
   })
+  return {
+    index, width: Math.max(header.length, sub.length), penilai,
+    no: header.findIndex((c) => /^no\.?$/.test(norm(c))), nama: header.findIndex((c) => norm(c) === 'nama'), grade: header.findIndex((c) => norm(c) === 'grade'),
+  }
+}
+
+export function parseGradeTab(tab: SheetTab) {
+  const layout = gradeLayout(tab.rows)
+  if (!layout) return null
+  const { index, no, nama, grade: gradeCol, penilai } = layout
   const rows: GradeRow[] = []
   const rules: GradeRule[] = []
   for (let r = index + 2; r < tab.rows.length; r++) {
@@ -190,11 +198,11 @@ export type SalaryPolicy = {
   tingkat: { label: string; nilai: number }[]; grade: { grade: string; nominal: number }[]; total: Record<string, number | null>
 }
 
-export function parseSalaryTab(tab: SheetTab) {
-  const index = tab.rows.slice(0, 20).findIndex((r) => r.some((c) => norm(c) === 'nama') && r.some((c) => /upah .*jam kerja/.test(norm(c))))
+// Posisi kolom tab kebijakan gaji (dipakai juga untuk tulis balik ke sheet)
+export function salaryLayout(rows: string[][]) {
+  const index = rows.slice(0, 20).findIndex((r) => r.some((c) => norm(c) === 'nama') && r.some((c) => /upah .*jam kerja/.test(norm(c))))
   if (index < 0) return null
-  const header = tab.rows[index].map(norm)
-  const subs = [tab.rows[index + 1] ?? [], tab.rows[index + 2] ?? [], tab.rows[index + 3] ?? []]
+  const header = rows[index].map(norm)
   const col = (re: RegExp) => header.findIndex((h) => re.test(h))
   const lastCol = (re: RegExp) => header.reduce((found, h, j) => (re.test(h) ? j : found), -1)
   const c = {
@@ -205,6 +213,14 @@ export function parseSalaryTab(tab: SheetTab) {
     tarif: lastCol(/tarif gaji per-?jam/),
   }
   if (c.nama < 0) return null
+  return { index, header, width: header.length, c }
+}
+
+export function parseSalaryTab(tab: SheetTab) {
+  const layout = salaryLayout(tab.rows)
+  if (!layout) return null
+  const { index, header, c } = layout
+  const subs = [tab.rows[index + 1] ?? [], tab.rows[index + 2] ?? [], tab.rows[index + 3] ?? []]
   const num = (row: string[], i: number) => (i >= 0 ? parseNumber(row[i]) : null)
   const rows: SalaryRow[] = []
   let total: Record<string, number | null> = {}

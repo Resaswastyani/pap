@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
 import type { RowDataPacket } from 'mysql2'
-import { fail, handle, requireUser } from '@/lib/api'
+import { fail, handle, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canManageHr, canViewPayroll } from '@/lib/hrd'
+import { hrSheetCreate, jenisOf, requireGradeEditor } from '@/lib/hrd-sheet'
+import { sheetStrict } from '@/lib/sheet-write'
 
 type Row = RowDataPacket & Record<string, unknown>
 const n = (v: unknown) => (v === null || v === undefined ? null : Number(v))
@@ -40,4 +42,13 @@ export const GET = handle(async () => {
     }),
     can: { manage },
   })
+})
+
+// Baris baru (HRD / GM / admin): { jenis: 'grade' | 'gaji', ...isian } -> spreadsheet Grade, lalu sinkron ulang
+export const POST = handle(async (request: Request) => {
+  const user = await requireUser()
+  requireGradeEditor(user)
+  const body = await readJson(request)
+  const res = await sheetStrict(() => hrSheetCreate(jenisOf(String(body.jenis ?? '')), body))
+  return NextResponse.json({ ok: true, ...res })
 })
