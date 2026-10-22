@@ -117,7 +117,21 @@ function DriveThumb({ fileId, title }: { fileId: string; title: string }) {
 function MachineDetail({ id, onClose, onEdit }: { id: number; onClose: () => void; onEdit: (m: Machine) => void }) {
   const [data, setData] = useState<{ machine: Machine; checkpoints: Checkpoint[]; documents: MachineDoc[]; repairs: RepairRow[]; canManage: boolean } | null>(null)
   const [error, setError] = useState('')
-  useEffect(() => { api<NonNullable<typeof data>>(`/api/machines/${id}`).then(setData).catch((e) => setError(e.message)) }, [id])
+  const [message, setMessage] = useState('')
+  // Ubah critical point: langkah yang ada, langkah baru di komponen, atau komponen baru
+  const [cpForm, setCpForm] = useState<{ cp: Checkpoint } | { komponen: string } | null>(null)
+  const reload = useCallback(() => api<NonNullable<typeof data>>(`/api/machines/${id}`).then(setData).catch((e) => setError(e.message)), [id])
+  useEffect(() => { reload() }, [reload])
+  async function removeCp(c: Checkpoint) {
+    if (!window.confirm(`Hapus "${c.teks.slice(0, 60)}" dari spreadsheet Mapping Teknis Mesin?`)) return
+    try {
+      await api(`/api/machines/checkpoints/${c.id}`, { method: 'DELETE' })
+      setMessage('Critical point dihapus dari spreadsheet.')
+      reload()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
   if (!data) return <Modal title="Detail mesin" onClose={onClose}>{error ? <Notice>{error}</Notice> : <p className="pap-muted">Memuat...</p>}</Modal>
   const { machine, checkpoints, documents, repairs } = data
   const components = [...new Map(checkpoints.map((c) => [c.komponen_urut, c.komponen])).entries()]
@@ -147,12 +161,18 @@ function MachineDetail({ id, onClose, onEdit }: { id: number; onClose: () => voi
         </section>
       )}
       <section className="pap-detail-section">
-        <h3>Critical point perawatan</h3>
+        <div className="pap-section-head">
+          <h3>Critical point perawatan</h3>
+          {data.canManage && checkpoints.length > 0 && <button className="pap-btn" onClick={() => setCpForm({ komponen: '' })}><Plus /> Komponen baru</button>}
+        </div>
+        {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+        {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
+        {data.canManage && checkpoints.length > 0 && <p className="pap-hint">Tambah / ubah / hapus di sini langsung ditulis ke spreadsheet Mapping Teknis Mesin di Google Drive.</p>}
         {!checkpoints.length && <p className="pap-muted">Belum ada critical point. Sinkron dari Google Sheet di halaman Data Mesin.</p>}
         <div className="pap-checkpoint-groups">
           {components.map(([urut, nama]) => (
             <div key={urut} className="pap-checkpoint-group">
-              <h4>{nama}</h4>
+              <h4>{nama}{data.canManage && <button className="pap-icon-button" title="Tambah langkah" aria-label={`Tambah langkah ${nama}`} onClick={() => setCpForm({ komponen: nama })}><Plus /></button>}</h4>
               <ol className="pap-checkpoints">
                 {checkpoints.filter((c) => c.komponen_urut === urut).map((c) => (
                   <li key={c.id} className={c.jenis}>
@@ -167,6 +187,12 @@ function MachineDetail({ id, onClose, onEdit }: { id: number; onClose: () => voi
                         </a>
                       )}
                     </div>
+                    {data.canManage && (
+                      <span className="pap-checkpoint-actions">
+                        <button className="pap-icon-button" title="Ubah" aria-label="Ubah" onClick={() => setCpForm({ cp: c })}><Pencil /></button>
+                        <button className="pap-icon-button" title="Hapus" aria-label="Hapus" onClick={() => removeCp(c)}><Trash2 /></button>
+                      </span>
+                    )}
                   </li>
                 ))}
               </ol>
@@ -174,6 +200,7 @@ function MachineDetail({ id, onClose, onEdit }: { id: number; onClose: () => voi
           ))}
         </div>
       </section>
+      {cpForm && <CheckpointForm machineId={machine.id} target={cpForm} onClose={() => setCpForm(null)} onSaved={(t) => { setCpForm(null); setMessage(t); reload() }} />}
       {repairs.length > 0 && (
         <section className="pap-detail-section">
           <h3>Laporan kerusakan terakhir</h3>
@@ -323,6 +350,41 @@ function MachineForm({ initial, tahapList, onClose, onSaved }: { initial: Machin
         </Field>
         <Field label="Kapasitas (opsional)" full><input className="pap-input" maxLength={150} value={values.kapasitas} onChange={set('kapasitas')} placeholder="Contoh: 500 kg/hari" /></Field>
         <Field label="Keterangan (opsional)" full><textarea className="pap-input" rows={2} maxLength={5000} value={values.keterangan} onChange={set('keterangan')} /></Field>
+      </form>
+    </Modal>
+  )
+}
+
+// Form critical point: ditulis ke spreadsheet Mapping Teknis Mesin, lalu data mesin disinkron ulang
+function CheckpointForm({ machineId, target, onClose, onSaved }: { machineId: number; target: { cp: Checkpoint } | { komponen: string }; onClose: () => void; onSaved: (message: string) => void }) {
+  const cp = 'cp' in target ? target.cp : null
+  const [v, setV] = useState({ komponen: 'komponen' in target ? target.komponen : cp?.komponen ?? '', teks: cp?.teks ?? '', keterangan: cp?.keterangan ?? '', link: cp?.link ?? '' })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const newKomponen = !cp && !('komponen' in target && target.komponen)
+  async function save(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      if (cp) await api(`/api/machines/checkpoints/${cp.id}`, { method: 'PATCH', json: v })
+      else await api(`/api/machines/${machineId}/checkpoints`, { method: 'POST', json: v })
+      onSaved(cp ? 'Critical point diperbarui di spreadsheet.' : 'Langkah ditambahkan ke spreadsheet.')
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal title={cp ? (cp.jenis === 'langkah' ? `Ubah langkah ${cp.urut}` : 'Ubah catatan') : newKomponen ? 'Komponen baru' : `Tambah langkah · ${v.komponen}`} subtitle="Ditulis langsung ke spreadsheet Mapping Teknis Mesin" onClose={onClose}
+      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="cp-form" disabled={busy}>{busy ? 'Menyimpan ke spreadsheet...' : 'Simpan'}</button></>}>
+      <form id="cp-form" className="pap-form-grid" onSubmit={save}>
+        {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        {newKomponen && <Field label="Nama komponen *" full><input className="pap-input" required maxLength={150} value={v.komponen} onChange={(e) => setV({ ...v, komponen: e.target.value })} placeholder="Mis. EPC, Pisau Las" /></Field>}
+        <Field label={cp?.jenis === 'catatan' ? 'Catatan *' : 'Langkah perawatan *'} full><textarea className="pap-input" rows={3} required maxLength={5000} value={v.teks} onChange={(e) => setV({ ...v, teks: e.target.value })} /></Field>
+        {cp?.jenis !== 'catatan' && <Field label="Penjelas (baris -> di bawah langkah)" full><input className="pap-input" maxLength={2000} value={v.keterangan} onChange={(e) => setV({ ...v, keterangan: e.target.value })} /></Field>}
+        <Field label="Link foto / video (Google Drive)" full><input className="pap-input" type="url" maxLength={1000} value={v.link} onChange={(e) => setV({ ...v, link: e.target.value })} placeholder="https://drive.google.com/..." /></Field>
       </form>
     </Modal>
   )

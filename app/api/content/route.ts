@@ -1,8 +1,10 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser, str } from '@/lib/api'
-import { canEditContent, CONTENT_SELECT, readContentInput, requireContent, serializeContent } from '@/lib/content'
+import { canEditContent, CONTENT_SELECT, loadContent, readContentInput, requireContent, serializeContent } from '@/lib/content'
 import { db } from '@/lib/db'
+import { contentSheetCreate, type ContentRow } from '@/lib/content-sheet'
+import { trySheet } from '@/lib/sheet-write'
 
 // Rencana konten satu bulan (?bulan=YYYY-MM) + ringkasan hasil
 export const GET = handle(async (request: Request) => {
@@ -44,5 +46,7 @@ export const POST = handle(async (request: Request) => {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [c.judul, c.platform, c.jenis, c.jadwal_tayang, c.status, c.tujuan, c.target_sektor, c.caption, c.anggaran, c.link_hasil, c.reach, c.engagement, c.leads, c.catatan, c.pic_id ?? user.id, user.id],
   )
-  return NextResponse.json({ id: result.insertId }, { status: 201 })
+  // Konten baru ikut ditambahkan sebagai baris di Google Sheet "Konten Planning"
+  const warning = await trySheet('baris konten', async () => contentSheetCreate((await loadContent(result.insertId)) as unknown as ContentRow))
+  return NextResponse.json({ id: result.insertId, warning }, { status: 201 })
 })

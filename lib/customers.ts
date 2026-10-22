@@ -12,7 +12,7 @@ import { can, type UserProfile } from '@/lib/users'
 //   pelanggan          >= 2 faktur (repeat order), masih aktif
 //   pembeli_nonaktif   1 faktur, transaksi terakhir lebih lama dari batas aktif
 //   pelanggan_nonaktif >= 2 faktur, transaksi terakhir lebih lama dari batas aktif
-export const CRM_INACTIVE_DAYS = Number(process.env.CRM_INACTIVE_DAYS || 180)
+export const CRM_INACTIVE_DAYS = Number(process.env.CRM_INACTIVE_DAYS || 90)
 
 export const CRM_STATUS = {
   pelanggan: 'Pelanggan',

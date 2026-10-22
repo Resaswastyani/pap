@@ -7,6 +7,7 @@ import { db } from '@/lib/db'
 import { readSpreadsheet, spreadsheetId, type SheetTab } from '@/lib/drive'
 import { fail } from '@/lib/api'
 import { readXlsx } from '@/lib/xlsx-lite'
+import { ensureTab, openSheet, readTab, replaceBlock } from '@/lib/sheet-write'
 import { colName, writeXlsx, type XlsxCell } from '@/lib/xlsx-write'
 import type { UserProfile } from '@/lib/users'
 
@@ -368,5 +369,46 @@ export async function shiftTemplate(periodeParam: string | null) {
       },
       { title: TEMPLATE_GUIDE_TAB, rows: guide, widths: [24, 9, 9, 9, 9, 9, 9, 9] },
     ]),
+  }
+}
+
+// ---------- Tulis balik ke spreadsheet Drive (jadwal yang diunggah lewat SIMPAP) ----------
+// Jadwal bulan yang sudah punya tab di spreadsheet: isi tab diganti (format sel tetap); bulan baru: tab baru "<BULAN> <TAHUN>".
+// Susunannya sama dengan template unggah sehingga sinkron berikutnya membaca jadwal yang sama.
+function scheduleSheetRows(s: ParsedSchedule) {
+  const total = daysIn(s.periode)
+  const year = Number(s.periode.slice(0, 4))
+  const month = Number(s.periode.slice(5, 7))
+  const dow = (day: number) => new Date(Date.UTC(year, month - 1, day)).getUTCDay()
+  const INITIAL = ['M', 'S', 'S', 'R', 'K', 'J', 'S']
+  const label = new Map(s.keterangan.map((k) => [k.kode, k.label]))
+  // Kode -> isi sel: 1/2/3, OFF untuk libur, kode lain seperti tertulis di Keterangan
+  const cellOf = (kode: string) => (kode === NO_DATA ? '' : kode === '' ? 'OFF' : ['1', '2', '3'].includes(kode) ? kode : label.get(kode) ?? kode)
+  const rows: (string | number)[][] = [
+    [s.judul ?? `JADWAL SHIFT KARYAWAN PRODUKSI BULAN ${MONTH_NAMES[month - 1]} ${year}`],
+    ['Diperbarui dari SIMPAP (unggah jadwal). Isi kolom tanggal: 1 / 2 / 3 = Shift 1-3, OFF = libur.'],
+    ['NO', 'NAMA', 'BAGIAN', 'KD KARYAWAN', 'PILIHAN SHIFT', ...Array.from({ length: total }, (_, i) => i + 1)],
+    ['', '', '', '', '', ...Array.from({ length: total }, (_, i) => INITIAL[dow(i + 1)])],
+    ...s.rows.map((r, i) => [r.urut || i + 1, r.nama, r.bagian ?? '', r.nomor_induk ?? '', r.pilihan_shift ?? '', ...r.jadwal.slice(0, total).map(cellOf)]),
+    [],
+    ['', 'Keterangan :', 'Jam kerja'],
+    ...s.keterangan.map((k) => ['', k.label, k.jam ?? (k.kode === '' ? 'Libur' : '')]),
+  ]
+  const width = 5 + total
+  return rows.map((r) => [...r, ...Array(Math.max(0, width - r.length)).fill('')])
+}
+
+export async function shiftSheetWrite(schedules: ParsedSchedule[]) {
+  const url = await loadShiftSheetUrl()
+  const sheet = await openSheet(url)
+  // Tab mana berisi bulan apa (dibaca dengan parser yang sama dengan sinkron)
+  const parsed = parseShiftTabs(await readSpreadsheet(sheet.id), nextMonth())
+  for (const s of schedules) {
+    const rows = scheduleSheetRows(s)
+    const existing = parsed.schedules.find((p) => p.periode === s.periode)
+    const title = existing?.tab ?? `${MONTH_NAMES[Number(s.periode.slice(5, 7)) - 1]} ${s.periode.slice(0, 4)}`
+    await ensureTab(sheet, title)
+    const old = existing ? (await readTab(sheet, title)).length : 0
+    await replaceBlock(sheet, title, 1, rows, Math.max(old, rows.length))
   }
 }

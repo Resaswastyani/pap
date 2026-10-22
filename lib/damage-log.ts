@@ -6,6 +6,7 @@ import type { RowDataPacket } from 'mysql2'
 import { fail } from '@/lib/api'
 import { db } from '@/lib/db'
 import { readSpreadsheet, spreadsheetId, type SheetTab } from '@/lib/drive'
+import { appendRow, deleteRow, openSheet, readTab, sheetDate, SheetWriteError, writeCells, type Sheet } from '@/lib/sheet-write'
 import { canHandleRepair, canViewRepairs } from '@/lib/repairs'
 import { isLeadOf, type UserProfile } from '@/lib/users'
 
@@ -78,7 +79,7 @@ function detectHeader(rows: string[][]): { index: number; cols: Columns } | null
 }
 
 export type DamageEntry = {
-  sheet_row: number; no_laporan: number | null; tanggal: string | null; mesin: string | null; komponen: string | null
+  sheet_tab: string; sheet_row: number; head_row: number | null; rows: number[]; no_laporan: number | null; tanggal: string | null; mesin: string | null; komponen: string | null
   kerusakan: string | null; tindakan: string | null; keterangan: string | null
 }
 const cell = (row: string[], col: number) => (col >= 0 ? (row[col] ?? '').trim() : '')
@@ -89,7 +90,7 @@ function parseTab(tab: SheetTab) {
   if (!header) return null
   const { cols } = header
   const entries: DamageEntry[] = []
-  let current: { no: number | null; tanggal: string | null; mesin: string | null } = { no: null, tanggal: null, mesin: null }
+  let current: { no: number | null; tanggal: string | null; mesin: string | null; head: number | null } = { no: null, tanggal: null, mesin: null, head: null }
   for (let i = header.index + 1; i < tab.rows.length; i++) {
     const row = tab.rows[i] ?? []
     const no = Number(cell(row, cols.no).replace(/\.0+$/, ''))
@@ -100,17 +101,18 @@ function parseTab(tab: SheetTab) {
     const tindakan = cell(row, cols.tindakan)
     const keterangan = cell(row, cols.keterangan)
     if (!mesin && !komponen && !kerusakan && !tindakan && !keterangan) continue
-    if (Number.isInteger(no) && no > 0) current = { no, tanggal, mesin: mesin || null }
+    if (Number.isInteger(no) && no > 0) current = { no, tanggal, mesin: mesin || null, head: i + 1 }
     else if (mesin) current = { ...current, mesin }
     const last = entries.at(-1)
     // Hanya lanjutan tindakan/keterangan (tanpa kerusakan, komponen, mesin, NO): gabungkan ke baris sebelumnya
     if (last && !kerusakan && !komponen && !mesin && !(no > 0)) {
       last.tindakan = join(last.tindakan, tindakan)
       last.keterangan = join(last.keterangan, keterangan)
+      last.rows.push(i + 1)
       continue
     }
     entries.push({
-      sheet_row: i + 1, no_laporan: current.no, tanggal: tanggal ?? current.tanggal, mesin: current.mesin,
+      sheet_tab: tab.title, sheet_row: i + 1, head_row: current.head, rows: [i + 1], no_laporan: current.no, tanggal: tanggal ?? current.tanggal, mesin: current.mesin,
       komponen: komponen || null, kerusakan: kerusakan || null, tindakan: tindakan || null, keterangan: keterangan || null,
     })
   }
@@ -138,8 +140,8 @@ export async function importDamageEntries(entries: DamageEntry[]) {
     await conn.query("DELETE FROM machine_damage_logs WHERE source = 'sheet'")
     for (let i = 0; i < entries.length; i += 500) {
       await conn.query(
-        `INSERT INTO machine_damage_logs (source, sheet_row, no_laporan, tanggal, mesin, mesin_key, komponen, kerusakan, tindakan, keterangan) VALUES ?`,
-        [entries.slice(i, i + 500).map((e) => ['sheet', e.sheet_row, e.no_laporan, e.tanggal, e.mesin?.slice(0, 150) ?? null, machineKey(e.mesin), e.komponen?.slice(0, 150) ?? null, e.kerusakan, e.tindakan, e.keterangan])],
+        `INSERT INTO machine_damage_logs (source, sheet_tab, sheet_row, no_laporan, tanggal, mesin, mesin_key, komponen, kerusakan, tindakan, keterangan) VALUES ?`,
+        [entries.slice(i, i + 500).map((e) => ['sheet', e.sheet_tab.slice(0, 120), e.sheet_row, e.no_laporan, e.tanggal, e.mesin?.slice(0, 150) ?? null, machineKey(e.mesin), e.komponen?.slice(0, 150) ?? null, e.kerusakan, e.tindakan, e.keterangan])],
       )
     }
     await conn.query("INSERT INTO app_settings (`key`, value) VALUES ('kerusakan_mesin.synced_at', NOW()) ON DUPLICATE KEY UPDATE value = NOW()")
@@ -194,4 +196,91 @@ export async function syncDamageSheet() {
   const { entries } = await readDamageSheet(await loadDamageSheetUrl())
   if (!entries.length) return { baris: 0, laporan: 0 }
   return importDamageEntries(entries)
+}
+
+// ---------- Tulis balik ke spreadsheet (form Laporan Kerusakan di SIMPAP) ----------
+// Laporan baru ditambahkan sebagai baris di tab REKAP; ubah / hapus menulis ke baris asalnya (termasuk baris lanjutannya).
+// Setelah menulis, rekap disinkron ulang dari sheet sehingga data SIMPAP = isi spreadsheet.
+export type DamageRow = {
+  id: number; source: string; sheet_tab: string | null; sheet_row: number | null; no_laporan: number | null; tanggal: string | null
+  mesin: string | null; mesin_key: string | null; komponen: string | null; kerusakan: string | null; tindakan: string | null; keterangan: string | null
+}
+export type DamageInput = ReturnType<typeof readDamageInput>
+
+async function rekapTab(sheet: Sheet, preferred?: string | null) {
+  const titles = [preferred, ...sheet.tabs.map((t) => t.title).filter((t) => /rekap/i.test(t)), ...sheet.tabs.map((t) => t.title)].filter((t): t is string => !!t && sheet.tabs.some((x) => x.title === t))
+  for (const title of [...new Set(titles)]) {
+    const rows = await readTab(sheet, title)
+    const header = detectHeader(rows)
+    if (header) return { title, rows, header }
+  }
+  throw new SheetWriteError('Tab rekap dengan kolom Tanggal, Mesin & Kerusakan tidak ditemukan di spreadsheet.')
+}
+
+// Cari laporan di sheet dan pastikan masih sama dengan data lama (mesin + kerusakan)
+async function locateDamage(old: DamageRow) {
+  const sheet = await openSheet(await loadDamageSheetUrl())
+  const tab = await rekapTab(sheet, old.sheet_tab)
+  const entries = parseTab({ title: tab.title, rows: tab.rows }) ?? []
+  const entry = entries.find((e) => e.sheet_row === old.sheet_row)
+  if (!entry || machineKey(entry.mesin) !== old.mesin_key || norm(entry.kerusakan ?? '') !== norm(old.kerusakan ?? '')) {
+    throw new SheetWriteError('Baris laporan ini sudah berubah di spreadsheet. Klik Sinkron dulu, lalu ulangi.')
+  }
+  return { sheet, tab, entry, entries }
+}
+
+export async function damageSheetCreate(v: DamageInput) {
+  const sheet = await openSheet(await loadDamageSheetUrl())
+  const { title, rows, header } = await rekapTab(sheet)
+  const { cols } = header
+  const lastNo = Math.max(0, ...rows.slice(header.index + 1).map((r) => Number(cell(r, cols.no).replace(/\.0+$/, ''))).filter((n) => Number.isInteger(n)))
+  const values: (string | number)[] = Array(Math.max(...Object.values(cols)) + 1).fill('')
+  const put = (col: number, value: string | number | null) => { if (col >= 0) values[col] = value ?? '' }
+  put(cols.no, lastNo + 1)
+  put(cols.tanggal, sheetDate(v.tanggal))
+  put(cols.mesin, v.mesin)
+  put(cols.komponen, v.komponen)
+  put(cols.kerusakan, v.kerusakan)
+  // Sheet tanpa kolom TINDAKAN: tindakan ikut di keterangan
+  put(cols.tindakan, v.tindakan)
+  put(cols.keterangan, cols.tindakan < 0 ? [v.tindakan, v.keterangan].filter(Boolean).join('\n') : v.keterangan)
+  await appendRow(sheet, title, values)
+}
+
+export async function damageSheetUpdate(old: DamageRow, v: DamageInput) {
+  if (old.source !== 'sheet') return damageSheetCreate(v)
+  const { sheet, tab, entry } = await locateDamage(old)
+  const { cols } = tab.header
+  const [first, ...more] = entry.rows
+  const cells: { row: number; col: number; value: string }[] = []
+  const put = (row: number, col: number, value: string | null) => { if (col >= 0) cells.push({ row, col, value: value ?? '' }) }
+  put(first, cols.komponen, v.komponen)
+  put(first, cols.kerusakan, v.kerusakan)
+  put(first, cols.tindakan, v.tindakan)
+  put(first, cols.keterangan, cols.tindakan < 0 ? [v.tindakan, v.keterangan].filter(Boolean).join('\n') : v.keterangan)
+  // Baris lanjutan (tindakan / keterangan bersambung) dikosongkan karena isinya sudah digabung di baris pertama
+  for (const r of more) {
+    put(r, cols.tindakan, '')
+    put(r, cols.keterangan, '')
+  }
+  // Tanggal & mesin milik baris ber-NO laporan ini
+  const head = entry.head_row ?? first
+  put(head, cols.tanggal, sheetDate(v.tanggal))
+  put(head, cols.mesin, v.mesin)
+  await writeCells(sheet, tab.title, cells)
+}
+
+export async function damageSheetDelete(old: DamageRow) {
+  if (old.source !== 'sheet') return
+  const { sheet, tab, entry, entries } = await locateDamage(old)
+  const { cols } = tab.header
+  // Baris ber-NO dihapus tetapi laporan yang sama masih punya kerusakan lain: NO, tanggal & mesin pindah ke baris berikutnya
+  const next = entries.find((e) => e.no_laporan === entry.no_laporan && e.sheet_row > entry.sheet_row)
+  const headCells = tab.rows[entry.sheet_row - 1] ?? []
+  for (const r of [...entry.rows].sort((a, b) => b - a)) await deleteRow(sheet, tab.title, r)
+  // Ditulis setelah hapus (baris berikutnya sudah naik) agar sel gabungan NO / tanggal / mesin tetap utuh
+  if (entry.head_row === entry.sheet_row && next) {
+    const row = next.sheet_row - entry.rows.length
+    await writeCells(sheet, tab.title, [cols.no, cols.tanggal, cols.mesin].filter((c) => c >= 0).map((col) => ({ row, col, value: cell(headCells, col) })))
+  }
 }

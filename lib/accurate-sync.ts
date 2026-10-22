@@ -26,7 +26,8 @@ export const SYNC_ENTITIES: SyncEntity[] = [
   'vendor', 'purchase-order', 'purchase-order-detail', 'purchase-invoice', 'purchase-invoice-open', 'stock',
 ]
 export const PRODUCTION_SYNC_ENTITIES: SyncEntity[] = ['manufacture-order', 'manufacture-order-detail', 'finished-good-slip', 'finished-good-slip-detail']
-export const PURCHASING_SYNC_ENTITIES: SyncEntity[] = ['vendor', 'purchase-order', 'purchase-order-detail', 'purchase-invoice', 'purchase-invoice-open']
+// item & item-detail: Data Bahan di menu Harga Bahan
+export const PURCHASING_SYNC_ENTITIES: SyncEntity[] = ['vendor', 'purchase-order', 'purchase-order-detail', 'purchase-invoice', 'purchase-invoice-open', 'item', 'item-detail']
 // Baris barang MP/FGS hanya diambil untuk dokumen beberapa hari terakhir (detail.do = satu request per dokumen)
 const PRODUCTION_DAYS = Number(process.env.ACCURATE_PRODUCTION_DAYS || 120)
 

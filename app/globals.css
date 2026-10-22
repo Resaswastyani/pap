@@ -1355,6 +1355,14 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-checkpoints li small { display:block; color:var(--pap-muted); }
 .pap-checkpoints li.catatan { padding-left:4px; color:var(--pap-muted); }
 .pap-checkpoints li.catatan::before { content:'•'; }
+.pap-checkpoints li > div { flex:1; min-width:0; }
+.pap-checkpoint-actions { display:flex; flex:none; gap:2px; opacity:.55; }
+.pap-checkpoints li:hover .pap-checkpoint-actions, .pap-checkpoint-actions:focus-within { opacity:1; }
+.pap-checkpoint-actions .pap-icon-button, .pap-checkpoint-group h4 .pap-icon-button { width:26px; height:26px; }
+.pap-checkpoint-group h4 { display:flex; align-items:center; justify-content:space-between; gap:6px; }
+.pap-msheet-part header .pap-icon-button { margin-left:auto; width:26px; height:26px; }
+.pap-msheet-content li .pap-checkpoint-actions { display:inline-flex; margin-left:6px; vertical-align:middle; }
+.pap-msheet-content li .pap-checkpoint-actions .pap-icon-button { width:24px; height:24px; }
 .pap-checkpoint-no { display:grid; flex:none; place-items:center; width:22px; height:22px; border-radius:99px; background:rgb(124 92 252 / .12); color:#7050e7; font-size:11px; font-weight:800; }
 .pap-checkpoint-link { display:inline-flex; flex-direction:column; gap:4px; margin-top:6px; color:#7050e7; font-size:11px; font-weight:700; text-decoration:none; }
 .pap-machine-thumb { width:180px; max-height:130px; object-fit:cover; border:1px solid var(--pap-border); border-radius:8px; background:var(--pap-bg); }

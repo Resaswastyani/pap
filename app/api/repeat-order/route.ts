@@ -4,6 +4,7 @@ import { handle, int, requireUser, str, pageParams } from '@/lib/api'
 import { db } from '@/lib/db'
 import { MARKETING_DIVISIONS } from '@/lib/marketing'
 import { REPEAT_BASE, REPEAT_STATUS, requireRepeatOrder, seesAllCustomers, serializeRepeat } from '@/lib/repeat-order'
+import { CRM_INACTIVE_DAYS } from '@/lib/customers'
 
 const PAGE_SIZE = 50
 
@@ -55,6 +56,7 @@ export const GET = handle(async (request: Request) => {
     items: items.map(serializeRepeat),
     total: Number(total),
     pageSize,
+    inactiveDays: CRM_INACTIVE_DAYS,
     summary: Object.fromEntries(summaryRows.map((r) => [r.status, Number(r.n)])),
     due: { today: Number(due.today), overdue: Number(due.overdue) },
     users,

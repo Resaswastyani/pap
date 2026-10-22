@@ -2,7 +2,8 @@ import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
-import { canSyncShift, importShiftSchedules, readShiftFile, requireShift } from '@/lib/shift-schedule'
+import { canSyncShift, importShiftSchedules, readShiftFile, requireShift, shiftSheetWrite } from '@/lib/shift-schedule'
+import { trySheet } from '@/lib/sheet-write'
 
 const MAX_BYTES = 4 * 1024 * 1024
 
@@ -20,7 +21,12 @@ export const POST = handle(async (request: Request) => {
   const { schedules, tabs } = readShiftFile(Buffer.from(await upload.arrayBuffer()), upload.name)
   if (!schedules.length) fail(400, 'Tidak ada jadwal yang dikenali. Pastikan ada judul bulan (mis. "BULAN NOVEMBER 2026"), kolom NAMA, dan kolom tanggal 1 sampai akhir bulan.')
 
-  if (form.get('mode') === 'import') return NextResponse.json({ ...(await importShiftSchedules(schedules, user.id)), file: upload.name })
+  if (form.get('mode') === 'import') {
+    const saved = await importShiftSchedules(schedules, user.id)
+    // Jadwal yang diunggah ikut ditulis ke spreadsheet Jadwal Shift di Google Drive
+    const warning = await trySheet('jadwal shift', () => shiftSheetWrite(schedules))
+    return NextResponse.json({ ...saved, file: upload.name, warning })
+  }
   const [existing] = await db.query<(RowDataPacket & { periode: string })[]>('SELECT periode FROM shift_schedules WHERE periode IN (?)', [schedules.map((s) => s.periode)])
   const ada = new Set(existing.map((e) => e.periode))
   return NextResponse.json({

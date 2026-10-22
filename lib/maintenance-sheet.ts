@@ -8,6 +8,7 @@ import { fail } from '@/lib/api'
 import { db } from '@/lib/db'
 import { downloadSpreadsheetXlsx, readSpreadsheet, spreadsheetId, type SheetTab } from '@/lib/drive'
 import { readXlsxImages, type XlsxImage } from '@/lib/xlsx-lite'
+import { deleteRow, insertRowAfter, openSheet, readTab, SheetWriteError, tabOf, writeCells } from '@/lib/sheet-write'
 import { canManageTeknik } from '@/lib/teknik'
 import type { UserProfile } from '@/lib/users'
 
@@ -202,4 +203,85 @@ export async function syncMaintenanceSheet() {
 
 export const requireMaintenanceSheet = (user: UserProfile) => {
   if (!user.menus.includes('perawatan-mesin' as never)) fail(403, 'Anda tidak punya akses ke menu Perawatan Mesin.')
+}
+
+// ---------- Ubah lembar perawatan dari SIMPAP -> spreadsheet Lembar Perawatan ----------
+// Lembar adalah cermin isi sheet (diganti penuh setiap sinkron): perubahan ditulis ke sheet lebih dulu, lalu sheet diimpor
+// ulang (teks saja; gambar part tetap). Bila Google menolak, tidak ada yang berubah.
+export type SheetItemRow = { id: number; sheet_tab: string; part_no: number | null; part: string; kelompok: string | null; langkah: string; keterangan: string | null; sheet_row: number }
+export type StepInput = { langkah: string; keterangan: string | null }
+
+async function lembarTab(tab: string) {
+  const sheet = await openSheet(await loadMaintenanceSheetUrl())
+  tabOf(sheet, tab)
+  const rows = await readTab(sheet, tab)
+  const head = headerOf(rows)
+  if (!head) throw new SheetWriteError(`Kolom NAMA PART & MAINTENANCE tidak ditemukan di tab "${tab}".`)
+  return { sheet, rows, head }
+}
+function verifyStep(rows: string[][], head: NonNullable<ReturnType<typeof headerOf>>, old: SheetItemRow) {
+  if (stripNumber(clean(rows[old.sheet_row - 1]?.[head.langkah])) !== old.langkah) {
+    throw new SheetWriteError(`Baris ${old.sheet_row} di tab "${old.sheet_tab}" sudah berubah di spreadsheet. Sinkron dulu, lalu ulangi.`)
+  }
+}
+// Nomor di depan langkah ("1. ") dipertahankan / diikuti
+const numberPrefix = (cell: string) => cell.match(/^\d{1,2}\s*[.)]?\s+/)?.[0] ?? ''
+
+async function reimportLembar() {
+  const { machines } = await readMaintenanceSheet(await loadMaintenanceSheetUrl())
+  if (machines.length) await importMaintenanceSheet(machines)
+}
+
+export async function stepSheetUpdate(old: SheetItemRow, v: StepInput) {
+  const { sheet, rows, head } = await lembarTab(old.sheet_tab)
+  verifyStep(rows, head, old)
+  const cell = clean(rows[old.sheet_row - 1]?.[head.langkah])
+  const cells = [{ row: old.sheet_row, col: head.langkah, value: `${numberPrefix(cell)}${v.langkah}` }]
+  if (head.keterangan >= 0) cells.push({ row: old.sheet_row, col: head.keterangan, value: v.keterangan ?? '' })
+  await writeCells(sheet, old.sheet_tab, cells)
+  await reimportLembar()
+}
+
+// Tambah langkah ke part yang ada, atau part baru (NO berikutnya) di bawah part terakhir
+export async function stepSheetCreate(tab: string, part: string, kelompok: string | null, v: StepInput) {
+  const { sheet, rows, head } = await lembarTab(tab)
+  const [items] = await db.query<(RowDataPacket & SheetItemRow)[]>('SELECT * FROM maintenance_sheet_items WHERE sheet_tab = ? ORDER BY sheet_row', [tab])
+  if (!items.length) throw new SheetWriteError(`Tab "${tab}" belum punya langkah dari spreadsheet. Sinkron dulu.`)
+  const same = items.filter((i) => i.part.toLowerCase() === part.toLowerCase())
+  const width = Math.max(head.no, head.part, head.kelompok, head.langkah, head.keterangan) + 1
+  const values: string[] = Array(width).fill('')
+  const prefixed = (list: SheetItemRow[]) => {
+    const sample = clean(rows[list[0].sheet_row - 1]?.[head.langkah])
+    return numberPrefix(sample) ? `${list.length + 1}. ${v.langkah}` : v.langkah
+  }
+  if (head.keterangan >= 0) values[head.keterangan] = v.keterangan ?? ''
+  if (same.length) {
+    values[head.langkah] = prefixed(same)
+    await insertRowAfter(sheet, tab, Math.max(...same.map((i) => i.sheet_row)), values)
+  } else {
+    if (head.no >= 0) values[head.no] = String(Math.max(0, ...items.map((i) => i.part_no ?? 0)) + 1)
+    values[head.part] = part
+    if (head.kelompok >= 0) values[head.kelompok] = kelompok ?? ''
+    values[head.langkah] = v.langkah
+    await insertRowAfter(sheet, tab, Math.max(...items.map((i) => i.sheet_row)), values)
+  }
+  await reimportLembar()
+}
+
+export async function stepSheetDelete(old: SheetItemRow) {
+  const { sheet, rows, head } = await lembarTab(old.sheet_tab)
+  verifyStep(rows, head, old)
+  const cells = rows[old.sheet_row - 1] ?? []
+  const startsPart = !!clean(cells[head.part])
+  const [[next]] = await db.query<(RowDataPacket & { sheet_row: number })[]>(
+    'SELECT sheet_row FROM maintenance_sheet_items WHERE sheet_tab = ? AND part = ? AND sheet_row > ? ORDER BY sheet_row LIMIT 1', [old.sheet_tab, old.part, old.sheet_row],
+  )
+  await deleteRow(sheet, old.sheet_tab, old.sheet_row)
+  // Baris pertama part dihapus sementara part masih punya langkah lain: NO, NAMA PART & KELOMPOK pindah ke baris yang naik
+  // (ditulis setelah hapus agar sel gabungan tetap utuh)
+  if (startsPart && next) {
+    const moved = [head.no, head.part, head.kelompok].filter((c) => c >= 0).map((col) => ({ row: old.sheet_row, col, value: clean(cells[col]) }))
+    await writeCells(sheet, old.sheet_tab, moved)
+  }
+  await reimportLembar()
 }

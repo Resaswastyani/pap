@@ -58,7 +58,8 @@ export function ContentPage({ user }: { user: UserProfile }) {
     }
   }, [bulan])
   useEffect(() => { load() }, [load])
-  const flash = (t: string) => { setMessage(t); setTimeout(() => setMessage(''), 5000); load() }
+  const [warning, setWarning] = useState('')
+  const flash = (t: string, w?: string | null) => { setMessage(t); setWarning(w ?? ''); setTimeout(() => setMessage(''), 5000); load() }
 
   // Grid kalender Senin-Minggu
   const cells = useMemo(() => {
@@ -91,6 +92,7 @@ export function ContentPage({ user }: { user: UserProfile }) {
       </div>
       {sheetOpen && <SheetSync onClose={() => setSheetOpen(false)} onImported={(t) => { setSheetOpen(false); flash(t) }} />}
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
+      {warning && <Notice onClose={() => setWarning('')}>{warning}</Notice>}
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       {summary && (
         <div className="pap-stat-grid four">
@@ -162,7 +164,7 @@ export function ContentPage({ user }: { user: UserProfile }) {
           canEdit={canEdit}
           currentUserId={user.id}
           onClose={() => setForm(null)}
-          onSaved={(t) => { setForm(null); flash(t) }}
+          onSaved={(t, w) => { setForm(null); flash(t, w) }}
           onRequestDesign={(c) => { setForm(null); setRequestFor(c) }}
         />
       )}
@@ -179,7 +181,7 @@ export function ContentPage({ user }: { user: UserProfile }) {
 
 function ContentForm({ initial, jadwal, users, canEdit, currentUserId, onClose, onSaved, onRequestDesign }: {
   initial: Content | null; jadwal?: string; users: { id: number; name: string; division_name: string }[]; canEdit: boolean; currentUserId: number
-  onClose: () => void; onSaved: (m: string) => void; onRequestDesign: (c: Content) => void
+  onClose: () => void; onSaved: (m: string, warning?: string | null) => void; onRequestDesign: (c: Content) => void
 }) {
   const [v, setV] = useState({
     judul: initial?.judul ?? '', platform: initial?.platform ?? 'instagram', jenis: initial?.jenis ?? 'feed', status: initial?.status ?? 'ide',
@@ -197,9 +199,10 @@ function ContentForm({ initial, jadwal, users, canEdit, currentUserId, onClose, 
     setSaving(true)
     setError('')
     try {
-      if (initial) await api(`/api/content/${initial.id}`, { method: 'PATCH', json: v })
-      else await api('/api/content', { method: 'POST', json: v })
-      onSaved(initial ? 'Rencana konten diperbarui.' : 'Rencana konten ditambahkan.')
+      const res = initial
+        ? await api<{ warning?: string | null }>(`/api/content/${initial.id}`, { method: 'PATCH', json: v })
+        : await api<{ warning?: string | null }>('/api/content', { method: 'POST', json: v })
+      onSaved(initial ? 'Rencana konten diperbarui (juga di Google Sheet).' : 'Rencana konten ditambahkan (juga di Google Sheet).', res.warning)
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -209,8 +212,8 @@ function ContentForm({ initial, jadwal, users, canEdit, currentUserId, onClose, 
   async function remove() {
     if (!initial || !window.confirm(`Hapus rencana "${initial.judul}"?`)) return
     try {
-      await api(`/api/content/${initial.id}`, { method: 'DELETE' })
-      onSaved('Rencana konten dihapus.')
+      const res = await api<{ warning?: string | null }>(`/api/content/${initial.id}`, { method: 'DELETE' })
+      onSaved('Rencana konten dihapus.', res.warning)
     } catch (err) {
       setError((err as Error).message)
     }

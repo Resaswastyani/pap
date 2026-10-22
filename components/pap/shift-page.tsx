@@ -35,6 +35,7 @@ export function ShiftPage(_props: { user: UserProfile }) {
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [warning, setWarning] = useState('')
   const [search, setSearch] = useState('')
   // Di HP tabel bulanan terlalu lebar: mulai dari tampilan per hari
   const [view, setView] = useState<'bulan' | 'hari'>('bulan')
@@ -106,9 +107,10 @@ export function ShiftPage(_props: { user: UserProfile }) {
           <button className="pap-btn" onClick={() => setSheetOpen(true)}><FileSpreadsheet /> Google Sheet</button>
         </div>
       </div>
-      {uploadOpen && <UploadShift nextMonth={shiftMonth(thisMonth, 1)} onClose={() => setUploadOpen(false)} onImported={(t, p) => { setUploadOpen(false); setMessage(t); if (p === periode) load(); else setPeriode(p) }} />}
+      {uploadOpen && <UploadShift nextMonth={shiftMonth(thisMonth, 1)} onClose={() => setUploadOpen(false)} onImported={(t, p, w) => { setUploadOpen(false); setMessage(t); setWarning(w ?? ''); if (p === periode) load(); else setPeriode(p) }} />}
       {sheetOpen && <SheetSync onClose={() => setSheetOpen(false)} onImported={(t) => { setSheetOpen(false); setMessage(t); load() }} />}
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
+      {warning && <Notice onClose={() => setWarning('')}>{warning}</Notice>}
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
 
       {data && data.rows.length > 0 && (
@@ -245,7 +247,7 @@ type UploadPreview = {
   file: string; tabs: { title: string; periode: string | null; rows: number; note: string | null }[]
   schedules: { periode: string; judul: string | null; tab: string; karyawan: number; sudah_ada: boolean; terisi: number; contoh: string[] }[]
 }
-function UploadShift({ nextMonth, onClose, onImported }: { nextMonth: string; onClose: () => void; onImported: (message: string, periode: string) => void }) {
+function UploadShift({ nextMonth, onClose, onImported }: { nextMonth: string; onClose: () => void; onImported: (message: string, periode: string, warning?: string | null) => void }) {
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<UploadPreview | null>(null)
   const [busy, setBusy] = useState(false)
@@ -262,7 +264,7 @@ function UploadShift({ nextMonth, onClose, onImported }: { nextMonth: string; on
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json.error ?? 'Gagal membaca file.')
       if (mode === 'preview') setPreview(json)
-      else onImported(`Jadwal ${preview?.schedules.map((s) => monthLabel(s.periode)).join(', ')} tersimpan (${json.karyawan} baris karyawan).`, preview?.schedules.at(-1)?.periode ?? nextMonth)
+      else onImported(`Jadwal ${preview?.schedules.map((s) => monthLabel(s.periode)).join(', ')} tersimpan (${json.karyawan} baris karyawan)${json.warning ? '.' : ' dan ditulis ke spreadsheet Google Drive.'}`, preview?.schedules.at(-1)?.periode ?? nextMonth, json.warning)
     } catch (e) {
       setError((e as Error).message)
       if (mode === 'preview') setPreview(null)

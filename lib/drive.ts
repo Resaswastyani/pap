@@ -3,12 +3,14 @@ import type { RowDataPacket } from 'mysql2'
 import { db } from '@/lib/db'
 import { readXlsx } from '@/lib/xlsx-lite'
 
-// Google Drive (baca saja), tanpa library tambahan. Dua cara akses (pilih salah satu):
+// Google Drive (baca) + Google Sheets (tulis balik, lihat lib/sheet-write.ts), tanpa library tambahan. Dua cara akses (pilih salah satu):
 // 1. Akun Google (OAuth): admin klik "Hubungkan akun Google" lalu login dengan akun yang menerima share folder
 //    (mis. resaarrazy@gmail.com). Env: GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET.
 // 2. Service account: env GOOGLE_SERVICE_ACCOUNT_JSON; folder dibagikan ke client_email service account.
 
 const SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
+// Edit spreadsheet (tulis balik Kalender Konten, Rekap Kerusakan, Jadwal Shift, Data Mesin, Lembar Perawatan)
+const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets'
 type ServiceAccount = { client_email: string; private_key: string }
 
 function serviceAccount(): ServiceAccount | null {
@@ -80,7 +82,7 @@ export function driveAuthUrl(redirectUri: string, state: string) {
     client_id: client.id,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: `openid email ${SCOPE}`,
+    scope: `openid email ${SCOPE} ${SHEETS_SCOPE}`,
     access_type: 'offline', // agar mendapat refresh token
     prompt: 'consent',
     include_granted_scopes: 'true',
@@ -129,6 +131,11 @@ export async function disconnectDriveAccount() {
 const b64url = (value: string | Buffer) => Buffer.from(value).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
 const globalForDrive = globalThis as unknown as { papDriveToken?: { token: string; exp: number; key: string } }
 
+// Token akses Google (dipakai juga oleh lib/sheet-write.ts)
+export async function googleAccessToken() {
+  return accessToken()
+}
+
 async function accessToken() {
   const account = await driveAccount()
   if (!account) throw new Error('Google Drive belum terhubung.')
@@ -140,13 +147,20 @@ async function accessToken() {
   if (account.mode === 'oauth') {
     const client = oauthClient()!
     const auth = (await storedAuth())!
-    body = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: decrypt(auth.refresh_token), client_id: client.id, client_secret: client.secret })
+    let refresh: string
+    try {
+      refresh = decrypt(auth.refresh_token)
+    } catch {
+      // Kunci enkripsi (AUTH_SECRET) berbeda dari saat akun dihubungkan
+      throw new Error('Akses akun Google tidak bisa dibaca. Admin perlu klik "Hubungkan akun Google" lagi di Master Data.')
+    }
+    body = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refresh, client_id: client.id, client_secret: client.secret })
   } else {
     const sa = serviceAccount()!
     const now = Math.floor(Date.now() / 1000)
     const unsigned = `${b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))}.${b64url(JSON.stringify({
       iss: sa.client_email,
-      scope: SCOPE,
+      scope: `${SCOPE} ${SHEETS_SCOPE}`,
       aud: 'https://oauth2.googleapis.com/token',
       iat: now,
       exp: now + 3600,

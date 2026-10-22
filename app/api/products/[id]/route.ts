@@ -4,6 +4,7 @@ import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { canManageProduct, canViewProducts, requireMenu } from '@/lib/customers'
 import { db } from '@/lib/db'
 import { loadProduct, loadProductFiles, loadProductOrders, readProductInput } from '@/lib/products'
+import { renameAccurateItem } from '@/lib/materials'
 
 type Ctx = { params: Promise<{ id: string }> }
 const productId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Produk tidak ditemukan.')
@@ -36,6 +37,8 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   if (!canManageProduct(user)) fail(403, 'Anda tidak punya akses untuk mengedit produk.')
   const item = await loadProduct(await productId(ctx))
   const input = readProductInput(await readJson(request))
+  // Produk dari barang Accurate: nama & kode dikirim ke Accurate lebih dulu (bila Accurate menolak, tidak ada yang berubah)
+  if (item.accurate_item_id) await renameAccurateItem(item.accurate_item_id, input.nama, input.kode)
   await db.query(
     `UPDATE customer_products SET kode = ?, nama = ?, jenis = ?, spesifikasi = ?, bahan = ?, keterangan = ?, status = ?, updated_by = ? WHERE id = ?`,
     [input.kode, input.nama, input.jenis, input.spesifikasi, input.bahan, input.keterangan, input.status, user.id, item.id],

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { BookOpenCheck, CalendarCheck, ExternalLink, FileSpreadsheet, Printer, RefreshCw, Search } from 'lucide-react'
+import { BookOpenCheck, CalendarCheck, ExternalLink, FileSpreadsheet, Pencil, Plus, Printer, RefreshCw, Search, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { MaintenancePage } from './maintenance-page'
 import { api, Field, formatDate, Modal, Notice } from './ui'
@@ -23,7 +23,7 @@ export function PerawatanMesinPage({ user, focusId }: { user: UserProfile; focus
 type SheetMachine = { tab: string; mesin: string; machine_id: number | null; machine_nama: string | null; machine_kode: string | null; parts: number; langkah: number }
 type Step = { id: number; part_no: number | null; part: string; kelompok: string | null; langkah_urut: number; langkah: string; keterangan: string | null }
 type PartImage = { id: number; part_no: number | null; part: string; urut: number }
-type Data = { tab: string | null; machines: SheetMachine[]; items: Step[]; images: PartImage[]; synced_at: string | null; can: { sync: boolean } }
+type Data = { tab: string | null; machines: SheetMachine[]; items: Step[]; images: PartImage[]; synced_at: string | null; can: { sync: boolean; edit?: boolean } }
 
 function MaintenanceSheetView() {
   const [data, setData] = useState<Data | null>(null)
@@ -33,6 +33,8 @@ function MaintenanceSheetView() {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
+  // Ubah langkah / tambah langkah ke part / part baru (ditulis ke spreadsheet)
+  const [stepForm, setStepForm] = useState<{ step: Step } | { part: string; kelompok: string | null; baru?: boolean } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -50,6 +52,17 @@ function MaintenanceSheetView() {
   useEffect(() => { load() }, [load])
 
   const current = data?.machines.find((m) => m.tab === data.tab)
+  const canEdit = !!data?.can.edit
+  async function removeStep(s: Step) {
+    if (!window.confirm(`Hapus langkah "${s.langkah.slice(0, 60)}" dari spreadsheet Lembar Perawatan?`)) return
+    try {
+      await api(`/api/maintenance/checklist/${s.id}`, { method: 'DELETE' })
+      setMessage('Langkah dihapus dari spreadsheet.')
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
   // Kelompokkan langkah per part; pencarian menyaring part/langkah
   const term = q.trim().toLowerCase()
   const parts: { key: string; no: number | null; part: string; kelompok: string | null; steps: Step[] }[] = []
@@ -109,8 +122,9 @@ function MaintenanceSheetView() {
             <div className="pap-card-head">
               <div>
                 <h2>{current?.mesin ?? 'Memuat...'}</h2>
-                <p>{current ? `${current.parts} part · ${current.langkah} langkah maintenance${current.machine_nama ? ` · Data Mesin: ${current.machine_nama}` : ''}` : ''}</p>
+                <p>{current ? `${current.parts} part · ${current.langkah} langkah maintenance${current.machine_nama ? ` · Data Mesin: ${current.machine_nama}` : ''}` : ''}{canEdit ? ' · tambah / ubah / hapus langsung tersimpan di spreadsheet' : ''}</p>
               </div>
+              {canEdit && data?.tab && <button className="pap-btn" onClick={() => setStepForm({ part: '', kelompok: null, baru: true })}><Plus /> Part baru</button>}
             </div>
             <div className="pap-filters">
               <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari part, kelompok, atau langkah..." /></label>
@@ -123,6 +137,7 @@ function MaintenanceSheetView() {
                     <header>
                       <span className="pap-msheet-no">{p.no ?? i + 1}</span>
                       <div><b>{p.part}</b>{p.kelompok && <span className="pap-chip">{p.kelompok}</span>}</div>
+                      {canEdit && <button className="pap-icon-button" title="Tambah langkah" aria-label={`Tambah langkah ${p.part}`} onClick={() => setStepForm({ part: p.part, kelompok: p.kelompok })}><Plus /></button>}
                     </header>
                     <div className={pics.length ? 'pap-msheet-content with-pic' : 'pap-msheet-content'}>
                       {!!pics.length && (
@@ -135,7 +150,17 @@ function MaintenanceSheetView() {
                         </div>
                       )}
                       <ol>
-                        {p.steps.map((s) => <li key={s.id}>{s.langkah}{s.keterangan && <small className="pap-muted"> — {s.keterangan}</small>}</li>)}
+                        {p.steps.map((s) => (
+                          <li key={s.id}>
+                            {s.langkah}{s.keterangan && <small className="pap-muted"> — {s.keterangan}</small>}
+                            {canEdit && (
+                              <span className="pap-checkpoint-actions">
+                                <button className="pap-icon-button" title="Ubah" aria-label="Ubah langkah" onClick={() => setStepForm({ step: s })}><Pencil /></button>
+                                <button className="pap-icon-button" title="Hapus" aria-label="Hapus langkah" onClick={() => removeStep(s)}><Trash2 /></button>
+                              </span>
+                            )}
+                          </li>
+                        ))}
                       </ol>
                     </div>
                   </article>
@@ -147,6 +172,7 @@ function MaintenanceSheetView() {
           </section>
         </div>
       )}
+      {stepForm && data?.tab && <StepForm tab={data.tab} target={stepForm} onClose={() => setStepForm(null)} onSaved={(t) => { setStepForm(null); setMessage(t); load() }} />}
       {sheetOpen && <MaintenanceSheetSync onClose={() => setSheetOpen(false)} onImported={(text) => { setSheetOpen(false); setMessage(text); load() }} />}
     </>
   )
@@ -229,6 +255,41 @@ function MaintenanceSheetSync({ onClose, onImported }: { onClose: () => void; on
         </ul>
       )}
       {!canSync && data && <p className="pap-muted">Sinkron dijalankan divisi Teknik dan GM.</p>}
+    </Modal>
+  )
+}
+
+// Form langkah lembar perawatan: ditulis ke spreadsheet, lalu lembar disinkron ulang
+function StepForm({ tab, target, onClose, onSaved }: { tab: string; target: { step: Step } | { part: string; kelompok: string | null; baru?: boolean }; onClose: () => void; onSaved: (message: string) => void }) {
+  const step = 'step' in target ? target.step : null
+  const baru = !step && 'baru' in target && !!target.baru
+  const [v, setV] = useState({ part: step?.part ?? ('part' in target ? target.part : ''), kelompok: step?.kelompok ?? ('kelompok' in target ? target.kelompok ?? '' : ''), langkah: step?.langkah ?? '', keterangan: step?.keterangan ?? '' })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  async function save(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      if (step) await api(`/api/maintenance/checklist/${step.id}`, { method: 'PATCH', json: v })
+      else await api('/api/maintenance/checklist', { method: 'POST', json: { ...v, tab } })
+      onSaved(step ? 'Langkah diperbarui di spreadsheet.' : baru ? `Part ${v.part} ditambahkan ke spreadsheet.` : 'Langkah ditambahkan ke spreadsheet.')
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal title={step ? 'Ubah langkah' : baru ? 'Part baru' : `Tambah langkah · ${v.part}`} subtitle={`Ditulis langsung ke tab "${tab}" di spreadsheet Lembar Perawatan`} onClose={onClose}
+      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="step-form" disabled={busy}>{busy ? 'Menyimpan ke spreadsheet...' : 'Simpan'}</button></>}>
+      <form id="step-form" className="pap-form-grid" onSubmit={save}>
+        {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        {baru && <Field label="Nama part *"><input className="pap-input" required maxLength={200} value={v.part} onChange={(e) => setV({ ...v, part: e.target.value })} /></Field>}
+        {baru && <Field label="Kelompok"><input className="pap-input" maxLength={150} value={v.kelompok} onChange={(e) => setV({ ...v, kelompok: e.target.value })} /></Field>}
+        <Field label="Langkah maintenance *" full><textarea className="pap-input" rows={3} required maxLength={2000} value={v.langkah} onChange={(e) => setV({ ...v, langkah: e.target.value })} /></Field>
+        <Field label="Keterangan" full><input className="pap-input" maxLength={2000} value={v.keterangan} onChange={(e) => setV({ ...v, keterangan: e.target.value })} /></Field>
+      </form>
     </Modal>
   )
 }

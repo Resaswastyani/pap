@@ -89,8 +89,9 @@ export function DamageLogView({ user: _user }: { user: UserProfile }) {
   async function remove(item: Damage) {
     if (!confirm(`Hapus laporan kerusakan ${item.mesin ?? ''} tanggal ${formatDate(item.tanggal)}?`)) return
     try {
-      await api(`/api/repairs/log/${item.id}`, { method: 'DELETE' })
+      const res = await api<{ warning?: string | null }>(`/api/repairs/log/${item.id}`, { method: 'DELETE' })
       setMessage('Laporan kerusakan dihapus.')
+      if (res.warning) setError(res.warning)
       load()
     } catch (e) {
       setError((e as Error).message)
@@ -222,7 +223,7 @@ export function DamageLogView({ user: _user }: { user: UserProfile }) {
           machines={data?.options.machines.map((m) => m.label) ?? []}
           parts={data?.options.parts ?? []}
           onClose={() => setForm(null)}
-          onSaved={(text) => { setForm(null); setMessage(text); load() }}
+          onSaved={(text, warning) => { setForm(null); setMessage(text); if (warning) setError(warning); load() }}
         />
       )}
       {sheetOpen && <DamageSheetSync onClose={() => setSheetOpen(false)} onImported={(text) => { setSheetOpen(false); setMessage(text); load() }} />}
@@ -241,7 +242,7 @@ function matchSheetMachines(mesin: string, names: string[]) {
   return names.filter((n) => { const have = new Set(machineTokens(n)); return want.every((t) => have.has(t)) })
 }
 
-function DamageForm({ item, machines, parts, onClose, onSaved }: { item: Damage | null; machines: string[]; parts: SheetPart[]; onClose: () => void; onSaved: (text: string) => void }) {
+function DamageForm({ item, machines, parts, onClose, onSaved }: { item: Damage | null; machines: string[]; parts: SheetPart[]; onClose: () => void; onSaved: (text: string, warning?: string | null) => void }) {
   const today = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
   const [v, setV] = useState({
     tanggal: item?.tanggal?.slice(0, 10) ?? today, mesin: item?.mesin ?? '', komponen: item?.komponen ?? '',
@@ -261,8 +262,8 @@ function DamageForm({ item, machines, parts, onClose, onSaved }: { item: Damage 
     setBusy(true)
     setError('')
     try {
-      await api(item ? `/api/repairs/log/${item.id}` : '/api/repairs/log', { method: item ? 'PUT' : 'POST', json: v })
-      onSaved(item ? 'Laporan kerusakan diperbarui.' : 'Laporan kerusakan disimpan.')
+      const res = await api<{ warning?: string | null }>(item ? `/api/repairs/log/${item.id}` : '/api/repairs/log', { method: item ? 'PUT' : 'POST', json: v })
+      onSaved(item ? 'Laporan kerusakan diperbarui (juga di spreadsheet).' : 'Laporan kerusakan disimpan (juga di spreadsheet).', res.warning)
     } catch (e) {
       setError((e as Error).message)
     } finally {

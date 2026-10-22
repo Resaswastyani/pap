@@ -52,7 +52,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
   const [page, setPage] = useState(1)
   const [size, setSize] = useState(50)
   const [pageSize, setPageSize] = useState(50)
-  const [inactiveDays, setInactiveDays] = useState(180)
+  const [inactiveDays, setInactiveDays] = useState(90)
   const [canManage, setCanManage] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')

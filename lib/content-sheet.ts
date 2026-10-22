@@ -7,6 +7,7 @@ import { db } from '@/lib/db'
 import { readSpreadsheet, spreadsheetId } from '@/lib/drive'
 import { CONTENT_TYPES, PLATFORMS, type ContentStatus } from '@/lib/content'
 import { fail } from '@/lib/api'
+import { appendRow, deleteRow, openSheet, readTab, sheetDate, SheetWriteError, writeCells, type Sheet } from '@/lib/sheet-write'
 
 export const DEFAULT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1V15XU6zd7DnQ0E-ewb98mnKK9fVvTL_1Jx4_TsW9aec/edit?usp=sharing'
 const SETTING_KEY = 'konten.sheet_url'
@@ -205,3 +206,111 @@ export async function importContentPlans(plans: SheetPlan[], userId: number) {
   return { created, updated: plans.length - created }
 }
 
+
+// ---------- Tulis balik ke Google Sheet (tambah / ubah / hapus dari Kalender Konten SIMPAP) ----------
+// Baris sheet dikenali lewat sheet_ref "Tab!baris". Sebelum mengubah / menghapus, tanggal + judul di baris itu
+// dicek sama dengan data lama agar tidak menimpa baris lain bila sheet sudah bergeser.
+export type ContentRow = {
+  id: number; sheet_ref: string | null; judul: string; platform: string; jenis: string; jadwal_tayang: string; status: string
+  tujuan: string | null; target_sektor: string | null; caption: string | null; link_hasil: string | null
+}
+
+const MONTH_NAMES = ['januari', 'februari', 'maret', 'april', 'mei', 'juni', 'juli', 'agustus', 'september', 'oktober', 'november', 'desember']
+const STATUS_WORD: Record<string, string> = { ide: 'Ide', produksi: 'Produksi', siap: 'Siap', tayang: 'Tayang', batal: 'Batal' }
+const PLATFORM_WORD: Record<string, string> = { sosmed: 'IG, FB, TikTok', instagram: 'Instagram', tiktok: 'TikTok', facebook: 'Facebook', website: 'Website', whatsapp: 'WhatsApp', marketplace: 'Marketplace', google: 'Google', lainnya: 'Lainnya' }
+const parseRef = (ref: string) => {
+  const i = ref.lastIndexOf('!')
+  return { tab: ref.slice(0, i), row: Number(ref.slice(i + 1)) }
+}
+const keyOf = (tanggal: string, judul: string, platform: string) => createHash('sha1').update(`${tanggal}|${judul.toLowerCase()}|${platform}`).digest('hex')
+
+// Nilai sel per kolom yang dikenali, dari data SIMPAP
+function cellsFor(c: ContentRow, mapping: Mapping, withPlatform: boolean) {
+  const tanggal = c.jadwal_tayang.slice(0, 10)
+  const out: [number | undefined, string][] = [
+    [mapping.tanggal, sheetDate(tanggal)], [mapping.jam, c.jadwal_tayang.slice(11, 16)], [mapping.status, STATUS_WORD[c.status] ?? c.status],
+    [mapping.link_hasil, c.link_hasil ?? ''], [mapping.tujuan, c.tujuan ?? ''], [mapping.target_sektor, c.target_sektor ?? ''],
+    [mapping.jenis, CONTENT_TYPES[c.jenis as keyof typeof CONTENT_TYPES] ?? c.jenis],
+  ]
+  // Sheet tanpa kolom judul: judul = baris pertama caption
+  if (mapping.judul !== undefined) out.push([mapping.judul, c.judul], [mapping.caption, c.caption ?? ''])
+  else out.push([mapping.caption, c.caption?.startsWith(c.judul) ? c.caption : [c.judul, c.caption].filter(Boolean).join('\n')])
+  if (withPlatform) out.push([mapping.platform, PLATFORM_WORD[c.platform] ?? c.platform])
+  return out.filter((x): x is [number, string] => x[0] !== undefined)
+}
+
+async function headerOf(sheet: Sheet, tab: string) {
+  const found = detectHeader(await readTab(sheet, tab, 'A1:AZ15'))
+  if (!found) throw new SheetWriteError(`Judul kolom (tanggal & judul) tidak ditemukan di tab "${tab}".`)
+  return found.mapping
+}
+
+// Cek baris di sheet masih baris konten yang sama (tanggal + judul data lama)
+async function verifyRow(sheet: Sheet, tab: string, row: number, mapping: Mapping, old: ContentRow) {
+  const [cells = []] = await readTab(sheet, tab, `A${row}:AZ${row}`)
+  const at = (f: Field) => (mapping[f] === undefined ? '' : (cells[mapping[f]!] ?? '').trim())
+  const year = Number(tab.match(/20\d{2}/)?.[0] ?? old.jadwal_tayang.slice(0, 4))
+  const judul = (at('judul') || at('caption').split(/\r?\n/)[0] || '').slice(0, 255)
+  if (parseSheetDate(at('tanggal'), year) !== old.jadwal_tayang.slice(0, 10) || judul.toLowerCase() !== old.judul.toLowerCase()) {
+    throw new SheetWriteError(`Baris ${row} di tab "${tab}" sudah berubah di Google Sheet. Klik "Sinkron dari Google Sheet" dulu, lalu ulangi.`)
+  }
+}
+
+// Tab tujuan konten baru: tab bulan konten (mis. "Oktober 2026"), tab Artikel untuk artikel, atau tab pertama
+function targetTab(sheet: Sheet, c: ContentRow) {
+  const month = MONTH_NAMES[Number(c.jadwal_tayang.slice(5, 7)) - 1]
+  const year = c.jadwal_tayang.slice(0, 4)
+  const artikel = c.jenis === 'artikel' || c.platform === 'website'
+  const titles = sheet.tabs.map((t) => t.title)
+  const isArtikel = (t: string) => /artikel|article|blog/i.test(t)
+  return titles.find((t) => isArtikel(t) === artikel && t.toLowerCase().includes(month) && (t.includes(year) || !/20\d{2}/.test(t)))
+    ?? titles.find((t) => isArtikel(t) === artikel)
+    ?? titles[0]
+}
+
+export async function contentSheetCreate(c: ContentRow) {
+  const sheet = await openSheet(await loadSheetUrl())
+  const tab = targetTab(sheet, c)
+  const mapping = await headerOf(sheet, tab)
+  const values: string[] = Array(Math.max(...Object.values(mapping).map((v) => v! + 1))).fill('')
+  for (const [col, value] of cellsFor(c, mapping, true)) values[col] = value
+  const row = await appendRow(sheet, tab, values)
+  if (row) await db.query('UPDATE content_plans SET sheet_ref = ?, sheet_key = ? WHERE id = ?', [`${tab}!${row}`, keyOf(c.jadwal_tayang.slice(0, 10), c.judul, c.platform), c.id])
+}
+
+export async function contentSheetUpdate(c: ContentRow, old: ContentRow) {
+  if (!old.sheet_ref) return contentSheetCreate(c)
+  const { tab, row } = parseRef(old.sheet_ref)
+  const sheet = await openSheet(await loadSheetUrl())
+  const mapping = await headerOf(sheet, tab)
+  await verifyRow(sheet, tab, row, mapping, old)
+  // Satu baris sheet bisa menjadi beberapa konten (beberapa platform): platform hanya ditulis bila baris ini milik satu konten
+  const [siblings] = await db.query<(RowDataPacket & { id: number; platform: string })[]>('SELECT id, platform FROM content_plans WHERE sheet_ref = ?', [old.sheet_ref])
+  await writeCells(sheet, tab, cellsFor(c, mapping, siblings.length <= 1).map(([col, value]) => ({ row, col, value })))
+  // Kunci baris ikut tanggal + judul baru agar sinkron berikutnya tidak menggandakan; konten platform lain di baris sama ikut
+  for (const s of siblings) {
+    await db.query('UPDATE content_plans SET sheet_key = ? WHERE id = ?', [keyOf(c.jadwal_tayang.slice(0, 10), c.judul, s.id === c.id ? c.platform : s.platform), s.id])
+  }
+  if (siblings.length > 1) {
+    await db.query('UPDATE content_plans SET judul = ?, jadwal_tayang = ?, status = ? WHERE sheet_ref = ? AND id <> ?', [c.judul, c.jadwal_tayang, c.status, old.sheet_ref, c.id])
+  }
+}
+
+// Dipanggil setelah konten dihapus dari SIMPAP
+export async function contentSheetDelete(old: ContentRow) {
+  if (!old.sheet_ref) return
+  // Baris masih dipakai konten platform lain: baris sheet tidak dihapus
+  const [[left]] = await db.query<(RowDataPacket & { n: number })[]>('SELECT COUNT(*) AS n FROM content_plans WHERE sheet_ref = ?', [old.sheet_ref])
+  if (Number(left.n) > 0) return
+  const { tab, row } = parseRef(old.sheet_ref)
+  const sheet = await openSheet(await loadSheetUrl())
+  const mapping = await headerOf(sheet, tab)
+  await verifyRow(sheet, tab, row, mapping, old)
+  await deleteRow(sheet, tab, row)
+  // Baris di bawahnya naik satu
+  const [refs] = await db.query<(RowDataPacket & { id: number; sheet_ref: string })[]>('SELECT id, sheet_ref FROM content_plans WHERE sheet_ref IS NOT NULL')
+  for (const b of refs) {
+    const r = parseRef(b.sheet_ref)
+    if (r.tab === tab && r.row > row) await db.query('UPDATE content_plans SET sheet_ref = ? WHERE id = ?', [`${tab}!${r.row - 1}`, b.id])
+  }
+}

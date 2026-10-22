@@ -6,6 +6,7 @@ import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/prom
 import { fail } from '@/lib/api'
 import { db } from '@/lib/db'
 import { readSpreadsheet, spreadsheetId, type SheetTab } from '@/lib/drive'
+import { deleteRow, insertRowAfter, openSheet, readTab, SheetWriteError, tabOf, writeCells } from '@/lib/sheet-write'
 
 const SETTING_KEY = 'teknis.sheet_url'
 export const DEFAULT_MACHINE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1MRCTFQxTokFa3WMB0Q3GtpX96xEfcf5f_7Xo-3e42BA/edit?usp=sharing'
@@ -202,4 +203,112 @@ export async function loadMachineDetail(id: number) {
     [id],
   )
   return { machine, checkpoints, documents, repairs }
+}
+
+// ---------- Ubah critical point dari SIMPAP -> spreadsheet Mapping Teknis Mesin ----------
+// Critical point adalah cermin isi sheet (diganti penuh setiap sinkron), jadi perubahan ditulis ke sheet lebih dulu
+// lalu sheet diimpor ulang. Bila Google menolak, tidak ada yang berubah.
+// Susunan baris langkah: kolom B = nomor ("1.0"), kolom C = teks langkah, link foto/video di kolom kanan,
+// baris "-> ..." di bawahnya = penjelas langkah. Baris komponen: kolom B = "- EPC".
+export type CheckpointRow = { id: number; machine_id: number; komponen: string; komponen_urut: number; jenis: 'langkah' | 'catatan'; urut: number; teks: string; keterangan: string | null; link: string | null; sheet_ref: string | null }
+export type CheckpointInput = { teks: string; keterangan: string | null; link: string | null }
+
+const splitRef = (ref: string) => {
+  const i = ref.lastIndexOf('!')
+  return { tab: ref.slice(0, i), row: Number(ref.slice(i + 1)) }
+}
+const rowText = (row: string[]) => row.map((c, j) => ({ c: clean(c), j })).filter((x) => x.c && x.j >= 1 && !isUrl(x.c))
+// Baris "-> ..." tepat di bawah baris langkah
+function explainRows(rows: string[][], row: number) {
+  const out: number[] = []
+  for (let r = row + 1; r <= rows.length; r++) {
+    const t = rowText(rows[r - 1] ?? [])
+    if (t.length && /^->/.test(t[0].c)) out.push(r)
+    else break
+  }
+  return out
+}
+// Kolom link yang paling sering dipakai di tab (default kolom D)
+function linkColumn(rows: string[][]) {
+  const count = new Map<number, number>()
+  rows.forEach((r) => r.forEach((c, j) => { if (isUrl(clean(c)) && j >= 3) count.set(j, (count.get(j) ?? 0) + 1) }))
+  return [...count.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 3
+}
+
+async function machineSheetTab(tab: string) {
+  const sheet = await openSheet(await loadMachineSheetUrl())
+  tabOf(sheet, tab)
+  return { sheet, rows: await readTab(sheet, tab) }
+}
+
+// Pastikan baris di sheet masih critical point yang sama
+function verifyCheckpoint(rows: string[][], row: number, old: CheckpointRow) {
+  const cells = rows[row - 1] ?? []
+  const text = old.jenis === 'langkah' ? clean(cells[2]) : rowText(cells).map((x) => x.c).join(' ')
+  if (text.slice(0, 5000) !== old.teks) throw new SheetWriteError(`Baris ${row} sudah berubah di spreadsheet Mapping Teknis Mesin. Sinkron dulu, lalu ulangi.`)
+}
+
+async function reimportMachines() {
+  const { machines } = await readMachineSheet(await loadMachineSheetUrl())
+  if (machines.length) await importMachines(machines)
+}
+
+export async function checkpointSheetUpdate(old: CheckpointRow, v: CheckpointInput) {
+  if (!old.sheet_ref) throw new SheetWriteError('Critical point ini tidak punya baris asal di spreadsheet.')
+  const { tab, row } = splitRef(old.sheet_ref)
+  const { sheet, rows } = await machineSheetTab(tab)
+  verifyCheckpoint(rows, row, old)
+  const cells: { row: number; col: number; value: string }[] = []
+  if (old.jenis === 'langkah') cells.push({ row, col: 2, value: v.teks })
+  else cells.push({ row, col: rowText(rows[row - 1] ?? [])[0]?.j ?? 1, value: v.teks })
+  // Link: ganti sel link yang ada, atau isi kolom link tab
+  const urlCol = (rows[row - 1] ?? []).findIndex((c) => isUrl(clean(c)))
+  if (urlCol >= 0 || v.link) cells.push({ row, col: urlCol >= 0 ? urlCol : linkColumn(rows), value: v.link ?? '' })
+  const explain = old.jenis === 'langkah' ? explainRows(rows, row) : []
+  if (explain.length && v.keterangan) {
+    const col = rowText(rows[explain[0] - 1] ?? [])[0]?.j ?? 2
+    cells.push({ row: explain[0], col, value: `-> ${v.keterangan.replace(/\s*\n\s*/g, ' / ')}` })
+  }
+  await writeCells(sheet, tab, cells)
+  // Penjelas: baris lebih sedikit dari sebelumnya dihapus (dari bawah); penjelas baru disisipkan
+  const remove = v.keterangan ? explain.slice(1) : explain
+  for (const r of [...remove].sort((a, b) => b - a)) await deleteRow(sheet, tab, r)
+  if (old.jenis === 'langkah' && v.keterangan && !explain.length) await insertRowAfter(sheet, tab, row, ['', '', `-> ${v.keterangan.replace(/\s*\n\s*/g, ' / ')}`])
+  await reimportMachines()
+}
+
+// Tambah langkah ke komponen (komponen baru: baris "- NAMA" ikut dibuat di akhir blok mesin)
+export async function checkpointSheetCreate(machineId: number, komponen: string, v: CheckpointInput) {
+  const [refs] = await db.query<(RowDataPacket & { komponen: string; urut: number; jenis: string; sheet_ref: string | null })[]>(
+    'SELECT komponen, urut, jenis, sheet_ref FROM machine_checkpoints WHERE machine_id = ? AND sheet_ref IS NOT NULL ORDER BY komponen_urut, id', [machineId],
+  )
+  if (!refs.length) throw new SheetWriteError('Mesin ini belum punya critical point dari spreadsheet. Tambahkan blok mesinnya di spreadsheet Mapping Teknis Mesin dulu, lalu sinkron.')
+  const tab = splitRef(refs[0].sheet_ref!).tab
+  const { sheet, rows } = await machineSheetTab(tab)
+  const same = refs.filter((r) => r.komponen.toLowerCase() === komponen.toLowerCase())
+  const lastOf = (list: typeof refs) => {
+    const last = Math.max(...list.map((r) => splitRef(r.sheet_ref!).row))
+    return explainRows(rows, last).at(-1) ?? last
+  }
+  const nextNo = Math.max(0, ...same.filter((r) => r.jenis === 'langkah').map((r) => r.urut)) + 1
+  const values = (no: number) => {
+    const out: string[] = ['', String(no), v.teks]
+    if (v.link) out[linkColumn(rows)] = v.link
+    return out.map((x) => x ?? '')
+  }
+  let after = same.length ? lastOf(same) : lastOf(refs)
+  if (!same.length) after = await insertRowAfter(sheet, tab, after, ['', `- ${komponen.toUpperCase()}`])
+  const row = await insertRowAfter(sheet, tab, after, values(nextNo))
+  if (v.keterangan) await insertRowAfter(sheet, tab, row, ['', '', `-> ${v.keterangan.replace(/\s*\n\s*/g, ' / ')}`])
+  await reimportMachines()
+}
+
+export async function checkpointSheetDelete(old: CheckpointRow) {
+  if (!old.sheet_ref) throw new SheetWriteError('Critical point ini tidak punya baris asal di spreadsheet.')
+  const { tab, row } = splitRef(old.sheet_ref)
+  const { sheet, rows } = await machineSheetTab(tab)
+  verifyCheckpoint(rows, row, old)
+  const all = [row, ...(old.jenis === 'langkah' ? explainRows(rows, row) : [])]
+  for (const r of all.sort((a, b) => b - a)) await deleteRow(sheet, tab, r)
+  await reimportMachines()
 }

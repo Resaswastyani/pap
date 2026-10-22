@@ -1,13 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Building2, CalendarClock, CircleDollarSign, Clock3, PackageCheck, Pencil, Plus, Save, Search, ShoppingCart, Tags, Trash2, TrendingDown, TrendingUp, Truck } from 'lucide-react'
+import { AlertTriangle, Building2, CalendarClock, CircleDollarSign, Clock3, PackageCheck, Pencil, Plus, Save, Search, ShoppingCart, Tags, Trash2, TrendingDown, TrendingUp, Truck, Boxes } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatNumber, formatRupiah, type SyncEntity } from './accurate'
 import { MonthNav, monthLabel, useDebounced } from './accurate-production'
 import { BarList, ColumnChart } from './charts'
 import { PoFormModal, PriceEditor, VendorFormModal } from './purchasing-forms'
 import { VendorPriceList } from './vendor-price-list'
+import { MaterialList } from './material-list'
 import { api, Field, formatDate, Modal, Notice, Pager, Progress, usePaged } from './ui'
 
 // Purchasing: supplier, PO pembelian, harga bahan, hutang supplier. Data dari Accurate Online; supplier, PO, dan harga beli acuan
@@ -431,7 +432,7 @@ export function MaterialPricePage(_props: { user: UserProfile }) {
   const paged = usePaged(data?.items ?? [], [query, kategori, berubah])
   const s = data?.stats
   const toggle = (k: string) => setBerubah(berubah === k ? '' : k)
-  const [tab, setTab] = useState<'po' | 'pemasok'>('po')
+  const [tab, setTab] = useState<'po' | 'pemasok' | 'bahan'>('po')
 
   return (
     <>
@@ -439,8 +440,9 @@ export function MaterialPricePage(_props: { user: UserProfile }) {
       <div className="pap-segmented pap-page-tabs" role="tablist" aria-label="Jenis harga">
         <button role="tab" aria-selected={tab === 'po'} className={tab === 'po' ? 'active' : ''} onClick={() => setTab('po')}><Tags /> Harga dari PO</button>
         <button role="tab" aria-selected={tab === 'pemasok'} className={tab === 'pemasok' ? 'active' : ''} onClick={() => setTab('pemasok')}><Building2 /> Harga Pemasok (Accurate)</button>
+        <button role="tab" aria-selected={tab === 'bahan'} className={tab === 'bahan' ? 'active' : ''} onClick={() => setTab('bahan')}><Boxes /> Data Bahan</button>
       </div>
-      {tab === 'pemasok' ? <VendorPriceList /> : <>
+      {tab === 'pemasok' ? <VendorPriceList /> : tab === 'bahan' ? <MaterialList /> : <>
       <AccurateSyncBar entities={['purchase-order', 'purchase-order-detail']} canSync onSynced={load} />
       <Tiles tiles={[
         { label: 'Barang tercatat', value: `${s?.barang ?? 0}`, note: kategori || 'Semua kategori', icon: Tags, tone: 'stat-1' },

@@ -33,6 +33,7 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
   const [items, setItems] = useState<Row[]>([])
   const [summary, setSummary] = useState<Partial<Record<Status, number>>>({})
   const [due, setDue] = useState({ today: 0, overdue: 0 })
+  const [inactiveDays, setInactiveDays] = useState(90)
   const [users, setUsers] = useState<MarketingUser[]>([])
   const [seesAll, setSeesAll] = useState(false)
   const [status, setStatus] = useState('perlu')
@@ -53,10 +54,11 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
       const params = new URLSearchParams({ status, page: String(page), pageSize: String(size) })
       if (pic) params.set('pic', pic)
       if (q.trim()) params.set('q', q.trim())
-      const res = await api<{ items: Row[]; summary: typeof summary; due: typeof due; users: MarketingUser[]; seesAll: boolean; total: number; pageSize: number }>(`/api/repeat-order?${params}`)
+      const res = await api<{ items: Row[]; summary: typeof summary; due: typeof due; users: MarketingUser[]; seesAll: boolean; total: number; pageSize: number; inactiveDays: number }>(`/api/repeat-order?${params}`)
       setItems(res.items)
       setSummary(res.summary)
       setDue(res.due)
+      setInactiveDays(res.inactiveDays)
       setUsers(res.users)
       setSeesAll(res.seesAll)
       setTotal(res.total)
@@ -79,7 +81,7 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
     ['perlu', 'Perlu dihubungi', count('waktunya') + count('berisiko'), `${count('berisiko')} berisiko berhenti order`, AlertTriangle, 'stat-2'],
     ['followup', 'Follow-up hari ini', due.today + due.overdue, due.overdue ? `${due.overdue} terlambat` : 'Jadwal follow-up', CalendarClock, 'stat-1'],
     ['aman', 'Aman', count('aman'), 'Belum waktunya order', Repeat, 'stat-0'],
-    ['nonaktif', 'Nonaktif', count('nonaktif'), 'Tidak order > 180 hari', UserMinus, 'stat-1'],
+    ['nonaktif', 'Nonaktif', count('nonaktif'), `Tidak order > ${inactiveDays} hari`, UserMinus, 'stat-1'],
   ]
 
   return (

@@ -1,8 +1,9 @@
 import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
-import { handle, requireUser } from '@/lib/api'
+import { fail, handle, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
-import { canSyncMaintenanceSheet, requireMaintenanceSheet } from '@/lib/maintenance-sheet'
+import { canSyncMaintenanceSheet, requireMaintenanceSheet, stepSheetCreate } from '@/lib/maintenance-sheet'
+import { sheetStrict } from '@/lib/sheet-write'
 
 type Row = RowDataPacket & Record<string, unknown>
 
@@ -35,6 +36,19 @@ export const GET = handle(async (request: Request) => {
     items,
     images,
     synced_at: synced?.value ?? null,
-    can: { sync: canSyncMaintenanceSheet(user) },
+    can: { sync: canSyncMaintenanceSheet(user), edit: canSyncMaintenanceSheet(user) },
   })
+})
+
+// Tambah langkah: { tab, part, kelompok, langkah, keterangan } -> ditulis ke spreadsheet (part baru dapat NO berikutnya), lalu sinkron ulang
+export const POST = handle(async (request: Request) => {
+  const user = await requireUser()
+  requireMaintenanceSheet(user)
+  if (!canSyncMaintenanceSheet(user)) fail(403, 'Lembar perawatan dikelola divisi Teknik.')
+  const body = await readJson(request)
+  const tab = str(body.tab, 120) || fail(400, 'Pilih mesin (tab) lembar perawatan.')
+  const part = str(body.part, 200) || fail(400, 'Isi nama part.')
+  const langkah = str(body.langkah, 2000) || fail(400, 'Isi langkah maintenance.')
+  await sheetStrict(() => stepSheetCreate(tab, part, str(body.kelompok, 150) || null, { langkah, keterangan: str(body.keterangan, 2000) || null }))
+  return NextResponse.json({ ok: true })
 })
