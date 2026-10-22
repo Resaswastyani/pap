@@ -7,8 +7,9 @@
 import type { RowDataPacket } from 'mysql2'
 import { fail } from '@/lib/api'
 import { db } from '@/lib/db'
-import { readSpreadsheet, spreadsheetId, type SheetTab } from '@/lib/drive'
+import { listDriveFolder, readSpreadsheet, spreadsheetId, type SheetTab } from '@/lib/drive'
 import { nameKey, parseDate } from '@/lib/hrd'
+import { folderIdFromUrl } from '@/lib/sop'
 
 export const ABSENSI_SETTING = 'hrd.absensi_sheet_url'
 export const STATUS = { hadir: 'Hadir', terlambat: 'Terlambat', tidak_hadir: 'Tidak hadir', izin: 'Izin', sakit: 'Sakit', cuti: 'Cuti', dinas: 'Dinas luar', libur: 'Libur', tanpa_scan: 'Scan tidak lengkap' } as const
@@ -262,4 +263,76 @@ export async function importAttendance(days: DayRow[], sumber: 'drive' | 'upload
 export async function readAttendanceSheet(url: string) {
   const id = spreadsheetId(url) ?? fail(400, 'Link spreadsheet absensi belum diisi.')
   return parseAttendanceTabs(await readSpreadsheet(id))
+}
+
+// ---------- Folder Google Drive berisi file laporan kehadiran ----------
+// Sumber bisa satu spreadsheet atau satu folder: tiap file Google Sheet / Excel (.xlsx) di folder (dan satu tingkat subfolder)
+// dibaca. Sinkron hanya memproses file baru / berubah (dicatat per file: waktu diubah di Drive).
+const FILES_KEY = 'hrd.absensi_files'
+const SHEET_MIME = 'application/vnd.google-apps.spreadsheet'
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+export const isAttendanceFolder = (url: string) => !!folderIdFromUrl(url) && !spreadsheetId(url)
+
+type FolderFile = { id: string; name: string; modified: string | null; folder: string | null; jenis: 'sheet' | 'xlsx' | 'lain' }
+export async function listAttendanceFiles(url: string) {
+  const rootId = folderIdFromUrl(url) ?? fail(400, 'Link folder absensi tidak valid.')
+  const out: FolderFile[] = []
+  const kind = (mime: string, name: string): FolderFile['jenis'] => (mime === SHEET_MIME ? 'sheet' : mime === XLSX_MIME || /\.xlsx$/i.test(name) ? 'xlsx' : 'lain')
+  for (const item of await listDriveFolder(rootId)) {
+    if (item.isFolder) {
+      for (const sub of await listDriveFolder(item.id)) {
+        if (!sub.isFolder) out.push({ id: sub.id, name: sub.name, modified: sub.modified, folder: item.name, jenis: kind(sub.mimeType, sub.name) })
+      }
+    } else out.push({ id: item.id, name: item.name, modified: item.modified, folder: null, jenis: kind(item.mimeType, item.name) })
+  }
+  return out.sort((a, b) => (a.modified ?? '').localeCompare(b.modified ?? ''))
+}
+
+async function processedFiles(): Promise<Record<string, string>> {
+  const [[row]] = await db.query<(RowDataPacket & { value: string | null })[]>('SELECT value FROM app_settings WHERE `key` = ?', [FILES_KEY])
+  try {
+    return JSON.parse(row?.value ?? '{}')
+  } catch {
+    return {}
+  }
+}
+
+// Pratinjau folder: file yang dikenali + status (baru / berubah / sudah disinkron)
+export async function previewAttendanceFolder(url: string) {
+  const files = await listAttendanceFiles(url)
+  const done = await processedFiles()
+  return files.map((f) => ({ ...f, status: f.jenis === 'lain' ? 'dilewati' : done[f.id] === (f.modified ?? '') ? 'sudah' : done[f.id] ? 'berubah' : 'baru' }))
+}
+
+// Sinkron folder: file baru / berubah dibaca & diimpor (dalam batas waktu; sisanya pada sinkron berikutnya). all = baca ulang semua.
+export async function syncAttendanceFolder(url: string, sumber: 'drive' | 'upload' = 'drive', { all = false, budgetMs = 40_000 } = {}) {
+  const deadline = Date.now() + budgetMs
+  const files = (await listAttendanceFiles(url)).filter((f) => f.jenis !== 'lain')
+  const done = await processedFiles()
+  const pending = files.filter((f) => all || done[f.id] !== (f.modified ?? ''))
+  const hasil: { file: string; baris: number; error?: string }[] = []
+  let baris = 0
+  const karyawan = new Set<string>()
+  const tanggal: string[] = []
+  for (const f of pending) {
+    if (Date.now() > deadline) break
+    try {
+      const parsed = parseAttendanceTabs(await readSpreadsheet(f.id))
+      if (parsed.days.length) {
+        const r = await importAttendance(parsed.days, sumber)
+        baris += r.baris
+        parsed.days.forEach((d) => { karyawan.add(d.nip); tanggal.push(d.tanggal) })
+      }
+      hasil.push({ file: f.name, baris: parsed.days.length })
+      done[f.id] = f.modified ?? ''
+    } catch (error) {
+      hasil.push({ file: f.name, baris: 0, error: (error as Error).message.slice(0, 200) })
+    }
+    await db.query('INSERT INTO app_settings (`key`, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)', [FILES_KEY, JSON.stringify(done)])
+  }
+  tanggal.sort()
+  return {
+    file: files.length, diproses: hasil.length, tersisa: pending.length - hasil.length, baris, karyawan: karyawan.size,
+    dari: tanggal[0] ?? null, sampai: tanggal.at(-1) ?? null, hasil,
+  }
 }

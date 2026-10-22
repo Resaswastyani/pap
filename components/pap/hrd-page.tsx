@@ -490,8 +490,11 @@ export function HrSheetSync({ jenis, onClose, onImported }: { jenis: 'karyawan' 
     setBusy(true)
     setError('')
     try {
-      const res = await api<{ karyawan?: number; aktif?: number; grade?: number; gaji?: number; baris?: number; dari?: string; sampai?: string }>(`/api/hrd/sheet?jenis=${jenis}`, { method: 'POST' })
-      onImported(jenis === 'absensi' ? `Sinkron absensi selesai: ${res.baris} baris kehadiran, ${res.karyawan} karyawan (${formatDate(res.dari)} – ${formatDate(res.sampai)}).` : jenis === 'karyawan' ? `Sinkron Data Karyawan selesai: ${res.karyawan} karyawan (${res.aktif} aktif).` : `Sinkron Grade & Gaji selesai: ${res.grade} baris grade, ${res.gaji} baris gaji.`)
+      const res = await api<{ karyawan?: number; aktif?: number; grade?: number; gaji?: number; baris?: number; dari?: string | null; sampai?: string | null; diproses?: number; tersisa?: number; hasil?: { file: string; baris: number; error?: string }[] }>(`/api/hrd/sheet?jenis=${jenis}`, { method: 'POST' })
+      const failed = res.hasil?.filter((h) => h.error) ?? []
+      if (failed.length) setError(`Gagal dibaca: ${failed.map((h) => `${h.file} (${h.error})`).join('; ')}`)
+      if (jenis === 'absensi' && res.diproses !== undefined && !res.diproses) return onImported('Tidak ada file laporan baru / berubah di folder absensi.')
+      onImported(jenis === 'absensi' ? `Sinkron absensi selesai${res.diproses !== undefined ? ` (${res.diproses} file${res.tersisa ? `, ${res.tersisa} file lagi pada sinkron berikutnya` : ''})` : ''}: ${res.baris} baris kehadiran, ${res.karyawan} karyawan${res.dari ? ` (${formatDate(res.dari)} – ${formatDate(res.sampai)})` : ''}.` : jenis === 'karyawan' ? `Sinkron Data Karyawan selesai: ${res.karyawan} karyawan (${res.aktif} aktif).` : `Sinkron Grade & Gaji selesai: ${res.grade} baris grade, ${res.gaji} baris gaji.`)
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -505,14 +508,14 @@ export function HrSheetSync({ jenis, onClose, onImported }: { jenis: 'karyawan' 
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       <Field label={`Link spreadsheet ${label}`}>
         <div className="pap-inline-actions">
-          <input className="pap-input" value={url} disabled={!!data && !canSync} onChange={(e) => setUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/..." />
+          <input className="pap-input" value={url} disabled={!!data && !canSync} onChange={(e) => setUrl(e.target.value)} placeholder={jenis === 'absensi' ? 'https://drive.google.com/drive/folders/... atau link spreadsheet' : 'https://docs.google.com/spreadsheets/d/...'} />
           {url && <a className="pap-icon-button" href={url} target="_blank" rel="noreferrer" aria-label="Buka spreadsheet"><ExternalLink /></a>}
           {canSync && url && url !== data?.url && <button className="pap-btn" disabled={busy} onClick={saveUrl}>Simpan link</button>}
         </div>
       </Field>
       <p className="pap-muted">
         {jenis === 'absensi'
-          ? 'Ekspor laporan kehadiran dari HRIS Altius (Excel), simpan di Google Drive dengan nama file tetap, lalu tempel link-nya di sini. Kolom dikenali dari judulnya: NIP / Nama, Tanggal, Jam Masuk & Jam Pulang (atau Jam scan per baris), Status, Terlambat, Lembur, Shift. Ekspor ulang tanggal yang sama memperbarui data.'
+          ? 'Ekspor laporan kehadiran dari HRIS Altius (Excel), lalu simpan di folder Google Drive absensi (bisa banyak file, mis. satu file per periode) dan tempel link folder-nya di sini; boleh juga link satu spreadsheet. Hanya file baru / berubah yang dibaca saat sinkron. Kolom dikenali dari judulnya: NIP / Nama, Tanggal, Jam Masuk & Jam Pulang (atau Jam scan per baris), Status, Terlambat, Lembur, Shift. Ekspor ulang tanggal yang sama memperbarui data.'
           : jenis === 'karyawan'
           ? 'Spreadsheet (Google Sheet atau file Excel di Drive) dibagikan ke akun Google tersebut (Viewer). Dibaca: baris judul berisi NIP & Nama Depan, satu baris per karyawan (NIP sebagai kunci). Karyawan yang tidak ada lagi di spreadsheet dihapus dari SIMPAP.'
           : 'Dibaca: tab grade (kolom NAMA, KASHIFT ..., GRADE dengan sub kolom TEKNIS MESIN / QC PRODUCT / TOTAL) dan tab kebijakan gaji (NAMA, UPAH 7 JAM KERJA, GRADE, KENAIKAN, TUNJANGAN, THR, Tarif Gaji Per-Jam). Data dicocokkan ke Data Karyawan lewat nama.'}

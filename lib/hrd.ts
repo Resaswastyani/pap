@@ -25,7 +25,9 @@ export async function loadSheetUrl(key: string) {
   return row?.value ?? ''
 }
 export async function saveSheetUrl(key: string, url: string, userId: number) {
-  if (!spreadsheetId(url)) fail(400, 'Link spreadsheet tidak valid. Gunakan link "docs.google.com/spreadsheets/d/...".')
+  // Absensi boleh berupa folder Drive berisi file laporan kehadiran
+  const folderOk = key === 'hrd.absensi_sheet_url' && /\/folders\/[a-zA-Z0-9_-]{15,}/.test(url)
+  if (!spreadsheetId(url) && !folderOk) fail(400, key === 'hrd.absensi_sheet_url' ? 'Link tidak valid. Gunakan link spreadsheet (docs.google.com/spreadsheets/d/...) atau folder Drive (drive.google.com/drive/folders/...).' : 'Link spreadsheet tidak valid. Gunakan link "docs.google.com/spreadsheets/d/...".')
   await db.query('INSERT INTO app_settings (`key`, value, updated_by) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_by = VALUES(updated_by)', [key, url.slice(0, 1000), userId])
 }
 
@@ -343,9 +345,10 @@ export async function syncHrSheets() {
   if (await loadTrainingFolderUrl()) out.training = await syncTraining().catch((error) => ({ error: (error as Error).message }))
   // Laporan kehadiran Altius (bila link sudah diisi)
   const absensiUrl = await loadSheetUrl('hrd.absensi_sheet_url')
-  if (spreadsheetId(absensiUrl)) {
-    const { importAttendance, readAttendanceSheet } = await import('@/lib/attendance')
-    out.absensi = await importAttendance((await readAttendanceSheet(absensiUrl)).days, 'drive')
+  if (absensiUrl) {
+    const { importAttendance, isAttendanceFolder, readAttendanceSheet, syncAttendanceFolder } = await import('@/lib/attendance')
+    if (isAttendanceFolder(absensiUrl)) out.absensi = await syncAttendanceFolder(absensiUrl, 'drive', { budgetMs: 15_000 })
+    else if (spreadsheetId(absensiUrl)) out.absensi = await importAttendance((await readAttendanceSheet(absensiUrl)).days, 'drive')
   }
   return out
 }
