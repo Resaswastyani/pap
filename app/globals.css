@@ -1557,3 +1557,8 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-fin-note { margin-top:24px; color:#555; font-size:10px; font-style:italic; }
 .pap-acc-grid .pap-table-wrap table { min-width:0; }
 .pap-acc-grid .pap-table-wrap td:last-child { width:1%; }
+/* Dropdown di header kartu (mis. filter status Absensi) tidak boleh merebut lebar judul */
+.pap-card-head { flex-wrap:wrap; }
+.pap-card-head > div:first-child { flex:1 1 260px; min-width:0; }
+.pap-card-head > .pap-select { flex:none; width:auto; min-width:180px; max-width:260px; }
+@media (max-width:800px) { .pap-card-head > div:first-child { flex:none; width:100%; } .pap-card-head > .pap-select { width:100%; max-width:none; } }
