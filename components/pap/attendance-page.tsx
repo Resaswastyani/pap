@@ -247,7 +247,7 @@ export function AbsensiPage(_props: { user: UserProfile }) {
                 ) : <div className="pap-empty">Belum ada data di {monthLabel(data?.periode ?? '')}.</div>}
               </section>
               <div className="pap-table-card">
-                <div className="pap-card-head"><div><h2>Rekap {monthLabel(data?.periode ?? '')}</h2><p>Per karyawan · lembur hari Minggu / shift OFF memakai tarif lembur hari libur{data?.can.payroll ? ' · upah lembur dari tarif di menu Grade' : ''}</p></div></div>
+                <div className="pap-card-head"><div><h2>Rekap {monthLabel(data?.periode ?? '')}</h2><p>Per karyawan · lembur hari Minggu / shift OFF memakai tarif lembur hari libur{data?.can.payroll ? ' · upah lembur dari tarif di Grade & Gaji' : ''}</p></div></div>
                 <div className="pap-filters"><label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama, NIP, jabatan..." /></label></div>
                 <div className="pap-table-wrap">
                   <table>

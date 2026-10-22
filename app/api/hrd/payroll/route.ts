@@ -12,7 +12,7 @@ const n = (v: unknown) => (v === null || v === undefined ? null : Number(v))
 // Grade operator + kebijakan gaji dari spreadsheet Grade & Gaji, dicocokkan ke Data Karyawan lewat nama
 export const GET = handle(async () => {
   const user = await requireUser()
-  if (!canViewPayroll(user)) fail(403, 'Anda tidak punya akses ke menu Grade.')
+  if (!canViewPayroll(user)) fail(403, 'Anda tidak punya akses ke menu Grade & Gaji.')
   const manage = canManageHr(user)
   const [grades] = await db.query<Row[]>(
     `SELECT g.id, g.no, g.nama, g.skor, g.rata_rata, g.grade, e.id AS employee_id, e.nip, e.jabatan, e.status_karyawan

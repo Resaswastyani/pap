@@ -39,7 +39,7 @@ export const MENU_KEYS = {
   'Formulasi Produk': 'formulasi',
   Karyawan: 'karyawan',
   Absensi: 'absensi',
-  Grade: 'grade-gaji',
+  'Grade & Gaji': 'grade-gaji',
   Training: 'training',
   Planning: 'planning',
   'Progress Kerja': 'progress-kerja',

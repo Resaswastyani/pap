@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Award, Calculator, ExternalLink, FileSpreadsheet, Pencil, Plus, RefreshCw, Search, Trash2, UserCheck, UserMinus, Users, Wallet } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { AlertTriangle, Award, Calculator, ExternalLink, FileSpreadsheet, Pencil, Plus, RefreshCw, Search, Settings, Trash2, UserCheck, UserMinus, Users, Wallet } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
+import { PayrollCalc, PayrollEmployees, PayrollSettingsView } from './payroll-page'
 import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
 
 // HRD: data karyawan, grade operator, dan kebijakan gaji dari spreadsheet di Google Drive
@@ -246,7 +247,7 @@ export function GradeGajiPage(_props: { user: UserProfile }) {
   const [data, setData] = useState<Payroll | null>(null)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
-  const [tab, setTab] = useState<'grade' | 'gaji' | 'hitung'>('grade')
+  const [tab, setTab] = useState<'grade' | 'karyawan' | 'gaji' | 'hitung' | 'pengaturan'>('grade')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [gradeForm, setGradeForm] = useState<{ item: Grade | null } | null>(null)
   const [salaryForm, setSalaryForm] = useState<{ item: Salary | null } | null>(null)
@@ -268,24 +269,26 @@ export function GradeGajiPage(_props: { user: UserProfile }) {
       <div className="pap-page-heading">
         <div>
           <p className="pap-eyebrow">SDM · GOOGLE DRIVE</p>
-          <h1>Grade</h1>
-          <span>Grade operator produksi dari penilaian kepala shift, kebijakan gaji operasional (upah harian, kenaikan, tunjangan, BPJS, THR), serta tarif gaji per jam & lembur. Sumber: spreadsheet Data Grade dan Kenaikan Gaji di Google Drive.</span>
+          <h1>Grade &amp; Gaji</h1>
+          <span>Grade operator dari penilaian kepala shift dan kebijakan gaji (spreadsheet Data Grade dan Kenaikan Gaji), pengaturan gaji per karyawan & pengaturan payroll, serta hitung gaji per periode cut off dari Absensi.</span>
         </div>
       </div>
       <div className="pap-segmented pap-page-tabs" role="tablist" aria-label="Grade & Gaji">
         <button role="tab" aria-selected={tab === 'grade'} className={tab === 'grade' ? 'active' : ''} onClick={() => setTab('grade')}><Award /> Grade operator</button>
-        <button role="tab" aria-selected={tab === 'gaji'} className={tab === 'gaji' ? 'active' : ''} onClick={() => setTab('gaji')}><Wallet /> Kebijakan gaji</button>
-        <button role="tab" aria-selected={tab === 'hitung'} className={tab === 'hitung' ? 'active' : ''} onClick={() => setTab('hitung')}><Calculator /> Hitung lembur &amp; gaji</button>
+        <button role="tab" aria-selected={tab === 'karyawan'} className={tab === 'karyawan' ? 'active' : ''} onClick={() => setTab('karyawan')}><Users /> Gaji karyawan</button>
+        <button role="tab" aria-selected={tab === 'gaji'} className={tab === 'gaji' ? 'active' : ''} onClick={() => setTab('gaji')}><FileSpreadsheet /> Kebijakan gaji (sheet)</button>
+        <button role="tab" aria-selected={tab === 'hitung'} className={tab === 'hitung' ? 'active' : ''} onClick={() => setTab('hitung')}><Calculator /> Hitung gaji</button>
+        <button role="tab" aria-selected={tab === 'pengaturan'} className={tab === 'pengaturan' ? 'active' : ''} onClick={() => setTab('pengaturan')}><Settings /> Pengaturan payroll</button>
       </div>
-      <SyncBar label="Data Grade dan Kenaikan Gaji" syncedAt={data?.meta?.synced_at ?? null} canSync={!!data?.can.manage} onOpen={() => setSheetOpen(true)} />
+      {(tab === 'grade' || tab === 'gaji') && <SyncBar label="Data Grade dan Kenaikan Gaji" syncedAt={data?.meta?.synced_at ?? null} canSync={!!data?.can.manage} onOpen={() => setSheetOpen(true)} />}
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      {tab === 'karyawan' ? <PayrollEmployees /> : tab === 'hitung' ? <PayrollCalc /> : tab === 'pengaturan' ? <PayrollSettingsView /> : <>
       {!data && !error && <div className="pap-table-card"><div className="pap-empty">Memuat...</div></div>}
       {data && (tab === 'grade'
         ? <GradeView data={data} onAdd={edit ? () => setGradeForm({ item: null }) : undefined} onEdit={(item) => setGradeForm({ item })} onDelete={(item) => remove('grade', item)} />
-        : tab === 'gaji'
-        ? <SalaryView data={data} onAdd={edit ? () => setSalaryForm({ item: null }) : undefined} onEdit={(item) => setSalaryForm({ item })} onDelete={(item) => remove('gaji', item)} />
-        : <OvertimeCalc data={data} />)}
+        : <SalaryView data={data} onAdd={edit ? () => setSalaryForm({ item: null }) : undefined} onEdit={(item) => setSalaryForm({ item })} onDelete={(item) => remove('gaji', item)} />)}
+      </>}
       {gradeForm && data && <GradeForm item={gradeForm.item} penilai={data.meta?.penilai ?? []} onClose={() => setGradeForm(null)} onSaved={saved} />}
       {salaryForm && <SalaryForm item={salaryForm.item} onClose={() => setSalaryForm(null)} onSaved={saved} />}
       {sheetOpen && <HrSheetSync jenis="grade" onClose={() => setSheetOpen(false)} onImported={(t) => { setSheetOpen(false); setMessage(t); load() }} />}
@@ -523,58 +526,6 @@ function SalaryForm({ item, onClose, onSaved }: { item: Salary | null; onClose: 
         ))}
       </form>
     </Modal>
-  )
-}
-
-// Hitung gaji periode & lembur dari tarif di kebijakan gaji (Guidance: perhitungan gaji per jam operator, lembur, lembur wajib)
-function OvertimeCalc({ data }: { data: Payroll }) {
-  const [id, setId] = useState(data.salaries[0]?.id ?? 0)
-  const [hari, setHari] = useState(String(data.meta?.kebijakan?.hari_kerja ?? 25))
-  const [lembur, setLembur] = useState('')
-  const [libur, setLibur] = useState('')
-  const s = data.salaries.find((x) => x.id === Number(id))
-  const num = (v: string) => Math.max(0, Number(v.replace(',', '.')) || 0)
-  const calc = useMemo(() => {
-    if (!s) return null
-    const upah = (s.upah_harian_total ?? s.upah_harian ?? 0) * num(hari)
-    const l1 = (s.lembur_jam ?? 0) * num(lembur)
-    const l2 = (s.lembur_libur_jam ?? 0) * num(libur)
-    return { upah, l1, l2, tunjangan: s.tunjangan ?? 0, total: upah + l1 + l2 + (s.tunjangan ?? 0) }
-  }, [s, hari, lembur, libur])
-  if (!data.salaries.length) return <div className="pap-table-card"><div className="pap-empty">Belum ada data gaji. Sinkron dari spreadsheet Data Grade dan Kenaikan Gaji.</div></div>
-  return (
-    <div className="pap-dash-grid pap-fgs-grid">
-      <section className="pap-table-card pap-dash-card">
-        <div className="pap-card-head"><div><h2>Hitung lembur & gaji periode</h2><p>Memakai upah harian, tunjangan, dan tarif lembur per jam karyawan dari kebijakan gaji</p></div></div>
-        <div className="pap-dash-body">
-          <div className="pap-form-grid">
-            <Field label="Karyawan" full>
-              <select className="pap-select" value={id} onChange={(e) => setId(Number(e.target.value))}>
-                {data.salaries.map((x) => <option key={x.id} value={x.id}>{x.nama} · Grade {x.grade ?? '—'}</option>)}
-              </select>
-            </Field>
-            <Field label="Hari masuk kerja"><input className="pap-input" type="number" min={0} max={31} value={hari} onChange={(e) => setHari(e.target.value)} /></Field>
-            <Field label="Jam lembur hari kerja"><input className="pap-input" type="number" min={0} step="0.5" value={lembur} onChange={(e) => setLembur(e.target.value)} placeholder="0" /></Field>
-            <Field label="Jam lembur hari libur"><input className="pap-input" type="number" min={0} step="0.5" value={libur} onChange={(e) => setLibur(e.target.value)} placeholder="0" /></Field>
-          </div>
-        </div>
-      </section>
-      <section className="pap-table-card pap-dash-card">
-        <div className="pap-card-head"><div><h2>{s?.nama ?? '—'}</h2><p>Tarif per jam {rp(s?.tarif_jam)} · lembur {rp(s?.lembur_jam)} · lembur libur {rp(s?.lembur_libur_jam)}</p></div></div>
-        {calc && (
-          <div className="pap-dash-body">
-            <dl className="pap-detail-grid">
-              <div><dt>Upah {num(hari)} hari × {rp(s?.upah_harian_total ?? s?.upah_harian)}</dt><dd>{formatRupiah(calc.upah)}</dd></div>
-              <div><dt>Lembur hari kerja ({num(lembur)} jam)</dt><dd>{formatRupiah(calc.l1)}</dd></div>
-              <div><dt>Lembur hari libur ({num(libur)} jam)</dt><dd>{formatRupiah(calc.l2)}</dd></div>
-              <div><dt>Tunjangan</dt><dd>{formatRupiah(calc.tunjangan)}</dd></div>
-            </dl>
-            <p className="pap-dash-big">{formatRupiah(calc.total)}</p>
-            <small className="pap-muted">Perkiraan gaji periode sebelum potongan BPJS/pajak. Tarif mengikuti spreadsheet kebijakan gaji.</small>
-          </div>
-        )}
-      </section>
-    </div>
   )
 }
 
