@@ -285,7 +285,8 @@ function GradeView({ data }: { data: Payroll }) {
   const count = (x: string) => data.grades.filter((g) => g.grade === x).length
   const term = q.trim().toLowerCase()
   const shown = data.grades.filter((g) => (!term || g.nama.toLowerCase().includes(term)) && (!grade || (grade === '-' ? !g.grade : g.grade === grade)))
-    .sort((a, b) => (urut === 'nilai' ? (b.rata_rata ?? -1) - (a.rata_rata ?? -1) : (a.no ?? 0) - (b.no ?? 0)))
+    // Yang belum dinilai (tanpa nilai dari kepala shift mana pun) di bawah
+    .sort((a, b) => Number(a.rata_rata === null) - Number(b.rata_rata === null) || (urut === 'nilai' ? (b.rata_rata ?? -1) - (a.rata_rata ?? -1) : (a.no ?? 0) - (b.no ?? 0)))
   const rule = (x: string) => data.meta?.aturan.find((r) => r.grade === x)?.kriteria
   const toggle = (x: string) => setGrade(grade === x ? '' : x)
   return (
@@ -310,12 +311,12 @@ function GradeView({ data }: { data: Payroll }) {
               {shown.map((g) => (
                 <tr key={g.id}>
                   <td><div className="pap-cell-title">{g.no ? `${g.no}. ` : ''}{g.nama}</div><div className="pap-cell-sub">{g.employee_id ? `${g.nip} · ${g.jabatan ?? ''}` : notInHr}</div></td>
-                  {penilai.map((p) => {
+                  {g.rata_rata === null ? <td colSpan={penilai.length + 2} className="pap-muted">Belum dinilai kepala shift (nilai Teknis Mesin & QC Product di spreadsheet masih kosong)</td> : penilai.map((p) => {
                     const s = g.skor.find((x) => x.penilai === p)
                     return <td key={p} className="pap-num pap-nowrap">{s?.total ? <><strong>{formatNumber(s.total, 1)}</strong><div className="pap-cell-sub">T {s.teknis ?? '—'} · QC {s.qc ?? '—'}</div></> : <span className="pap-muted">—</span>}</td>
                   })}
-                  <td className="pap-num"><strong>{g.rata_rata === null ? '—' : formatNumber(g.rata_rata, 1)}</strong></td>
-                  <td>{g.grade ? <span className={`pap-status ${GRADE_TONE[g.grade] ?? 'neutral'}`}>{g.grade}</span> : <span className="pap-muted">—</span>}</td>
+                  {g.rata_rata !== null && <td className="pap-num"><strong>{formatNumber(g.rata_rata, 1)}</strong></td>}
+                  {g.rata_rata !== null && <td>{g.grade ? <span className={`pap-status ${GRADE_TONE[g.grade] ?? 'neutral'}`}>{g.grade}</span> : <span className="pap-muted">—</span>}</td>}
                 </tr>
               ))}
             </tbody>
