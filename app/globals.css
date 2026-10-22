@@ -1392,6 +1392,16 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-sop-thumb svg { position:absolute; width:42px; height:42px; color:#fff; filter:drop-shadow(0 2px 6px rgb(0 0 0 / .45)); }
 .pap-sop-title { padding:0 12px; font-size:12px; font-weight:700; line-height:1.4; }
 .pap-sop-meta { padding:0 12px; color:var(--pap-muted); font-size:11px; }
+/* Training karyawan */
+.pap-training-hidden { opacity:.55; }
+.pap-training-badges { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.pap-training-link { margin-top:10px; }
+.pap-training-link .pap-input { flex:1 1 200px; }
+.pap-training-pick { padding:8px 0; }
+.pap-training-employees { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:6px 14px; max-height:220px; overflow:auto; margin:4px 0 12px; padding:8px; border:1px solid var(--pap-border); border-radius:10px; }
+.pap-file-list li.active { border-color:#7c5cfc; }
+.pap-link-plain { padding:0; border:0; background:none; color:inherit; font:inherit; font-weight:700; text-align:left; cursor:pointer; }
+.pap-link-plain:hover { color:#7c5cfc; }
 .pap-sop-player { position:relative; width:100%; aspect-ratio:16 / 9; overflow:hidden; border-radius:12px; background:#000; }
 .pap-sop-player iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
 @media (max-width:640px) { .pap-sop-group { padding:4px 14px 16px; } .pap-sop-grid { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; } }

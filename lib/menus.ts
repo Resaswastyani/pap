@@ -33,6 +33,7 @@ export const MENU_KEYS = {
   Karyawan: 'karyawan',
   Absensi: 'absensi',
   'Grade & Gaji': 'grade-gaji',
+  Training: 'training',
   Planning: 'planning',
   'Progress Kerja': 'progress-kerja',
   Meeting: 'meeting',

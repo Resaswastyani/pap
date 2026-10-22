@@ -338,6 +338,9 @@ export async function syncHrSheets() {
   const out: Record<string, unknown> = {}
   if (spreadsheetId(await loadSheetUrl(KARYAWAN_SETTING))) out.karyawan = await importEmployees((await readEmployeeSheet()).employees)
   if (spreadsheetId(await loadSheetUrl(GRADE_SETTING))) out.grade = await importGrades(await readGradeSheet())
+  // Materi training dari folder Drive (bila link sudah diisi)
+  const { loadTrainingFolderUrl, syncTraining } = await import('@/lib/training')
+  if (await loadTrainingFolderUrl()) out.training = await syncTraining().catch((error) => ({ error: (error as Error).message }))
   // Laporan kehadiran Altius (bila link sudah diisi)
   const absensiUrl = await loadSheetUrl('hrd.absensi_sheet_url')
   if (spreadsheetId(absensiUrl)) {
