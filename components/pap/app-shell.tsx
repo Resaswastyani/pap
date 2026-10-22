@@ -36,6 +36,7 @@ import { CashBankPage, CashFlowPage, FinanceSummaryPage, FinancialReportPage, Re
 import { ShiftPage } from './shift-page'
 import { StockPage } from './stock-page'
 import { useCardTables } from './ui'
+import { clientHintHeaders } from './client-hints'
 import { UsersPage } from './users-page'
 import { VisitPage } from './visit-page'
 import { Boxes, Weight, ReceiptText, PieChart, Landmark, HandCoins, FileSpreadsheet as FileSheetIcon, ChartNoAxesCombined, Percent, Package, Bell, CalendarDays, ChevronDown, ChevronRight, ClipboardList, Factory, LayoutDashboard, Menu, Moon, PackageCheck, Search, Settings, Sun, Users, X, LogOut, CheckCircle2, Clock3, AlertCircle, BarChart3, UserRound, FileText, Wrench, Handshake, UserCheck, ListChecks, UserCog, ShieldCheck, Eye, EyeOff, Target, MapPinned, FlaskConical, Palette, Database, Repeat, Gauge, Megaphone, CalendarClock, ClipboardCheck, CalendarCheck, Cog, ShoppingCart, MonitorPlay, Building2, Truck, Tags, Wallet, Award, GraduationCap } from 'lucide-react'
@@ -104,7 +105,7 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
     setError('')
     try {
       const captchaToken = challenge ? undefined : await getRecaptchaToken('login')
-      const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...credentials, captchaToken, captchaV2Token: challenge ? v2Token : undefined }) })
+      const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await clientHintHeaders()) }, body: JSON.stringify({ ...credentials, captchaToken, captchaV2Token: challenge ? v2Token : undefined }) })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
         if (challenge && widgetId.current !== null) {

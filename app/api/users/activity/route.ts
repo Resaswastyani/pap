@@ -1,13 +1,11 @@
 import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { ACTIVITY_ACTIONS } from '@/lib/activity-types'
-import { handle, int, requireUser } from '@/lib/api'
+import { handle, int, pageParams, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { PERMISSIONS } from '@/lib/permissions'
 
-const PAGE = 50
-
-// Log aktivitas seluruh sistem, terbaru dulu. ?module=&action=&user=&q=&before=<id>
+// Log aktivitas seluruh sistem, terbaru dulu. ?module=&action=&user=&q=&page=&pageSize=25|50|100
 export const GET = handle(async (request: Request) => {
   await requireUser(PERMISSIONS.usersManage)
   const params = new URL(request.url).searchParams
@@ -26,16 +24,17 @@ export const GET = handle(async (request: Request) => {
     where.push('(l.actor_name LIKE ? OR l.entity_label LIKE ? OR l.description LIKE ? OR l.device LIKE ? OR l.device_brand LIKE ? OR l.device_model LIKE ? OR l.ip_address LIKE ?)')
     args.push(...Array(7).fill(`%${q}%`))
   }
-  const before = int(params.get('before'))
-  if (before) where.push('l.id < ?'), args.push(before)
+  const { page, pageSize, offset } = pageParams(params, 50)
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+  const [[count]] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) AS n FROM activity_logs l ${whereSql}`, args)
 
   const [rows] = await db.query<RowDataPacket[]>(
     `SELECT l.id, l.actor_id, l.actor_name, l.module, l.action, l.entity_type, l.entity_id, l.entity_label, l.description,
        l.changes, l.device, l.device_type, l.device_brand, l.device_model, l.ip_address, l.user_agent, l.created_at
-     FROM activity_logs l ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-     ORDER BY l.id DESC LIMIT ${PAGE + 1}`,
-    args,
+     FROM activity_logs l ${whereSql}
+     ORDER BY l.id DESC LIMIT ? OFFSET ?`,
+    [...args, pageSize, offset],
   )
-  const items = rows.slice(0, PAGE).map((row) => ({ ...row, changes: typeof row.changes === 'string' ? JSON.parse(row.changes) : row.changes }))
-  return NextResponse.json({ items, hasMore: rows.length > PAGE })
+  const items = rows.map((row) => ({ ...row, changes: typeof row.changes === 'string' ? JSON.parse(row.changes) : row.changes }))
+  return NextResponse.json({ items, total: Number(count.n), page, pageSize })
 })

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Monitor, Search, Smartphone, Tablet, X } from 'lucide-react'
 import { ACTIVITY_ACTIONS, ACTIVITY_MODULES, type ActivityAction, type ActivityChange, type DeviceType } from '@/lib/activity-types'
-import { api, formatDate, Notice } from './ui'
+import { api, formatDate, Notice, Pager } from './ui'
 
 type ActivityLog = {
   id: number
@@ -30,7 +30,9 @@ const DEVICE_ICON = { desktop: Monitor, mobile: Smartphone, tablet: Tablet, lain
 
 export function UserActivityLog({ filterUser, onClearUser }: { filterUser: { id: number; name: string } | null; onClearUser: () => void }) {
   const [items, setItems] = useState<ActivityLog[]>([])
-  const [hasMore, setHasMore] = useState(false)
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(50)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [action, setAction] = useState('')
@@ -44,7 +46,9 @@ export function UserActivityLog({ filterUser, onClearUser }: { filterUser: { id:
     return () => clearTimeout(t)
   }, [q])
 
-  const load = useCallback(async (before?: number) => {
+  // Filter berubah -> kembali ke halaman 1
+  useEffect(() => setPage(1), [moduleName, action, term, filterUser])
+  const load = useCallback(async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
@@ -52,22 +56,23 @@ export function UserActivityLog({ filterUser, onClearUser }: { filterUser: { id:
       if (action) params.set('action', action)
       if (term) params.set('q', term)
       if (filterUser) params.set('user', String(filterUser.id))
-      if (before) params.set('before', String(before))
-      const res = await api<{ items: ActivityLog[]; hasMore: boolean }>(`/api/users/activity?${params}`)
-      setItems((list) => (before ? [...list, ...res.items] : res.items))
-      setHasMore(res.hasMore)
+      params.set('page', String(page))
+      params.set('pageSize', String(pageSize))
+      const res = await api<{ items: ActivityLog[]; total: number }>(`/api/users/activity?${params}`)
+      setItems(res.items)
+      setTotal(res.total)
     } catch (e) {
       setError((e as Error).message)
     } finally {
       setLoading(false)
     }
-  }, [moduleName, action, term, filterUser])
+  }, [moduleName, action, term, filterUser, page, pageSize])
   useEffect(() => { load() }, [load])
 
   return (
     <div className="pap-table-card">
       <div className="pap-card-head">
-        <div><h2>Log aktivitas sistem</h2><p>Login, tambah, ubah, hapus data di semua modul, ganti password, dan ubah permission, beserta perangkat yang dipakai.</p></div>
+        <div><h2>Log aktivitas sistem</h2><p>Login, tambah, ubah, hapus data di semua modul, ganti password, dan ubah permission, beserta perangkat yang dipakai. Merek HP Android & iPhone terbaca otomatis; merek laptop / PC tidak dikirim oleh browser.</p></div>
       </div>
       {error && <div className="pap-activity-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
       <div className="pap-filters">
@@ -116,12 +121,9 @@ export function UserActivityLog({ filterUser, onClearUser }: { filterUser: { id:
           </tbody>
         </table>
         {!items.length && !loading && <div className="pap-empty">Belum ada aktivitas yang tercatat.</div>}
+        {loading && !items.length && <div className="pap-empty">Memuat log aktivitas...</div>}
+        <Pager page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(size) => { setPageSize(size); setPage(1) }} noun="aktivitas" />
       </div>
-      {hasMore && (
-        <div className="pap-activity-more">
-          <button className="pap-btn" disabled={loading} onClick={() => load(items[items.length - 1]?.id)}>{loading ? 'Memuat...' : 'Muat lebih banyak'}</button>
-        </div>
-      )}
     </div>
   )
 }

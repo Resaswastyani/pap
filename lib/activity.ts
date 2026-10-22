@@ -33,17 +33,27 @@ export function parseDevice(headers: Headers) {
     null
 
   // Client Hints (dikirim Chrome/Edge/Samsung Internet setelah header Accept-CH di next.config)
-  const hintModel = headers.get('sec-ch-ua-model')?.replaceAll('"', '').trim() || null
-  const hintVersion = Number(headers.get('sec-ch-ua-platform-version')?.replaceAll('"', '').split('.')[0])
+  // Fallback: model & versi OS dikirim aplikasi dari navigator.userAgentData (components/pap/client-hints.ts)
+  const decode = (v: string | null) => {
+    try {
+      return v ? decodeURIComponent(v) : null
+    } catch {
+      return v
+    }
+  }
+  const hintModel = headers.get('sec-ch-ua-model')?.replaceAll('"', '').trim() || decode(headers.get('x-ua-model'))?.trim().slice(0, 100) || null
+  const hintVersion = Number((headers.get('sec-ch-ua-platform-version')?.replaceAll('"', '') || decode(headers.get('x-ua-platform-version')) || '').split('.')[0])
 
   let os: string | null = null
   const android = ua.match(/Android (\d+)/)
   const ios = ua.match(/(?:iPhone|CPU) OS (\d+)/)
   // UA Android baru selalu "Android 10"; versi sebenarnya dari Client Hints bila ada
-  if (android) os = `Android ${hintPlatform === 'Android' && hintVersion > 0 ? hintVersion : android[1]}`
+  // Versi dari aplikasi (x-ua-platform-version) berlaku untuk platform yang sesuai dengan User-Agent
+  const appVersion = !!headers.get('x-ua-platform-version')
+  if (android) os = `Android ${(hintPlatform === 'Android' || appVersion) && hintVersion > 0 ? hintVersion : android[1]}`
   else if (/iPad/.test(ua)) os = ios ? `iPadOS ${ios[1]}` : 'iPadOS'
   else if (ios) os = `iOS ${ios[1]}`
-  else if (/Windows/.test(ua)) os = hintPlatform === 'Windows' && hintVersion >= 13 ? 'Windows 11' : 'Windows'
+  else if (/Windows/.test(ua)) os = (hintPlatform === 'Windows' || appVersion) && hintVersion >= 13 ? 'Windows 11' : 'Windows'
   else if (/CrOS/.test(ua)) os = 'ChromeOS'
   else if (/Mac OS X/.test(ua)) os = 'macOS'
   else if (/Linux/.test(ua)) os = 'Linux'

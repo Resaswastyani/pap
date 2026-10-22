@@ -3,13 +3,16 @@
 import { useEffect, useMemo, useState, type InputHTMLAttributes, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Eye, EyeOff, Search, X } from 'lucide-react'
 import { PLANNING_STATUS, type PlanningStatus } from '@/lib/permissions'
+import { clientHintHeaders } from './client-hints'
 
 // Panggil API JSON; lempar Error berisi pesan dari server bila gagal
 export async function api<T = unknown>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
   const { json, ...rest } = init
+  // Model HP untuk log aktivitas (Chrome Android menyamarkannya di User-Agent)
+  const hints = await clientHintHeaders()
   const res = await fetch(path, {
     ...rest,
-    headers: json !== undefined ? { 'Content-Type': 'application/json', ...rest.headers } : rest.headers,
+    headers: { ...hints, ...(json !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(rest.headers as Record<string, string> | undefined) },
     body: json !== undefined ? JSON.stringify(json) : rest.body,
   })
   const data = await res.json().catch(() => ({}))
