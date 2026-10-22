@@ -255,7 +255,7 @@ export function GradeGajiPage(_props: { user: UserProfile }) {
       <div className="pap-page-heading">
         <div>
           <p className="pap-eyebrow">SDM · GOOGLE DRIVE</p>
-          <h1>Grade &amp; Gaji</h1>
+          <h1>Grade</h1>
           <span>Grade operator produksi dari penilaian kepala shift, kebijakan gaji operasional (upah harian, kenaikan, tunjangan, BPJS, THR), serta tarif gaji per jam & lembur. Sumber: spreadsheet Data Grade dan Kenaikan Gaji di Google Drive.</span>
         </div>
       </div>
