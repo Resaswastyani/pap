@@ -165,6 +165,7 @@ const RESOURCES: Record<string, Resource> = {
   'shift-schedule': { module: 'Jadwal Shift', noun: 'jadwal shift' },
   // Purchasing: data Accurate (kunci accurate_id), dicatat dari isian form
   faktur: { module: 'Faktur Produksi', noun: 'faktur penjualan' },
+  'hrd/payroll': { module: 'Grade & Gaji', noun: 'pengaturan gaji', table: 'employee_payrolls' },
   'accounting/cash': { module: 'Accounting', noun: 'pencocokan saldo', table: 'cash_reconciliations' },
   'accounting/forecast': { module: 'Accounting', noun: 'rencana kas', table: 'cash_plans' },
   'accounting/plans': { module: 'Accounting', noun: 'rencana kas', table: 'cash_plans' },
@@ -265,6 +266,13 @@ function planFor(method: string, path: string): Plan | null {
     return { ...base, action: 'update', always: true, describe: () => 'Memutus koneksi akun Google Drive desain' }
   if (res === 'master' && a === 'drive')
     return { ...base, action: 'sync', describe: () => 'Menyinkronkan folder Google Drive desain' }
+  if (res === 'hrd/payroll' && a === 'lembur')
+    return {
+      ...base, action: !b ? 'create' : method === 'DELETE' ? 'delete' : 'update', entityType: 'lembur', table: 'overtime_entries', id: b,
+      describe: (_l, f) => (!b ? `Input lembur ${f.jam ?? ''} jam (${f.hari === 'libur' ? 'hari libur' : 'hari kerja'}) NIP ${f.nip ?? ''} tanggal ${f.tanggal ?? ''}` : `${method === 'DELETE' ? 'Menghapus' : 'Mengubah'} lembur #${b}`),
+    }
+  if (res === 'hrd/payroll' && a === 'settings')
+    return { ...base, action: 'update', always: true, describe: () => 'Mengubah pengaturan payroll' }
   if (res === 'accounting/cash' && !a)
     return { ...base, action: 'create', table: 'cash_reconciliations', describe: (_l, f) => `Mencatat pencocokan saldo akun ${f.account_no ?? ''} per ${f.tanggal ?? ''}` }
   if (res === 'accounting/forecast' && !a)

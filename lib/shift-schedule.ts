@@ -248,7 +248,10 @@ export async function importShiftSchedules(schedules: ParsedSchedule[], userId: 
   } finally {
     conn.release()
   }
-  return { bulan: schedules.length, karyawan: schedules.reduce((n, s) => n + s.rows.length, 0) }
+  // Absensi di bulan yang sama disesuaikan dengan jadwal baru (hari libur, label shift)
+  const { applyShiftSchedule } = await import('@/lib/attendance')
+  const absensi = await applyShiftSchedule(schedules.map((s) => s.periode))
+  return { bulan: schedules.length, karyawan: schedules.reduce((n, s) => n + s.rows.length, 0), absensi_disesuaikan: absensi.diperbarui }
 }
 
 // ---------- Tampilan ----------

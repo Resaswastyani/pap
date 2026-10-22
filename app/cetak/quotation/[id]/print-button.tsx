@@ -5,7 +5,7 @@ import { useEffect } from 'react'
 const A4_WIDTH = 794
 
 // Tombol cetak & unduh Word (tidak ikut tercetak). Di dialog cetak pilih "Simpan sebagai PDF" untuk mendapatkan file PDF.
-export function PrintButton({ wordUrl }: { wordUrl?: string }) {
+export function PrintButton({ wordUrl, hint = 'untuk mengirim ke customer' }: { wordUrl?: string; hint?: string }) {
   // Di layar sempit (HP) lembar A4 diperkecil agar muat selebar layar; ukuran cetak tetap A4
   useEffect(() => {
     const fit = () => {
@@ -18,7 +18,7 @@ export function PrintButton({ wordUrl }: { wordUrl?: string }) {
   }, [])
   return (
     <div className="pap-print-bar">
-      <span>Pilih <b>Simpan sebagai PDF</b> di dialog cetak untuk mengirim ke customer.</span>
+      <span>Pilih <b>Simpan sebagai PDF</b> di dialog cetak {hint}.</span>
       <span className="pap-print-actions">
         {wordUrl && <a className="pap-btn" href={wordUrl}>Unduh Word</a>}
         <button className="pap-primary-button" onClick={() => window.print()}>Cetak / Simpan PDF</button>

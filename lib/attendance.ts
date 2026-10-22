@@ -200,11 +200,14 @@ async function shiftLookup(days: DayRow[]) {
 export function finalize(d: DayRow, shift: ShiftInfo | null) {
   const jadwalMasuk = d.jadwal_masuk ?? shift?.masuk ?? null
   const jadwalPulang = d.jadwal_pulang ?? shift?.pulang ?? null
-  const shiftLabel = d.shift ?? shift?.label ?? null
-  // Shift / jadwal di laporan Altius diutamakan; Jadwal Shift SIMPAP hanya mengisi yang kosong
+  // Hari libur mengikuti Jadwal Shift (tidak semua karyawan libur hari Minggu). Laporan Altius menandai setiap Minggu "Libur"
+  // untuk semua karyawan; bila Jadwal Shift berisi shift kerja di tanggal itu, hari itu dihitung hari kerja.
+  const shiftLabel = shift?.label ?? d.shift ?? null
   const fromReport = !!(d.shift || d.jadwal_masuk || d.jadwal_pulang)
-  const libur = fromReport ? statusOf(d.shift ?? '') === 'libur' : shift?.kode === '' || statusOf(shiftLabel ?? '') === 'libur'
+  const libur = shift ? shift.kode === '' : fromReport ? statusOf(d.shift ?? '') === 'libur' : statusOf(shiftLabel ?? '') === 'libur'
   let status = statusOf(d.status_asli ?? '')
+  // "Libur" dari laporan tapi ada scan, atau Jadwal Shift berisi shift kerja: status dihitung ulang (hadir / terlambat / tidak hadir)
+  if (status === 'libur' && (d.jam_masuk || (shift && shift.kode !== ''))) status = null
   let terlambat = d.terlambat_menit
   let cepat = d.pulang_cepat_menit
   let lembur = d.lembur_menit
@@ -335,4 +338,46 @@ export async function syncAttendanceFolder(url: string, sumber: 'drive' | 'uploa
     file: files.length, diproses: hasil.length, tersisa: pending.length - hasil.length, baris, karyawan: karyawan.size,
     dari: tanggal[0] ?? null, sampai: tanggal.at(-1) ?? null, hasil,
   }
+}
+
+// ---------- Penyesuaian dengan Jadwal Shift ----------
+// Absensi tersimpan disamakan dengan Jadwal Shift: label shift & status libur / tidak hadir.
+// Bulan tanpa Jadwal Shift memakai pola hari libur rutin karyawan dari jadwal bulan lain (label "OFF" / "Masuk");
+// karyawan yang tidak pernah ada di Jadwal Shift tidak diubah (tetap libur hari Minggu).
+export async function applyShiftSchedule(periods?: string[]) {
+  const [rows] = await db.query<(RowDataPacket & { id: number; nip: string; nama: string; tanggal: string; shift: string | null; status: Status; jam_masuk: string | null; terlambat_menit: number; scan: number | null })[]>(
+    `SELECT id, nip, nama, DATE_FORMAT(tanggal, '%Y-%m-%d') AS tanggal, shift, status, jam_masuk, terlambat_menit, scan FROM attendance_days
+     ${periods?.length ? "WHERE DATE_FORMAT(tanggal, '%Y-%m') IN (?)" : ''}`,
+    periods?.length ? [periods] : [],
+  )
+  if (!rows.length) return { diperbarui: 0 }
+  const lookup = await shiftLookup(rows.map((r) => ({ nip: r.nip, nama: r.nama, tanggal: r.tanggal }) as DayRow))
+  const { loadRestInfo } = await import('@/lib/payroll-weekly')
+  const restOf = await loadRestInfo()
+  const changes: [string | null, Status, number][] = []
+  for (const r of rows) {
+    let sh = lookup({ nip: r.nip, nama: r.nama, tanggal: r.tanggal } as DayRow)
+    if (!sh) {
+      // Tanpa jadwal di bulan itu: pola libur rutin dari Jadwal Shift bulan lain
+      const rest = restOf(r.nip, r.nama)
+      if (rest.source !== 'jadwal') continue
+      const off = rest.dates.get(r.tanggal) ?? new Date(`${r.tanggal}T00:00:00Z`).getUTCDay() === rest.offDay
+      sh = off ? { kode: '', label: 'OFF', masuk: null, pulang: null } : { kode: 'masuk', label: r.shift && !/^(off|libur)/i.test(r.shift) ? r.shift : 'Masuk', masuk: null, pulang: null }
+    }
+    let status = r.status
+    if (r.jam_masuk) {
+      if (status === 'libur' || status === 'tidak_hadir') status = r.terlambat_menit > 0 && sh.kode !== '' ? 'terlambat' : r.scan === 1 ? 'tanpa_scan' : 'hadir'
+    } else if (sh.kode === '') {
+      if (status === 'tidak_hadir' || status === 'hadir') status = 'libur'
+    } else if (status === 'libur') status = 'tidak_hadir'
+    if (status !== r.status || sh.label !== r.shift) changes.push([sh.label, status, r.id])
+  }
+  for (let i = 0; i < changes.length; i += 300) {
+    const part = changes.slice(i, i + 300)
+    await db.query(
+      `UPDATE attendance_days SET shift = CASE id ${part.map(() => 'WHEN ? THEN ?').join(' ')} END, status = CASE id ${part.map(() => 'WHEN ? THEN ?').join(' ')} END WHERE id IN (?)`,
+      [...part.flatMap(([label, , id]) => [id, label]), ...part.flatMap(([, status, id]) => [id, status]), part.map(([, , id]) => id)],
+    )
+  }
+  return { diperbarui: changes.length }
 }

@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Award, Calculator, ExternalLink, FileSpreadsheet, Pencil, Plus, RefreshCw, Search, Settings, Trash2, UserCheck, UserMinus, Users, Wallet } from 'lucide-react'
+import { AlertTriangle, Award, Calculator, Clock, ExternalLink, FileSpreadsheet, Pencil, Plus, RefreshCw, Search, Settings, Trash2, UserCheck, UserMinus, Users, Wallet } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
-import { PayrollCalc, PayrollEmployees, PayrollSettingsView } from './payroll-page'
+import { PayrollCalc, PayrollEmployees, PayrollOvertime, PayrollSettingsView } from './payroll-page'
 import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
 
 // HRD: data karyawan, grade operator, dan kebijakan gaji dari spreadsheet di Google Drive
@@ -247,7 +247,7 @@ export function GradeGajiPage(_props: { user: UserProfile }) {
   const [data, setData] = useState<Payroll | null>(null)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
-  const [tab, setTab] = useState<'grade' | 'karyawan' | 'gaji' | 'hitung' | 'pengaturan'>('grade')
+  const [tab, setTab] = useState<'grade' | 'karyawan' | 'gaji' | 'lembur' | 'hitung' | 'pengaturan'>('grade')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [gradeForm, setGradeForm] = useState<{ item: Grade | null } | null>(null)
   const [salaryForm, setSalaryForm] = useState<{ item: Salary | null } | null>(null)
@@ -277,13 +277,14 @@ export function GradeGajiPage(_props: { user: UserProfile }) {
         <button role="tab" aria-selected={tab === 'grade'} className={tab === 'grade' ? 'active' : ''} onClick={() => setTab('grade')}><Award /> Grade operator</button>
         <button role="tab" aria-selected={tab === 'karyawan'} className={tab === 'karyawan' ? 'active' : ''} onClick={() => setTab('karyawan')}><Users /> Gaji karyawan</button>
         <button role="tab" aria-selected={tab === 'gaji'} className={tab === 'gaji' ? 'active' : ''} onClick={() => setTab('gaji')}><FileSpreadsheet /> Kebijakan gaji (sheet)</button>
+        <button role="tab" aria-selected={tab === 'lembur'} className={tab === 'lembur' ? 'active' : ''} onClick={() => setTab('lembur')}><Clock /> Lembur</button>
         <button role="tab" aria-selected={tab === 'hitung'} className={tab === 'hitung' ? 'active' : ''} onClick={() => setTab('hitung')}><Calculator /> Hitung gaji</button>
         <button role="tab" aria-selected={tab === 'pengaturan'} className={tab === 'pengaturan' ? 'active' : ''} onClick={() => setTab('pengaturan')}><Settings /> Pengaturan payroll</button>
       </div>
       {(tab === 'grade' || tab === 'gaji') && <SyncBar label="Data Grade dan Kenaikan Gaji" syncedAt={data?.meta?.synced_at ?? null} canSync={!!data?.can.manage} onOpen={() => setSheetOpen(true)} />}
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
-      {tab === 'karyawan' ? <PayrollEmployees /> : tab === 'hitung' ? <PayrollCalc /> : tab === 'pengaturan' ? <PayrollSettingsView /> : <>
+      {tab === 'karyawan' ? <PayrollEmployees /> : tab === 'lembur' ? <PayrollOvertime /> : tab === 'hitung' ? <PayrollCalc /> : tab === 'pengaturan' ? <PayrollSettingsView /> : <>
       {!data && !error && <div className="pap-table-card"><div className="pap-empty">Memuat...</div></div>}
       {data && (tab === 'grade'
         ? <GradeView data={data} onAdd={edit ? () => setGradeForm({ item: null }) : undefined} onEdit={(item) => setGradeForm({ item })} onDelete={(item) => remove('grade', item)} />

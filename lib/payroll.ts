@@ -1,6 +1,7 @@
 // Grade & Gaji: pengaturan payroll (seperti Pengaturan Payroll HRIS Altius), pengaturan gaji per karyawan
 // (seperti isian Payroll pada data Pegawai Altius), dan hitung gaji per periode cut off dari Absensi.
 // PPh 21 belum dihitung; metode pajak & status PTKP disimpan untuk perhitungan berikutnya.
+import { loadPeriodData, loadRestInfo, weeklyHours, type WeeklyResult } from '@/lib/payroll-weekly'
 import type { RowDataPacket } from 'mysql2'
 import { fail, str } from '@/lib/api'
 import { db } from '@/lib/db'
@@ -10,7 +11,8 @@ const n = (v: unknown) => (v === null || v === undefined || v === '' ? null : Nu
 
 // ---------- Pengaturan payroll ----------
 export const SETTING_NUMBERS = ['bpjs_kes_perusahaan', 'bpjs_jht_perusahaan', 'bpjs_jkk', 'bpjs_jkm', 'bpjs_jpn_perusahaan', 'usia_pensiun',
-  'bpjs_kes_pegawai', 'bpjs_jht_pegawai', 'bpjs_jpn_pegawai', 'max_bpjs_kes', 'max_bpjs_jpn', 'umr', 'cutoff_tanggal', 'hari_kerja_fix'] as const
+  'bpjs_kes_pegawai', 'bpjs_jht_pegawai', 'bpjs_jpn_pegawai', 'max_bpjs_kes', 'max_bpjs_jpn', 'umr', 'cutoff_tanggal', 'hari_kerja_fix',
+  'jam_kerja_harian', 'istirahat_jam', 'batas_jam_mingguan', 'faktor_lembur', 'faktor_lembur_libur', 'toleransi_lembur_menit'] as const
 export const PRORATA = { bulan_berjalan: 'Prorata Bulan Berjalan', hari_kerja_fix: 'Hari Kerja Fix', tidak: 'Tanpa Prorata' } as const
 export const METODE_PAJAK = { non_gross_up: 'Non Gross Up', gross_up: 'Gross Up' } as const
 export const HARI = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'] as const
@@ -165,7 +167,12 @@ export type SlipGaji = {
   upah: number; pendapatan_harian: number; lembur: number; tunjangan: number; pendapatan_lain: number; cuti_dibayar: number; bruto: number
   bpjs_pegawai: { jht: number; jpn: number; kes: number }; potongan_bpjs: number; potongan_lain: number; diterima: number
   bpjs_perusahaan: { kes: number; jht: number; jkk: number; jkm: number; jpn: number; total: number }; catatan: string[]
+  lembur_rutin_jam: number; tgl_masuk: string | null; divisi: string | null
+  // Baris slip gaji (seperti Altius): penghasilan, penghasilan tambahan, potongan
+  rincian: { penghasilan: SlipLine[]; tambahan: SlipLine[]; potongan: SlipLine[] }
+  mingguan: WeeklyResult | null
 }
+export type SlipLine = { label: string; nominal: number }
 
 const round = (v: number) => Math.round(v)
 const ageAt = (lahir: string | null, tanggal: string) => {
@@ -175,8 +182,12 @@ const ageAt = (lahir: string | null, tanggal: string) => {
   return ty - ly - (tm < lm || (tm === lm && td < ld) ? 1 : 0)
 }
 
-export function hitungGaji(p: EmployeePayroll, s: PayrollSettings, k: Kehadiran, range: { dari: string; sampai: string }): SlipGaji {
+export function hitungGaji(p: EmployeePayroll, s: PayrollSettings, k: Kehadiran, range: { dari: string; sampai: string }, w: WeeklyResult | null = null): SlipGaji {
   const catatan: string[] = []
+  const tambahan: SlipLine[] = []
+  // Pekerja per jam (Kehadiran Periode Cut Off + gaji per jam): upah per minggu maks 40 jam + Lembur Rutin + Lembur Variabel
+  const perJam = !!w && p.tipe_kalkulasi !== 'bulanan_tetap' && p.gaji_per_jam_aktif && !!p.gaji_per_jam
+  if (w) k = { ...k, hadir: w.hadir }
   const fix = p.fix_hari_kerja || s.hari_kerja_fix || 25
   // Upah harian: isian gaji harian, atau gaji per jam × 7 jam, atau gaji pokok / hari kerja
   const harian = p.gaji_harian ?? (p.gaji_per_jam_aktif && p.gaji_per_jam ? p.gaji_per_jam * 7 : p.gaji_pokok ? p.gaji_pokok / fix : 0)
@@ -195,6 +206,13 @@ export function hitungGaji(p: EmployeePayroll, s: PayrollSettings, k: Kehadiran,
       upah = aktif < total ? (pokok * aktif) / total : pokok
       if (aktif < total) catatan.push(`Prorata ${aktif} dari ${total} hari periode`)
     } else upah = pokok
+  } else if (perJam) {
+    upah = 0
+    for (const m of w!.minggu) {
+      const nominal = round(m.jam_dibayar * p.gaji_per_jam!)
+      upah += nominal
+      if (m.jam_dibayar) tambahan.push({ label: `Minggu ${m.no}-Jam Kerja ${fmtJam(m.jam_dibayar)} Jam`, nominal })
+    }
   } else {
     upah = harian * k.hadir
     if (!harian) catatan.push('Gaji harian / per jam / pokok belum diisi')
@@ -203,9 +221,30 @@ export function hitungGaji(p: EmployeePayroll, s: PayrollSettings, k: Kehadiran,
   const dasarLembur = p.pokok_lembur ?? (s.lembur_umr ? s.umr : p.gaji_pokok || harian * fix)
   const tarif = p.lembur_per_jam ?? (dasarLembur / 173) * 1.5
   const tarifLibur = p.lembur_per_jam_libur ?? (p.lembur_per_jam ?? (dasarLembur / 173) * 2)
-  const lemburJam = k.lembur_menit / 60
-  const lemburLiburJam = k.lembur_libur_menit / 60
-  const lembur = lemburJam * tarif + lemburLiburJam * tarifLibur
+  let lemburJam = k.lembur_menit / 60
+  let lemburLiburJam = k.lembur_libur_menit / 60
+  let lembur = lemburJam * tarif + lemburLiburJam * tarifLibur
+  let rutinJam = 0
+  if (w) {
+    // Tarif pekerja per jam: tarif lembur karyawan, atau tarif per jam × faktor (1,2 hari kerja / 1,5 hari libur)
+    const tl = p.lembur_per_jam ?? (perJam ? p.gaji_per_jam! * s.faktor_lembur : tarif)
+    const tlLibur = p.lembur_per_jam_libur ?? (perJam ? p.gaji_per_jam! * s.faktor_lembur_libur : tarifLibur)
+    rutinJam = perJam ? w.lembur_rutin : 0
+    lembur = 0
+    const lines: SlipLine[] = []
+    if (rutinJam) {
+      const nominal = round(rutinJam * tl)
+      lembur += nominal
+      lines.push({ label: `Lembur Rutin ${fmtJam(rutinJam)} Jam`, nominal })
+    }
+    for (const m of w.minggu) {
+      if (m.lembur_variabel) { const nominal = round(m.lembur_variabel * tl); lembur += nominal; tambahan.push({ label: `Minggu ${m.no}-Lembur Variabel ${fmtJam(m.lembur_variabel)} Jam`, nominal }) }
+      if (m.lembur_libur) { const nominal = round(m.lembur_libur * tlLibur); lembur += nominal; tambahan.push({ label: `Minggu ${m.no}-Lembur Variabel ${fmtJam(m.lembur_libur)} Jam (libur)`, nominal }) }
+    }
+    tambahan.unshift(...lines)
+    lemburJam = w.lembur_variabel + rutinJam
+    lemburLiburJam = w.lembur_libur
+  }
   const pendapatanHarian = (p.pendapatan_harian ?? 0) * k.hadir
   const cuti = (p.cuti_diuangkan ?? 0) * k.cuti
   const tunjangan = p.tunjangan_lain ?? 0
@@ -239,17 +278,33 @@ export function hitungGaji(p: EmployeePayroll, s: PayrollSettings, k: Kehadiran,
   if (!ikutKes) catatan.push('Belum ada No. BPJS Kesehatan')
   const potonganBpjs = potongTk + potongKes
   const potonganLain = p.potongan_lain ?? 0
+  // Baris slip: gaji pokok (bulanan) di Penghasilan; upah per minggu, lembur, dan pendapatan lain di Penghasilan Tambahan
+  const penghasilan: SlipLine[] = [{ label: 'Gaji Pokok', nominal: perJam ? 0 : round(upah) }]
+  if (!perJam && !w) tambahan.unshift({ label: `Lembur ${fmtJam(lemburJam + lemburLiburJam)} Jam`, nominal: round(lembur) })
+  else if (!perJam && w && !tambahan.length && lembur) tambahan.push({ label: 'Lembur', nominal: round(lembur) })
+  if (pendapatanHarian) tambahan.push({ label: `Pendapatan Harian ${k.hadir} Hari`, nominal: round(pendapatanHarian) })
+  if (tunjangan) tambahan.push({ label: 'Tunjangan', nominal: round(tunjangan) })
+  if (lain) tambahan.push({ label: 'Pendapatan Lain', nominal: round(lain) })
+  if (cuti) tambahan.push({ label: `Cuti Diuangkan ${k.cuti} Hari`, nominal: round(cuti) })
+  const potongan: SlipLine[] = []
+  if (potongKes) potongan.push({ label: 'BPJS K Employee', nominal: potongKes })
+  if (potongTk) potongan.push({ label: 'BPJS TK Employee (JHT + JP)', nominal: potongTk })
+  if (potonganLain) potongan.push({ label: 'Potongan Lain', nominal: round(potonganLain) })
+  const filtered = tambahan.filter((l) => l.nominal)
   return {
     nip: p.nip, nama: p.nama, jabatan: p.jabatan, tipe: TIPE_KALKULASI[p.tipe_kalkulasi] ?? p.tipe_kalkulasi, hadir: k.hadir, cuti: k.cuti,
     lembur_jam: Math.round(lemburJam * 100) / 100, lembur_libur_jam: Math.round(lemburLiburJam * 100) / 100,
     upah: round(upah), pendapatan_harian: round(pendapatanHarian), lembur: round(lembur), tunjangan: round(tunjangan), pendapatan_lain: round(lain), cuti_dibayar: round(cuti),
     bruto: round(bruto), bpjs_pegawai: pegawai, potongan_bpjs: potonganBpjs, potongan_lain: round(potonganLain),
     diterima: round(bruto) - potonganBpjs - round(potonganLain), bpjs_perusahaan: perusahaan, catatan,
+    lembur_rutin_jam: rutinJam, tgl_masuk: p.tgl_masuk, divisi: p.divisi,
+    rincian: { penghasilan, tambahan: filtered, potongan }, mingguan: w,
   }
 }
+const fmtJam = (v: number) => String(Math.round(v * 100) / 100).replace('.', ',')
 
-// Lembur di hari Minggu / shift OFF memakai tarif lembur hari libur (sama dengan menu Absensi)
-const LIBUR = "(DAYOFWEEK(a.tanggal) = 1 OR a.shift REGEXP '^(off|libur)')"
+// Lembur di hari OFF Jadwal Shift (atau Minggu bila tidak ada jadwal) memakai tarif lembur hari libur (sama dengan menu Absensi)
+const LIBUR = "(a.shift REGEXP '^(off|libur)' OR (a.shift IS NULL AND DAYOFWEEK(a.tanggal) = 1))"
 
 export async function hitungPeriode(periode: string) {
   const s = await loadSettings()
@@ -261,12 +316,16 @@ export async function hitungPeriode(periode: string) {
     [range.dari, range.sampai],
   )
   const byNip = new Map(att.map((r) => [String(r.nip), r]))
+  const restOf = await loadRestInfo()
+  const period = await loadPeriodData(range)
   const payrolls = (await listPayrolls()).filter((p) => !p.tgl_berhenti || p.tgl_berhenti >= range.dari)
   const slips = payrolls
     .filter((p) => !p.tanggal_berlaku || p.tanggal_berlaku <= range.sampai)
     .map((p) => {
       const a = byNip.get(p.nip)
-      const slip = hitungGaji(p, s, { hadir: Number(a?.hadir ?? 0), cuti: Number(a?.cuti ?? 0), lembur_menit: Number(a?.lembur_menit ?? 0), lembur_libur_menit: Number(a?.lembur_libur_menit ?? 0) }, range)
+      const weekly = weeklyHours(range, restOf(p.nip, p.nama), period.attendance.get(p.nip) ?? [], period.manual.get(p.nip) ?? [], s)
+      const slip = hitungGaji(p, s, { hadir: Number(a?.hadir ?? 0), cuti: Number(a?.cuti ?? 0), lembur_menit: Number(a?.lembur_menit ?? 0), lembur_libur_menit: Number(a?.lembur_libur_menit ?? 0) }, range, weekly)
+      if (weekly.sumber_libur === 'bawaan') slip.catatan.push('Libur rutin belum ada di Jadwal Shift, dianggap hari Minggu')
       if (!a) slip.catatan.unshift('Tidak ada data absensi di periode ini')
       return slip
     })

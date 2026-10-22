@@ -1572,3 +1572,42 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
   .pap-nav::-webkit-scrollbar-thumb { border-radius:99px; background:rgb(255 255 255 / .18); }
   .pap-main { min-height:100vh; }
 }
+/* Slip gaji (format Altius) */
+.pap-slip { margin-bottom:24px; color:#333; font-family:'Open Sans', Arial, sans-serif; font-size:10px; break-after:page; }
+.pap-slip:last-child { break-after:auto; }
+.pap-slip-head { display:flex; align-items:center; gap:120px; padding-bottom:18px; border-bottom:1px solid #e5e5e5; }
+.pap-slip-head h1 { margin:0; font-size:26px; font-weight:400; line-height:1.25; }
+.pap-slip h2 { margin:22px 0 2px; font-size:17px; font-weight:400; }
+.pap-slip-range { margin:0 0 10px; color:#777; }
+.pap-slip-info { width:100%; border-collapse:collapse; background:#eee; }
+.pap-slip-info td { padding:6px; }
+.pap-slip-info td:first-child { width:46%; }
+.pap-slip-info td:nth-child(2) { width:4%; }
+.pap-slip-cols { display:grid; grid-template-columns:1fr 1fr; gap:30px; margin-top:28px; align-items:start; }
+.pap-slip-table { width:100%; border-collapse:collapse; }
+.pap-slip-table th { padding:6px; background:#a5a5a5; color:#222; text-align:left; }
+.pap-slip-table td { padding:6px; }
+.pap-slip-table td:nth-child(2) { width:56px; }
+.pap-slip-table td:last-child { width:90px; text-align:right; }
+.pap-slip-table tr.total td { background:#eee; font-weight:700; }
+.pap-slip-sign { margin-top:22px; text-align:right; }
+.pap-slip-thp { margin:36px 0 16px; color:#222; font-size:24px; font-weight:700; }
+.pap-slip hr { border:0; border-top:1px solid #999; }
+.pap-slip-note { margin-top:20px; font-weight:700; text-align:center; font-size:9px; }
+/* Laporan absensi & gaji (cetak A4 landscape) */
+@page wide { size: A4 landscape; margin: 10mm; }
+.pap-sheet-landscape { page: wide; }
+@media screen { .pap-sheet.pap-sheet-landscape { width:1123px; max-width:none; } }
+.pap-att-report { font-size:9.5px; }
+.pap-att-report h3 { margin:14px 0 6px; font-size:12px; }
+.pap-att-table { width:100%; border-collapse:collapse; }
+.pap-att-table th, .pap-att-table td { padding:2px 4px; border:1px solid #888; }
+.pap-att-table th { background:#e4deff; font-weight:700; text-align:center; }
+.pap-att-table td.r { text-align:right; white-space:nowrap; }
+.pap-att-table td.c { text-align:center; white-space:nowrap; }
+.pap-att-table tr.total td { background:#f1eefc; font-weight:700; }
+.pap-att-table td.off { background:#ffd6d6; color:#b42318; font-weight:700; }
+.pap-att-table td.tk { color:#b42318; font-weight:700; }
+.pap-att-matrix td.name { white-space:nowrap; }
+.pap-att-matrix.short td, .pap-att-matrix.short th { padding:1px 2px; font-size:8.5px; }
+a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity:.5; }

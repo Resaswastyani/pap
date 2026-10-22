@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Pencil, Plus, Search, Settings, ShieldCheck, Trash2, UserPlus, Users, Wallet } from 'lucide-react'
+import { AlertTriangle, Clock, Pencil, Plus, Printer, Search, Settings, ShieldCheck, Trash2, UserPlus, Users, Wallet } from 'lucide-react'
 import { formatNumber, formatRupiah } from './accurate'
+import { ReportDownloadButton } from './report-download'
 import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
 
 // Grade & Gaji: pengaturan gaji per karyawan, pengaturan payroll, dan hitung gaji per periode cut off (lib/payroll.ts)
@@ -309,6 +310,14 @@ export function PayrollSettingsView() {
             </select>
           </Field>
           {num('hari_kerja_fix', 'Hari Kerja Fix Perbulan', '1')}
+          <h3 className="full">Jam Kerja & Lembur (pekerja per jam)</h3>
+          {num('jam_kerja_harian', 'Jam kerja per hari')}
+          {num('istirahat_jam', 'Istirahat per hari (jam)')}
+          {num('batas_jam_mingguan', 'Batas jam kerja per minggu')}
+          {num('toleransi_lembur_menit', 'Toleransi pembulatan jam (menit)', '1')}
+          {num('faktor_lembur', 'Faktor lembur hari kerja (× tarif per jam)')}
+          {num('faktor_lembur_libur', 'Faktor lembur hari libur (× tarif per jam)')}
+          <p className="pap-hint full">Minggu dimulai dari hari libur rutin karyawan di Jadwal Shift. Jam kerja di atas batas mingguan = Lembur Rutin; jam di luar shift atau kerja di hari libur = Lembur Variabel. Faktor dipakai bila nilai lembur per jam karyawan kosong.</p>
           <h3 className="full">Pajak</h3>
           <Field label="Metode Perhitungan">
             <select className="pap-select" value={String(v.metode_pajak ?? '')} onChange={set('metode_pajak')} disabled={!manage}>
@@ -328,8 +337,13 @@ type Slip = {
   upah: number; pendapatan_harian: number; lembur: number; tunjangan: number; pendapatan_lain: number; cuti_dibayar: number; bruto: number
   bpjs_pegawai: { jht: number; jpn: number; kes: number }; potongan_bpjs: number; potongan_lain: number; diterima: number
   bpjs_perusahaan: { kes: number; jht: number; jkk: number; jkm: number; jpn: number; total: number }; catatan: string[]
+  lembur_rutin_jam: number; rincian: { penghasilan: Line[]; tambahan: Line[]; potongan: Line[] }; mingguan: Weekly | null
 }
+type Line = { label: string; nominal: number }
+type Week = { no: number; dari: string; sampai: string; jam_kerja: number; jam_dibayar: number; lembur_rutin: number; lembur_variabel: number; lembur_libur: number }
+type Weekly = { libur_rutin: number; sumber_libur: 'jadwal' | 'bawaan'; minggu: Week[]; jam_dibayar: number; lembur_rutin: number; lembur_variabel: number; lembur_libur: number }
 type Hitung = { periode: string; dari: string; sampai: string; slips: Slip[] }
+const HARI_MINGGU = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
 
 export function PayrollCalc() {
   const [periode, setPeriode] = useState('')
@@ -356,7 +370,10 @@ export function PayrollCalc() {
         { label: 'Iuran BPJS perusahaan', value: short(sum((s) => s.bpjs_perusahaan.total)), note: 'Biaya perusahaan di luar gaji', icon: ShieldCheck, tone: 'stat-3' },
       ]} />
       <div className="pap-table-card">
-        <div className="pap-card-head"><div><h2>Hitung gaji periode {data ? `${formatDate(data.dari)} – ${formatDate(data.sampai)}` : ''}</h2><p>Dari pengaturan gaji per karyawan, pengaturan payroll, dan kehadiran di menu Absensi (sampai hari ini). PPh 21 belum dihitung.</p></div></div>
+        <div className="pap-card-head">
+          <div><h2>Hitung gaji periode {data ? `${formatDate(data.dari)} – ${formatDate(data.sampai)}` : ''}</h2><p>Dari pengaturan gaji per karyawan, pengaturan payroll, kehadiran di menu Absensi (sampai hari ini), dan lembur manual. PPh 21 belum dihitung.</p></div>
+          {data && <div className="pap-inline-actions pap-wrap"><ReportDownloadButton jenis="gaji" periode={data.periode} />{slips.length > 0 && <a className="pap-btn" href={`/cetak/slip-gaji?periode=${data.periode}`} target="_blank" rel="noreferrer"><Printer /> Cetak semua slip</a>}</div>}
+        </div>
         <div className="pap-filters">
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama / NIP..." /></label>
           <input className="pap-input" type="month" value={periode} onChange={(e) => e.target.value && setPeriode(e.target.value)} aria-label="Periode (bulan cut off)" />
@@ -369,7 +386,7 @@ export function PayrollCalc() {
                 <tr key={s.nip} className="pap-row-link" onClick={() => setDetail(s)}>
                   <td><div className="pap-cell-title">{s.nama}</div><div className="pap-cell-sub">{s.tipe}{s.catatan.length ? <> · <span className="pap-status warning">{s.catatan[0]}</span></> : null}</div></td>
                   <td className="pap-num">{s.hadir}<div className="pap-cell-sub">{s.cuti ? `cuti ${s.cuti}` : ''}</div></td>
-                  <td className="pap-num pap-nowrap">{formatNumber(s.lembur_jam, 1)} j<div className="pap-cell-sub">libur {formatNumber(s.lembur_libur_jam, 1)} j</div></td>
+                  <td className="pap-num pap-nowrap">{formatNumber(s.lembur_jam, 1)} j<div className="pap-cell-sub">{s.lembur_rutin_jam ? `rutin ${formatNumber(s.lembur_rutin_jam, 1)} · ` : ''}libur {formatNumber(s.lembur_libur_jam, 1)} j</div></td>
                   <td className="pap-num pap-nowrap">{rp(s.upah)}</td>
                   <td className="pap-num pap-nowrap">{rp(s.lembur)}</td>
                   <td className="pap-num pap-nowrap">{rp(s.tunjangan + s.pendapatan_lain + s.pendapatan_harian + s.cuti_dibayar)}</td>
@@ -386,8 +403,37 @@ export function PayrollCalc() {
         </div>
       </div>
       {detail && data && (
-        <Modal title={`Rincian gaji ${detail.nama}`} subtitle={`${detail.nip} · periode ${formatDate(data.dari)} – ${formatDate(data.sampai)}`} onClose={() => setDetail(null)}
-          footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={() => setDetail(null)}>Tutup</button></>}>
+        <Modal title={`Rincian gaji ${detail.nama}`} subtitle={`${detail.nip} · periode ${formatDate(data.dari)} – ${formatDate(data.sampai)}`} wide onClose={() => setDetail(null)}
+          footer={<><a className="pap-btn" href={`/cetak/slip-gaji?periode=${data.periode}&nip=${encodeURIComponent(detail.nip)}`} target="_blank" rel="noreferrer"><Printer /> Slip gaji</a><span className="pap-spacer" /><button className="pap-btn" onClick={() => setDetail(null)}>Tutup</button></>}>
+          {detail.mingguan && (
+            <section className="pap-detail-section">
+              <h3>Jam kerja per minggu <span className="pap-muted">· libur rutin {HARI_MINGGU[detail.mingguan.libur_rutin]}{detail.mingguan.sumber_libur === 'bawaan' ? ' (bawaan, belum ada di Jadwal Shift)' : ' (Jadwal Shift)'}</span></h3>
+              <div className="pap-table-wrap bordered">
+                <table>
+                  <thead><tr><th>Minggu</th><th className="pap-num">Jam kerja</th><th className="pap-num">Dibayar</th><th className="pap-num">Lembur rutin</th><th className="pap-num">Lembur variabel</th><th className="pap-num">Lembur libur</th></tr></thead>
+                  <tbody>
+                    {detail.mingguan.minggu.map((m) => (
+                      <tr key={m.no}>
+                        <td className="pap-nowrap"><b>{m.no}</b> <span className="pap-cell-sub">{formatDate(m.dari)}{m.sampai !== m.dari ? ` – ${formatDate(m.sampai)}` : ''}</span></td>
+                        <td className="pap-num">{formatNumber(m.jam_kerja, 2)}</td>
+                        <td className="pap-num">{formatNumber(m.jam_dibayar, 2)}</td>
+                        <td className="pap-num">{m.lembur_rutin ? formatNumber(m.lembur_rutin, 2) : '—'}</td>
+                        <td className="pap-num">{m.lembur_variabel ? formatNumber(m.lembur_variabel, 2) : '—'}</td>
+                        <td className="pap-num">{m.lembur_libur ? formatNumber(m.lembur_libur, 2) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+          <section className="pap-detail-section">
+            <h3>Baris slip gaji</h3>
+            <dl className="pap-detail-grid">
+              {[...detail.rincian.penghasilan, ...detail.rincian.tambahan].map((l, i) => <div key={i}><dt>{l.label}</dt><dd>{rp(l.nominal)}</dd></div>)}
+              {detail.rincian.potongan.map((l, i) => <div key={`p${i}`}><dt>{l.label}</dt><dd>−{rp(l.nominal)}</dd></div>)}
+            </dl>
+          </section>
           <dl className="pap-detail-grid">
             <div><dt>Kehadiran</dt><dd>{detail.hadir} hari{detail.cuti ? ` · cuti ${detail.cuti} hari` : ''}</dd></div>
             <div><dt>Upah ({detail.tipe})</dt><dd>{rp(detail.upah)}</dd></div>
@@ -410,5 +456,110 @@ export function PayrollCalc() {
         </Modal>
       )}
     </>
+  )
+}
+
+// ---------- Lembur variabel manual ----------
+type Overtime = { id: number; nip: string; nama: string; jabatan: string | null; tanggal: string; jam: number; hari: 'kerja' | 'libur'; mode: 'tambah' | 'ganti'; keterangan: string | null; created_name: string | null }
+type OvertimeRes = { periode: string; dari: string; sampai: string; items: Overtime[]; employees: { nip: string; nama: string; jabatan: string | null }[]; can: { manage: boolean } }
+
+export function PayrollOvertime() {
+  const [periode, setPeriode] = useState(() => {
+    const now = new Date(Date.now() + 7 * 3600e3)
+    return (now.getUTCDate() > 27 ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)) : now).toISOString().slice(0, 7)
+  })
+  const [data, setData] = useState<OvertimeRes | null>(null)
+  const [error, setError] = useState('')
+  const [q, setQ] = useState('')
+  const [form, setForm] = useState<Overtime | 'baru' | null>(null)
+  const load = useCallback(() => api<OvertimeRes>(`/api/hrd/payroll/lembur?periode=${periode}`).then((r) => { setData(r); setError('') }).catch((e) => setError(e.message)), [periode])
+  useEffect(() => { load() }, [load])
+  const term = q.trim().toLowerCase()
+  const items = (data?.items ?? []).filter((o) => !term || o.nama.toLowerCase().includes(term) || o.nip.includes(term))
+  const paged = usePaged(items, `${q}-${periode}`, 50)
+  async function remove(o: Overtime) {
+    if (!window.confirm(`Hapus lembur ${o.nama} ${formatDate(o.tanggal)}?`)) return
+    try {
+      await api(`/api/hrd/payroll/lembur/${o.id}`, { method: 'DELETE' })
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+  return (
+    <>
+      {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      <div className="pap-table-card">
+        <div className="pap-card-head">
+          <div><h2>Lembur variabel manual {data ? `· ${formatDate(data.dari)} – ${formatDate(data.sampai)}` : ''}</h2><p>Lembur variabel otomatis dihitung dari Absensi (jam di luar shift & kerja di hari libur). Tambahkan di sini lembur yang tidak tercatat mesin, atau ganti lembur otomatis di tanggal tertentu. Lembur rutin (&gt; 40 jam/minggu) dihitung otomatis.</p></div>
+          {data?.can.manage && <button className="pap-primary-button" onClick={() => setForm('baru')}><Plus /> Input lembur</button>}
+        </div>
+        <div className="pap-filters">
+          <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama / NIP..." /></label>
+          <input className="pap-input" type="month" value={periode} onChange={(e) => e.target.value && setPeriode(e.target.value)} aria-label="Periode (bulan cut off)" />
+        </div>
+        <div className="pap-table-wrap">
+          <table>
+            <thead><tr><th>Tanggal</th><th>Karyawan</th><th className="pap-num">Jam</th><th>Jenis</th><th>Keterangan</th>{data?.can.manage && <th />}</tr></thead>
+            <tbody>
+              {paged.items.map((o) => (
+                <tr key={o.id}>
+                  <td className="pap-nowrap">{formatDate(o.tanggal)}</td>
+                  <td><div className="pap-cell-title">{o.nama}</div><div className="pap-cell-sub">{o.nip}{o.jabatan ? ` · ${o.jabatan}` : ''}</div></td>
+                  <td className="pap-num">{formatNumber(o.jam, 2)}</td>
+                  <td><span className={`pap-status ${o.hari === 'libur' ? 'warning' : 'info'}`}>{o.hari === 'libur' ? 'Hari libur' : 'Hari kerja'}</span>{o.mode === 'ganti' && <div className="pap-cell-sub">mengganti lembur otomatis</div>}</td>
+                  <td>{o.keterangan ?? '—'}<div className="pap-cell-sub">{o.created_name}</div></td>
+                  {data?.can.manage && <td className="pap-nowrap"><button className="pap-icon-button" aria-label="Ubah" onClick={() => setForm(o)}><Pencil /></button><button className="pap-icon-button" aria-label="Hapus" onClick={() => remove(o)}><Trash2 /></button></td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {data && !items.length && <div className="pap-empty">Belum ada lembur manual di periode ini.</div>}
+          {!data && !error && <div className="pap-empty">Memuat...</div>}
+          <Pager {...paged.pager} noun="lembur" />
+        </div>
+      </div>
+      {form && data && <OvertimeForm item={form === 'baru' ? null : form} employees={data.employees} range={data} onClose={() => setForm(null)} onSaved={() => { setForm(null); load() }} />}
+    </>
+  )
+}
+
+function OvertimeForm({ item, employees, range, onClose, onSaved }: { item: Overtime | null; employees: OvertimeRes['employees']; range: { dari: string; sampai: string }; onClose: () => void; onSaved: () => void }) {
+  const [v, setV] = useState({ nip: item?.nip ?? '', tanggal: item?.tanggal ?? range.sampai, jam: item ? String(item.jam) : '', hari: item?.hari ?? 'kerja', mode: item?.mode ?? 'tambah', keterangan: item?.keterangan ?? '' })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  async function save(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    try {
+      await api(item ? `/api/hrd/payroll/lembur/${item.id}` : '/api/hrd/payroll/lembur', { method: item ? 'PUT' : 'POST', json: v })
+      onSaved()
+    } catch (err) {
+      setError((err as Error).message)
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal title={item ? 'Ubah lembur' : 'Input lembur variabel'} onClose={onClose}
+      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="overtime-form" disabled={busy}><Clock /> Simpan</button></>}>
+      <form id="overtime-form" className="pap-form-grid" onSubmit={save}>
+        {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        <Field label="Karyawan" full>
+          <select className="pap-select" required value={v.nip} onChange={(e) => setV({ ...v, nip: e.target.value })}>
+            <option value="">Pilih karyawan</option>
+            {employees.map((e) => <option key={e.nip} value={e.nip}>{e.nama} ({e.nip}){e.jabatan ? ` · ${e.jabatan}` : ''}</option>)}
+          </select>
+        </Field>
+        <Field label="Tanggal"><input className="pap-input" type="date" required value={v.tanggal} onChange={(e) => setV({ ...v, tanggal: e.target.value })} /></Field>
+        <Field label="Jam lembur"><input className="pap-input pap-num" inputMode="decimal" required value={v.jam} onChange={(e) => setV({ ...v, jam: e.target.value })} placeholder="mis. 4" /></Field>
+        <Field label="Tarif">
+          <select className="pap-select" value={v.hari} onChange={(e) => setV({ ...v, hari: e.target.value as 'kerja' | 'libur' })}><option value="kerja">Lembur hari kerja (×1,2)</option><option value="libur">Lembur hari libur (×1,5)</option></select>
+        </Field>
+        <Field label="Lembur otomatis tanggal ini">
+          <select className="pap-select" value={v.mode} onChange={(e) => setV({ ...v, mode: e.target.value as 'tambah' | 'ganti' })}><option value="tambah">Tetap dihitung (ditambah)</option><option value="ganti">Diganti dengan isian ini</option></select>
+        </Field>
+        <Field label="Keterangan" full><input className="pap-input" maxLength={500} value={v.keterangan} onChange={(e) => setV({ ...v, keterangan: e.target.value })} placeholder="mis. lembur bongkar muat, SPL no. ..." /></Field>
+      </form>
+    </Modal>
   )
 }

@@ -6,8 +6,8 @@ import { canManageHr, canViewPayroll } from '@/lib/hrd'
 
 type Row = RowDataPacket & Record<string, unknown>
 const n = (v: unknown) => (v === null || v === undefined ? null : Number(v))
-// Lembur di hari Minggu / shift OFF dihitung dengan tarif lembur hari libur
-const LIBUR = "(DAYOFWEEK(a.tanggal) = 1 OR a.shift REGEXP '^(off|libur)')"
+// Lembur di hari OFF Jadwal Shift (atau hari Minggu bila karyawan belum ada di Jadwal Shift) dihitung dengan tarif lembur hari libur
+const LIBUR = "(a.shift REGEXP '^(off|libur)' OR (a.shift IS NULL AND DAYOFWEEK(a.tanggal) = 1))"
 // Status tampilan: laporan Altius ikut memuat jadwal hari-hari mendatang dengan status "Tidak Hadir" (belum ada scan).
 // Tanggal yang belum terjadi = terjadwal; hari ini tanpa scan = belum scan (bukan tidak hadir).
 const STATUS = `CASE

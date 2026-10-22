@@ -2,12 +2,12 @@
 // lebar kolom, sel digabung, dan beberapa gaya dasar (judul, kepala tabel, kolom Minggu, catatan).
 import { deflateRawSync } from 'node:zlib'
 
-export type XlsxStyle = 'normal' | 'title' | 'head' | 'sunday' | 'note' | 'example'
+export type XlsxStyle = 'normal' | 'title' | 'head' | 'sunday' | 'note' | 'example' | 'cell' | 'num' | 'off' | 'total' | 'center'
 export type XlsxCell = string | number | null | { v: string | number | null; s?: XlsxStyle }
 export type XlsxSheet = { title: string; rows: XlsxCell[][]; widths?: number[]; merges?: string[]; freeze?: { row: number; col: number } }
 
 // Urutan = indeks cellXfs di styles.xml
-const STYLE_INDEX: Record<XlsxStyle, number> = { normal: 0, title: 1, head: 2, sunday: 3, note: 4, example: 5 }
+const STYLE_INDEX: Record<XlsxStyle, number> = { normal: 0, title: 1, head: 2, sunday: 3, note: 4, example: 5, cell: 6, num: 7, off: 8, total: 9, center: 10 }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 export function colName(i: number) {
@@ -41,7 +41,7 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleShe
 <fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE4DEFF"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFD6D6"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFF6D6"/></patternFill></fill></fills>
 <borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFBBBBBB"/></left><right style="thin"><color rgb="FFBBBBBB"/></right><top style="thin"><color rgb="FFBBBBBB"/></top><bottom style="thin"><color rgb="FFBBBBBB"/></bottom><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf/></cellStyleXfs>
-<cellXfs count="6"><xf/><xf fontId="1" applyFont="1"/><xf fontId="2" fillId="2" borderId="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf fontId="2" fillId="3" borderId="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf><xf fontId="3" applyFont="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf fillId="4" borderId="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+<cellXfs count="11"><xf/><xf fontId="1" applyFont="1"/><xf fontId="2" fillId="2" borderId="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf fontId="2" fillId="3" borderId="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf><xf fontId="3" applyFont="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf fillId="4" borderId="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf><xf borderId="1" applyBorder="1"/><xf numFmtId="3" borderId="1" applyNumberFormat="1" applyBorder="1"/><xf fontId="2" fillId="3" borderId="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf><xf fontId="2" fillId="2" numFmtId="3" borderId="1" applyFont="1" applyFill="1" applyNumberFormat="1" applyBorder="1"/><xf borderId="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`
 
 // ---------- ZIP (deflate) ----------

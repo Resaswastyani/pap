@@ -1,12 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CalendarDays, Clock3, FileSpreadsheet, Search, Upload } from 'lucide-react'
+import { CalendarDays, CalendarCheck, Clock3, FileSpreadsheet, Search, Upload } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
 import { MonthNav, monthLabel } from './accurate-production'
 import { ColumnChart } from './charts'
 import { HrSheetSync } from './hrd-page'
+import { ReportDownloadButton } from './report-download'
 import { api, formatDate, Modal, Notice, Pager, usePaged } from './ui'
 
 // Absensi dari laporan kehadiran HRIS Altius (mesin Fingerspot): harian & rekap bulanan, terlambat, lembur, upah lembur
@@ -77,6 +78,19 @@ export function AbsensiPage(_props: { user: UserProfile }) {
   const [divisi, setDivisi] = useState('')
   const [uploadOpen, setUploadOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [applying, setApplying] = useState(false)
+  async function applyShift() {
+    setApplying(true)
+    try {
+      const res = await api<{ diperbarui: number }>('/api/hrd/attendance/shift', { method: 'POST' })
+      setMessage(res.diperbarui ? `${res.diperbarui} baris absensi disesuaikan dengan Jadwal Shift.` : 'Absensi sudah sesuai dengan Jadwal Shift.')
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setApplying(false)
+    }
+  }
   const load = useCallback(async () => {
     try {
       const params = new URLSearchParams()
@@ -116,9 +130,13 @@ export function AbsensiPage(_props: { user: UserProfile }) {
         <div>
           <p className="pap-eyebrow">SDM · ALTIUS / FINGERSPOT</p>
           <h1>Absensi</h1>
-          <span>Kehadiran karyawan dari laporan HRIS Altius (mesin Fingerspot): jam masuk & pulang, terlambat, tidak hadir, izin/sakit/cuti, dan lembur. Jadwal yang tidak ada di laporan diambil dari Jadwal Shift.</span>
+          <span>Kehadiran karyawan dari laporan HRIS Altius (mesin Fingerspot): jam masuk & pulang, terlambat, tidak hadir, izin/sakit/cuti, dan lembur. Hari libur setiap karyawan mengikuti Jadwal Shift (tidak semua libur hari Minggu).</span>
         </div>
-        {data?.can.manage && <button className="pap-primary-button" onClick={() => setUploadOpen(true)}><Upload /> Unggah laporan Altius</button>}
+        <div className="pap-inline-actions pap-wrap">
+          <ReportDownloadButton jenis="absensi" />
+          {data?.can.manage && <button className="pap-btn" disabled={applying} onClick={applyShift} title="Samakan hari libur & label shift dengan Jadwal Shift"><CalendarCheck /> {applying ? 'Menyesuaikan...' : 'Sesuaikan Jadwal Shift'}</button>}
+          {data?.can.manage && <button className="pap-primary-button" onClick={() => setUploadOpen(true)}><Upload /> Unggah laporan Altius</button>}
+        </div>
       </div>
       <div className="pap-sync-bar">
         <div className="pap-sync-items">
