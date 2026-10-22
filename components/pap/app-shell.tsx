@@ -133,6 +133,8 @@ export function AppShell() {
   const [focus, setFocus] = useState<{ key: number; meetingId: number | null; planningId: number | null; prospectId: number | null; visitId: number | null; sampleId: number | null; designId: number | null; customerId: number | null; paymentId: number | null; quotationId: number | null; repairId: number | null; pageId: number | null }>({ key: 0, pageId: null, meetingId: null, planningId: null, prospectId: null, visitId: null, sampleId: null, designId: null, customerId: null, paymentId: null, quotationId: null, repairId: null })
   const openRef = useRef<(target: NotificationTarget) => void>(() => {})
   useCardTables()
+  // Sidebar sticky: menu aktif digulir agar terlihat di daftar menu
+  useEffect(() => { document.querySelector('.pap-nav-item.active')?.scrollIntoView({ block: 'nearest' }) }, [active])
 
   // Klik pop-up sistem: dari service worker (tab terbuka) atau ?meeting= / ?planning= (tab baru)
   useEffect(() => {

@@ -1562,3 +1562,13 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-card-head > div:first-child { flex:1 1 260px; min-width:0; }
 .pap-card-head > .pap-select { flex:none; width:auto; min-width:180px; max-width:260px; }
 @media (max-width:800px) { .pap-card-head > div:first-child { flex:none; width:100%; } .pap-card-head > .pap-select { width:100%; max-width:none; } }
+
+/* Sidebar sticky di desktop: tetap terlihat saat halaman discroll; menu bergulir sendiri bila panjang */
+@media (min-width:801px) {
+  .pap-shell { align-items:flex-start; }
+  .pap-sidebar { position:sticky; top:0; height:100vh; height:100dvh; min-height:0; overflow:hidden; }
+  .pap-nav { min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:rgb(255 255 255 / .18) transparent; margin:0 -8px 0 -18px; padding:0 8px 0 18px; }
+  .pap-nav::-webkit-scrollbar { width:6px; }
+  .pap-nav::-webkit-scrollbar-thumb { border-radius:99px; background:rgb(255 255 255 / .18); }
+  .pap-main { min-height:100vh; }
+}
