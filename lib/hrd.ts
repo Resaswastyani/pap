@@ -338,5 +338,11 @@ export async function syncHrSheets() {
   const out: Record<string, unknown> = {}
   if (spreadsheetId(await loadSheetUrl(KARYAWAN_SETTING))) out.karyawan = await importEmployees((await readEmployeeSheet()).employees)
   if (spreadsheetId(await loadSheetUrl(GRADE_SETTING))) out.grade = await importGrades(await readGradeSheet())
+  // Laporan kehadiran Altius (bila link sudah diisi)
+  const absensiUrl = await loadSheetUrl('hrd.absensi_sheet_url')
+  if (spreadsheetId(absensiUrl)) {
+    const { importAttendance, readAttendanceSheet } = await import('@/lib/attendance')
+    out.absensi = await importAttendance((await readAttendanceSheet(absensiUrl)).days, 'drive')
+  }
   return out
 }

@@ -452,13 +452,13 @@ function OvertimeCalc({ data }: { data: Payroll }) {
 // ---------- Sumber data Google Drive ----------
 type SheetInfo = { jenis: string; url: string; account: string | null; canSync: boolean; tabs: string[]; dipakai: string | null; jumlah: number; contoh: string[]; error?: string }
 
-function HrSheetSync({ jenis, onClose, onImported }: { jenis: 'karyawan' | 'grade'; onClose: () => void; onImported: (message: string) => void }) {
+export function HrSheetSync({ jenis, onClose, onImported }: { jenis: 'karyawan' | 'grade' | 'absensi'; onClose: () => void; onImported: (message: string) => void }) {
   const [data, setData] = useState<SheetInfo | null>(null)
   const [url, setUrl] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
-  const label = jenis === 'karyawan' ? 'Data Karyawan' : 'Data Grade dan Kenaikan Gaji'
+  const label = jenis === 'karyawan' ? 'Data Karyawan' : jenis === 'absensi' ? 'Laporan Kehadiran (Altius)' : 'Data Grade dan Kenaikan Gaji'
   const preview = useCallback(async () => {
     setLoading(true)
     setError('')
@@ -490,8 +490,8 @@ function HrSheetSync({ jenis, onClose, onImported }: { jenis: 'karyawan' | 'grad
     setBusy(true)
     setError('')
     try {
-      const res = await api<{ karyawan?: number; aktif?: number; grade?: number; gaji?: number }>(`/api/hrd/sheet?jenis=${jenis}`, { method: 'POST' })
-      onImported(jenis === 'karyawan' ? `Sinkron Data Karyawan selesai: ${res.karyawan} karyawan (${res.aktif} aktif).` : `Sinkron Grade & Gaji selesai: ${res.grade} baris grade, ${res.gaji} baris gaji.`)
+      const res = await api<{ karyawan?: number; aktif?: number; grade?: number; gaji?: number; baris?: number; dari?: string; sampai?: string }>(`/api/hrd/sheet?jenis=${jenis}`, { method: 'POST' })
+      onImported(jenis === 'absensi' ? `Sinkron absensi selesai: ${res.baris} baris kehadiran, ${res.karyawan} karyawan (${formatDate(res.dari)} – ${formatDate(res.sampai)}).` : jenis === 'karyawan' ? `Sinkron Data Karyawan selesai: ${res.karyawan} karyawan (${res.aktif} aktif).` : `Sinkron Grade & Gaji selesai: ${res.grade} baris grade, ${res.gaji} baris gaji.`)
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -511,7 +511,9 @@ function HrSheetSync({ jenis, onClose, onImported }: { jenis: 'karyawan' | 'grad
         </div>
       </Field>
       <p className="pap-muted">
-        {jenis === 'karyawan'
+        {jenis === 'absensi'
+          ? 'Ekspor laporan kehadiran dari HRIS Altius (Excel), simpan di Google Drive dengan nama file tetap, lalu tempel link-nya di sini. Kolom dikenali dari judulnya: NIP / Nama, Tanggal, Jam Masuk & Jam Pulang (atau Jam scan per baris), Status, Terlambat, Lembur, Shift. Ekspor ulang tanggal yang sama memperbarui data.'
+          : jenis === 'karyawan'
           ? 'Spreadsheet (Google Sheet atau file Excel di Drive) dibagikan ke akun Google tersebut (Viewer). Dibaca: baris judul berisi NIP & Nama Depan, satu baris per karyawan (NIP sebagai kunci). Karyawan yang tidak ada lagi di spreadsheet dihapus dari SIMPAP.'
           : 'Dibaca: tab grade (kolom NAMA, KASHIFT ..., GRADE dengan sub kolom TEKNIS MESIN / QC PRODUCT / TOTAL) dan tab kebijakan gaji (NAMA, UPAH 7 JAM KERJA, GRADE, KENAIKAN, TUNJANGAN, THR, Tarif Gaji Per-Jam). Data dicocokkan ke Data Karyawan lewat nama.'}
         {' '}Sinkron otomatis berjalan bersama sinkron Google Drive (±30 menit).

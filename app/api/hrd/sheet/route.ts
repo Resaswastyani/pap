@@ -5,14 +5,17 @@ import {
   canManageHr, canViewEmployees, canViewPayroll, GRADE_SETTING, importEmployees, importGrades, KARYAWAN_SETTING, loadSheetUrl, readEmployeeSheet, readGradeSheet, saveSheetUrl,
 } from '@/lib/hrd'
 import type { UserProfile } from '@/lib/users'
+import { ABSENSI_SETTING, importAttendance, readAttendanceSheet } from '@/lib/attendance'
 
 export const maxDuration = 60
 
-// ?jenis=karyawan (Data Karyawan) | grade (Grade & Gaji)
+// ?jenis=karyawan (Data Karyawan) | grade (Grade & Gaji) | absensi (laporan kehadiran Altius)
 function jenisOf(request: Request, user: UserProfile) {
-  const jenis = new URL(request.url).searchParams.get('jenis') === 'grade' ? 'grade' : 'karyawan'
-  if (jenis === 'grade' ? !canViewPayroll(user) : !canViewEmployees(user)) fail(403, 'Anda tidak punya akses ke menu ini.')
-  return { jenis, key: jenis === 'grade' ? GRADE_SETTING : KARYAWAN_SETTING } as const
+  const q = new URL(request.url).searchParams.get('jenis')
+  const jenis = q === 'grade' ? 'grade' : q === 'absensi' ? 'absensi' : 'karyawan'
+  const allowed = jenis === 'grade' ? canViewPayroll(user) : jenis === 'absensi' ? user.menus.includes('absensi' as never) : canViewEmployees(user)
+  if (!allowed) fail(403, 'Anda tidak punya akses ke menu ini.')
+  return { jenis, key: jenis === 'grade' ? GRADE_SETTING : jenis === 'absensi' ? ABSENSI_SETTING : KARYAWAN_SETTING } as const
 }
 
 // Pesan error Google dibuat jelas untuk pengguna
@@ -35,6 +38,14 @@ export const GET = handle(async (request: Request) => {
   const account = await driveAccount()
   const base = { jenis, url: await loadSheetUrl(key), account: account?.email ?? null, canSync: canManageHr(user) }
   try {
+    if (jenis === 'absensi') {
+      const url = await loadSheetUrl(key)
+      if (!url) return NextResponse.json({ ...base, tabs: [], dipakai: null, jumlah: 0, contoh: [] })
+      const r = await guard(() => readAttendanceSheet(url))
+      const dates = r.days.map((d) => d.tanggal).sort()
+      return NextResponse.json({ ...base, tabs: r.tabs.map((t) => t.title), dipakai: r.tabs.filter((t) => t.format).map((t) => t.title).join(' & '), jumlah: r.days.length,
+        contoh: r.days.length ? [`${r.days.length} baris kehadiran, ${new Set(r.days.map((d) => d.nip)).size} karyawan, ${dates[0]} s/d ${dates.at(-1)}`] : [] })
+    }
     if (jenis === 'karyawan') {
       const r = await guard(readEmployeeSheet)
       return NextResponse.json({ ...base, tabs: r.tabs, dipakai: r.tab, jumlah: r.employees.length, contoh: r.employees.slice(0, 5).map((e) => `${e.nama} · ${e.jabatan ?? '—'}`) })
@@ -65,5 +76,6 @@ export const POST = handle(async (request: Request) => {
   const { jenis } = jenisOf(request, user)
   if (!canManageHr(user)) fail(403, 'Sinkron dijalankan HRD dan GM.')
   if (jenis === 'karyawan') return NextResponse.json(await importEmployees((await guard(readEmployeeSheet)).employees))
+  if (jenis === 'absensi') return NextResponse.json(await importAttendance((await guard(async () => readAttendanceSheet(await loadSheetUrl(ABSENSI_SETTING)))).days, 'drive'))
   return NextResponse.json(await importGrades(await guard(readGradeSheet)))
 })
