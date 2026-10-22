@@ -155,6 +155,11 @@ const RESOURCES: Record<string, Resource> = {
   'shift-schedule': { module: 'Jadwal Shift', noun: 'jadwal shift' },
   // Purchasing: data Accurate (kunci accurate_id), dicatat dari isian form
   faktur: { module: 'Faktur Produksi', noun: 'faktur penjualan' },
+  'accounting/cash': { module: 'Accounting', noun: 'pencocokan saldo', table: 'cash_reconciliations' },
+  'accounting/forecast': { module: 'Accounting', noun: 'rencana kas', table: 'cash_plans' },
+  'accounting/plans': { module: 'Accounting', noun: 'rencana kas', table: 'cash_plans' },
+  'accounting/reports': { module: 'Accounting', noun: 'target keuangan' },
+  'accounting/tax': { module: 'Accounting', noun: 'pelaporan pajak', table: 'tax_filings' },
   'purchasing/orders': { module: 'PO Pembelian', noun: 'PO pembelian' },
   'purchasing/prices': { module: 'Harga Bahan', noun: 'harga beli acuan' },
   'purchasing/vendor-prices': { module: 'Harga Bahan', noun: 'harga pemasok' },
@@ -250,6 +255,14 @@ function planFor(method: string, path: string): Plan | null {
     return { ...base, action: 'update', always: true, describe: () => 'Memutus koneksi akun Google Drive desain' }
   if (res === 'master' && a === 'drive')
     return { ...base, action: 'sync', describe: () => 'Menyinkronkan folder Google Drive desain' }
+  if (res === 'accounting/cash' && !a)
+    return { ...base, action: 'create', table: 'cash_reconciliations', describe: (_l, f) => `Mencatat pencocokan saldo akun ${f.account_no ?? ''} per ${f.tanggal ?? ''}` }
+  if (res === 'accounting/forecast' && !a)
+    return { ...base, action: 'create', table: 'cash_plans', describe: (_l, f) => `Menambah rencana kas ${f.jenis ?? ''} ${f.kategori ?? ''}` }
+  if (res === 'accounting/reports' && !a)
+    return { ...base, action: 'update', always: true, describe: (_l, f) => `Mengubah target keuangan ${f.periode ?? ''}` }
+  if (res === 'accounting/tax' && !a)
+    return { ...base, action: 'update', always: true, describe: (_l, f) => `Mencatat setor / lapor pajak ${f.jenis ?? ''} masa ${f.masa ?? ''}` }
   if (res === 'faktur' && !a && method === 'POST')
     return { ...base, action: 'create', describe: (l, f) => `Membuat faktur penjualan ${f.nomor || l} di Accurate (pelanggan ${f.customer_no ?? '-'})` }
   if (res === 'faktur' && isId(a))
