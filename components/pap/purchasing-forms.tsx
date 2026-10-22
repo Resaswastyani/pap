@@ -22,17 +22,17 @@ const dec = (v: string) => Number(v.replace(',', '.')) || 0
 const today = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
 
 // Pilih barang Accurate: ketik nama / kode, saran dari data barang (+ harga beli terakhir)
-export function ItemPicker({ line, onPick, onText }: { line: Pick<Line, 'key' | 'item_no' | 'nama'>; onPick: (item: ItemHit) => void; onText: (text: string) => void }) {
+export function ItemPicker({ line, onPick, onText, endpoint = '/api/purchasing/items' }: { line: Pick<Line, 'key' | 'item_no' | 'nama'>; onPick: (item: ItemHit) => void; onText: (text: string) => void; endpoint?: string }) {
   const [text, setText] = useState(line.item_no ? `${line.item_no} · ${line.nama}` : '')
   const [hits, setHits] = useState<ItemHit[]>([])
   const listId = `pap-po-items-${line.key}`
   useEffect(() => {
     const q = text.includes(' · ') ? '' : text.trim()
     const timer = setTimeout(() => {
-      api<{ items: ItemHit[] }>(`/api/purchasing/items${q ? `?q=${encodeURIComponent(q)}` : ''}`).then((r) => setHits(r.items)).catch(() => {})
+      api<{ items: ItemHit[] }>(`${endpoint}${q ? `?q=${encodeURIComponent(q)}` : ''}`).then((r) => setHits(r.items)).catch(() => {})
     }, 250)
     return () => clearTimeout(timer)
-  }, [text])
+  }, [text, endpoint])
   return (
     <>
       <input

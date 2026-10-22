@@ -1477,3 +1477,28 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-card-head .pap-primary-button svg { flex:none; }
 @media (max-width:800px) { .pap-card-head > .pap-primary-button, .pap-card-head > .pap-inline-actions { align-self:stretch; } .pap-card-head > .pap-primary-button { width:100%; } }
 @media (max-width:640px) { .pap-page-tabs { display:flex; width:100%; } .pap-page-tabs button { flex:1; justify-content:center; padding:6px 8px; font-size:11px; white-space:nowrap; } }
+/* Cetak invoice faktur penjualan (format Accurate PT. Pandawa Amerta Packindo) */
+.pap-invoice { color:#000; font-family:Arial, Helvetica, sans-serif; font-size:12px; }
+.pap-invoice-head { display:grid; grid-template-columns:1fr auto 1fr; gap:16px; align-items:start; margin-bottom:28px; }
+.pap-invoice-head img { display:block; margin-bottom:24px; }
+.pap-invoice-head h1 { margin:64px 0 0; font-size:22px; font-weight:700; }
+.pap-invoice-meta td { padding:3px 10px 3px 4px; vertical-align:top; }
+.pap-invoice-customer p { margin:0 0 6px; }
+.pap-invoice-customer strong { display:block; margin:6px 0 8px; font-size:12px; }
+.pap-invoice-customer .tempo { margin-top:24px; }
+.pap-invoice-customer .tempo span { margin-left:12px; }
+.pap-invoice-items { width:100%; border-collapse:collapse; }
+.pap-invoice-items th, .pap-invoice-items td { padding:2px 4px; border:1px solid #000; }
+.pap-invoice-items th { font-weight:400; text-align:center; }
+.pap-invoice-items td.r, .pap-invoice-total td.r { text-align:right; }
+.pap-invoice-expense { margin-top:-1px; }
+.pap-invoice-foot { display:flex; justify-content:space-between; gap:24px; margin-top:10px; }
+.pap-invoice-sign { width:48%; border-collapse:collapse; }
+.pap-invoice-sign th, .pap-invoice-sign td { width:50%; padding:4px; border:1px solid #000; font-weight:400; text-align:center; }
+.pap-invoice-sign tbody tr:first-child td { height:92px; }
+.pap-invoice-sign tr.name td { height:20px; }
+.pap-invoice-total { width:44%; margin-top:20px; border-collapse:collapse; }
+.pap-invoice-total td { padding:8px 0; }
+.pap-invoice-total td:nth-child(2) { width:60px; }
+.pap-invoice-total tr.total td { border-bottom:1.5px solid #000; font-weight:700; }
+.pap-invoice-page { margin-top:48px; text-align:right; font-size:11px; font-style:italic; }
