@@ -23,6 +23,9 @@ export const PERMISSIONS = {
   purchasingPrice: 'purchasing.price.update',
   purchasingPriceCreate: 'purchasing.price.create',
   purchasingPriceDelete: 'purchasing.price.delete',
+  fakturCreate: 'faktur.create',
+  fakturUpdate: 'faktur.update',
+  fakturDelete: 'faktur.delete',
 } as const
 
 // Lampiran produk (desain): PDF & gambar, maks 4 MB per file (batas request Vercel 4,5 MB; diunggah satu per satu)

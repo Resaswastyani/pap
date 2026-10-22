@@ -19,6 +19,7 @@ export const MENU_KEYS = {
   'Kapasitas Produksi': 'kapasitas-produksi',
   'Jadwal Shift': 'jadwal-shift',
   'Hasil Produksi': 'hasil-produksi',
+  'Faktur Produksi': 'faktur-produksi',
   'Data Mesin': 'data-mesin',
   'Kerusakan Mesin': 'perbaikan-mesin',
   'Perawatan Mesin': 'perawatan-mesin',

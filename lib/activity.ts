@@ -154,6 +154,7 @@ const RESOURCES: Record<string, Resource> = {
   capacity: { module: 'Kapasitas Produksi', noun: 'kapasitas mesin', table: 'production_capacities' },
   'shift-schedule': { module: 'Jadwal Shift', noun: 'jadwal shift' },
   // Purchasing: data Accurate (kunci accurate_id), dicatat dari isian form
+  faktur: { module: 'Faktur Produksi', noun: 'faktur penjualan' },
   'purchasing/orders': { module: 'PO Pembelian', noun: 'PO pembelian' },
   'purchasing/prices': { module: 'Harga Bahan', noun: 'harga beli acuan' },
   'purchasing/vendor-prices': { module: 'Harga Bahan', noun: 'harga pemasok' },
@@ -249,6 +250,10 @@ function planFor(method: string, path: string): Plan | null {
     return { ...base, action: 'update', always: true, describe: () => 'Memutus koneksi akun Google Drive desain' }
   if (res === 'master' && a === 'drive')
     return { ...base, action: 'sync', describe: () => 'Menyinkronkan folder Google Drive desain' }
+  if (res === 'faktur' && !a && method === 'POST')
+    return { ...base, action: 'create', describe: (l, f) => `Membuat faktur penjualan ${f.nomor || l} di Accurate (pelanggan ${f.customer_no ?? '-'})` }
+  if (res === 'faktur' && isId(a))
+    return { ...base, action: method === 'DELETE' ? 'delete' : 'update', always: true, id: a, describe: () => `${method === 'DELETE' ? 'Menghapus' : 'Mengubah'} faktur penjualan Accurate #${a}` }
   if (res === 'purchasing/orders' && !a && method === 'POST')
     return { ...base, action: 'create', describe: (l, f) => `Membuat PO pembelian ${f.nomor || l} di Accurate (pemasok ${f.vendor_no ?? '-'})` }
   if (res === 'purchasing/orders' && isId(a))
