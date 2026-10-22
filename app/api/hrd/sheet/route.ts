@@ -5,7 +5,7 @@ import {
   canManageHr, canViewEmployees, canViewPayroll, GRADE_SETTING, importEmployees, importGrades, KARYAWAN_SETTING, loadSheetUrl, readEmployeeSheet, readGradeSheet, saveSheetUrl,
 } from '@/lib/hrd'
 import type { UserProfile } from '@/lib/users'
-import { ABSENSI_SETTING, importAttendance, readAttendanceSheet } from '@/lib/attendance'
+import { ABSENSI_SETTING, importAttendance, isAttendanceFolder, previewAttendanceFolder, readAttendanceSheet, syncAttendanceFolder } from '@/lib/attendance'
 
 export const maxDuration = 60
 
@@ -41,6 +41,12 @@ export const GET = handle(async (request: Request) => {
     if (jenis === 'absensi') {
       const url = await loadSheetUrl(key)
       if (!url) return NextResponse.json({ ...base, tabs: [], dipakai: null, jumlah: 0, contoh: [] })
+      if (isAttendanceFolder(url)) {
+        const files = await guard(() => previewAttendanceFolder(url))
+        const label = { baru: 'baru', berubah: 'berubah, akan dibaca ulang', sudah: 'sudah disinkron', dilewati: 'bukan Google Sheet / .xlsx, dilewati' } as const
+        return NextResponse.json({ ...base, folder: true, tabs: files.map((f) => `${f.folder ? `${f.folder} / ` : ''}${f.name} · ${label[f.status as keyof typeof label]}`), dipakai: null,
+          jumlah: files.filter((f) => f.jenis !== 'lain').length, contoh: [`${files.filter((f) => f.status === 'baru' || f.status === 'berubah').length} file perlu disinkron dari ${files.filter((f) => f.jenis !== 'lain').length} file laporan`] })
+      }
       const r = await guard(() => readAttendanceSheet(url))
       const dates = r.days.map((d) => d.tanggal).sort()
       return NextResponse.json({ ...base, tabs: r.tabs.map((t) => t.title), dipakai: r.tabs.filter((t) => t.format).map((t) => t.title).join(' & '), jumlah: r.days.length,
@@ -76,6 +82,10 @@ export const POST = handle(async (request: Request) => {
   const { jenis } = jenisOf(request, user)
   if (!canManageHr(user)) fail(403, 'Sinkron dijalankan HRD dan GM.')
   if (jenis === 'karyawan') return NextResponse.json(await importEmployees((await guard(readEmployeeSheet)).employees))
-  if (jenis === 'absensi') return NextResponse.json(await importAttendance((await guard(async () => readAttendanceSheet(await loadSheetUrl(ABSENSI_SETTING)))).days, 'drive'))
+  if (jenis === 'absensi') {
+    const url = await loadSheetUrl(ABSENSI_SETTING)
+    if (isAttendanceFolder(url)) return NextResponse.json(await guard(() => syncAttendanceFolder(url, 'drive', { all: new URL(request.url).searchParams.get('semua') === '1' })))
+    return NextResponse.json(await importAttendance((await guard(() => readAttendanceSheet(url))).days, 'drive'))
+  }
   return NextResponse.json(await importGrades(await guard(readGradeSheet)))
 })

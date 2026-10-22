@@ -964,6 +964,19 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-shift-cell.normal { background:#3d85c6; color:#fff; }
 .pap-shift-cell.driver { background:#0097a7; color:#fff; }
 .pap-shift-cell.other { background:rgb(124 92 252 / .18); color:#7050e7; }
+/* Absensi: matriks seperti Jadwal Shift, warna = kehadiran */
+.pap-att-table td.pap-att-cell { min-width:26px; cursor:pointer; font-weight:700; }
+.pap-att-cell.hadir { background:#6aa84f; color:#fff; }
+.pap-att-cell.terlambat { background:#f1c232; color:#5a4300; }
+.pap-att-cell.tidak_hadir { background:#e53935; color:#fff; }
+.pap-att-cell.izin, .pap-att-cell.sakit, .pap-att-cell.cuti, .pap-att-cell.dinas { background:#3d85c6; color:#fff; }
+.pap-att-cell.libur { background:rgb(127 127 127 / .14); color:var(--pap-muted); }
+.pap-att-cell.tanpa_scan { background:rgb(241 194 50 / .35); color:#7a5a00; }
+.pap-att-cell.belum_scan { background:var(--pap-surface); color:var(--pap-text); box-shadow:inset 0 0 0 1.5px #f1c232; }
+.pap-att-cell.terjadwal { background:var(--pap-surface); color:var(--pap-muted); font-weight:500; }
+.pap-att-cell.none { background:repeating-linear-gradient(45deg, transparent 0 4px, rgb(127 127 127 / .12) 4px 8px); }
+.pap-att-table td.picked, .pap-att-table th.picked { outline:2px solid #7c5cfc; outline-offset:-2px; }
+.pap-shift-legend i.pap-att-cell { border:0; }
 .pap-shift-cell.none { background:repeating-linear-gradient(45deg, transparent 0 4px, rgb(127 127 127 / .12) 4px 8px); }
 .pap-shift-table td.today { box-shadow:inset 2px 0 0 #7c5cfc, inset -2px 0 0 #7c5cfc; }
 .pap-shift-table tbody tr:hover td.sticky { background:rgb(124 92 252 / .08); }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, CalendarDays, Clock3, FileSpreadsheet, Search, Upload, UserCheck, UserX } from 'lucide-react'
+import { CalendarDays, Clock3, FileSpreadsheet, Search, Upload } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
 import { MonthNav, monthLabel } from './accurate-production'
@@ -11,9 +11,42 @@ import { api, formatDate, Modal, Notice, Pager, usePaged } from './ui'
 
 // Absensi dari laporan kehadiran HRIS Altius (mesin Fingerspot): harian & rekap bulanan, terlambat, lembur, upah lembur
 
-type Status = 'hadir' | 'terlambat' | 'tidak_hadir' | 'izin' | 'sakit' | 'cuti' | 'dinas' | 'libur' | 'tanpa_scan'
-const STATUS_LABEL: Record<Status, string> = { hadir: 'Hadir', terlambat: 'Terlambat', tidak_hadir: 'Tidak hadir', izin: 'Izin', sakit: 'Sakit', cuti: 'Cuti', dinas: 'Dinas luar', libur: 'Libur', tanpa_scan: 'Scan tidak lengkap' }
-const STATUS_TONE: Record<Status, string> = { hadir: 'success', terlambat: 'warning', tidak_hadir: 'danger', izin: 'info', sakit: 'info', cuti: 'info', dinas: 'info', libur: 'neutral', tanpa_scan: 'warning' }
+type Status = 'hadir' | 'terlambat' | 'tidak_hadir' | 'izin' | 'sakit' | 'cuti' | 'dinas' | 'libur' | 'tanpa_scan' | 'belum_scan' | 'terjadwal'
+const STATUS_LABEL: Record<Status, string> = { hadir: 'Hadir', terlambat: 'Terlambat', tidak_hadir: 'Tidak hadir', izin: 'Izin', sakit: 'Sakit', cuti: 'Cuti', dinas: 'Dinas luar', libur: 'Libur', tanpa_scan: 'Scan tidak lengkap', belum_scan: 'Belum scan', terjadwal: 'Terjadwal' }
+const STATUS_TONE: Record<Status, string> = { hadir: 'success', terlambat: 'warning', tidak_hadir: 'danger', izin: 'info', sakit: 'info', cuti: 'info', dinas: 'info', libur: 'neutral', tanpa_scan: 'warning', belum_scan: 'neutral', terjadwal: 'neutral' }
+// Legenda matriks (urutan tampil)
+const LEGEND: [Status, string][] = [['hadir', '1'], ['terlambat', '1'], ['tidak_hadir', 'A'], ['izin', 'I'], ['sakit', 'S'], ['cuti', 'C'], ['libur', 'L'], ['belum_scan', '1'], ['terjadwal', '1'], ['tanpa_scan', '?']]
+type Cell = { s: Status; sh: string | null; m: string | null; p: string | null; t: number; l: number; k: string | null }
+type MatrixRow = { nip: string; nama: string; jabatan: string | null; divisi: string | null; cells: Record<number, Cell> }
+const DAY_INITIAL = ['M', 'S', 'S', 'R', 'K', 'J', 'S']
+// "Shift 1 (07:00 - 15:00)" -> 1, "Normal1" -> N1, "Driver1" -> D1, "OFF" -> L
+function shiftCode(sh: string | null) {
+  const v = (sh ?? '').trim()
+  if (!v) return ''
+  if (/^(off|libur)/i.test(v)) return 'L'
+  const m = v.match(/^shift\s*(\d)/i)
+  if (m) return m[1]
+  const k = v.match(/^([a-z])[a-z]*\s*(\d*)/i)
+  return k ? `${k[1].toUpperCase()}${k[2]}` : v.slice(0, 2)
+}
+// Isi sel: kode shift untuk hadir / terlambat / terjadwal / belum scan; huruf untuk ketidakhadiran
+function cellText(c: Cell) {
+  if (c.s === 'tidak_hadir') return 'A'
+  if (c.s === 'izin' || c.s === 'dinas') return c.s === 'dinas' ? 'D' : 'I'
+  if (c.s === 'sakit') return 'S'
+  if (c.s === 'cuti') return 'C'
+  if (c.s === 'libur') return 'L'
+  if (c.s === 'tanpa_scan') return '?'
+  return shiftCode(c.sh) || '•'
+}
+function describeCell(nama: string, iso: string, c: Cell) {
+  const parts = [`${nama} · ${formatDate(iso)}`, `${STATUS_LABEL[c.s] ?? c.s}${c.sh ? ` (${c.sh})` : ''}`]
+  if (c.m || c.p) parts.push(`Masuk ${c.m ?? '—'} · Pulang ${c.p ?? '—'}`)
+  if (c.t) parts.push(`Terlambat ${c.t} menit`)
+  if (c.l) parts.push(`Lembur ${c.l} menit`)
+  if (c.k) parts.push(c.k)
+  return parts.join('\n')
+}
 type Day = {
   id: number; nip: string; nama: string; tanggal: string; shift: string | null; jadwal_masuk: string | null; jadwal_pulang: string | null; jam_masuk: string | null; jam_pulang: string | null
   scan: number | null; status: Status; status_asli: string | null; keterangan: string | null; terlambat_menit: number; pulang_cepat_menit: number; lembur_menit: number
@@ -24,7 +57,7 @@ type Rekap = {
   izin: number; sakit: number; cuti: number; tanpa_scan: number; pulang_cepat_menit: number; lembur_menit: number; lembur_libur_menit: number; upah_lembur?: number | null
 }
 type Res = {
-  periode: string; tanggal: string | null; months: string[]; daily: Day[]; rekap: Rekap[]; perDay: { tanggal: string; hadir: number; terlambat: number; tidak_hadir: number; izin: number }[]
+  periode: string; tanggal: string | null; today: string; months: string[]; daily: Day[]; matrix: MatrixRow[]; rekap: Rekap[]; perDay: { tanggal: string; hadir: number; terlambat: number; tidak_hadir: number; izin: number }[]
   synced_at: string | null; can: { manage: boolean; payroll: boolean }
 }
 
@@ -41,6 +74,7 @@ export function AbsensiPage(_props: { user: UserProfile }) {
   const [tab, setTab] = useState<'harian' | 'rekap'>('harian')
   const [status, setStatus] = useState('')
   const [q, setQ] = useState('')
+  const [divisi, setDivisi] = useState('')
   const [uploadOpen, setUploadOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const load = useCallback(async () => {
@@ -65,8 +99,16 @@ export function AbsensiPage(_props: { user: UserProfile }) {
   const pagedDaily = usePaged(daily, [q, status, data?.tanggal])
   const pagedRekap = usePaged(rekap, [q, data?.periode], 50)
   const count = (fn: (d: Day) => boolean) => (data?.daily ?? []).filter(fn).length
-  const toggle = (s: string) => setStatus(status === s ? '' : s)
   const empty = data && !data.months.length
+  // Matriks bulan: semua tanggal + karyawan yang cocok dengan pencarian / divisi
+  const dates = (() => {
+    if (!data?.periode) return []
+    const [y, m] = data.periode.split('-').map(Number)
+    const total = new Date(Date.UTC(y, m, 0)).getUTCDate()
+    return Array.from({ length: total }, (_, i) => ({ day: i + 1, iso: `${data.periode}-${String(i + 1).padStart(2, '0')}`, dow: new Date(Date.UTC(y, m - 1, i + 1)).getUTCDay() }))
+  })()
+  const divisions = [...new Set((data?.matrix ?? []).map((r) => r.divisi).filter((d): d is string => !!d))].sort()
+  const matrix = (data?.matrix ?? []).filter((r) => match(r) && (!divisi || r.divisi === divisi))
 
   return (
     <>
@@ -101,54 +143,96 @@ export function AbsensiPage(_props: { user: UserProfile }) {
           </div>
           {tab === 'harian' ? (
             <>
-              <div className="pap-stat-grid four">
-                {([
-                  ['hadir', 'Hadir', count((d) => ['hadir', 'terlambat', 'tanpa_scan'].includes(d.status)), UserCheck, 'stat-0'],
-                  ['terlambat', 'Terlambat', count((d) => d.status === 'terlambat'), Clock3, 'stat-2'],
-                  ['tidak_hadir', 'Tidak hadir', count((d) => d.status === 'tidak_hadir'), UserX, 'stat-3'],
-                  ['izin', 'Izin / sakit / cuti', count((d) => ['izin', 'sakit', 'cuti', 'dinas'].includes(d.status)), AlertTriangle, 'stat-1'],
-                ] as const).map(([key, label, value, Icon, tone]) => (
-                  <button key={key} className={`pap-stat-card pap-stat-button ${status === key ? 'active' : ''}`} onClick={() => toggle(key === 'hadir' ? '' : key)}>
-                    <div><span>{label}</span><strong className="pap-stat-text">{value}</strong><small className="neutral">{data?.tanggal ? formatDate(data.tanggal) : '—'}</small></div>
-                    <div className={`pap-stat-icon ${tone}`}><Icon /></div>
-                  </button>
-                ))}
-              </div>
               <div className="pap-table-card">
                 <div className="pap-card-head">
-                  <div><h2>Kehadiran {data?.tanggal ? formatDate(data.tanggal) : ''}</h2><p>{daily.length} karyawan · urut: tidak hadir & terlambat dulu</p></div>
+                  <div><h2>Kehadiran {monthLabel(data?.periode ?? '')}</h2><p>Seperti Jadwal Shift: isi sel = shift, warna = kehadiran. Klik tanggal atau sel untuk melihat detail hari itu.</p></div>
+                  {data?.periode && <MonthNav periode={data.periode} onChange={(p) => { setTanggal(''); setPeriode(p) }} />}
                 </div>
                 <div className="pap-filters">
                   <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama, NIP, jabatan..." /></label>
-                  <input className="pap-input pap-date-input" type="date" value={data?.tanggal ?? ''} onChange={(e) => { setTanggal(e.target.value); setPeriode(e.target.value.slice(0, 7)) }} aria-label="Tanggal" />
-                  <select className="pap-select" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter status">
-                    <option value="">Semua status</option>
-                    {(Object.keys(STATUS_LABEL) as Status[]).filter((s) => !['sakit', 'cuti', 'dinas'].includes(s)).map((s) => <option key={s} value={s}>{s === 'izin' ? 'Izin / sakit / cuti' : STATUS_LABEL[s]}</option>)}
+                  <select className="pap-select" value={divisi} onChange={(e) => setDivisi(e.target.value)} aria-label="Filter divisi">
+                    <option value="">Semua divisi</option>
+                    {divisions.map((d) => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
-                <div className="pap-table-wrap">
-                  <table>
-                    <thead><tr><th>Karyawan</th><th>Shift / jadwal</th><th>Masuk</th><th>Pulang</th><th>Status</th><th className="pap-num">Terlambat</th><th className="pap-num">Lembur</th><th>Keterangan</th></tr></thead>
+                <div className="pap-shift-legend">
+                  {LEGEND.map(([s, text]) => <span key={s}><i className={`pap-att-cell ${s}`}>{text}</i>{STATUS_LABEL[s]}</span>)}
+                </div>
+                <div className="pap-shift-wrap">
+                  <table className="pap-shift-table pap-att-table">
+                    <thead>
+                      <tr>
+                        <th rowSpan={2} className="sticky no">No</th>
+                        <th rowSpan={2} className="sticky nama">Nama</th>
+                        {dates.map((d) => <th key={d.day} className={`dow ${d.dow === 0 ? 'sunday' : ''} ${d.iso === data?.today ? 'today' : ''}`}>{DAY_INITIAL[d.dow]}</th>)}
+                      </tr>
+                      <tr>{dates.map((d) => <th key={d.day} className={`date ${d.dow === 0 ? 'sunday' : ''} ${d.iso === data?.today ? 'today' : ''} ${d.iso === data?.tanggal ? 'picked' : ''}`}><button onClick={() => setTanggal(d.iso)} title={`Detail ${formatDate(d.iso)}`}>{d.day}</button></th>)}</tr>
+                    </thead>
                     <tbody>
-                      {pagedDaily.items.map((d) => (
-                        <tr key={d.id}>
-                          <td><div className="pap-cell-title">{d.nama}</div><div className="pap-cell-sub">{d.nip.startsWith('nama:') ? 'NIP tidak ada' : d.nip}{d.jabatan ? ` · ${d.jabatan}` : ''}</div></td>
-                          <td className="pap-nowrap">{d.shift ?? '—'}{(d.jadwal_masuk || d.jadwal_pulang) && <div className="pap-cell-sub">{hm(d.jadwal_masuk)}–{hm(d.jadwal_pulang)}</div>}</td>
-                          <td className="pap-nowrap">{hm(d.jam_masuk)}</td>
-                          <td className="pap-nowrap">{hm(d.jam_pulang)}{d.pulang_cepat_menit > 0 && <div className="pap-cell-sub pap-text-danger">cepat {dur(d.pulang_cepat_menit)}</div>}</td>
-                          <td><span className={`pap-status ${STATUS_TONE[d.status] ?? 'neutral'}`}>{STATUS_LABEL[d.status] ?? d.status}</span>{d.status_asli && d.status_asli.toLowerCase() !== STATUS_LABEL[d.status]?.toLowerCase() && <div className="pap-cell-sub">{d.status_asli}</div>}</td>
-                          <td className={`pap-num pap-nowrap ${d.terlambat_menit ? 'pap-text-warning' : ''}`}>{dur(d.terlambat_menit)}</td>
-                          <td className="pap-num pap-nowrap">{dur(d.lembur_menit)}</td>
-                          <td className="pap-cell-sub">{d.keterangan ?? ''}</td>
+                      {matrix.map((r, i) => (
+                        <tr key={r.nip}>
+                          <td className="sticky no">{i + 1}</td>
+                          <td className="sticky nama"><span className="pap-shift-name">{r.nama}</span>{r.jabatan && <span className={`pap-shift-tag ${/kepala|kashift/i.test(r.jabatan) ? 'lead' : ''}`}>{r.jabatan}</span>}</td>
+                          {dates.map((d) => {
+                            const c = r.cells[d.day]
+                            return (
+                              <td key={d.day} className={`pap-att-cell ${c ? c.s : 'none'} ${d.iso === data?.today ? 'today' : ''} ${d.iso === data?.tanggal ? 'picked' : ''}`}
+                                title={c ? describeCell(r.nama, d.iso, c) : `${r.nama} · ${formatDate(d.iso)}: tidak ada data`} onClick={() => setTanggal(d.iso)}>
+                                {c ? cellText(c) : ''}
+                              </td>
+                            )
+                          })}
                         </tr>
                       ))}
                     </tbody>
+                    <tfoot>
+                      {([['hadir', 'Hadir'], ['terlambat', 'Terlambat'], ['tidak_hadir', 'Tidak hadir']] as const).map(([s, label]) => (
+                        <tr key={s}>
+                          <td colSpan={2} className="sticky jumlah">Jumlah {label}</td>
+                          {dates.map((d) => {
+                            const total = matrix.filter((r) => { const st = r.cells[d.day]?.s; return s === 'hadir' ? st === 'hadir' || st === 'terlambat' || st === 'tanpa_scan' : st === s }).length
+                            return <td key={d.day} className={d.iso === data?.today ? 'today' : ''}>{d.iso > (data?.today ?? '') ? '' : total || ''}</td>
+                          })}
+                        </tr>
+                      ))}
+                    </tfoot>
                   </table>
-                  {data && !daily.length && <div className="pap-empty">{data.tanggal ? 'Tidak ada data kehadiran yang cocok di tanggal ini.' : 'Belum ada data di bulan ini.'}</div>}
+                  {data && !matrix.length && <div className="pap-empty">{q || divisi ? 'Tidak ada karyawan yang cocok.' : `Belum ada data di ${monthLabel(data.periode)}.`}</div>}
                   {!data && !error && <div className="pap-empty">Memuat absensi...</div>}
-                  <Pager {...pagedDaily.pager} noun="karyawan" />
                 </div>
               </div>
+              {data?.tanggal && (
+                <div className="pap-table-card">
+                  <div className="pap-card-head">
+                    <div><h2>Detail {formatDate(data.tanggal)}</h2><p>{daily.length} karyawan · hadir {count((d) => ['hadir', 'terlambat', 'tanpa_scan'].includes(d.status))} · terlambat {count((d) => d.status === 'terlambat')} · tidak hadir {count((d) => d.status === 'tidak_hadir')} · izin/sakit/cuti {count((d) => ['izin', 'sakit', 'cuti', 'dinas'].includes(d.status))}</p></div>
+                    <select className="pap-select" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter status">
+                      <option value="">Semua status</option>
+                      {(Object.keys(STATUS_LABEL) as Status[]).filter((s) => !['sakit', 'cuti', 'dinas'].includes(s)).map((s) => <option key={s} value={s}>{s === 'izin' ? 'Izin / sakit / cuti' : STATUS_LABEL[s]}</option>)}
+                    </select>
+                  </div>
+                  <div className="pap-table-wrap">
+                    <table>
+                      <thead><tr><th>Karyawan</th><th>Shift / jadwal</th><th>Masuk</th><th>Pulang</th><th>Status</th><th className="pap-num">Terlambat</th><th className="pap-num">Lembur</th><th>Keterangan</th></tr></thead>
+                      <tbody>
+                        {pagedDaily.items.map((d) => (
+                          <tr key={d.id}>
+                            <td><div className="pap-cell-title">{d.nama}</div><div className="pap-cell-sub">{d.nip.startsWith('nama:') ? 'NIP tidak ada' : d.nip}{d.jabatan ? ` · ${d.jabatan}` : ''}</div></td>
+                            <td className="pap-nowrap">{d.shift ?? '—'}{(d.jadwal_masuk || d.jadwal_pulang) && <div className="pap-cell-sub">{hm(d.jadwal_masuk)}–{hm(d.jadwal_pulang)}</div>}</td>
+                            <td className="pap-nowrap">{hm(d.jam_masuk)}</td>
+                            <td className="pap-nowrap">{hm(d.jam_pulang)}{d.pulang_cepat_menit > 0 && <div className="pap-cell-sub pap-text-danger">cepat {dur(d.pulang_cepat_menit)}</div>}</td>
+                            <td><span className={`pap-status ${STATUS_TONE[d.status] ?? 'neutral'}`}>{STATUS_LABEL[d.status] ?? d.status}</span></td>
+                            <td className={`pap-num pap-nowrap ${d.terlambat_menit ? 'pap-text-warning' : ''}`}>{dur(d.terlambat_menit)}</td>
+                            <td className="pap-num pap-nowrap">{dur(d.lembur_menit)}</td>
+                            <td className="pap-cell-sub">{d.keterangan ?? ''}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {!daily.length && <div className="pap-empty">Tidak ada data yang cocok di tanggal ini.</div>}
+                    <Pager {...pagedDaily.pager} noun="karyawan" />
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <>
