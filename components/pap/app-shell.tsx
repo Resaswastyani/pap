@@ -48,7 +48,7 @@ const groups: { label: string; items: MenuItem[] }[] = [
   { label: 'TEKNIK', items: [{ label: 'Data Mesin', icon: Factory }, { label: 'Kerusakan Mesin', icon: Wrench }, { label: 'Perawatan Mesin', icon: CalendarCheck }, { label: 'SOP Mesin', icon: MonitorPlay }, { label: 'Sparepart & Peralatan', icon: Cog }] },
   { label: 'PURCHASING', items: [{ label: 'Pengajuan Pembelian', icon: ShoppingCart }, { label: 'PO Pembelian', icon: Truck }, { label: 'Supplier', icon: Building2 }, { label: 'Harga Bahan', icon: Tags }, { label: 'Hutang Supplier', icon: Wallet }] },
   { label: 'ACCOUNTING', items: [{ label: 'Ringkasan Keuangan', icon: PieChart }, { label: 'Kas & Bank', icon: Landmark }, { label: 'Piutang Customer', icon: HandCoins }, { label: 'Laporan Keuangan', icon: FileSheetIcon }, { label: 'Arus Kas', icon: ChartNoAxesCombined }, { label: 'Pajak', icon: Percent }] },
-  { label: 'SDM', items: [{ label: 'Karyawan', icon: UserRound }, { label: 'Grade & Gaji', icon: Award }, { label: 'Absensi', icon: UserCheck }, { label: 'Training', icon: GraduationCap }] },
+  { label: 'SDM', items: [{ label: 'Karyawan', icon: UserRound }, { label: 'Grade', icon: Award }, { label: 'Absensi', icon: UserCheck }, { label: 'Training', icon: GraduationCap }] },
   { label: 'KOLABORASI', items: [{ label: 'Planning', icon: ListChecks }, { label: 'Progress Kerja', icon: BarChart3 }, { label: 'Meeting', icon: Handshake }] },
   { label: 'SISTEM', items: [{ label: 'Master Data', icon: Database }, { label: 'Manajemen User', icon: UserCog }, { label: 'Manajemen Role', icon: ShieldCheck }, { label: 'Pengaturan', icon: Settings }] },
 ]
