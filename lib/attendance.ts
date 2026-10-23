@@ -260,6 +260,8 @@ export async function importAttendance(days: DayRow[], sumber: 'drive' | 'upload
   }
   await db.query("INSERT INTO app_settings (`key`, value) VALUES ('hrd.absensi_synced_at', NOW()) ON DUPLICATE KEY UPDATE value = NOW()")
   const dates = rows.map((d) => d.tanggal).sort()
+  // Izin / cuti yang sudah disetujui ditandai lagi (data mesin menimpa status hari itu)
+  if (dates.length) await (await import('@/lib/leave')).applyLeaves(undefined, { dari: dates[0], sampai: dates.at(-1)! })
   return { baris: rows.length, karyawan: new Set(rows.map((d) => d.nip)).size, dari: dates[0], sampai: dates.at(-1) }
 }
 
@@ -346,8 +348,9 @@ export async function syncAttendanceFolder(url: string, sumber: 'drive' | 'uploa
 // karyawan yang tidak pernah ada di Jadwal Shift tidak diubah (tetap libur hari Minggu).
 export async function applyShiftSchedule(periods?: string[]) {
   const [rows] = await db.query<(RowDataPacket & { id: number; nip: string; nama: string; tanggal: string; shift: string | null; status: Status; jam_masuk: string | null; terlambat_menit: number; scan: number | null })[]>(
+    // Hari yang ditandai dari pengajuan Izin & Cuti tidak dihitung ulang
     `SELECT id, nip, nama, DATE_FORMAT(tanggal, '%Y-%m-%d') AS tanggal, shift, status, jam_masuk, terlambat_menit, scan FROM attendance_days
-     ${periods?.length ? "WHERE DATE_FORMAT(tanggal, '%Y-%m') IN (?)" : ''}`,
+     WHERE leave_id IS NULL ${periods?.length ? "AND DATE_FORMAT(tanggal, '%Y-%m') IN (?)" : ''}`,
     periods?.length ? [periods] : [],
   )
   if (!rows.length) return { diperbarui: 0 }
