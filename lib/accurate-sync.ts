@@ -55,7 +55,7 @@ const nameOf = (v: unknown) => (v && typeof v === 'object' ? str((v as Row).name
 const idOf = (v: unknown) => (v && typeof v === 'object' ? num((v as Row).id) : num(v))
 
 const FIELDS: Record<ListEntity, string> = {
-  'sales-order': 'id,number,transDate,shipDate,customer,totalAmount,statusName,lastUpdate',
+  'sales-order': 'id,number,transDate,shipDate,customer,totalAmount,statusName,description,toAddress,lastUpdate',
   customer: 'id,customerNo,name,email,mobilePhone,workPhone,billStreet,billCity,billProvince,billZipCode,npwpNo,suspended,category,notes,lastUpdate',
   'sales-invoice': 'id,number,transDate,dueDate,customer,totalAmount,primeOwing,statusName,lastUpdate',
   item: 'id,no,name,itemType,itemCategory,unit1,availableToSell,balance,quantity,minimumQuantity,vendorPrice,suspended,lastUpdate',
@@ -137,11 +137,12 @@ async function saveStock(rows: Row[]) {
 async function saveSalesOrders(rows: Row[]) {
   if (!rows.length) return
   await db.query(
-    `INSERT INTO accurate_sales_orders (accurate_id, number, trans_date, ship_date, customer_accurate_id, total_amount, status, last_update)
+    `INSERT INTO accurate_sales_orders (accurate_id, number, trans_date, ship_date, customer_accurate_id, total_amount, status, description, to_address, last_update)
      VALUES ?
      ON DUPLICATE KEY UPDATE number = VALUES(number), trans_date = VALUES(trans_date), ship_date = VALUES(ship_date), customer_accurate_id = VALUES(customer_accurate_id),
-       total_amount = VALUES(total_amount), status = VALUES(status), last_update = VALUES(last_update)`,
-    [rows.map((row) => [num(row.id), str(row.number, 80), fromAccurateDate(row.transDate), fromAccurateDate(row.shipDate), idOf(row.customer), num(row.totalAmount), str(row.statusName, 80), str(row.lastUpdate, 20)])],
+       total_amount = VALUES(total_amount), status = VALUES(status), description = VALUES(description), to_address = VALUES(to_address), last_update = VALUES(last_update)`,
+    [rows.map((row) => [num(row.id), str(row.number, 80), fromAccurateDate(row.transDate), fromAccurateDate(row.shipDate), idOf(row.customer), num(row.totalAmount), str(row.statusName, 80),
+      str(row.description, 2000), str(row.toAddress, 1000), str(row.lastUpdate, 20)])],
   )
 }
 

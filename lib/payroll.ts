@@ -167,12 +167,18 @@ export type SlipGaji = {
   upah: number; pendapatan_harian: number; lembur: number; tunjangan: number; pendapatan_lain: number; cuti_dibayar: number; bruto: number
   bpjs_pegawai: { jht: number; jpn: number; kes: number }; potongan_bpjs: number; potongan_lain: number; diterima: number
   bpjs_perusahaan: { kes: number; jht: number; jkk: number; jkm: number; jpn: number; total: number }; catatan: string[]
+  // Rincian iuran per program (bagian perusahaan _p / pegawai _k sebelum dialihkan "ditanggung perusahaan") untuk Laporan BPJS
+  bpjs_rincian: BpjsRincian
   lembur_rutin_jam: number; tgl_masuk: string | null; divisi: string | null
   // Baris slip gaji (seperti Altius): penghasilan, penghasilan tambahan, potongan
   rincian: { penghasilan: SlipLine[]; tambahan: SlipLine[]; potongan: SlipLine[] }
   mingguan: WeeklyResult | null
 }
 export type SlipLine = { label: string; nominal: number }
+export type BpjsRincian = {
+  dasar_tk: number; dasar_kes: number; dasar_jp: number; kes_p: number; kes_k: number; jht_p: number; jht_k: number; jkk: number; jkm: number; jp_p: number; jp_k: number
+  tk_ditanggung: string; kes_ditanggung: string
+}
 
 const round = (v: number) => Math.round(v)
 const ageAt = (lahir: string | null, tanggal: string) => {
@@ -297,6 +303,12 @@ export function hitungGaji(p: EmployeePayroll, s: PayrollSettings, k: Kehadiran,
     upah: round(upah), pendapatan_harian: round(pendapatanHarian), lembur: round(lembur), tunjangan: round(tunjangan), pendapatan_lain: round(lain), cuti_dibayar: round(cuti),
     bruto: round(bruto), bpjs_pegawai: pegawai, potongan_bpjs: potonganBpjs, potongan_lain: round(potonganLain),
     diterima: round(bruto) - potonganBpjs - round(potonganLain), bpjs_perusahaan: perusahaan, catatan,
+    bpjs_rincian: {
+      dasar_tk: ikutTk ? round(dasarTk) : 0, dasar_kes: ikutKes ? round(dasarKes) : 0, dasar_jp: ikutJpn ? round(dasarJpn) : 0,
+      kes_p: pct(dasarKes, s.bpjs_kes_perusahaan, ikutKes), kes_k: pegawai.kes, jht_p: pct(dasarTk, s.bpjs_jht_perusahaan, ikutTk), jht_k: pegawai.jht,
+      jkk: perusahaan.jkk, jkm: perusahaan.jkm, jp_p: pct(dasarJpn, s.bpjs_jpn_perusahaan, ikutJpn), jp_k: pegawai.jpn,
+      tk_ditanggung: p.bpjs_tk_ditanggung, kes_ditanggung: p.bpjs_kes_ditanggung,
+    },
     lembur_rutin_jam: rutinJam, tgl_masuk: p.tgl_masuk, divisi: p.divisi,
     rincian: { penghasilan, tambahan: filtered, potongan }, mingguan: w,
   }

@@ -165,7 +165,12 @@ const RESOURCES: Record<string, Resource> = {
   'shift-schedule': { module: 'Jadwal Shift', noun: 'jadwal shift' },
   // Purchasing: data Accurate (kunci accurate_id), dicatat dari isian form
   faktur: { module: 'Faktur Produksi', noun: 'faktur penjualan' },
+  'logistik/shipments': { module: 'Pengiriman', noun: 'pengiriman', table: 'shipments' },
+  'logistik/expeditions': { module: 'Ekspedisi', noun: 'ekspedisi', table: 'expeditions' },
   'hrd/payroll': { module: 'Grade & Gaji', noun: 'pengaturan gaji', table: 'employee_payrolls' },
+  'hrd/leaves': { module: 'Izin & Cuti', noun: 'pengajuan izin', table: 'leave_requests' },
+  'hrd/kpi': { module: 'KPI Karyawan', noun: 'penilaian KPI', table: 'employee_kpis' },
+  'hrd/permits': { module: 'Perizinan', noun: 'izin perusahaan', table: 'company_permits' },
   'accounting/cash': { module: 'Accounting', noun: 'pencocokan saldo', table: 'cash_reconciliations' },
   'accounting/forecast': { module: 'Accounting', noun: 'rencana kas', table: 'cash_plans' },
   'accounting/plans': { module: 'Accounting', noun: 'rencana kas', table: 'cash_plans' },
@@ -271,6 +276,12 @@ function planFor(method: string, path: string): Plan | null {
       ...base, action: !b ? 'create' : method === 'DELETE' ? 'delete' : 'update', entityType: 'lembur', table: 'overtime_entries', id: b,
       describe: (_l, f) => (!b ? `Input lembur ${f.jam ?? ''} jam (${f.hari === 'libur' ? 'hari libur' : 'hari kerja'}) NIP ${f.nip ?? ''} tanggal ${f.tanggal ?? ''}` : `${method === 'DELETE' ? 'Menghapus' : 'Mengubah'} lembur #${b}`),
     }
+  if (res === 'hrd/leaves' && !a && method === 'POST')
+    return { ...base, action: 'create', table: 'leave_requests', describe: (l, f) => `Mengajukan ${String(f.jenis ?? 'izin').replace('_', ' ')} ${l} NIP ${f.nip ?? ''} (${f.tanggal_mulai ?? ''}${f.tanggal_selesai && f.tanggal_selesai !== f.tanggal_mulai ? ` s/d ${f.tanggal_selesai}` : ''})` }
+  if (res === 'hrd/leaves' && isId(a) && method === 'PATCH')
+    return { ...base, action: 'update', always: true, table: 'leave_requests', id: a, describe: (l, f) => `${f.action === 'setujui' ? 'Menyetujui' : f.action === 'tolak' ? 'Menolak' : 'Membatalkan'} pengajuan ${l}${f.catatan ? ` (${f.catatan})` : ''}` }
+  if (res === 'hrd/kpi' && !a && method === 'PUT')
+    return { ...base, action: 'update', always: true, describe: (_l, f) => `Mengisi penilaian KPI karyawan NIP ${f.nip ?? ''} periode ${f.periode ?? ''}` }
   if (res === 'hrd/payroll' && a === 'settings')
     return { ...base, action: 'update', always: true, describe: () => 'Mengubah pengaturan payroll' }
   if (res === 'accounting/cash' && !a)
@@ -281,6 +292,12 @@ function planFor(method: string, path: string): Plan | null {
     return { ...base, action: 'update', always: true, describe: (_l, f) => `Mengubah target keuangan ${f.periode ?? ''}` }
   if (res === 'accounting/tax' && !a)
     return { ...base, action: 'update', always: true, describe: (_l, f) => `Mencatat setor / lapor pajak ${f.jenis ?? ''} masa ${f.masa ?? ''}` }
+  if (res === 'logistik/shipments' && !a && method === 'POST')
+    return { ...base, action: 'create', table: 'shipments', describe: (l, f) => (f.action === 'pengaturan' ? `Mengubah standar waktu pengiriman (toleransi ${f.hari ?? 0} hari, dipantau sejak ${f.mulai ?? '-'})` : `Membuat pengiriman ${l} untuk ${f.customer_name ?? ''}`) }
+  if (res === 'logistik/shipments' && isId(a) && method === 'PATCH')
+    return { ...base, action: 'update', always: true, table: 'shipments', id: a, describe: (l, f) => `Mengubah status pengiriman ${l} menjadi ${String(f.status ?? '').replace('_', ' ')}${f.no_resi ? ` (resi ${f.no_resi})` : ''}` }
+  if (res === 'logistik/expeditions' && a === 'sync')
+    return { ...base, action: 'sync', describe: () => 'Menyinkronkan ekspedisi & tarif dari keterangan SO Accurate' }
   if (res === 'faktur' && !a && method === 'POST')
     return { ...base, action: 'create', describe: (l, f) => `Membuat faktur penjualan ${f.nomor || l} di Accurate (pelanggan ${f.customer_no ?? '-'})` }
   if (res === 'faktur' && isId(a))
