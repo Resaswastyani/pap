@@ -265,7 +265,7 @@ export function AiAssistant({ userId, userName }: { userId: number; userName: st
   return (
     <>
       <button type="button" className={`pap-ai-fab ${open ? 'hidden' : ''}`} onClick={() => setOpen(true)} aria-label="Buka PAP AI">
-        <Sparkles /><span>PAP AI</span>
+        <Sparkles /><span className="pap-ai-fab-badge">AI</span><span className="pap-ai-fab-label">Tanya PAP AI</span>
       </button>
       {open && <button type="button" className="pap-ai-backdrop" aria-label="Tutup PAP AI" onClick={() => setOpen(false)} />}
       <aside className={`pap-ai-panel ${open ? 'open' : ''} ${wide ? 'wide' : ''}`} aria-label="PAP AI" aria-hidden={!open}>
