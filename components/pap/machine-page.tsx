@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Cog, ExternalLink, FileSpreadsheet, FileText, ListChecks, Pencil, Plus, RefreshCw, Trash2, Wrench } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
-import { api, Field, Modal, Notice, Pager, usePaged } from './ui'
+import { api, Field, Modal, Notice, Pager, usePaged, RowActions } from './ui'
 
 type Machine = { id: number; kode: string; nama: string; tahap: string; kapasitas: string | null; status: 'aktif' | 'maintenance' | 'nonaktif'; keterangan: string | null; lini: string | null; antrian: number; sedang_dikerjakan: string | null; critical_point: number; perbaikan_terbuka: number }
 
@@ -75,7 +75,7 @@ export function MachinePage({ user }: { user: UserProfile }) {
             <thead><tr><th>Mesin</th><th>Tahap</th><th className="pap-num">Critical point</th><th>Sedang dikerjakan</th><th className="pap-num">Antrian</th><th>Status</th>{canManage && <th aria-label="Aksi" />}</tr></thead>
             {groups.map((g) => (
               <tbody key={g.lini}>
-                {groups.length > 1 && <tr className="pap-group-row"><td colSpan={canManage ? 7 : 6}>{g.lini || 'Mesin lain'}</td></tr>}
+                {groups.length > 1 && <tr className="pap-group-row"><td colSpan={7}>{g.lini || 'Mesin lain'}</td></tr>}
                 {g.list.map((m) => (
                   <tr key={m.id} className="pap-row-link" onClick={() => setDetailId(m.id)}>
                     <td><div className="pap-cell-title">{m.nama}</div><div className="pap-cell-sub">{m.kode}{m.kapasitas ? ` · ${m.kapasitas}` : ''}</div></td>
@@ -84,7 +84,7 @@ export function MachinePage({ user }: { user: UserProfile }) {
                     <td>{m.sedang_dikerjakan ?? <span className="pap-muted">—</span>}</td>
                     <td className="pap-num">{m.antrian}</td>
                     <td><span className={`pap-status ${STATUS_TONE[m.status]}`}>{STATUS_LABEL[m.status]}</span>{m.perbaikan_terbuka > 0 && <div className="pap-cell-sub pap-text-danger">{m.perbaikan_terbuka} kerusakan terbuka</div>}</td>
-                    {canManage && <td><button className="pap-icon-button" aria-label={`Edit ${m.nama}`} onClick={(e) => { e.stopPropagation(); setForm(m) }}><Pencil /></button></td>}
+                    <td className="pap-actions-cell"><RowActions label={m.nama} onView={() => setDetailId(m.id)} onEdit={canManage ? () => setForm(m) : undefined} /></td>
                   </tr>
                 ))}
               </tbody>

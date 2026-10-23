@@ -5,7 +5,7 @@ import { CalendarDays, CheckCircle2, ClipboardList, Clock3, ExternalLink, FileTe
 import { FILE_MAX_BYTES, PERMISSIONS, PLANNING_STATUS, type PlanningStatus } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
 import { prepareFiles } from './attachments'
-import { api, Field, formatDate, formatSize, Modal, Notice, Pager, Progress, StatusBadge, usePaged, type UserOption, UserPicker } from './ui'
+import { api, Field, formatDate, formatSize, Modal, Notice, Pager, Progress, StatusBadge, usePaged, type UserOption, UserPicker, RowActions } from './ui'
 
 type Division = { id: number; code: string; name: string }
 type Abilities = { edit: boolean; delete: boolean; progress: boolean; attach: boolean }
@@ -159,7 +159,7 @@ export function PlanningPage({ user, focusId, onOpenMeeting }: { user: UserProfi
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Nomor / Judul</th><th>Divisi</th><th>Periode</th><th>Progress</th><th>Status</th><th aria-label="Aksi" /></tr></thead>
+            <thead><tr><th>Nomor / Judul</th><th>Divisi</th><th>Periode</th><th>Progress</th><th>Status</th><th className="pap-actions-col">Aksi</th></tr></thead>
             <tbody>
               {paged.items.map((item) => (
                 <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
@@ -171,7 +171,7 @@ export function PlanningPage({ user, focusId, onOpenMeeting }: { user: UserProfi
                   <td className="pap-nowrap">{formatDate(item.tanggal_mulai)} – {formatDate(item.tanggal_selesai)}</td>
                   <td><Progress value={item.progress} /></td>
                   <td><StatusBadge value={item.status} /></td>
-                  <td><button className="pap-link-button" onClick={(e) => { e.stopPropagation(); setDetailId(item.id) }}>Detail</button></td>
+                  <td className="pap-actions-cell"><RowActions label={item.judul} onView={() => setDetailId(item.id)} onEdit={item.can.edit ? () => setForm(item) : undefined} /></td>
                 </tr>
               ))}
             </tbody>

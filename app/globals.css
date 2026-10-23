@@ -1611,3 +1611,12 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-att-matrix td.name { white-space:nowrap; }
 .pap-att-matrix.short td, .pap-att-matrix.short th { padding:1px 2px; font-size:8.5px; }
 a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity:.5; }
+/* Tombol aksi baris tabel (detail / ubah) */
+.pap-table-wrap th.pap-actions-col { width:1%; text-align:right; }
+.pap-table-wrap td.pap-actions-cell { width:1%; white-space:nowrap; text-align:right; }
+.pap-row-actions { display:inline-flex; gap:6px; }
+.pap-row-action { display:inline-flex; align-items:center; gap:5px; height:30px; padding:0 10px; border:1px solid var(--pap-border); border-radius:8px; background:var(--pap-surface); color:var(--pap-text); font-size:11px; font-weight:600; cursor:pointer; }
+.pap-row-action svg { width:14px; height:14px; }
+.pap-row-action:hover { border-color:#7c5cfc; color:#7050e7; }
+.pap-row-action.edit { color:#7050e7; }
+@media (max-width:640px) { .pap-row-action span { display:none; } .pap-row-action { padding:0 8px; } }

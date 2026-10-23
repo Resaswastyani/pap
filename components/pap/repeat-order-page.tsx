@@ -9,7 +9,7 @@ import { AttachmentInput, emptyAttachments, NoteFiles, pendingCount, uploadNoteA
 import { api, formatDate, Modal, Notice, Pager } from './ui'
 
 type Status = 'waktunya' | 'berisiko' | 'nonaktif' | 'aman'
-const STATUS_LABEL: Record<Status, string> = { waktunya: 'Waktunya order', berisiko: 'Berisiko berhenti', nonaktif: 'Nonaktif', aman: 'Aman' }
+const STATUS_LABEL: Record<Status, string> = { waktunya: 'Waktunya order', berisiko: 'Berisiko berhenti', nonaktif: 'Pelanggan pasif', aman: 'Aman' }
 const STATUS_TONE: Record<Status, string> = { waktunya: 'warning', berisiko: 'danger', nonaktif: 'neutral', aman: 'success' }
 
 type Row = {
@@ -81,7 +81,7 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
     ['perlu', 'Perlu dihubungi', count('waktunya') + count('berisiko'), `${count('berisiko')} berisiko berhenti order`, AlertTriangle, 'stat-2'],
     ['followup', 'Follow-up hari ini', due.today + due.overdue, due.overdue ? `${due.overdue} terlambat` : 'Jadwal follow-up', CalendarClock, 'stat-1'],
     ['aman', 'Aman', count('aman'), 'Belum waktunya order', Repeat, 'stat-0'],
-    ['nonaktif', 'Nonaktif', count('nonaktif'), `Tidak order > ${inactiveDays} hari`, UserMinus, 'stat-1'],
+    ['nonaktif', 'Pelanggan pasif', count('nonaktif'), `Tidak order > ${inactiveDays} hari`, UserMinus, 'stat-1'],
   ]
 
   return (
