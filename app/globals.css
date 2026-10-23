@@ -1645,3 +1645,37 @@ a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity
 .pap-row-action:hover { border-color:#7c5cfc; color:#7050e7; }
 .pap-row-action.edit { color:#7050e7; }
 @media (max-width:640px) { .pap-row-action span { display:none; } .pap-row-action { padding:0 8px; } }
+/* Pencarian global di header (kotak "Cari data...") */
+.pap-search { position:relative; width:260px; cursor:text; }
+.pap-search:focus-within { border-color:#7c5cfc; box-shadow:0 0 0 3px rgb(124 92 252 / .12); }
+.pap-search input { flex:1; min-width:0; height:100%; border:0; outline:0; background:transparent; color:var(--pap-text); font:inherit; font-size:12px; }
+.pap-search input::placeholder { color:var(--pap-muted); }
+.pap-search kbd { padding:1px 5px; border:1px solid var(--pap-border); border-radius:5px; color:var(--pap-muted); font:inherit; font-size:9.5px; white-space:nowrap; }
+.pap-search-trigger, .pap-search-clear { display:grid; place-items:center; padding:0; border:0; background:transparent; color:var(--pap-muted); cursor:pointer; }
+.pap-search-trigger { display:none; }
+.pap-search-clear svg { width:13px; }
+.pap-search-panel { position:absolute; top:calc(100% + 8px); left:0; z-index:45; width:min(420px, calc(100vw - 24px)); max-height:min(480px, calc(100dvh - 110px)); overflow-y:auto; padding:6px; border:1px solid var(--pap-border); border-radius:12px; background:var(--pap-surface); color:var(--pap-text); box-shadow:0 18px 40px rgb(0 0 0 / .18); }
+.pap-search-group { margin:8px 8px 4px; color:var(--pap-muted); font-size:9.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+.pap-search-item { display:flex; align-items:center; gap:10px; width:100%; padding:8px 10px; border:0; border-radius:8px; background:transparent; color:inherit; text-align:left; cursor:pointer; }
+.pap-search-item.active { background:rgb(124 92 252 / .1); }
+.pap-search-item > svg { flex:none; width:14px; color:#7c5cfc; }
+.pap-search-item span { flex:1; min-width:0; }
+.pap-search-item b, .pap-search-item small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pap-search-item b { font-size:12px; font-weight:600; }
+.pap-search-item small { margin-top:2px; color:var(--pap-muted); font-size:10.5px; }
+.pap-search-item .pap-search-enter { width:13px; color:var(--pap-muted); }
+.pap-search-empty { margin:0; padding:12px 10px; color:var(--pap-muted); font-size:11.5px; line-height:1.5; }
+/* HP & tablet: tombol ikon, kotak pencarian melebar penuh di bawah header saat dibuka */
+@media (max-width:900px) {
+  .pap-search { display:flex; width:auto; margin-right:8px; padding:0; border:0; }
+  .pap-search:focus-within { box-shadow:none; }
+  .pap-search-trigger { display:grid; width:38px; height:38px; border:1px solid var(--pap-border); border-radius:10px; background:var(--pap-surface); }
+  .pap-search-trigger svg { width:17px; }
+  .pap-search > .pap-search-icon, .pap-search > input, .pap-search > kbd, .pap-search > .pap-search-clear { display:none; }
+  .pap-search.open { position:fixed; top:8px; left:12px; right:12px; z-index:60; height:44px; margin:0; padding:0 12px; gap:8px; border:1px solid #7c5cfc; border-radius:12px; background:var(--pap-surface); box-shadow:0 10px 30px rgb(0 0 0 / .18); }
+  .pap-search.open > .pap-search-trigger { display:none; }
+  .pap-search.open > .pap-search-icon, .pap-search.open > input, .pap-search.open > .pap-search-clear { display:grid; }
+  .pap-search.open > input { display:block; font-size:16px; }
+  .pap-search.open > .pap-search-icon { width:16px; color:var(--pap-muted); }
+  .pap-search-panel { left:-1px; right:-1px; width:auto; }
+}
