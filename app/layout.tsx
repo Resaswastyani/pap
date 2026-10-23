@@ -5,7 +5,8 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'PAP Management System',
   description: 'Sistem manajemen operasional PT Pandawa Amerta Packindo — produsen kantong plastik HD, PP, PE dan mika rigid. Focus on Quality.',
-  generator: 'v0.app',
+  // Sistem internal: jangan diindeks mesin pencari (lihat juga X-Robots-Tag di next.config.mjs & app/robots.ts)
+  robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false, noimageindex: true, 'max-snippet': 0, 'max-image-preview': 'none' } },
   icons: {
     icon: [
       {
