@@ -5,7 +5,7 @@ import { Download, ExternalLink, FileText, ImageIcon, Package, Pencil, Plus, Pri
 import { PRODUCT_FILE_ACCEPT, PRODUCT_FILE_MAX_BYTES } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatNumber, formatRupiah } from './accurate'
-import { api, Field, formatDate, formatSize, Modal, Notice, Pager } from './ui'
+import { api, Field, formatDate, formatSize, Modal, Notice, Pager, RowActions } from './ui'
 
 export type Product = {
   id: number
@@ -140,7 +140,7 @@ export function ProductPage({ user, focusId }: { user: UserProfile; focusId?: nu
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Produk</th><th>Customer</th><th>Jenis</th><th className="pap-num">Stok</th><th>Pesanan terakhir</th><th>Desain</th></tr></thead>
+            <thead><tr><th>Produk</th><th>Customer</th><th>Jenis</th><th className="pap-num">Stok</th><th>Pesanan terakhir</th><th>Desain</th><th className="pap-actions-col">Aksi</th></tr></thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
@@ -150,6 +150,7 @@ export function ProductPage({ user, focusId }: { user: UserProfile; focusId?: nu
                   <td className="pap-num pap-nowrap">{item.stock === null ? '—' : `${formatNumber(item.stock)} ${item.unit ?? ''}`}</td>
                   <td className="pap-nowrap">{item.last_order ? formatDate(item.last_order) : <span className="pap-muted">—</span>}</td>
                   <td className="pap-nowrap">{item.file_count ? <><FileText className="pap-inline-icon" /> {item.file_count}</> : <span className="pap-muted">{item.spesifikasi ? '—' : 'Belum lengkap'}</span>}</td>
+                  <td className="pap-actions-cell"><RowActions label={item.nama} onView={() => setDetailId(item.id)} onEdit={canManage ? () => setForm(item) : undefined} /></td>
                 </tr>
               ))}
             </tbody>

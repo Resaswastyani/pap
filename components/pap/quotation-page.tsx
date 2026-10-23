@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Ban, CheckCircle2, Copy, FileDown, FileText, MessageCircle, Pencil, Plus, Printer, Receipt, Search, Send, Settings2, Trash2, TrendingUp, Truck, Wallet, XCircle } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { rupiah } from '@/lib/hpp-calc'
@@ -8,7 +8,7 @@ import { DocForm, useHppData } from './hpp-page'
 import { ProspectSelect, waLink, type ProspectOption } from './marketing'
 import { PaymentForm } from './payment-page'
 import { CustomerSelect, type CustomerOption } from './product-page'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged, RowActions } from './ui'
 
 type Status = 'draft' | 'dikirim' | 'diterima' | 'ditolak' | 'batal'
 const STATUS_LABEL: Record<Status, string> = { draft: 'Draft', dikirim: 'Dikirim', diterima: 'Diterima', ditolak: 'Ditolak', batal: 'Batal' }
@@ -54,6 +54,7 @@ export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [form, setForm] = useState<{ edit?: Quotation & { items: Item[] }; copy?: Quotation & { items: Item[] } } | null>(null)
+  const [autoEdit, setAutoEdit] = useState(false)
   // Dibuka dari notifikasi persetujuan
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
   const [docOpen, setDocOpen] = useState(false)
@@ -122,7 +123,7 @@ export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Nomor</th><th>Kepada</th><th>Tanggal</th><th>Berlaku s/d</th><th className="pap-num">Total</th><th>Sales</th><th>Status</th></tr></thead>
+            <thead><tr><th>Nomor</th><th>Kepada</th><th>Tanggal</th><th>Berlaku s/d</th><th className="pap-num">Total</th><th>Sales</th><th>Status</th><th className="pap-actions-col">Aksi</th></tr></thead>
             <tbody>
               {paged.items.map((x) => (
                 <tr key={x.id} className="pap-row-link" onClick={() => setDetailId(x.id)}>
@@ -133,6 +134,7 @@ export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number
                   <td className="pap-num">{rupiah(x.total)}</td>
                   <td>{x.created_name}</td>
                   <td><div className="pap-detail-badges"><Badge s={x.status} /><ApprovalBadge q={x} show={approvalRequired} /></div></td>
+                  <td className="pap-actions-cell"><RowActions label={x.nomor} onView={() => { setAutoEdit(false); setDetailId(x.id) }} onEdit={canWrite && x.status === 'draft' ? () => { setAutoEdit(true); setDetailId(x.id) } : undefined} /></td>
                 </tr>
               ))}
             </tbody>
@@ -146,6 +148,7 @@ export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number
       {detailId && (
         <QuotationDetail
           id={detailId}
+          autoEdit={autoEdit}
           onClose={() => setDetailId(null)}
           onChanged={flash}
           onEdit={(qt) => { setDetailId(null); setForm({ edit: qt }) }}
@@ -343,8 +346,8 @@ function DocTemplateModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
 }
 
 // ---------------- Detail penawaran ----------------
-function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: {
-  id: number; onClose: () => void; onChanged: (m: string) => void
+function QuotationDetail({ id, autoEdit = false, onClose, onChanged, onEdit, onCopy, onDeleted }: {
+  id: number; autoEdit?: boolean; onClose: () => void; onChanged: (m: string) => void
   onEdit: (q: Quotation & { items: Item[] }) => void; onCopy: (q: Quotation & { items: Item[] }) => void; onDeleted: () => void
 }) {
   const [item, setItem] = useState<Quotation | null>(null)
@@ -357,6 +360,7 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
   const [approvalNote, setApprovalNote] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const editOpened = useRef(false)
   const load = useCallback(async () => {
     try {
       const res = await api<{ item: Quotation; items: Item[]; canEdit: boolean; canWrite: boolean; canApprove: boolean; isOwner: boolean; approvalRequired: boolean }>(`/api/quotations/${id}`)
@@ -367,6 +371,12 @@ function QuotationDetail({ id, onClose, onChanged, onEdit, onCopy, onDeleted }: 
       setCanApprove(res.canApprove)
       setApprovalRequired(res.approvalRequired)
       setIsOwner(res.isOwner)
+      // Dibuka dari tombol Ubah di daftar: langsung ke form bila masih draft & boleh diubah
+      if (autoEdit && !editOpened.current) {
+        editOpened.current = true
+        if (res.item.status === 'draft' && res.canEdit) onEdit({ ...res.item, items: res.items })
+        else setError('Penawaran ini tidak bisa diubah (hanya draft milik Anda).')
+      }
     } catch (e) {
       setError((e as Error).message)
     }

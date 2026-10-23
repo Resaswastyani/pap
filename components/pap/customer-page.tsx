@@ -5,7 +5,7 @@ import { ChevronRight, FileText, Mail, MapPin, Pencil, Phone, Plus, Repeat, Sear
 import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatRupiah } from './accurate'
 import { ProductDetail, ProductForm, type Product } from './product-page'
-import { api, Field, formatDate, Modal, Notice, Pager } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, RowActions } from './ui'
 
 type CrmStatus = 'pelanggan' | 'pembeli' | 'prospek' | 'pelanggan_nonaktif' | 'pembeli_nonaktif'
 type Customer = {
@@ -39,8 +39,8 @@ const CRM_LABEL: Record<CrmStatus, string> = {
   pelanggan: 'Pelanggan',
   pembeli: 'Pembeli',
   prospek: 'Prospek',
-  pelanggan_nonaktif: 'Pelanggan nonaktif',
-  pembeli_nonaktif: 'Pembeli nonaktif',
+  pelanggan_nonaktif: 'Pelanggan pasif',
+  pembeli_nonaktif: 'Pembeli pasif',
 }
 const CRM_TONE: Record<CrmStatus, string> = { pelanggan: 'success', pembeli: 'info', prospek: 'neutral', pelanggan_nonaktif: 'warning', pembeli_nonaktif: 'danger' }
 const CrmBadge = ({ value }: { value: CrmStatus }) => <span className={`pap-status ${CRM_TONE[value]}`}>{CRM_LABEL[value]}</span>
@@ -98,7 +98,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
     ['pelanggan', 'Pelanggan', summary.pelanggan, 'Repeat order (≥ 2 faktur)', Repeat, 'stat-0'],
     ['pembeli', 'Pembeli', summary.pembeli, 'Baru 1 kali order', UserPlus, 'stat-1'],
     ['prospek', 'Prospek', summary.prospek, 'Belum ada transaksi', Users, 'stat-1'],
-    ['nonaktif', 'Nonaktif', summary.pelanggan_nonaktif + summary.pembeli_nonaktif, `Tidak order > ${inactiveDays} hari`, UserMinus, 'stat-2'],
+    ['nonaktif', 'Pelanggan pasif', summary.pelanggan_nonaktif + summary.pembeli_nonaktif, `Tidak order > ${inactiveDays} hari`, UserMinus, 'stat-2'],
   ]
 
   return (
@@ -107,7 +107,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
         <div>
           <p className="pap-eyebrow">MARKETING</p>
           <h1>Customer</h1>
-          <span>Data pelanggan dari Accurate Online beserta status CRM: repeat order, pembeli, prospek, dan nonaktif.</span>
+          <span>Data pelanggan dari Accurate Online beserta status CRM: repeat order, pembeli, prospek, dan pelanggan pasif.</span>
         </div>
         {canManage && <button className="pap-primary-button" onClick={() => setForm('new')}><Plus /> Tambah customer</button>}
       </div>
@@ -126,7 +126,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
         ))}
       </div>
       <div className="pap-table-card">
-        <div className="pap-card-head"><div><h2>Daftar customer</h2><p>Diurutkan dari transaksi terakhir. Status nonaktif bila tidak ada faktur lebih dari {inactiveDays} hari.</p></div></div>
+        <div className="pap-card-head"><div><h2>Daftar customer</h2><p>Diurutkan dari transaksi terakhir. Status pasif bila tidak ada faktur lebih dari {inactiveDays} hari.</p></div></div>
         <div className="pap-filters">
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama, nomor, kota, email..." /></label>
           <select className="pap-select" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter status CRM">
@@ -137,7 +137,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Customer</th><th>Kontak</th><th>Transaksi</th><th>Status</th><th>Produk</th></tr></thead>
+            <thead><tr><th>Customer</th><th>Kontak</th><th>Transaksi</th><th>Status</th><th>Produk</th><th className="pap-actions-col">Aksi</th></tr></thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
@@ -146,6 +146,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
                   <td className="pap-nowrap">{item.order_count ? <><strong>{item.order_count}×</strong> · {formatDate(item.last_order)}</> : <span className="pap-muted">Belum ada</span>}</td>
                   <td><CrmBadge value={item.crm_status} /></td>
                   <td className="pap-nowrap">{item.product_count ? `${item.product_count} produk` : <span className="pap-muted">—</span>}</td>
+                  <td className="pap-actions-cell"><RowActions label={item.name} onView={() => setDetailId(item.id)} onEdit={canManage ? () => setForm(item) : undefined} /></td>
                 </tr>
               ))}
             </tbody>

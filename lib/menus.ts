@@ -7,6 +7,7 @@ export const MENU_KEYS = {
   'Request Sample': 'sample',
   'Request Desain': 'desain',
   Customer: 'customer',
+  'Order Bulanan': 'order-bulanan',
   'Data Produk': 'produk',
   Stok: 'stok',
   Quotation: 'quotation',

@@ -10,7 +10,7 @@ import type { UserProfile } from '@/lib/users'
 //   perkiraan  = faktur terakhir + interval
 //   status     = aman | waktunya (H-3 s/d lewat) | berisiko (lewat > 50% interval) | nonaktif (> CRM_INACTIVE_DAYS hari)
 export const DEFAULT_INTERVAL = 30
-export const REPEAT_STATUS = { waktunya: 'Waktunya order', berisiko: 'Berisiko berhenti', nonaktif: 'Nonaktif', aman: 'Aman' } as const
+export const REPEAT_STATUS = { waktunya: 'Waktunya order', berisiko: 'Berisiko berhenti', nonaktif: 'Pelanggan pasif', aman: 'Aman' } as const
 export type RepeatStatus = keyof typeof REPEAT_STATUS
 
 export function requireRepeatOrder(user: UserProfile) {

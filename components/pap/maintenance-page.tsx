@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlarmClock, CalendarCheck, CalendarClock, ClipboardCheck, History, List, Pencil, Plus, Printer, Search, Wrench } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, pendingCount, uploadNoteAttachments, type PendingAttachments } from './attachments'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged, RowActions } from './ui'
 
 type Hasil = 'baik' | 'perlu_tindakan' | 'rusak'
 type Plan = {
@@ -161,7 +161,7 @@ export function MaintenancePage({ user, focusId }: { user: UserProfile; focusId?
           <>
             <div className="pap-table-wrap">
               <table>
-                <thead><tr><th>Mesin</th><th>Pekerjaan</th><th>Interval</th><th>Jatuh tempo</th><th>Checkup terakhir</th><th>PIC</th><th aria-label="Aksi" /></tr></thead>
+                <thead><tr><th>Mesin</th><th>Pekerjaan</th><th>Interval</th><th>Jatuh tempo</th><th>Checkup terakhir</th><th>PIC</th><th className="pap-actions-col">Aksi</th></tr></thead>
                 <tbody>
                   {pagedPlans.items.map((p) => (
                     <tr key={p.id} className="pap-row-link" onClick={() => setDetailId(p.id)}>
@@ -171,8 +171,11 @@ export function MaintenancePage({ user, focusId }: { user: UserProfile; focusId?
                       <td className="pap-nowrap"><div>{formatDate(p.berikutnya)}</div><DueBadge plan={p} /></td>
                       <td className="pap-nowrap">{p.terakhir ? <><div>{formatDate(p.terakhir)}</div>{p.hasil_terakhir && <HasilBadge value={p.hasil_terakhir} />}</> : <span className="pap-muted">Belum pernah</span>}</td>
                       <td>{p.pic_name ?? <span className="pap-muted">Semua Teknik</span>}</td>
-                      <td onClick={(e) => e.stopPropagation()}>
-                        {can.manage && p.aktif && <button className="pap-btn" onClick={() => setCheckup({ plan: p })}><ClipboardCheck /> Checkup</button>}
+                      <td className="pap-actions-cell" onClick={(e) => e.stopPropagation()}>
+                        <div className="pap-row-actions">
+                          {can.manage && p.aktif && <button className="pap-row-action" onClick={() => setCheckup({ plan: p })}><ClipboardCheck /><span>Checkup</span></button>}
+                          <RowActions label={p.judul} onView={() => setDetailId(p.id)} onEdit={can.manage ? () => setPlanForm(p) : undefined} />
+                        </div>
                       </td>
                     </tr>
                   ))}

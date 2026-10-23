@@ -18,8 +18,8 @@ export const CRM_STATUS = {
   pelanggan: 'Pelanggan',
   pembeli: 'Pembeli',
   prospek: 'Prospek',
-  pelanggan_nonaktif: 'Pelanggan nonaktif',
-  pembeli_nonaktif: 'Pembeli nonaktif',
+  pelanggan_nonaktif: 'Pelanggan pasif',
+  pembeli_nonaktif: 'Pembeli pasif',
 } as const
 export type CrmStatus = keyof typeof CRM_STATUS
 

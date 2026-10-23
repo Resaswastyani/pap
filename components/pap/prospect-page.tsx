@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, FileText, FlaskConical, Package, Palette, CalendarClock, CalendarPlus, Columns3, Handshake, LayoutList, Link2, Mail, MapPin, Pencil, Phone, Plus, Search, Send, Trash2, Upload, UserPlus } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { CustomerSelect, type CustomerOption } from './product-page'
@@ -11,7 +11,7 @@ import {
 import { QuotationForm } from './quotation-page'
 import { DesignForm, SampleForm } from './request-page'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
-import { api, Field, formatDate, Modal, Notice, Pager } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, RowActions } from './ui'
 
 export type Prospect = {
   id: number
@@ -79,6 +79,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
   const [page, setPage] = useState(1)
   const [size, setSize] = useState(50)
   const [form, setForm] = useState<Prospect | 'new' | null>(null)
+  const [autoEdit, setAutoEdit] = useState(false)
   const [importing, setImporting] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
 
@@ -190,7 +191,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
         {view === 'list' ? (
           <div className="pap-table-wrap">
             <table>
-              <thead><tr><th>Prospek</th><th>Kontak</th><th>Kebutuhan</th><th>Sales</th><th>Follow-up</th><th>Status</th></tr></thead>
+              <thead><tr><th>Prospek</th><th>Kontak</th><th>Kebutuhan</th><th>Sales</th><th>Follow-up</th><th>Status</th><th className="pap-actions-col">Aksi</th></tr></thead>
               <tbody>
                 {(data?.items ?? []).map((p) => (
                   <tr key={p.id} className="pap-row-link" onClick={() => setDetailId(p.id)}>
@@ -200,6 +201,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
                     <td>{p.assigned_name ?? <span className="pap-muted">Belum dibagi</span>}{p.maintenance_name && <div className="pap-cell-sub">Maint: {p.maintenance_name}</div>}</td>
                     <td className={`pap-followup ${followupState(p)}`}>{p.next_followup_at ? formatDate(p.next_followup_at, true) : '—'}{p.next_visit && <div className="pap-cell-sub">Visit {formatDate(p.next_visit, true)}</div>}</td>
                     <td><ProspectBadge value={p.status} /></td>
+                    <td className="pap-actions-cell"><RowActions label={p.nama_usaha} onView={() => { setAutoEdit(false); setDetailId(p.id) }} onEdit={() => { setAutoEdit(true); setDetailId(p.id) }} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -227,6 +229,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
       {detailId && (
         <ProspectDetail
           id={detailId}
+          autoEdit={autoEdit}
           user={user}
           users={data?.users ?? []}
           onClose={() => setDetailId(null)}
@@ -440,8 +443,9 @@ function ProductNeedPicker({ value, onChange }: { value: NeedItem[]; onChange: (
 }
 
 // ---- Detail prospek: data, aksi cepat, log follow-up, visit ----
-function ProspectDetail({ id, user, users, onClose, onEdit, onChanged, onDeleted }: {
+function ProspectDetail({ id, autoEdit = false, user, users, onClose, onEdit, onChanged, onDeleted }: {
   id: number
+  autoEdit?: boolean
   user: UserProfile
   users: MarketingUser[]
   onClose: () => void
@@ -460,6 +464,7 @@ function ProspectDetail({ id, user, users, onClose, onEdit, onChanged, onDeleted
   const [visitDetail, setVisitDetail] = useState<Visit | null>(null)
   const [checkin, setCheckin] = useState<Visit | null>(null)
   const [editVisit, setEditVisit] = useState<Visit | null>(null)
+  const editOpened = useRef(false)
 
   const load = useCallback(async () => {
     try {
@@ -469,6 +474,12 @@ function ProspectDetail({ id, user, users, onClose, onEdit, onChanged, onDeleted
       setVisits(res.visits)
       setCanEdit(res.canEdit)
       setCanSupervise(res.canSupervise)
+      // Dibuka dari tombol Ubah di daftar: langsung ke form bila boleh diubah
+      if (autoEdit && !editOpened.current) {
+        editOpened.current = true
+        if (res.canEdit) onEdit(res.item)
+        else setError('Anda tidak bisa mengubah prospek ini (hanya sales PIC / supervisor).')
+      }
     } catch (e) {
       setError((e as Error).message)
     }

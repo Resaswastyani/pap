@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, type InputHTMLAttributes, type ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Eye, EyeOff, Search, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Eye, EyeOff, Pencil, Search, X } from 'lucide-react'
 import { PLANNING_STATUS, type PlanningStatus } from '@/lib/permissions'
 import { clientHintHeaders } from './client-hints'
 
@@ -245,4 +245,14 @@ export function usePaged<T>(items: T[], resetKey: unknown = null, initialSize: n
     offset: (current - 1) * pageSize,
     pager: { page: current, pageSize, total: items.length, onPage: setPage, onPageSize: (s: number) => { setPageSize(s); setPage(1) } } satisfies PagerProps,
   }
+}
+
+// Tombol aksi di baris tabel: lihat detail & ubah (tidak ikut memicu klik baris)
+export function RowActions({ label, onView, onEdit }: { label: string; onView?: () => void; onEdit?: () => void }) {
+  return (
+    <div className="pap-row-actions" onClick={(e) => e.stopPropagation()}>
+      {onView && <button type="button" className="pap-row-action" title="Lihat detail" aria-label={`Lihat detail ${label}`} onClick={onView}><Eye /><span>Detail</span></button>}
+      {onEdit && <button type="button" className="pap-row-action edit" title="Ubah" aria-label={`Ubah ${label}`} onClick={onEdit}><Pencil /><span>Ubah</span></button>}
+    </div>
+  )
 }

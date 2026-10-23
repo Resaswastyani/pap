@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Boxes, ClipboardList, Pencil, Plus, Search, Wrench } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged, RowActions } from './ui'
 
 type Jenis = 'sparepart' | 'peralatan' | 'bahan'
 type Kondisi = 'baik' | 'perlu_perbaikan' | 'rusak'
@@ -129,7 +129,7 @@ export function SparepartPage({ focusId }: { user: UserProfile; focusId?: number
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Barang</th><th>Jenis</th><th>Untuk mesin</th><th>Stok</th><th>Lokasi</th><th>Kondisi</th></tr></thead>
+            <thead><tr><th>Barang</th><th>Jenis</th><th>Untuk mesin</th><th>Stok</th><th>Lokasi</th><th>Kondisi</th><th className="pap-actions-col">Aksi</th></tr></thead>
             <tbody>
               {paged.items.map((i) => (
                 <tr key={i.id} className="pap-row-link" onClick={() => setDetailId(i.id)}>
@@ -142,6 +142,7 @@ export function SparepartPage({ focusId }: { user: UserProfile; focusId?: number
                   </td>
                   <td>{i.lokasi ?? '—'}</td>
                   <td><span className={`pap-status ${KONDISI_TONE[i.kondisi]}`}>{KONDISI_LABEL[i.kondisi]}</span></td>
+                  <td className="pap-actions-cell"><RowActions label={i.nama} onView={() => setDetailId(i.id)} onEdit={can.manage ? () => setForm(i) : undefined} /></td>
                 </tr>
               ))}
             </tbody>

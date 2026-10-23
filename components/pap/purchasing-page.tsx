@@ -9,7 +9,7 @@ import { BarList, ColumnChart } from './charts'
 import { PoFormModal, PriceEditor, VendorFormModal } from './purchasing-forms'
 import { VendorPriceList } from './vendor-price-list'
 import { MaterialList } from './material-list'
-import { api, Field, formatDate, Modal, Notice, Pager, Progress, usePaged } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, Progress, usePaged, RowActions } from './ui'
 
 // Purchasing: supplier, PO pembelian, harga bahan, hutang supplier. Data dari Accurate Online; supplier, PO, dan harga beli acuan
 // bisa ditambah / diubah / dihapus dari PAP-MS sesuai permission modul Purchasing (lihat lib/purchasing-write.ts).
@@ -130,7 +130,7 @@ export function SupplierPage(_props: { user: UserProfile }) {
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Supplier</th><th>Jenis</th><th>Kontak</th><th className="pap-num">Pembelian 12 bln</th><th>PO terakhir</th><th className="pap-num">Hutang</th></tr></thead>
+            <thead><tr><th>Supplier</th><th>Jenis</th><th>Kontak</th><th className="pap-num">Pembelian 12 bln</th><th>PO terakhir</th><th className="pap-num">Hutang</th><th className="pap-actions-col">Aksi</th></tr></thead>
             <tbody>
               {paged.items.map((v) => (
                 <tr key={v.id} className="pap-row-link" onClick={() => setDetailId(v.id)}>
@@ -140,6 +140,7 @@ export function SupplierPage(_props: { user: UserProfile }) {
                   <td className="pap-num pap-nowrap"><strong>{v.total_12m ? formatRupiah(v.total_12m) : '—'}</strong><div className="pap-cell-sub">{v.po_12m} PO{v.open_po ? ` · ${v.open_po} berjalan` : ''}</div></td>
                   <td className="pap-nowrap">{v.last_po ? formatDate(v.last_po) : '—'}</td>
                   <td className="pap-num pap-nowrap">{v.owing ? <><strong>{formatRupiah(v.owing)}</strong>{v.overdue > 0 && <div className="pap-cell-sub pap-text-danger">{formatRupiah(v.overdue)} jatuh tempo</div>}</> : '—'}</td>
+                  <td className="pap-actions-cell"><RowActions label={v.name} onView={() => setDetailId(v.id)} onEdit={data?.can.manage ? () => setVendorForm(v.id) : undefined} /></td>
                 </tr>
               ))}
             </tbody>
