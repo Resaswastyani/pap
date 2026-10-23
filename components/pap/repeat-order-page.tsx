@@ -14,7 +14,7 @@ const STATUS_TONE: Record<Status, string> = { waktunya: 'warning', berisiko: 'da
 
 type Row = {
   id: number; accurate_id: number; customer_no: string | null; name: string; mobile_phone: string | null; work_phone: string | null; bill_city: string | null
-  maintenance_to: number | null; maintenance_name: string | null; next_followup_at: string | null; last_contact_at: string | null; last_activity_at: string | null
+  maintenance_to: number | null; maintenance_name: string | null; next_followup_at: string | null; last_contact_at: string | null; last_followup_at: string | null; last_followup_via: string | null; last_activity_at: string | null
   order_count: number; first_order: string; last_order: string; total_amount: number; interval_hari: number; hari_sejak: number; perkiraan_order: string
   hari_terlambat: number; status: Status
 }
@@ -132,7 +132,7 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
                   <td>{r.order_count}x · tiap ±{r.interval_hari} hari<div className="pap-cell-sub">Terakhir {formatDate(r.last_order)} · {formatRupiah(r.total_amount)}</div></td>
                   <td className={r.hari_terlambat > 0 ? 'pap-followup overdue' : r.hari_terlambat >= -3 ? 'pap-followup today' : ''}>{formatDate(r.perkiraan_order)}<div className="pap-cell-sub">{lateText(r)}</div></td>
                   <td>{r.maintenance_name ?? <span className="pap-muted">Belum ada</span>}</td>
-                  <td className={r.next_followup_at && r.next_followup_at.slice(0, 10) <= nowInput().slice(0, 10) ? 'pap-followup overdue' : ''}>{r.next_followup_at ? formatDate(r.next_followup_at, true) : '—'}<div className="pap-cell-sub">{r.last_contact_at ? `Dihubungi ${formatDate(r.last_contact_at)}` : 'Belum pernah dihubungi'}</div></td>
+                  <td className={r.next_followup_at && r.next_followup_at.slice(0, 10) <= nowInput().slice(0, 10) ? 'pap-followup overdue' : ''}>{r.last_followup_at ? <><div className="pap-nowrap">Terakhir {formatDate(r.last_followup_at)}</div><div className="pap-cell-sub">{r.last_followup_via}{r.next_followup_at ? ` · berikutnya ${formatDate(r.next_followup_at, true)}` : ''}</div></> : <>{r.next_followup_at ? <div className="pap-nowrap">Jadwal {formatDate(r.next_followup_at, true)}</div> : '—'}<div className="pap-cell-sub">Belum pernah difollow-up</div></>}</td>
                   <td><span className={`pap-status ${STATUS_TONE[r.status]}`}>{STATUS_LABEL[r.status]}</span></td>
                 </tr>
               ))}

@@ -1180,22 +1180,22 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 }
 /* Tabel jadi kartu (HP & tablet portrait): setiap baris satu kartu, label kolom di kiri (data-label diisi useCardTables) */
 @media (max-width:800px) {
-  .pap-table-wrap:has(> table:not(.pap-perm-table):not(.pap-shift-table)) { overflow:visible; }
-  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) { display:block; min-width:0 !important; }
-  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) thead { display:none; }
-  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) tbody { display:flex; flex-direction:column; gap:10px; padding:12px; }
-  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) tr { display:block; padding:4px 14px; border:1px solid var(--pap-border); border-radius:12px; background:var(--pap-surface); }
-  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td { position:relative; display:block; min-height:30px; padding:7px 0 7px 38%; border:0; border-top:1px dashed var(--pap-border); text-align:left; white-space:normal; overflow-wrap:anywhere; }
-  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td::before { content:attr(data-label); position:absolute; top:8px; left:0; width:34%; color:var(--pap-muted); font-size:10.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; line-height:1.35; }
-  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td[data-title] { padding:10px 0 8px; border-top:0; font-size:13.5px; }
-  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td[data-title]::before,
-  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td[data-label=""]::before,
-  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td[colspan]::before { display:none; }
-  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td[data-label=""],
-  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td[colspan] { padding-left:0; }
-  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td:empty { display:none; }
-  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) tr.pap-group-row { padding:6px 4px; border:0; background:transparent; font-weight:800; }
-  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) .pap-num { text-align:left; }
+  .pap-table-wrap:has(> table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list)) { overflow:visible; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) { display:block; min-width:0 !important; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) thead { display:none; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) tbody { display:flex; flex-direction:column; gap:10px; padding:12px; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) tr { display:block; padding:4px 14px; border:1px solid var(--pap-border); border-radius:12px; background:var(--pap-surface); }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) td { position:relative; display:block; min-height:30px; padding:7px 0 7px 38%; border:0; border-top:1px dashed var(--pap-border); text-align:left; white-space:normal; overflow-wrap:anywhere; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) td::before { content:attr(data-label); position:absolute; top:8px; left:0; width:34%; color:var(--pap-muted); font-size:10.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; line-height:1.35; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) td[data-title] { padding:10px 0 8px; border-top:0; font-size:13.5px; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) td[data-title]::before,
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) td[data-label=""]::before,
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) td[colspan]::before { display:none; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) td[data-label=""],
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) td[colspan] { padding-left:0; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) td:empty { display:none; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) tr.pap-group-row { padding:6px 4px; border:0; background:transparent; font-weight:800; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) .pap-num { text-align:left; }
 }
 /* Segmented (tab) tidak boleh melebihi lebar kartu: di HP mengisi baris dan teks boleh turun */
 .pap-segmented { max-width:100%; }
@@ -1213,9 +1213,9 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 }
 /* Tablet portrait: kartu tabel dua kolom */
 @media (min-width:641px) and (max-width:800px) {
-  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) tbody { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); align-items:start; }
-  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) tr.pap-group-row,
-  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) tr:has(> td[colspan]) { grid-column:1 / -1; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) tbody { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); align-items:start; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) tr.pap-group-row,
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) tr:has(> td[colspan]) { grid-column:1 / -1; }
 }
 /* Tablet landscape / laptop kecil: sidebar jadi rail ikon agar konten lebih lega (nama menu di tooltip) */
 @media (min-width:801px) and (max-width:1100px) {
@@ -1260,11 +1260,11 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 
 /* KPI per sales di HP/tablet: metrik jadi petak dua kolom (label di atas angka) */
 @media (max-width:800px) {
-  .pap-table-wrap table.pap-kpi-table:not(.pap-perm-table):not(.pap-shift-table) tr { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); column-gap:10px; padding:4px 12px 10px; }
-  .pap-table-wrap table.pap-kpi-table:not(.pap-perm-table):not(.pap-shift-table) td { min-height:0; padding:8px 0 0; border-top:0; }
-  .pap-table-wrap table.pap-kpi-table:not(.pap-perm-table):not(.pap-shift-table) td::before { position:static; display:block; width:auto; margin-bottom:3px; font-size:10px; }
-  .pap-table-wrap table.pap-kpi-table:not(.pap-perm-table):not(.pap-shift-table) td[data-title] { grid-column:1 / -1; padding:10px 0 4px; border-bottom:1px solid var(--pap-border); }
-  .pap-table-wrap table.pap-kpi-table:not(.pap-perm-table):not(.pap-shift-table) td:not([data-title]) { padding:8px 10px; margin-top:8px; border-radius:10px; background:var(--pap-bg); }
+  .pap-table-wrap table.pap-kpi-table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) tr { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); column-gap:10px; padding:4px 12px 10px; }
+  .pap-table-wrap table.pap-kpi-table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) td { min-height:0; padding:8px 0 0; border-top:0; }
+  .pap-table-wrap table.pap-kpi-table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) td::before { position:static; display:block; width:auto; margin-bottom:3px; font-size:10px; }
+  .pap-table-wrap table.pap-kpi-table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) td[data-title] { grid-column:1 / -1; padding:10px 0 4px; border-bottom:1px solid var(--pap-border); }
+  .pap-table-wrap table.pap-kpi-table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) td:not([data-title]) { padding:8px 10px; margin-top:8px; border-radius:10px; background:var(--pap-bg); }
 }
 
 /* Lembar cetak (penawaran / order / proforma) di layar HP: tetap layout A4, diperkecil agar muat */
@@ -1290,7 +1290,7 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
   .pap-table-wrap td .pap-chip, .pap-table-wrap td .pap-status { flex:none; white-space:nowrap; overflow-wrap:normal; }
   .pap-table-wrap td .pap-cell-title { flex-wrap:wrap; }
 }
-@media (max-width:800px) { .pap-table-wrap table.pap-kpi-table:not(.pap-perm-table):not(.pap-shift-table) td[data-title]::before { display:none; } }
+@media (max-width:800px) { .pap-table-wrap table.pap-kpi-table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) td[data-title]::before { display:none; } }
 @media (max-width:640px) { .pap-shift-wrap { max-height:70vh; max-height:70dvh; } }
 
 /* ---------- Formulasi Produk ---------- */
@@ -1355,7 +1355,7 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-damage-subtitle { margin:16px 0 6px; font-size:12px; color:var(--pap-muted); }
 .pap-sync-tab { display:flex; align-items:center; gap:10px; padding:9px 10px; border:1px solid var(--pap-border); border-radius:10px; font-size:12.5px; }
 .pap-sync-tab svg { flex:none; width:16px; height:16px; color:#1db98a; }
-@media (max-width:800px) { .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table) td.pap-damage-text { white-space:pre-wrap; } }
+@media (max-width:800px) { .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) td.pap-damage-text { white-space:pre-wrap; } }
 
 /* ---------- Data Mesin: critical point ---------- */
 .pap-group-row td { padding:8px 22px !important; background:rgb(124 92 252 / .06); color:#7050e7; font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
@@ -1611,3 +1611,27 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-att-matrix td.name { white-space:nowrap; }
 .pap-att-matrix.short td, .pap-att-matrix.short th { padding:1px 2px; font-size:8.5px; }
 a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity:.5; }
+
+/* Laporan keuangan (laba rugi / neraca) di HP & tablet: tetap tabel 2 kolom (nama akun | nominal), bukan kartu */
+@media (max-width:800px) {
+  .pap-table-wrap:has(> table.pap-fin-list) { overflow:visible; }
+  .pap-fin-list { width:100%; min-width:0 !important; table-layout:auto; }
+  .pap-fin-list td { padding:9px 12px; vertical-align:top; overflow-wrap:anywhere; }
+  .pap-fin-list td.pap-num { width:1%; white-space:nowrap; overflow-wrap:normal; text-align:right; }
+  .pap-fin-list .pap-acc-indent { padding-left:24px; }
+  .pap-fin-list tr.pap-group-row td { padding:9px 12px !important; }
+  .pap-acc-grid .pap-card-head { flex-wrap:wrap; gap:6px 12px; }
+}
+@media (max-width:400px) { .pap-fin-list td { padding:8px; font-size:12.5px; } .pap-fin-list .pap-acc-indent { padding-left:18px; } }
+/* Forecast arus kas di HP & tablet: kartu per minggu, nominal dua kolom (label di atas angka) */
+@media (max-width:800px) {
+  .pap-table-card .pap-table-wrap table.pap-forecast-table:not(.pap-perm-table):not(.pap-shift-table) tr { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); column-gap:14px; }
+  .pap-table-card .pap-table-wrap table.pap-forecast-table:not(.pap-perm-table):not(.pap-shift-table) td { padding:24px 0 8px; }
+  .pap-table-card .pap-table-wrap table.pap-forecast-table:not(.pap-perm-table):not(.pap-shift-table) td::before { top:7px; width:100%; }
+  .pap-table-card .pap-table-wrap table.pap-forecast-table:not(.pap-perm-table):not(.pap-shift-table) td[data-title] { grid-column:1 / -1; padding:10px 0 8px; }
+}
+/* Tab halaman (mis. Laba rugi / Neraca) di tablet: tombol tidak terjepit */
+@media (max-width:800px) {
+  .pap-page-tabs > .pap-segmented { flex:1 1 280px; }
+  .pap-page-tabs > .pap-segmented button { flex:1 1 0; }
+}

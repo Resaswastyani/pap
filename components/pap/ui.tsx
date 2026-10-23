@@ -141,7 +141,7 @@ export function Progress({ value }: { value: number }) {
 
 // Tabel tampil sebagai kartu di layar HP (lihat CSS .pap-table-wrap @max-width:640px): setiap sel diberi
 // data-label dari judul kolomnya, dan sel judul pertama ditandai data-title. Tabel matriks dikecualikan.
-const CARD_TABLES = '.pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table)'
+const CARD_TABLES = '.pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list)'
 function labelTables(root: ParentNode) {
   root.querySelectorAll<HTMLTableElement>(CARD_TABLES).forEach((table) => {
     const heads = [...table.querySelectorAll('thead th')].map((th) => th.textContent?.trim() ?? '')

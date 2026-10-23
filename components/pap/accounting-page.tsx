@@ -476,7 +476,7 @@ export function FinancialReportPage(_props: { user: UserProfile }) {
           <section className="pap-table-card">
             <div className="pap-card-head"><div><h2>Laba rugi</h2><p>{formatDate(d.dari)} – {formatDate(d.sampai)}. Klik kelompok untuk melihat rincian akun.</p></div></div>
             <div className="pap-table-wrap">
-              <table>
+              <table className="pap-fin-list">
                 <GroupRows groups={d.laba_rugi.kelompok} />
                 <tbody>
                   <tr className="pap-total-row"><td><b>Laba kotor</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(pl.laba_kotor)}</b></td></tr>
@@ -505,12 +505,12 @@ export function FinancialReportPage(_props: { user: UserProfile }) {
         <div className="pap-acc-grid">
           <section className="pap-table-card">
             <div className="pap-card-head"><div><h2>Aset</h2><p>Per {formatDate(d.sampai)}</p></div><b>{formatRupiah(bs.aset)}</b></div>
-            <div className="pap-table-wrap"><table><GroupRows groups={d.neraca.aset} /></table></div>
+            <div className="pap-table-wrap"><table className="pap-fin-list"><GroupRows groups={d.neraca.aset} /></table></div>
           </section>
           <section className="pap-table-card">
             <div className="pap-card-head"><div><h2>Kewajiban & ekuitas</h2><p>Laba tahun berjalan = aset − kewajiban − ekuitas</p></div><b>{formatRupiah(bs.liabilitas + bs.ekuitas + bs.laba_berjalan)}</b></div>
             <div className="pap-table-wrap">
-              <table>
+              <table className="pap-fin-list">
                 <GroupRows groups={d.neraca.kewajiban} />
                 <tbody><tr className="pap-group-row"><td><b>Laba tahun berjalan (belum tutup buku)</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(bs.laba_berjalan)}</b></td></tr></tbody>
               </table>
@@ -589,7 +589,7 @@ export function CashFlowPage(_props: { user: UserProfile }) {
           <div className="pap-table-card">
             <div className="pap-card-head"><div><h2>Forecast mingguan</h2><p>Piutang & hutang yang sudah lewat jatuh tempo dimasukkan ke minggu pertama.</p></div></div>
             <div className="pap-table-wrap">
-              <table>
+              <table className="pap-forecast-table">
                 <thead><tr><th>Minggu</th><th className="pap-num">Saldo awal</th><th className="pap-num">Piutang</th><th className="pap-num">Rencana masuk</th><th className="pap-num">Hutang</th><th className="pap-num">Rencana keluar</th><th className="pap-num">Saldo akhir</th></tr></thead>
                 <tbody>
                   {d.minggu.map((w) => (
