@@ -6,7 +6,8 @@ import { ATTACHMENT_MAX_BYTES } from '@/lib/permissions'
 import { api, formatDate, formatSize, Notice } from './ui'
 
 // Lampiran generik Prospek & Request Sample: semua format file (maks 2 MB), foto langsung dari kamera, atau link
-export type PendingAttachments = { files: File[]; links: { url: string; name: string }[] }
+// draft: link yang sudah diketik tetapi belum ditekan "Tambah link" (tetap ikut terkirim)
+export type PendingAttachments = { files: File[]; links: { url: string; name: string }[]; draft?: { url: string; name: string } }
 export const emptyAttachments = (): PendingAttachments => ({ files: [], links: [] })
 
 type Attachment = { id: number; kind: 'file' | 'link'; name: string; url: string | null; mime: string | null; size: number | null; uploaded_by: number; created_at: string; uploaded_by_name: string }
@@ -70,14 +71,14 @@ function FileButtons({ disabled, onFiles }: { disabled?: boolean; onFiles: (file
 
 // Isian lampiran yang belum dikirim (dipakai di form tambah); diunggah setelah data tersimpan
 export function AttachmentInput({ value, onChange }: { value: PendingAttachments; onChange: (v: PendingAttachments) => void }) {
-  const [url, setUrl] = useState('')
-  const [name, setName] = useState('')
+  const url = value.draft?.url ?? ''
+  const name = value.draft?.name ?? ''
+  const setUrl = (v: string) => onChange({ ...value, draft: { url: v, name } })
+  const setName = (v: string) => onChange({ ...value, draft: { url, name: v } })
   const [error, setError] = useState('')
   const addLink = () => {
     if (!url.trim()) return
-    onChange({ ...value, links: [...value.links, { url: normalizeUrl(url), name: name.trim() }] })
-    setUrl('')
-    setName('')
+    onChange({ ...value, links: [...value.links, { url: normalizeUrl(url), name: name.trim() }], draft: undefined })
   }
   async function addFiles(list: File[], fromCamera: boolean) {
     const named = fromCamera ? list.map((f) => new File([f], cameraName(), { type: f.type })) : list
@@ -121,7 +122,7 @@ async function postAttachment(basePath: string, part: { file: File } | { url: st
 export async function uploadPendingAttachments(basePath: string, pending: PendingAttachments) {
   const failed: string[] = []
   for (const file of pending.files) await postAttachment(basePath, { file }).catch((e) => failed.push((e as Error).message))
-  for (const link of pending.links) await postAttachment(basePath, link).catch((e) => failed.push((e as Error).message))
+  for (const link of pendingLinks(pending)) await postAttachment(basePath, link).catch((e) => failed.push((e as Error).message))
   return failed
 }
 
@@ -207,7 +208,8 @@ export function AttachmentPanel({ title = 'Lampiran', basePath, fileBase, canAdd
 // ---- Lampiran catatan (follow-up, catatan status request, catatan produksi) ----
 export type NoteOwner = 'activity' | 'request_log' | 'stage' | 'job' | 'repair' | 'maintenance_log' | 'purchase_request'
 export type NoteAttachment = Attachment
-export const pendingCount = (p: PendingAttachments) => p.files.length + p.links.length
+export const pendingLinks = (p: PendingAttachments) => (p.draft?.url.trim() ? [...p.links, { url: normalizeUrl(p.draft.url), name: p.draft.name.trim() }] : p.links)
+export const pendingCount = (p: PendingAttachments) => p.files.length + pendingLinks(p).length
 
 // Dipakai setelah catatan tersimpan dan id-nya diketahui
 export const uploadNoteAttachments = (owner: NoteOwner, noteId: number, pending: PendingAttachments) =>

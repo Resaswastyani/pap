@@ -167,7 +167,7 @@ export function readSampleRequest(body: Record<string, unknown>) {
     nama_produk: (items.length > 1 ? `${items[0].nama_produk} (+${items.length - 1} produk)` : items[0].nama_produk).slice(0, 255),
     spesifikasi: str(body.spesifikasi, 5000) || null,
     special_request: str(body.special_request, 5000) || null,
-    tenggat: optDate(body.tenggat, 'tenggat'),
+    tenggat: optDate(body.tenggat, 'tenggat') ?? fail(400, 'Tanggal dibutuhkan wajib diisi.'),
   }
 }
 

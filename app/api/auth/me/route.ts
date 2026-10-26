@@ -4,7 +4,8 @@ import { getCurrentUser } from '@/lib/users'
 
 export async function GET() {
   try {
-    const user = await getCurrentUser()
+    // Koneksi pool yang sudah diputus server langsung gagal sekali; coba ulang dengan koneksi baru
+    const user = await getCurrentUser().catch(() => getCurrentUser())
     // Config captcha ikut dikirim agar halaman login tidak perlu request tambahan
     if (!user) return NextResponse.json({ user: null, captcha: captchaConfig() }, { status: 401 })
     return NextResponse.json({ user })

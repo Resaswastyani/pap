@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Clock3, FileText, Plus, Search, Wallet, XCircle } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
+import { api, askReason, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
 
 type Status = 'menunggu' | 'diterima' | 'ditolak'
 const STATUS: Record<Status, string> = { menunggu: 'Menunggu verifikasi', diterima: 'Diterima', ditolak: 'Ditolak' }
@@ -211,7 +211,7 @@ function PaymentDetail({ id, onClose, onChanged }: { id: number; onClose: () => 
   async function verify(status: 'diterima' | 'ditolak') {
     let alasan = ''
     if (status === 'ditolak') {
-      alasan = window.prompt('Alasan ditolak (mis. dana belum masuk, nominal berbeda):') ?? ''
+      alasan = (await askReason({ title: 'Tolak pembayaran', label: 'Alasan ditolak', placeholder: 'Mis. dana belum masuk, nominal berbeda', confirmLabel: 'Tolak pembayaran' })) ?? ''
       if (!alasan.trim()) return
     }
     setBusy(true)

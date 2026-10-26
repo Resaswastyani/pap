@@ -104,6 +104,50 @@ export function Field({ label, hint, children, full }: { label: string; hint?: s
   )
 }
 
+// ---- Modal alasan (pengganti window.prompt) ----
+// Pakai: const alasan = await askReason({ title: 'Tolak sample', label: 'Alasan ditolak' }); null = dibatalkan.
+// <ReasonHost /> dipasang sekali di AppShell.
+export type ReasonOptions = { title: string; label?: string; placeholder?: string; required?: boolean; confirmLabel?: string; danger?: boolean }
+type ReasonRequest = ReasonOptions & { resolve: (value: string | null) => void }
+const REASON_EVENT = 'pap-ask-reason'
+
+export function askReason(options: ReasonOptions) {
+  return new Promise<string | null>((resolve) => {
+    window.dispatchEvent(new CustomEvent<ReasonRequest>(REASON_EVENT, { detail: { required: true, danger: true, ...options, resolve } }))
+  })
+}
+
+export function ReasonHost() {
+  const [req, setReq] = useState<ReasonRequest | null>(null)
+  const [value, setValue] = useState('')
+  useEffect(() => {
+    const onAsk = (e: Event) => {
+      const next = (e as CustomEvent<ReasonRequest>).detail
+      setReq((prev) => { prev?.resolve(null); return next })
+      setValue('')
+    }
+    window.addEventListener(REASON_EVENT, onAsk)
+    return () => window.removeEventListener(REASON_EVENT, onAsk)
+  }, [])
+  if (!req) return null
+  const close = (result: string | null) => { req.resolve(result); setReq(null) }
+  const text = value.trim()
+  const submit = () => { if (!req.required || text) close(text) }
+  return (
+    <Modal
+      title={req.title}
+      onClose={() => close(null)}
+      footer={<><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={() => close(null)}>Batal</button><button type="submit" form="pap-reason-form" className={req.danger ? 'pap-btn danger' : 'pap-primary-button'} disabled={req.required && !text}>{req.confirmLabel ?? 'Kirim'}</button></>}
+    >
+      <form id="pap-reason-form" className="pap-form-grid" onSubmit={(e) => { e.preventDefault(); submit() }}>
+        <Field label={`${req.label ?? 'Alasan'}${req.required ? '' : ' (opsional)'}`} full>
+          <textarea className="pap-input" rows={4} autoFocus maxLength={1000} value={value} onChange={(e) => setValue(e.target.value)} placeholder={req.placeholder} onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit() } }} />
+        </Field>
+      </form>
+    </Modal>
+  )
+}
+
 // Input password dengan ikon mata untuk menampilkan/menyembunyikan isian
 export function PasswordInput(props: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
   const [visible, setVisible] = useState(false)

@@ -11,7 +11,7 @@ import {
 import { QuotationForm } from './quotation-page'
 import { DesignForm, SampleForm } from './request-page'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
-import { api, Field, formatDate, Modal, Notice, Pager, RowActions, useQuickAction } from './ui'
+import { api, askReason, Field, formatDate, Modal, Notice, Pager, RowActions, useQuickAction } from './ui'
 
 export type Prospect = {
   id: number
@@ -506,7 +506,7 @@ function ProspectDetail({ id, autoEdit = false, user, users, onClose, onEdit, on
     if (!item || next === item.status) return
     let alasan = ''
     if (next === 'gagal') {
-      alasan = window.prompt('Alasan prospek gagal (mis. harga, sudah punya supplier, tidak butuh):') ?? ''
+      alasan = (await askReason({ title: 'Prospek gagal', label: 'Alasan prospek gagal', placeholder: 'Mis. harga, sudah punya supplier, tidak butuh', confirmLabel: 'Tandai gagal' })) ?? ''
       if (!alasan.trim()) return
     }
     patch({ status: next, alasan_gagal: alasan }, `Status diubah ke ${PROSPECT_LABEL[next]}.`)

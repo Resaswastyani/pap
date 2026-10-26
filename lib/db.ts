@@ -14,6 +14,11 @@ export const db =
     waitForConnections: true,
     connectionLimit: 5,
     connectTimeout: 8000,
+    // Koneksi ke MySQL remote sering diputus saat menganggur (ECONNRESET): jaga tetap hidup & tutup yang lama
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
+    maxIdle: 2,
+    idleTimeout: 60000,
     // DATE/DATETIME dikembalikan sebagai string agar tidak bergeser zona waktu
     dateStrings: true,
   })

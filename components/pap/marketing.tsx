@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, CheckCircle2, Crosshair, Download, ExternalLink, FileText, Link2, MapPin, MessageCircle, Paperclip, Pencil, Plus, Trash2, X, XCircle } from 'lucide-react'
 import { CustomerSelect, type CustomerOption } from './product-page'
 import { prepareFiles } from './attachments'
-import { api, Field, formatDate, formatSize, Modal, Notice } from './ui'
+import { api, askReason, Field, formatDate, formatSize, Modal, Notice } from './ui'
 
 // ---- Konstanta bersama halaman Prospek & Jadwal Visit ----
 export type ProspectStatus = 'baru' | 'dihubungi' | 'janji_temu' | 'visit' | 'penawaran' | 'order_pertama' | 'handover' | 'gagal'
@@ -499,7 +499,7 @@ export function VisitDetail({ visit, currentUserId, canSupervise, isAdmin, onClo
   const canChange = visit.status === 'terjadwal' && (canSupervise || isSales || visit.created_by === currentUserId)
 
   async function cancel() {
-    const alasan = window.prompt('Alasan pembatalan visit (opsional):')
+    const alasan = await askReason({ title: 'Batalkan visit', label: 'Alasan pembatalan', required: false, confirmLabel: 'Batalkan visit' })
     if (alasan === null) return
     setBusy(true)
     try {

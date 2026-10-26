@@ -1894,3 +1894,5 @@ a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity
 }
 @media (max-width:640px) { .pap-divmenu-groups { grid-template-columns:1fr; padding:0 12px 14px; } }
 .pap-dash-tile { display:contents; }
+
+.pap-session-error{display:grid;gap:12px;justify-items:center;text-align:center;max-width:340px;padding:0 16px}

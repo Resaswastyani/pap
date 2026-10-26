@@ -48,7 +48,8 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
       "SELECT COUNT(*) AS n FROM design_request_files WHERE design_id = ? AND kind = 'desain' AND versi = ?",
       [item.id, Number(item.revisi_ke) + 1],
     )
-    if (!Number(file.n)) fail(400, `Unggah file desain versi ${Number(item.revisi_ke) + 1} terlebih dahulu.`)
+    // Hasil desain boleh berupa file yang diunggah atau lampiran link/file pada catatan (diunggah setelah status berubah)
+    if (!Number(file.n) && !(int(body.lampiran) ?? 0)) fail(400, `Unggah file desain versi ${Number(item.revisi_ke) + 1} atau tambahkan link hasil desain terlebih dahulu.`)
     note = `Desain versi ${Number(item.revisi_ke) + 1} dikirim untuk review${catatan ? `. ${catatan}` : ''}`
   } else if (to === 'disetujui') {
     if (!requester) fail(403, 'Persetujuan customer dicatat oleh sales yang mengajukan.')
@@ -56,10 +57,12 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
       `SELECT id, name FROM design_request_files WHERE design_id = ? AND kind = 'desain' AND (? IS NULL OR id = ?) ORDER BY versi DESC, id DESC LIMIT 1`,
       [item.id, int(body.file_id), int(body.file_id)],
     )
-    finalFileId = file?.id ?? fail(400, 'Pilih file desain final.')
+    // Tanpa file desain (hasil dikirim lewat link): tetap bisa disetujui, hanya tidak masuk Data Produk/Bank Konten
+    if (!file && int(body.file_id)) fail(400, 'Pilih file desain final.')
+    finalFileId = file?.id ?? null
     sets.push('feedback = ?')
     values.push(catatan)
-    note = `Desain final: ${file.name}${catatan ? `. ${catatan}` : ''}`
+    note = file ? `Desain final: ${file.name}${catatan ? `. ${catatan}` : ''}` : `Desain disetujui (hasil lewat link)${catatan ? `. ${catatan}` : ''}`
   } else if (to === 'revisi') {
     if (!requester) fail(403, 'Permintaan revisi dicatat oleh sales yang mengajukan.')
     if (!catatan) fail(400, 'Tulis revisi yang diminta customer.')

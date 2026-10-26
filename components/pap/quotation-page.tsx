@@ -8,7 +8,7 @@ import { DocForm, useHppData } from './hpp-page'
 import { ProspectSelect, waLink, type ProspectOption } from './marketing'
 import { PaymentForm } from './payment-page'
 import { CustomerSelect, type CustomerOption } from './product-page'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged, RowActions } from './ui'
+import { api, askReason, Field, formatDate, Modal, Notice, Pager, usePaged, RowActions } from './ui'
 
 type Status = 'draft' | 'dikirim' | 'diterima' | 'ditolak' | 'batal'
 const STATUS_LABEL: Record<Status, string> = { draft: 'Draft', dikirim: 'Dikirim', diterima: 'Diterima', ditolak: 'Ditolak', batal: 'Batal' }
@@ -386,7 +386,7 @@ function QuotationDetail({ id, autoEdit = false, onClose, onChanged, onEdit, onC
   async function status(to: Status, needReason = false) {
     let alasan = ''
     if (needReason) {
-      alasan = window.prompt(to === 'ditolak' ? 'Alasan ditolak customer (harga, spek, waktu, dll.):' : 'Alasan dibatalkan:') ?? ''
+      alasan = (await askReason(to === 'ditolak' ? { title: 'Penawaran ditolak customer', label: 'Alasan ditolak', placeholder: 'Mis. harga, spek, waktu pengiriman', confirmLabel: 'Tandai ditolak' } : { title: 'Batalkan penawaran', label: 'Alasan pembatalan', confirmLabel: 'Batalkan penawaran' })) ?? ''
       if (!alasan.trim()) return
     }
     setBusy(true)

@@ -5,8 +5,8 @@ import { Ban, CheckCircle2, Download, FileText, Hammer, Palette, Plus, RotateCcw
 import type { UserProfile } from '@/lib/users'
 import { ProspectSelect, type ProspectOption } from './marketing'
 import { CustomerSelect, type CustomerOption } from './product-page'
-import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, uploadNoteAttachments, uploadPendingAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
-import { api, Field, formatDate, formatSize, Modal, Notice, Pager, usePaged, useQuickAction } from './ui'
+import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, uploadPendingAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
+import { api, askReason, Field, formatDate, formatSize, Modal, Notice, Pager, usePaged, useQuickAction } from './ui'
 
 // ---------------- Konstanta ----------------
 type SampleStatus = 'diajukan' | 'dijadwalkan' | 'diproduksi' | 'selesai' | 'dikirim' | 'disetujui' | 'revisi' | 'batal'
@@ -107,11 +107,6 @@ function ProductRefSelect({ value, onChange }: { value: ProductRef | null; onCha
       )}
     </div>
   )
-}
-
-const ask = (message: string) => {
-  const value = window.prompt(message)
-  return value === null ? null : value.trim()
 }
 
 // ================================================================
@@ -337,7 +332,7 @@ export function SampleForm({ prospect, resubmit, resubmitItems, onClose, onSaved
           </div>
         </div>
 
-        <Field label="Dibutuhkan tanggal (opsional)"><input className="pap-input" type="date" value={values.tenggat} onChange={set('tenggat')} /></Field>
+        <Field label="Dibutuhkan tanggal"><input className="pap-input" type="date" required value={values.tenggat} onChange={set('tenggat')} /></Field>
         <span />
         <Field label="Catatan umum (opsional)" full><textarea className="pap-input" rows={2} maxLength={5000} value={values.spesifikasi} onChange={set('spesifikasi')} /></Field>
         <Field label="Special request customer (opsional)" full><textarea className="pap-input" rows={2} maxLength={5000} value={values.special_request} onChange={set('special_request')} /></Field>
@@ -406,7 +401,7 @@ function SampleDetail({ id, user, onClose, onChanged }: { id: number; user: User
         subtitle={`Untuk ${item.target_name ?? '—'} · diajukan ${item.requested_name}, ${formatDate(item.created_at, true)}`}
         wide
         onClose={onClose}
-        footer={<>{canCancel && <button className="pap-btn danger" disabled={busy} onClick={() => { const a = ask('Alasan membatalkan request sample:'); if (a) act({ status: 'batal', catatan: a }, 'Request sample dibatalkan.') }}><Ban /> Batalkan</button>}<span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Tutup</button></>}
+        footer={<>{canCancel && <button className="pap-btn danger" disabled={busy} onClick={async () => { const a = await askReason({ title: 'Batalkan request sample', label: 'Alasan pembatalan', confirmLabel: 'Batalkan request' }); if (a) act({ status: 'batal', catatan: a }, 'Request sample dibatalkan.') }}><Ban /> Batalkan</button>}<span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Tutup</button></>}
       >
         {error && <Notice onClose={() => setError('')}>{error}</Notice>}
         <div className="pap-detail-badges"><Badge tone={SAMPLE_TONE[s]} label={SAMPLE_LABEL[s]} />{item.revisi_ke > 0 && <span className="pap-status warning">Revisi ke-{item.revisi_ke}</span>}</div>
@@ -418,7 +413,7 @@ function SampleDetail({ id, user, onClose, onChanged }: { id: number; user: User
             <strong>Persetujuan: setujui &amp; jadwalkan produksi sample</strong>
             <div className="pap-activity-row two"><label className="pap-activity-date"><span>Tanggal produksi</span><input className="pap-input" type="date" value={jadwal} onChange={(e) => setJadwal(e.target.value)} /></label>{note}</div>
             <div className="pap-inline-actions pap-wrap">
-              <button className="pap-btn danger" disabled={busy} onClick={() => { const a = ask('Alasan menolak pengajuan sample:'); if (a) act({ status: 'batal', catatan: `Ditolak: ${a}` }, 'Pengajuan sample ditolak, sales diberi tahu.') }}><Ban /> Tolak</button>
+              <button className="pap-btn danger" disabled={busy} onClick={async () => { const a = await askReason({ title: 'Tolak pengajuan sample', label: 'Alasan menolak', placeholder: 'Mis. spek belum lengkap, mesin penuh, bahan tidak tersedia', confirmLabel: 'Tolak pengajuan' }); if (a) act({ status: 'batal', catatan: `Ditolak: ${a}` }, 'Pengajuan sample ditolak, sales diberi tahu.') }}><Ban /> Tolak</button>
               <span className="pap-spacer" />
               <button className="pap-primary-button" disabled={busy || !jadwal} onClick={() => act({ status: 'dijadwalkan', jadwal_produksi: jadwal, catatan }, 'Sample disetujui & dijadwalkan, PPIC dan Produksi diberi tahu.')}><CheckCircle2 /> Setujui &amp; jadwalkan</button>
             </div>
@@ -790,6 +785,7 @@ function DesignDetail({ id, user, onClose, onChanged }: { id: number; user: User
   const versions = [...new Set(designs.map((f) => f.versi))]
   const latestVersi = versions[0]
   const open = !['disetujui', 'batal'].includes(s)
+  const lampiranCount = pendingCount(noteFiles)
 
   const fileRow = (f: DesignFile, selectable = false) => (
     <li key={f.id} className={item.final_file_id === f.id ? 'final' : ''}>
@@ -810,7 +806,7 @@ function DesignDetail({ id, user, onClose, onChanged }: { id: number; user: User
       subtitle={`Untuk ${item.target_name ?? '—'} · diajukan ${item.requested_name}, ${formatDate(item.created_at, true)}`}
       wide
       onClose={onClose}
-      footer={<>{open && (roles.isRequester || roles.isDesignerOf) && <button className="pap-btn danger" disabled={busy} onClick={() => { const a = ask('Alasan membatalkan request desain:'); if (a) act({ status: 'batal', catatan: a }, 'Request desain dibatalkan.') }}><Ban /> Batalkan</button>}<span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Tutup</button></>}
+      footer={<>{open && (roles.isRequester || roles.isDesignerOf) && <button className="pap-btn danger" disabled={busy} onClick={async () => { const a = await askReason({ title: 'Batalkan request desain', label: 'Alasan pembatalan', confirmLabel: 'Batalkan request' }); if (a) act({ status: 'batal', catatan: a }, 'Request desain dibatalkan.') }}><Ban /> Batalkan</button>}<span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Tutup</button></>}
     >
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       <div className="pap-detail-badges"><Badge tone={DESIGN_TONE[s]} label={DESIGN_LABEL[s]} />{item.revisi_ke > 0 && <span className="pap-status warning">Revisi ke-{item.revisi_ke}</span>}{item.designer_name && <span className="pap-status neutral">Desainer: {item.designer_name}</span>}</div>
@@ -827,12 +823,13 @@ function DesignDetail({ id, user, onClose, onChanged }: { id: number; user: User
           <strong>Unggah desain versi {currentVersi}{s === 'revisi' ? ' (revisi)' : ''}</strong>
           {s === 'revisi' && item.feedback && <p className="pap-prewrap">Revisi dari customer: {item.feedback}</p>}
           <input ref={designInput} type="file" multiple hidden accept={DESIGN_FILE_ACCEPT} onChange={(e) => { upload('desain', e.target.files); e.target.value = '' }} />
+          <p className="pap-muted">Kirim hasil desain lewat file, atau cukup lewat link (mis. Google Drive/Canva). Catatan opsional.</p>
           <textarea className="pap-input" rows={2} maxLength={5000} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Catatan untuk sales (opsional)" />
           <div className="pap-note-attach"><AttachmentInput value={noteFiles} onChange={setNoteFiles} /></div>
           <div className="pap-inline-actions pap-wrap">
             <button className="pap-btn" disabled={busy} onClick={() => designInput.current?.click()}><Upload /> Unggah file desain</button>
             <span className="pap-spacer" />
-            <button className="pap-primary-button" disabled={busy || latestVersi !== currentVersi} onClick={() => act({ status: 'review', catatan }, 'Desain dikirim ke sales untuk review customer.')}><Send /> Kirim untuk review</button>
+            <button className="pap-primary-button" disabled={busy || (latestVersi !== currentVersi && !lampiranCount)} title={latestVersi !== currentVersi && !lampiranCount ? 'Unggah file desain atau tambahkan link hasil desain' : undefined} onClick={() => act({ status: 'review', catatan, lampiran: lampiranCount }, 'Desain dikirim ke sales untuk review customer.')}><Send /> Kirim untuk review</button>
           </div>
         </div>
       )}
@@ -845,7 +842,7 @@ function DesignDetail({ id, user, onClose, onChanged }: { id: number; user: User
           <div className="pap-inline-actions pap-wrap">
             <button className="pap-btn danger" disabled={busy || !catatan.trim()} onClick={() => act({ status: 'revisi', catatan }, 'Revisi dikirim ke Tim Desain.')}><RotateCcw /> Minta revisi</button>
             <span className="pap-spacer" />
-            <button className="pap-primary-button" disabled={busy || !finalId} onClick={() => act({ status: 'disetujui', catatan, file_id: finalId }, item.kategori === 'konten' ? 'Konten disetujui dan masuk Bank Konten.' : 'Desain disetujui dan masuk ke Data Produk.')}><CheckCircle2 /> {item.kategori === 'konten' ? 'Setujui konten' : 'Customer setuju'}</button>
+            <button className="pap-primary-button" disabled={busy || (designs.length > 0 && !finalId)} onClick={() => act({ status: 'disetujui', catatan, file_id: finalId }, item.kategori === 'konten' ? 'Konten disetujui dan masuk Bank Konten.' : 'Desain disetujui dan masuk ke Data Produk.')}><CheckCircle2 /> {item.kategori === 'konten' ? 'Setujui konten' : 'Customer setuju'}</button>
           </div>
         </div>
       )}
