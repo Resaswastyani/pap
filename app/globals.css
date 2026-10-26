@@ -579,7 +579,7 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
 
 /* Request Sample & Request Desain */
 .pap-request-filters { display:flex; flex-direction:column; gap:12px; margin-bottom:16px; }
-.pap-request-filters .pap-filter-search { max-width:420px; }
+.pap-request-filters .pap-filter-search { flex:none; width:100%; max-width:420px; }
 .pap-chip-tabs { display:flex; flex-wrap:wrap; gap:6px; }
 .pap-chip-tabs button { display:inline-flex; align-items:center; gap:6px; padding:7px 12px; border:1px solid var(--pap-border); border-radius:99px; background:var(--pap-surface); color:var(--pap-muted); font-size:12px; font-weight:700; cursor:pointer; }
 .pap-chip-tabs button b { padding:0 7px; border-radius:99px; background:var(--pap-bg); color:var(--pap-text); font-size:11px; }
@@ -1894,3 +1894,10 @@ a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity
 }
 @media (max-width:640px) { .pap-divmenu-groups { grid-template-columns:1fr; padding:0 12px 14px; } }
 .pap-dash-tile { display:contents; }
+
+/* Dokumen Order: tab dan form dokumen tersimpan */
+.pap-doc-tabs { margin-bottom:16px; }
+.pap-po-lines td .pap-doc-line-note { margin-top:6px; font-size:11px; }
+.pap-doc-cost { display:grid; grid-template-columns:minmax(0, 1fr) 160px auto; gap:8px; align-items:center; margin-bottom:8px; }
+.pap-po-totals dt .pap-doc-diskon { width:110px; }
+@media (max-width:700px) { .pap-doc-cost { grid-template-columns:minmax(0, 1fr) 110px auto; } }
