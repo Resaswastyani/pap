@@ -1,13 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Save } from 'lucide-react'
+import { LayoutList, Save, ShieldCheck } from 'lucide-react'
+import { DivisionMenus } from './division-menus'
 import { api, Notice } from './ui'
 
 type Role = { id: number; code: string; name: string; description: string | null; is_admin: boolean; is_super_admin: boolean; user_count: number; permissions: string[] }
 type Permission = { id: number; code: string; name: string; module: string }
 
-export function RolesPage() {
+function RolePermissions() {
   const [roles, setRoles] = useState<Role[]>([])
   const [permissions, setPermissions] = useState<Permission[]>([])
   const [draft, setDraft] = useState<Record<number, Set<string>>>({})
@@ -108,6 +109,31 @@ export function RolesPage() {
           </table>
         </div>
       </div>
+    </>
+  )
+}
+
+// Manajemen Role: permission per role dan menu per divisi
+export function RolesPage() {
+  const [view, setView] = useState<'permission' | 'menu'>('permission')
+  return (
+    <>
+      <div className="pap-segmented pap-view-switch" role="tablist" aria-label="Tampilan Manajemen Role">
+        <button role="tab" aria-selected={view === 'permission'} className={view === 'permission' ? 'active' : ''} onClick={() => setView('permission')}><ShieldCheck /> Permission role</button>
+        <button role="tab" aria-selected={view === 'menu'} className={view === 'menu' ? 'active' : ''} onClick={() => setView('menu')}><LayoutList /> Menu per divisi</button>
+      </div>
+      {view === 'permission' ? <RolePermissions /> : (
+        <>
+          <div className="pap-page-heading">
+            <div>
+              <p className="pap-eyebrow">SISTEM</p>
+              <h1>Menu per Divisi</h1>
+              <span>Atur menu yang tampil untuk tiap divisi, mis. Marketing Digital, Development, dan Maintenance dibedakan sesuai tugasnya.</span>
+            </div>
+          </div>
+          <DivisionMenus />
+        </>
+      )}
     </>
   )
 }

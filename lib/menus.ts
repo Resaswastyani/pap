@@ -69,3 +69,20 @@ export const PERMISSION_MENUS: Partial<Record<MenuKey, string>> = {
   users: 'users.manage',
   roles: 'roles.manage',
 }
+
+// Susunan menu seperti di sidebar, untuk pengaturan menu per divisi (Manajemen Role).
+// Tidak termasuk Pengaturan (selalu terbuka) serta menu yang disembunyikan (Tabel HPP, Pembayaran).
+export const MENU_GROUPS: { label: string; items: (keyof typeof MENU_KEYS)[] }[] = [
+  { label: 'Ringkasan', items: ['Dashboard', 'Monitoring'] },
+  { label: 'Marketing', items: ['Prospek', 'Jadwal Visit', 'Request Sample', 'Request Desain', 'Customer', 'Order Bulanan', 'Repeat Order', 'Data Produk', 'Quotation', 'Dokumen Order', 'Kalender Konten', 'KPI Marketing'] },
+  { label: 'Produksi', items: ['Rencana Produksi', 'Kapasitas Produksi', 'Hasil Produksi', 'Faktur Produksi', 'Formulasi Produk', 'Jadwal Shift', 'Stok'] },
+  { label: 'Logistik', items: ['Pengiriman', 'Ekspedisi'] },
+  { label: 'Teknik', items: ['Data Mesin', 'Kerusakan Mesin', 'Perawatan Mesin', 'SOP Mesin', 'Sparepart & Peralatan'] },
+  { label: 'Purchasing', items: ['Pengajuan Pembelian', 'PO Pembelian', 'Supplier', 'Harga Bahan', 'Hutang Supplier'] },
+  { label: 'Accounting', items: ['Ringkasan Keuangan', 'Kas & Bank', 'Piutang Customer', 'Laporan Keuangan', 'Arus Kas', 'Pajak'] },
+  { label: 'SDM', items: ['Karyawan', 'Grade & Gaji', 'Absensi', 'Training', 'Izin & Cuti', 'KPI Karyawan', 'Laporan BPJS', 'Perizinan'] },
+  { label: 'Kolaborasi', items: ['Planning', 'Progress Kerja', 'Meeting'] },
+  { label: 'Sistem', items: ['Master Data', 'Manajemen User', 'Manajemen Role'] },
+]
+// Kunci menu yang bisa diatur per divisi (selain ini, isi division_menus tidak disentuh saat disimpan)
+export const CONFIGURABLE_MENU_KEYS = MENU_GROUPS.flatMap((g) => g.items.map((label) => MENU_KEYS[label])) as MenuKey[]

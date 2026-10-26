@@ -1868,3 +1868,29 @@ a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity
 .pap-quick-icon { display:grid; place-items:center; flex:none; width:34px; height:34px; border-radius:10px; background:rgb(124 92 252 / .12); color:#7050e7; }
 .pap-quick-icon svg { width:17px; height:17px; }
 @media (max-width:380px) { .pap-quick-grid { grid-template-columns:1fr; } }
+
+/* ---------- Manajemen Role > Menu per divisi ---------- */
+.pap-divmenu { display:grid; grid-template-columns:280px minmax(0,1fr); gap:16px; align-items:start; }
+.pap-divmenu-list { position:sticky; top:16px; }
+.pap-divmenu-search { margin:0 16px 10px; max-width:none; }
+.pap-divmenu-select { display:none; margin:0 16px 14px; width:calc(100% - 32px); }
+.pap-divmenu-list ul { display:flex; flex-direction:column; gap:4px; max-height:calc(100vh - 260px); overflow:auto; margin:0; padding:0 12px 14px; list-style:none; }
+.pap-divmenu-list ul button { display:flex; flex-direction:column; gap:2px; width:100%; padding:9px 12px; border:1px solid transparent; border-radius:10px; background:transparent; color:var(--pap-text); font:inherit; text-align:left; cursor:pointer; }
+.pap-divmenu-list ul button:hover { background:rgb(124 92 252 / .05); }
+.pap-divmenu-list ul button.active { border-color:#7c5cfc; background:rgb(124 92 252 / .08); }
+.pap-divmenu-list b { font-size:13px; }
+.pap-divmenu-list small { color:var(--pap-muted); font-size:11px; }
+.pap-divmenu-groups { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:12px; padding:0 22px 22px; }
+.pap-divmenu-group { display:flex; flex-direction:column; gap:6px; min-width:0; margin:0; padding:12px 14px; border:1px solid var(--pap-border); border-radius:12px; }
+.pap-divmenu-group legend { display:flex; align-items:center; gap:8px; padding:0 6px; }
+.pap-divmenu-group legend button { padding:0; border:0; background:transparent; color:var(--pap-text); font:inherit; font-size:12px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; cursor:pointer; }
+.pap-divmenu-group legend button:hover { color:#7050e7; }
+.pap-divmenu-group legend span { color:var(--pap-muted); font-size:11px; }
+@media (max-width:1000px) {
+  .pap-divmenu { grid-template-columns:1fr; }
+  .pap-divmenu-list { position:static; }
+  .pap-divmenu-list .pap-card-head, .pap-divmenu-list ul, .pap-divmenu-search { display:none; }
+  .pap-divmenu-select { display:block; margin:14px 16px; }
+}
+@media (max-width:640px) { .pap-divmenu-groups { grid-template-columns:1fr; padding:0 12px 14px; } }
+.pap-dash-tile { display:contents; }

@@ -20,7 +20,13 @@ type DashboardData = {
     followups: { id: number; nama_usaha: string; next_followup_at: string; status: string }[]
   }
   quotation?: { menunggu: number; nilai_menunggu: number; draft: number; diterima_bulan_ini: number; persetujuan: number }
-  repeat?: { waktunya: number; berisiko: number; followup: number; tim: boolean }
+  repeat?: {
+    waktunya: number; berisiko: number; followup: number; tim: boolean
+    list: { id: number; name: string; bill_city: string | null; status: 'berisiko' | 'waktunya'; last_order: string | null; perkiraan_order: string | null; hari_terlambat: number; order_count: number; maintenance_name: string | null }[]
+  }
+  leads?: { minggu_ini: number; bulan_ini: number; belum_dibagi: number; sumber: { sumber: string; jumlah: number }[] }
+  konten?: { items: { id: number; judul: string; platform: string; jenis: string; jadwal_tayang: string; status: string }[]; tayang: number; rencana: number; leads: number }
+  fokus?: 'digital' | 'development' | 'maintenance' | null
   kpi?: { periode: string; nilai?: Record<string, number>; target: Record<string, number> }
   penjualan?: { omzet_bulan_lalu_sd_hari_ini: number; bulan: { bulan: string; omzet: number; faktur: number; customer: number }[]; sektor: { bulan: string; sektor: string; omzet: number; faktur: number; customer: number }[]; top: { name: string; omzet: number }[]; top_sektor: { sektor: string; name: string; omzet: number }[]; so: { jumlah: number; nilai: number } }
   produksi?: {
@@ -161,7 +167,32 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
   const gantt = narrow ? GANTT_NARROW : GANTT_WIDE
   const ganttStart = dayToday - gantt.before
   const funnelTotal = d.marketing ? FUNNEL.reduce((sum, [k]) => sum + (d.marketing!.funnel[k] ?? 0), 0) : 0
-  const empty = data && !Object.keys(data).length
+  const empty = data && !Object.keys(data).filter((k) => k !== 'fokus').length
+
+  // Tile ringkasan; urutannya mengikuti fokus divisi marketing (Digital: lead & konten, Development: pipeline, Maintenance: repeat order)
+  const canVisit = user.menus.includes('visit')
+  const allTiles: [string, React.ReactNode | false | undefined][] = [
+    ['lead-minggu', d.leads && <Tile label="Lead masuk minggu ini" value={d.leads.minggu_ini} note={`${d.leads.bulan_ini} bulan ini`} icon={Target} onClick={() => onNavigate('Prospek')} />],
+    ['lead-dibagi', d.leads && <Tile label="Lead belum dibagi" value={d.leads.belum_dibagi} note="Perlu dibagikan ke sales" icon={Target} tone={d.leads.belum_dibagi ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Prospek')} />],
+    ['konten', d.konten && <Tile label="Konten bulan ini" value={d.konten.tayang} note={`tayang · ${d.konten.rencana} direncanakan`} icon={CalendarDays} onClick={() => onNavigate('Kalender Konten')} />],
+    ['repeat', d.repeat && <Tile label="Customer perlu dihubungi" value={d.repeat.waktunya + d.repeat.berisiko} note={`${d.repeat.berisiko} berisiko berhenti order`} icon={Repeat} tone={d.repeat.berisiko ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Repeat Order')} />],
+    ['followup', d.marketing && d.fokus !== 'digital' && <Tile label="Follow-up hari ini" value={d.marketing.followup_saya} note={d.marketing.followup_terlambat ? `${d.marketing.followup_terlambat} terlambat` : 'Prospek pegangan Anda'} icon={CalendarClock} tone={d.marketing.followup_terlambat ? 'stat-2' : 'stat-1'} onClick={() => onNavigate('Prospek')} />],
+    ['visit', d.marketing && canVisit && <Tile label="Visit hari ini" value={d.marketing.visits.length} note={`${d.marketing.prospek_aktif} prospek aktif${d.marketing.tim && d.marketing.belum_dibagi ? ` · ${d.marketing.belum_dibagi} belum dibagi` : ''}`} icon={MapPin} onClick={() => onNavigate('Jadwal Visit')} />],
+    ['persetujuan', !!d.quotation?.persetujuan && <Tile label="Quotation perlu persetujuan" value={d.quotation!.persetujuan} note="menunggu persetujuan Anda" icon={ClipboardList} tone="stat-2" onClick={() => onNavigate('Quotation')} />],
+    ['quotation', d.quotation && <Tile label="Penawaran menunggu" value={d.quotation.menunggu} note={`${formatRupiah(d.quotation.nilai_menunggu)}${d.quotation.draft ? ` · ${d.quotation.draft} draft` : ''}`} icon={ClipboardList} onClick={() => onNavigate('Quotation')} />],
+    ['sample', d.sample && <Tile label="Request sample" value={d.sample.todo} note={`perlu tindakan · ${d.sample.aktif} berjalan`} icon={FlaskConical} tone={d.sample.todo ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Request Sample')} />],
+    ['desain', d.desain && <Tile label="Request desain" value={d.desain.todo} note={`perlu tindakan · ${d.desain.aktif} berjalan`} icon={Palette} tone={d.desain.todo ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Request Desain')} />],
+    ['produksi', d.produksi && <Tile label="Produksi berjalan" value={d.produksi.berjalan} note={`${d.produksi.menunggu} menunggu · ${d.produksi.dijadwalkan} terjadwal`} icon={Factory} onClick={() => onNavigate('Rencana Produksi')} />],
+    ['produksi-telat', d.produksi && <Tile label="Produksi lewat tenggat" value={d.produksi.terlambat} note={`${d.produksi.selesai_bulan_ini} selesai bulan ini`} icon={AlertTriangle} tone={d.produksi.terlambat ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Rencana Produksi')} />],
+  ]
+  const PRIORITY: Record<string, string[]> = {
+    digital: ['lead-minggu', 'lead-dibagi', 'konten', 'desain', 'quotation'],
+    development: ['followup', 'visit', 'quotation', 'sample', 'desain'],
+    maintenance: ['repeat', 'followup', 'visit', 'quotation'],
+  }
+  const order = PRIORITY[d.fokus ?? ''] ?? []
+  const rank = (key: string) => (order.includes(key) ? order.indexOf(key) : order.length + allTiles.findIndex(([k]) => k === key))
+  const tiles = allTiles.filter((t): t is [string, React.ReactNode] => !!t[1]).sort((a, b) => rank(a[0]) - rank(b[0]))
 
   return (
     <>
@@ -176,21 +207,47 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
       {!data && !error && <div className="pap-empty">Memuat ringkasan...</div>}
       {empty && <div className="pap-empty">Belum ada ringkasan untuk menu Anda.</div>}
 
-      {(d.marketing || d.quotation || d.repeat || d.sample || d.desain || d.produksi) && (
-        <div className="pap-stat-grid four pap-dash-tiles">
-          {d.marketing && <Tile label="Follow-up hari ini" value={d.marketing.followup_saya} note={d.marketing.followup_terlambat ? `${d.marketing.followup_terlambat} terlambat` : 'Prospek pegangan Anda'} icon={CalendarClock} tone={d.marketing.followup_terlambat ? 'stat-2' : 'stat-1'} onClick={() => onNavigate('Prospek')} />}
-          {d.marketing && <Tile label="Visit hari ini" value={d.marketing.visits.length} note={`${d.marketing.prospek_aktif} prospek aktif${d.marketing.tim && d.marketing.belum_dibagi ? ` · ${d.marketing.belum_dibagi} belum dibagi` : ''}`} icon={MapPin} onClick={() => onNavigate('Jadwal Visit')} />}
-          {!!d.quotation?.persetujuan && <Tile label="Quotation perlu persetujuan" value={d.quotation.persetujuan} note="menunggu persetujuan Anda" icon={ClipboardList} tone="stat-2" onClick={() => onNavigate('Quotation')} />}
-          {d.quotation && <Tile label="Penawaran menunggu" value={d.quotation.menunggu} note={`${formatRupiah(d.quotation.nilai_menunggu)}${d.quotation.draft ? ` · ${d.quotation.draft} draft` : ''}`} icon={ClipboardList} onClick={() => onNavigate('Quotation')} />}
-          {d.repeat && <Tile label="Customer perlu dihubungi" value={d.repeat.waktunya + d.repeat.berisiko} note={`${d.repeat.berisiko} berisiko berhenti order`} icon={Repeat} tone={d.repeat.berisiko ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Repeat Order')} />}
-          {d.sample && <Tile label="Request sample" value={d.sample.todo} note={`perlu tindakan · ${d.sample.aktif} berjalan`} icon={FlaskConical} tone={d.sample.todo ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Request Sample')} />}
-          {d.desain && <Tile label="Request desain" value={d.desain.todo} note={`perlu tindakan · ${d.desain.aktif} berjalan`} icon={Palette} tone={d.desain.todo ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Request Desain')} />}
-          {d.produksi && <Tile label="Produksi berjalan" value={d.produksi.berjalan} note={`${d.produksi.menunggu} menunggu · ${d.produksi.dijadwalkan} terjadwal`} icon={Factory} onClick={() => onNavigate('Rencana Produksi')} />}
-          {d.produksi && <Tile label="Produksi lewat tenggat" value={d.produksi.terlambat} note={`${d.produksi.selesai_bulan_ini} selesai bulan ini`} icon={AlertTriangle} tone={d.produksi.terlambat ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Rencana Produksi')} />}
-        </div>
-      )}
+      {!!tiles.length && <div className="pap-stat-grid four pap-dash-tiles">{tiles.map(([key, node]) => <span key={key} className="pap-dash-tile">{node}</span>)}</div>}
 
       <div className="pap-dash-grid">
+        {/* Marketing Maintenance: customer yang waktunya order ulang / berisiko berhenti order */}
+        {d.fokus === 'maintenance' && d.repeat && (
+          <section className="pap-table-card pap-dash-card wide">
+            <div className="pap-card-head"><div><h2>Customer perlu dihubungi</h2><p>{d.repeat.berisiko} berisiko berhenti order · {d.repeat.waktunya} waktunya order ulang{d.repeat.tim ? '' : ' · customer pegangan Anda'}</p></div><button className="pap-btn" onClick={() => onNavigate('Repeat Order')}>Repeat Order</button></div>
+            {d.repeat.list.length ? (
+              <ul className="pap-dash-agenda">
+                {d.repeat.list.map((c) => (
+                  <li key={c.id}>
+                    <button onClick={() => onNavigate('Repeat Order')}>
+                      <Repeat className={c.status === 'berisiko' ? 'late' : ''} />
+                      <span><b>{c.name}</b>{c.bill_city ? ` · ${c.bill_city}` : ''} · order terakhir {formatDate(c.last_order)}{c.hari_terlambat > 0 ? ` · lewat ${c.hari_terlambat} hari dari perkiraan` : ` · perkiraan ${formatDate(c.perkiraan_order)}`}</span>
+                      <span className={`pap-status ${c.status === 'berisiko' ? 'danger' : 'warning'}`}>{c.status === 'berisiko' ? 'Berisiko' : 'Waktunya'}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : <div className="pap-empty">Semua customer aman, belum ada yang perlu dihubungi.</div>}
+          </section>
+        )}
+        {/* Marketing Digital: sumber lead & jadwal konten */}
+        {d.leads && (
+          <section className="pap-table-card pap-dash-card">
+            <div className="pap-card-head"><div><h2>Sumber lead</h2><p>Prospek masuk 30 hari terakhir · {d.leads.bulan_ini} bulan ini</p></div><button className="pap-btn" onClick={() => onNavigate('Prospek')}>Prospek</button></div>
+            <div className="pap-dash-body">
+              {d.leads.sumber.length ? <BarList items={d.leads.sumber.map((s) => ({ key: s.sumber, label: s.sumber, value: s.jumlah }))} /> : <p className="pap-muted">Belum ada lead 30 hari terakhir.</p>}
+            </div>
+          </section>
+        )}
+        {d.konten && (
+          <section className="pap-table-card pap-dash-card">
+            <div className="pap-card-head"><div><h2>Konten 7 hari ke depan</h2><p>Bulan ini {d.konten.tayang} tayang · {d.konten.rencana} direncanakan · {d.konten.leads} lead dari konten</p></div><button className="pap-btn" onClick={() => onNavigate('Kalender Konten')}>Kalender</button></div>
+            {d.konten.items.length ? (
+              <ul className="pap-dash-agenda">
+                {d.konten.items.map((k) => <li key={k.id}><button onClick={() => onNavigate('Kalender Konten')}><CalendarDays /><span><b>{formatDate(k.jadwal_tayang, true)}</b> {k.judul} · {k.platform}</span><span className={`pap-status ${k.status === 'siap' ? 'success' : k.status === 'produksi' ? 'info' : 'neutral'}`}>{k.status}</span></button></li>)}
+              </ul>
+            ) : <div className="pap-empty">Belum ada konten terjadwal 7 hari ke depan.</div>}
+          </section>
+        )}
         {sales && (
           <section className="pap-table-card pap-dash-card wide">
             <div className="pap-card-head">
