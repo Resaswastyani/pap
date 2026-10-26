@@ -188,6 +188,7 @@ const RESOURCES: Record<string, Resource> = {
   samples: { module: 'Request Sample', noun: 'request sample', table: 'sample_requests', files: 'sample_attachments' },
   designs: { module: 'Request Desain', noun: 'request desain', table: 'design_requests', files: 'design_request_files' },
   quotations: { module: 'Quotation', noun: 'quotation', table: 'quotations' },
+  'order-documents': { module: 'Dokumen Order', noun: 'dokumen order', table: 'order_documents' },
   'repeat-order': { module: 'Repeat Order', noun: 'customer', table: 'customers' },
   hpp: { module: 'HPP', noun: 'parameter HPP' },
   'hpp/materials': { module: 'HPP', noun: 'bahan baku', table: 'raw_materials' },
