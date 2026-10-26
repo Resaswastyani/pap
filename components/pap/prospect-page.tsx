@@ -11,7 +11,7 @@ import {
 import { QuotationForm } from './quotation-page'
 import { DesignForm, SampleForm } from './request-page'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
-import { api, Field, formatDate, Modal, Notice, Pager, RowActions } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, RowActions, useQuickAction } from './ui'
 
 export type Prospect = {
   id: number
@@ -79,6 +79,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
   const [page, setPage] = useState(1)
   const [size, setSize] = useState(50)
   const [form, setForm] = useState<Prospect | 'new' | null>(null)
+  useQuickAction('tambah-prospek', () => setForm('new'))
   const [autoEdit, setAutoEdit] = useState(false)
   const [importing, setImporting] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)

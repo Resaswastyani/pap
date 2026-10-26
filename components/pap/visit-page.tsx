@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CalendarCheck, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, MapPin, Navigation, Plus } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { CheckinForm, localDate, mapsSearch, VISIT_LABEL, VISIT_TYPE_LABEL, VisitBadge, VisitDetail, VisitForm, type MarketingUser, type Visit } from './marketing'
-import { api, formatDate, Notice } from './ui'
+import { api, formatDate, Notice, useQuickAction } from './ui'
 
 const DAY_NAMES = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
 
@@ -28,6 +28,7 @@ export function VisitPage({ user, focusId, onOpenProspect }: { user: UserProfile
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [form, setForm] = useState<Visit | 'new' | null>(null)
+  useQuickAction('jadwal-visit', () => setForm('new'))
   const [detail, setDetail] = useState<Visit | null>(null)
   const [checkin, setCheckin] = useState<Visit | null>(null)
 

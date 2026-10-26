@@ -6,7 +6,7 @@ import type { UserProfile } from '@/lib/users'
 import { ProspectSelect, type ProspectOption } from './marketing'
 import { CustomerSelect, type CustomerOption } from './product-page'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, uploadNoteAttachments, uploadPendingAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
-import { api, Field, formatDate, formatSize, Modal, Notice, Pager, usePaged } from './ui'
+import { api, Field, formatDate, formatSize, Modal, Notice, Pager, usePaged, useQuickAction } from './ui'
 
 // ---------------- Konstanta ----------------
 type SampleStatus = 'diajukan' | 'dijadwalkan' | 'diproduksi' | 'selesai' | 'dikirim' | 'disetujui' | 'revisi' | 'batal'
@@ -141,6 +141,7 @@ export function SamplePage({ user, focusId }: { user: UserProfile; focusId?: num
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [form, setForm] = useState(false)
+  useQuickAction('request-sample', () => setForm(true))
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
   const statusInit = useRef(false)
 
@@ -529,6 +530,7 @@ export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: num
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [form, setForm] = useState(false)
+  useQuickAction('request-desain', () => setForm(true))
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
   const statusInit = useRef(false)
 

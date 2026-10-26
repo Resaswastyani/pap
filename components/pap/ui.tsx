@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, type InputHTMLAttributes, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Eye, EyeOff, Pencil, Search, X } from 'lucide-react'
 import { PLANNING_STATUS, type PlanningStatus } from '@/lib/permissions'
 import { clientHintHeaders } from './client-hints'
@@ -255,4 +255,43 @@ export function RowActions({ label, onView, onEdit }: { label: string; onView?: 
       {onEdit && <button type="button" className="pap-row-action edit" title="Ubah" aria-label={`Ubah ${label}`} onClick={onEdit}><Pencil /><span>Ubah</span></button>}
     </div>
   )
+}
+
+// ---------- Aksi cepat (tombol "+ Lapor" di HP) ----------
+// Shell menitipkan nama aksi lalu membuka menunya; halaman tujuan menjalankan aksinya (mis. membuka form) saat tampil.
+// Bila halaman itu sudah terbuka, aksi dikirim lewat event agar tetap dijalankan.
+const QUICK_EVENT = 'pap-quick-action'
+const quickState = globalThis as unknown as { papQuickAction?: string | null }
+
+export function requestQuickAction(name: string) {
+  quickState.papQuickAction = name
+  window.dispatchEvent(new CustomEvent(QUICK_EVENT, { detail: name }))
+}
+// Lihat aksi yang dititipkan tanpa menjalankannya (mis. untuk memilih tab awal)
+export const peekQuickAction = () => quickState.papQuickAction ?? null
+
+export function useQuickAction(name: string, run: () => void) {
+  const runRef = useRef(run)
+  runRef.current = run
+  useEffect(() => {
+    const take = () => {
+      if (quickState.papQuickAction !== name) return
+      quickState.papQuickAction = null
+      runRef.current()
+    }
+    take()
+    window.addEventListener(QUICK_EVENT, take)
+    return () => window.removeEventListener(QUICK_EVENT, take)
+  }, [name])
+}
+
+// Amati aksi cepat tanpa mengambilnya (mis. pembungkus halaman berpindah tab agar halaman tujuan yang menjalankannya)
+export function useQuickActionWatch(onAction: (name: string) => void) {
+  const ref = useRef(onAction)
+  ref.current = onAction
+  useEffect(() => {
+    const watch = (e: Event) => ref.current((e as CustomEvent<string>).detail)
+    window.addEventListener(QUICK_EVENT, watch)
+    return () => window.removeEventListener(QUICK_EVENT, watch)
+  }, [])
 }

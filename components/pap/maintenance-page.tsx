@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlarmClock, CalendarCheck, CalendarClock, ClipboardCheck, History, List, Pencil, Plus, Printer, Search, Wrench } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, pendingCount, uploadNoteAttachments, type PendingAttachments } from './attachments'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged, RowActions } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged, RowActions, useQuickAction } from './ui'
 
 type Hasil = 'baik' | 'perlu_tindakan' | 'rusak'
 type Plan = {
@@ -51,6 +51,7 @@ export function MaintenancePage({ user, focusId }: { user: UserProfile; focusId?
   const [message, setMessage] = useState('')
   const [planForm, setPlanForm] = useState<Plan | 'new' | null>(null)
   const [checkup, setCheckup] = useState<{ plan: Plan | null } | null>(null)
+  useQuickAction('checkup-perawatan', () => setCheckup({ plan: null }))
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
   const [logDetail, setLogDetail] = useState<Log | null>(null)
 

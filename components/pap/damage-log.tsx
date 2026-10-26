@@ -5,11 +5,14 @@ import { ClipboardList, ExternalLink, FileSpreadsheet, Pencil, Plus, Printer, Re
 import type { UserProfile } from '@/lib/users'
 import { BarList, ColumnChart } from './charts'
 import { RepairPage } from './repair-page'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, peekQuickAction, usePaged, useQuickAction, useQuickActionWatch } from './ui'
 
 // Menu Kerusakan Mesin: Rekap kerusakan (Google Drive + form) dan Permintaan perbaikan (alur Produksi -> Teknik)
 export function KerusakanMesinPage({ user, focusId }: { user: UserProfile; focusId?: number | null }) {
-  const [tab, setTab] = useState<'rekap' | 'permintaan'>(focusId ? 'permintaan' : 'rekap')
+  // Aksi cepat "Lapor kerusakan" membuka tab permintaan (form-nya dijalankan RepairPage), "Isi form kerusakan" tab rekap
+  const tabFor = (name: string | null) => (name === 'lapor-kerusakan' ? 'permintaan' : name === 'form-kerusakan' ? 'rekap' : null)
+  const [tab, setTab] = useState<'rekap' | 'permintaan'>(() => (focusId ? 'permintaan' : tabFor(peekQuickAction()) ?? 'rekap'))
+  useQuickActionWatch((name) => { const t = tabFor(name); if (t) setTab(t) })
   return (
     <>
       <div className="pap-segmented pap-view-switch" role="tablist" aria-label="Tampilan Kerusakan Mesin">
@@ -57,6 +60,7 @@ export function DamageLogView({ user: _user }: { user: UserProfile }) {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [form, setForm] = useState<Damage | 'new' | null>(null)
+  useQuickAction('form-kerusakan', () => setForm('new'))
   const [sheetOpen, setSheetOpen] = useState(false)
 
   useEffect(() => {

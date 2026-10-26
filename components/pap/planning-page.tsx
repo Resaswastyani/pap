@@ -5,7 +5,7 @@ import { CalendarDays, CheckCircle2, ClipboardList, Clock3, ExternalLink, FileTe
 import { FILE_MAX_BYTES, PERMISSIONS, PLANNING_STATUS, type PlanningStatus } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
 import { prepareFiles } from './attachments'
-import { api, Field, formatDate, formatSize, Modal, Notice, Pager, Progress, StatusBadge, usePaged, type UserOption, UserPicker, RowActions } from './ui'
+import { api, Field, formatDate, formatSize, Modal, Notice, Pager, Progress, StatusBadge, usePaged, type UserOption, UserPicker, RowActions, useQuickAction } from './ui'
 
 type Division = { id: number; code: string; name: string }
 type Abilities = { edit: boolean; delete: boolean; progress: boolean; attach: boolean }
@@ -67,6 +67,7 @@ export function PlanningPage({ user, focusId, onOpenMeeting }: { user: UserProfi
   const [mine, setMine] = useState('')
   const [q, setQ] = useState('')
   const [form, setForm] = useState<Planning | 'new' | null>(null)
+  useQuickAction('buat-planning', () => setForm('new'))
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
 
   useEffect(() => {

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertOctagon, CheckCircle2, Clock3, PauseCircle, Plus, Search, Siren, Wrench } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AttachmentPanel } from './attachments'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged, useQuickAction } from './ui'
 
 type Status = 'baru' | 'dikerjakan' | 'menunggu_part' | 'selesai' | 'batal'
 type Priority = 'darurat' | 'tinggi' | 'normal'
@@ -46,6 +46,7 @@ export function RepairPage({ user, focusId }: { user: UserProfile; focusId?: num
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [formOpen, setFormOpen] = useState(false)
+  useQuickAction('lapor-kerusakan', () => setFormOpen(true))
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
 
   const load = useCallback(async () => {

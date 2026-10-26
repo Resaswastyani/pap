@@ -5,7 +5,7 @@ import { Ban, CheckCircle2, PackageCheck, Phone, Plus, Search, ShoppingCart, Tra
 import type { UserProfile } from '@/lib/users'
 import { AttachmentPanel } from './attachments'
 import { SupplierList, SupplierSelect } from './supplier-list'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged, useQuickAction } from './ui'
 
 type Status = 'diajukan' | 'disetujui' | 'dipesan' | 'diterima' | 'ditolak' | 'batal'
 type Priority = 'darurat' | 'tinggi' | 'normal'
@@ -36,6 +36,7 @@ export function PurchaseRequestPage({ user, focusId }: { user: UserProfile; focu
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [formOpen, setFormOpen] = useState(false)
+  useQuickAction('ajukan-pembelian', () => setFormOpen(true))
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
   const [tab, setTab] = useState<'pengajuan' | 'supplier'>('pengajuan')
 

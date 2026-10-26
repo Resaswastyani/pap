@@ -4,11 +4,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { BookOpenCheck, CalendarCheck, ExternalLink, FileSpreadsheet, Pencil, Plus, Printer, RefreshCw, Search, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { MaintenancePage } from './maintenance-page'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { api, Field, formatDate, Modal, Notice, useQuickActionWatch } from './ui'
 
 // Menu Perawatan Mesin: Jadwal & checkup (dari aplikasi) dan Lembar perawatan (dari Google Drive)
 export function PerawatanMesinPage({ user, focusId }: { user: UserProfile; focusId?: number | null }) {
   const [tab, setTab] = useState<'jadwal' | 'lembar'>('jadwal')
+  // Aksi cepat "Catat checkup" dijalankan di tab Jadwal & checkup
+  useQuickActionWatch((name) => { if (name === 'checkup-perawatan') setTab('jadwal') })
   return (
     <>
       <div className="pap-segmented pap-view-switch" role="tablist" aria-label="Tampilan Perawatan Mesin">

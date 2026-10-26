@@ -5,7 +5,7 @@ import { CalendarClock, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, C
 import { MEETING_STATUS, PERMISSIONS, type MeetingStatus, type PlanningStatus } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
 import { AttachmentPicker, FileItems, PendingItems, PlanningForm, type PendingAttachment, type PlanningFile } from './planning-page'
-import { api, Field, formatDate, Modal, Notice, Pager, Progress, StatusBadge, usePaged, type UserOption, UserPicker, RowActions } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, Progress, StatusBadge, usePaged, type UserOption, UserPicker, RowActions, useQuickAction } from './ui'
 
 type Abilities = { edit: boolean; delete: boolean; result: boolean }
 type Meeting = {
@@ -66,6 +66,7 @@ export function MeetingPage({ user, focusId, onOpenPlanning }: { user: UserProfi
   const [division, setDivision] = useState('')
   const [form, setForm] = useState<Meeting | 'new' | null>(null)
   const [newAt, setNewAt] = useState<string | null>(null) // tanggal dari kalender untuk meeting baru
+  useQuickAction('tambah-meeting', () => { setNewAt(null); setForm('new') })
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
   const [view, setView] = useState<'list' | 'calendar'>('list')
   const [calendarKey, setCalendarKey] = useState(0)
