@@ -134,9 +134,33 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
   return <main className="pap-auth"><section className="pap-auth-hero" aria-label="PT. Pandawa Amerta Packindo"><div className="pap-auth-hero-content"><span className="pap-auth-hero-logo"><img src="/logo-mark.png" alt="" /></span><p className="pap-auth-tagline">Focus on Quality</p><h2>PT. Pandawa Amerta Packindo</h2><p className="pap-auth-sub">Flexible Plastic Packaging Manufacture</p><p className="pap-auth-desc">Produsen kantong plastik HD, PP, dan PE dari biji plastik melalui proses blow, cetak rotogravure, hingga bag making (gusset, cut seal, dan side seal). Melayani produk custom B2B dari berbagai sektor usaha, plastik laundry, serta mika rigid.</p></div></section><section className="pap-auth-panel"><div className="pap-login-card"><img className="pap-login-logo" src="/logo-pap.png" alt="PT. Pandawa Amerta Packindo — Flexible Plastic Packaging Manufacture" /><p className="pap-eyebrow">PAP MANAGEMENT SYSTEM</p><form onSubmit={(e) => { e.preventDefault(); login({ email, password }) }}><label>Email<input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nama@perusahaan.com" /></label><label>Password<span className="pap-password-field"><input type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" /><button type="button" className="pap-password-toggle" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'} aria-pressed={showPassword}>{showPassword ? <EyeOff /> : <Eye />}</button></span></label><a className="pap-forgot-link" href="/lupa-password">Lupa password?</a>{challenge && <div className="pap-captcha" ref={challengeRef} />}{error && <p className="pap-login-error" role="alert">{error}</p>}<button type="submit" className="pap-primary-button pap-login-button" disabled={loading || (challenge && !v2Token)}>{loading ? 'Memproses...' : 'Masuk'} <ChevronRight /></button></form></div></section></main>
 }
 
-// Kunci localStorage untuk memberi tahu tab lain bahwa status login berubah
-const AUTH_SYNC_KEY = 'pap-auth-sync'
-const announceAuthChange = () => { try { localStorage.setItem(AUTH_SYNC_KEY, String(Date.now())) } catch {} }
+// Sesi per tab: tiap tab punya slot acak di sessionStorage yang dikirim di setiap request ke server sendiri,
+// sehingga beberapa tab di browser yang sama bisa login dengan akun berbeda (lihat lib/auth.ts)
+const SLOT_KEY = 'pap-tab-slot'
+let tabSlot: string | null = null
+function installTabSession() {
+  if (tabSlot) return
+  try { tabSlot = sessionStorage.getItem(SLOT_KEY) } catch {}
+  if (!tabSlot || !/^[a-z0-9]{8,24}$/.test(tabSlot)) {
+    tabSlot = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => (b % 36).toString(36)).join('')
+    try { sessionStorage.setItem(SLOT_KEY, tabSlot) } catch {}
+  }
+  const slot = tabSlot
+  const original = window.fetch.bind(window)
+  window.fetch = (input, init) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    if (new URL(url, window.location.href).origin !== window.location.origin) return original(input, init)
+    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
+    headers.set('X-PAP-Slot', slot)
+    return original(input, { ...init, headers })
+  }
+}
+// Jadikan sesi tab ini sesi aktif browser (dipakai link cetak/unduh/gambar yang dibuka dari tab ini).
+// Tab yang sudah logout tidak mengambil lagi sesi tab lain sampai login sendiri.
+const LOGGED_OUT_KEY = 'pap-tab-logged-out'
+const markLoggedOut = (out: boolean) => { try { if (out) sessionStorage.setItem(LOGGED_OUT_KEY, '1'); else sessionStorage.removeItem(LOGGED_OUT_KEY) } catch {} }
+const isLoggedOut = () => { try { return sessionStorage.getItem(LOGGED_OUT_KEY) === '1' } catch { return false } }
+const syncTabSession = () => (isLoggedOut() ? Promise.resolve() : fetch('/api/auth/slot', { method: 'POST' }).then(() => {}, () => {}))
 
 export function AppShell() {
   const [user, setUser] = useState<User | null>(null)
@@ -234,22 +258,24 @@ export function AppShell() {
     }
     setSessionError('Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.')
   }, [])
-  useEffect(() => { checkSession().finally(() => setChecking(false)) }, [checkSession])
-  // Login/logout di satu tab ikut berlaku di tab lain pada browser yang sama
   useEffect(() => {
-    const onStorage = (e: StorageEvent) => { if (e.key === AUTH_SYNC_KEY) checkSession() }
-    const onVisible = () => { if (document.visibilityState === 'visible' && !userRef.current) checkSession(1) }
-    window.addEventListener('storage', onStorage)
-    document.addEventListener('visibilitychange', onVisible)
-    return () => { window.removeEventListener('storage', onStorage); document.removeEventListener('visibilitychange', onVisible) }
+    installTabSession()
+    syncTabSession().then(() => checkSession()).finally(() => setChecking(false))
   }, [checkSession])
-  const onLogin = (next: User) => { setUser(next); announceAuthChange() }
+  // Tab yang kembali aktif menjadi sesi browser untuk link cetak/unduh
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible' && userRef.current) syncTabSession() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => { document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', onVisible) }
+  }, [])
+  const onLogin = (next: User) => { markLoggedOut(false); setUser(next) }
   async function logout() {
     setLoggingOut(true)
     // Perangkat ini berhenti menerima notifikasi akun yang logout
     await unsubscribePush()
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
-    announceAuthChange()
+    markLoggedOut(true)
     setUser(null)
     setProfileOpen(false)
     setActive('Dashboard')
