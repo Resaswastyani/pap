@@ -2,6 +2,8 @@ import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { handle, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
+import { gaReminder } from '@/lib/ga-reminder'
+import { canProcessGa } from '@/lib/ga-requests'
 import { computeKpi, loadTargets, readPeriode } from '@/lib/kpi'
 import { canSupervise, prospectScope } from '@/lib/marketing'
 import { canViewAllDivisions } from '@/lib/planning'
@@ -349,6 +351,14 @@ export const GET = handle(async () => {
         all ? [] : [user.division.id, user.id],
       )
       out.planningGantt = gantt.map((r) => ({ ...r, progress: n(r.progress) }))
+    })())
+  }
+
+  // ---- General Affair: tagihan & langganan bulan ini, pengajuan pembelian GA yang perlu diproses ----
+  if (has('ga-data')) {
+    tasks.push((async () => {
+      const r = await gaReminder()
+      out.ga = { ...r, pembelian: canProcessGa(user) ? r.pembelian : [] }
     })())
   }
 
