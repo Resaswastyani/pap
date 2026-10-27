@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertTriangle, Award, CalendarClock, CalendarDays, ClipboardList, Factory, FlaskConical, Handshake, ListChecks, MapPin, Palette, Repeat, Target, TrendingDown, TrendingUp, UserCheck, Users, UserX } from 'lucide-react'
+import { AlertTriangle, Award, CalendarClock, CalendarDays, ClipboardList, Factory, FlaskConical, Handshake, ListChecks, MapPin, Palette, Receipt, Repeat, ShoppingCart, Smartphone, Target, TrendingDown, TrendingUp, UserCheck, Users, UserX, Wallet, Wifi } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { BarList, ColumnChart, dayNumber, Gantt, todayNumber, useMediaQuery, type GanttBar, type GanttRow } from './charts'
@@ -45,6 +45,12 @@ type DashboardData = {
     divisi: { divisi: string; hadir: number; wajib: number }[]
     perhatian: { nip: string; nama: string; divisi: string | null; kali: number; menit: number; absen: number }[]
   } | null
+  ga?: {
+    bulan: string
+    tagihan: { jenis: 'langganan' | 'wifi' | 'hp'; id: number; nama: string; detail: string | null; biaya: number | null; jatuh_tempo: string | null; status: 'lunas' | 'belum' | 'lewat' }[]
+    pembelian: { id: number; nomor: string | null; judul: string; kategori: string; prioritas: string; status: 'diajukan' | 'disetujui'; dibutuhkan: string | null; estimasi: number }[]
+    ringkasan: { belum: number; lewat: number; lunas: number; nominal_belum: number; perlu_dibeli: number; perlu_disetujui: number }
+  }
   grade?: { rata: number | null; distribusi: { grade: string; jumlah: number; rata: number | null }[]; divisi: { divisi: string; rata: number; jumlah: number }[]; top: { nama: string; divisi: string | null; grade: string | null; nilai: number }[] }
 }
 type AttendanceCounts = { hadir: number; terlambat: number; tidak_hadir: number; izin: number; sakit: number; cuti: number; belum_scan: number; libur: number }
@@ -66,6 +72,10 @@ const ATTENDANCE_PARTS: { key: keyof AttendanceCounts; label: string; tone: stri
   { key: 'tidak_hadir', label: 'Tidak hadir', tone: 'crit' },
 ]
 const GRADE_TONE: Record<string, 's1' | 's2' | 's3' | 'muted'> = { A: 's3', B: 's1', C: 's2' }
+// General Affair: ikon & label jenis tagihan
+const GA_ICON = { langganan: Wallet, wifi: Wifi, hp: Smartphone }
+const GA_JENIS = { langganan: 'Langganan', wifi: 'WiFi', hp: 'Nomor HP' }
+const GA_STATUS = { lewat: ['danger', 'Lewat jatuh tempo'], belum: ['warning', 'Belum dibayar'], lunas: ['success', 'Sudah dibayar'] } as const
 const wajibOf = (c: AttendanceCounts) => c.hadir + c.terlambat + c.tidak_hadir
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0)
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
@@ -206,6 +216,8 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
     ['hadir', d.absensi && <Tile label={`Hadir · ${formatDate(d.absensi.tanggal)}`} value={`${d.absensi.hari.hadir + d.absensi.hari.terlambat}/${wajibOf(d.absensi.hari) + d.absensi.hari.belum_scan}`} note={`${pct(d.absensi.hari.hadir + d.absensi.hari.terlambat, wajibOf(d.absensi.hari) + d.absensi.hari.belum_scan)}% hadir · ${d.absensi.hari.terlambat} terlambat${d.absensi.hari.belum_scan ? ` · ${d.absensi.hari.belum_scan} belum scan` : ''}`} icon={UserCheck} tone="stat-0" onClick={() => onNavigate('Absensi')} />],
     ['absen', d.absensi && <Tile label="Tidak hadir" value={d.absensi.hari.tidak_hadir} note={`${d.absensi.hari.izin + d.absensi.hari.sakit + d.absensi.hari.cuti} izin / sakit / cuti`} icon={UserX} tone={d.absensi.hari.tidak_hadir ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Absensi')} />],
     ['grade', d.grade && <Tile label="Rata-rata nilai grade" value={d.grade.rata === null ? '—' : d.grade.rata.toFixed(1)} note={['A', 'B', 'C'].map((g) => `${d.grade!.distribusi.find((x) => x.grade === g)?.jumlah ?? 0} grade ${g}`).join(' · ')} icon={Award} onClick={() => onNavigate('Grade & Gaji')} />],
+    ['ga-tagihan', d.ga && <Tile label="Tagihan GA bulan ini" value={d.ga.ringkasan.belum} note={d.ga.ringkasan.belum ? `belum dibayar${d.ga.ringkasan.nominal_belum ? ` · ${formatRupiah(d.ga.ringkasan.nominal_belum)}` : ''}${d.ga.ringkasan.lewat ? ` · ${d.ga.ringkasan.lewat} lewat` : ''}` : `semua beres · ${d.ga.ringkasan.lunas} sudah dibayar`} icon={Receipt} tone={d.ga.ringkasan.lewat ? 'stat-3' : d.ga.ringkasan.belum ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Data GA')} />],
+    ['ga-beli', d.ga && d.ga.pembelian.length > 0 && <Tile label="Pembelian GA" value={d.ga.ringkasan.perlu_dibeli} note={`perlu dibeli · ${d.ga.ringkasan.perlu_disetujui} menunggu persetujuan`} icon={ShoppingCart} tone={d.ga.ringkasan.perlu_dibeli ? 'stat-2' : 'stat-1'} onClick={() => onNavigate('Pengajuan GA')} />],
     ['produksi-telat', d.produksi && <Tile label="Produksi lewat tenggat" value={d.produksi.terlambat} note={`${d.produksi.selesai_bulan_ini} selesai bulan ini`} icon={AlertTriangle} tone={d.produksi.terlambat ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Rencana Produksi')} />],
   ]
   const PRIORITY: Record<string, string[]> = {
@@ -233,6 +245,51 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
       {!!tiles.length && <div className="pap-stat-grid four pap-dash-tiles">{tiles.map(([key, node]) => <span key={key} className="pap-dash-tile">{node}</span>)}</div>}
 
       <div className="pap-dash-grid">
+        {/* General Affair: tagihan & langganan yang harus dibayar bulan ini */}
+        {d.ga && (
+          <section className="pap-table-card pap-dash-card wide">
+            <div className="pap-card-head">
+              <div><h2>Tagihan &amp; langganan {formatDate(`${d.ga.bulan}-01`).replace(/^\d+\s/, '')}</h2><p>{d.ga.ringkasan.belum ? `${d.ga.ringkasan.belum} belum dibayar${d.ga.ringkasan.nominal_belum ? ` · ${formatRupiah(d.ga.ringkasan.nominal_belum)}` : ''}${d.ga.ringkasan.lewat ? ` · ${d.ga.ringkasan.lewat} lewat jatuh tempo` : ''}` : 'Semua tagihan bulan ini sudah dibayar'} · {d.ga.ringkasan.lunas} sudah dibayar</p></div>
+              <button className="pap-btn" onClick={() => onNavigate('Data GA')}>Data GA</button>
+            </div>
+            {d.ga.tagihan.length ? (
+              <ul className="pap-dash-agenda">
+                {d.ga.tagihan.map((t) => {
+                  const Icon = GA_ICON[t.jenis]
+                  const [tone, label] = GA_STATUS[t.status]
+                  return (
+                    <li key={`${t.jenis}${t.id}`}>
+                      <button onClick={() => onNavigate('Data GA')}>
+                        <Icon className={t.status === 'lewat' ? 'late' : ''} />
+                        <span><b>{t.jatuh_tempo ? formatDate(t.jatuh_tempo) : GA_JENIS[t.jenis]}</b> {t.nama}{t.detail ? ` · ${t.detail}` : ''}{t.biaya ? ` · ${formatRupiah(t.biaya)}` : ''}</span>
+                        <span className={`pap-status ${tone}`}>{label}</span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : <div className="pap-empty">Belum ada data langganan, WiFi, atau nomor HP. Isi di menu Data GA.</div>}
+          </section>
+        )}
+        {d.ga && d.ga.pembelian.length > 0 && (
+          <section className="pap-table-card pap-dash-card wide">
+            <div className="pap-card-head"><div><h2>Pembelian GA yang perlu diproses</h2><p>{d.ga.ringkasan.perlu_dibeli} sudah disetujui, perlu dibeli · {d.ga.ringkasan.perlu_disetujui} menunggu persetujuan</p></div><button className="pap-btn" onClick={() => onNavigate('Pengajuan GA')}>Pengajuan GA</button></div>
+            <ul className="pap-dash-agenda">
+              {d.ga.pembelian.map((p) => {
+                const telat = !!p.dibutuhkan && p.dibutuhkan < new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
+                return (
+                  <li key={p.id}>
+                    <button onClick={() => onNavigate('Pengajuan GA')}>
+                      <ShoppingCart className={telat ? 'late' : ''} />
+                      <span><b>{p.dibutuhkan ? formatDate(p.dibutuhkan) : p.nomor ?? 'Tanpa tanggal'}</b> {p.judul} · {p.kategori}{p.estimasi ? ` · ±${formatRupiah(p.estimasi)}` : ''}{p.prioritas !== 'normal' ? ` · prioritas ${p.prioritas}` : ''}</span>
+                      <span className={`pap-status ${p.status === 'disetujui' ? 'warning' : 'info'}`}>{p.status === 'disetujui' ? 'Perlu dibeli' : 'Menunggu persetujuan'}</span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        )}
         {/* Marketing Maintenance: customer yang waktunya order ulang / berisiko berhenti order */}
         {d.fokus === 'maintenance' && d.repeat && (
           <section className="pap-table-card pap-dash-card wide">
@@ -565,7 +622,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
             </ul>
           </section>
         )}
-        {d.meetings && !d.meetings.length && d.plannings && !d.plannings.length && !d.marketing && !d.produksi && !sales && !d.absensi && !d.grade && !d.karyawan && (
+        {d.meetings && !d.meetings.length && d.plannings && !d.plannings.length && !d.marketing && !d.produksi && !sales && !d.absensi && !d.grade && !d.karyawan && !d.ga && (
           <section className="pap-table-card pap-dash-card"><div className="pap-empty"><CalendarDays /> Tidak ada meeting atau planning yang menunggu Anda.</div></section>
         )}
       </div>
