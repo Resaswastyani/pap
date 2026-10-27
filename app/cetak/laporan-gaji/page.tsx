@@ -16,7 +16,7 @@ const jam = (v: number) => (v ? v.toLocaleString('id-ID', { maximumFractionDigit
 export default async function CetakLaporanGajiPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const user = await getCurrentUser()
   if (!user) redirect('/')
-  if (!canViewPayroll(user)) return <main className="pap-print-error">Anda tidak punya akses ke menu Grade & Gaji.</main>
+  if (!canViewPayroll(user)) return <main className="pap-print-error">Anda tidak punya akses ke Grade & gaji (menu Karyawan).</main>
   const q = await searchParams
   if (!q.periode || !/^\d{4}-(0[1-9]|1[0-2])$/.test(q.periode)) return <main className="pap-print-error">Periode tidak valid.</main>
   const withBank = canManageHr(user)

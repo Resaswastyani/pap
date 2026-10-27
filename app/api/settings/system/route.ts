@@ -19,7 +19,7 @@ const SOURCES = [
   { key: 'perawatan.sheet_url', label: 'Lembar Perawatan Mesin', menu: 'Perawatan Mesin', jenis: 'sheet', sync: '/api/maintenance/sheet', synced: 'perawatan.synced_at' },
   { key: 'teknis.sop_folder_url', label: 'Folder SOP Mesin', menu: 'SOP Mesin', jenis: 'folder', sync: null, synced: 'teknis.sop_synced' },
   { key: 'hrd.karyawan_sheet_url', label: 'Data Karyawan (HRD)', menu: 'Karyawan', jenis: 'sheet', sync: null, synced: null },
-  { key: 'hrd.grade_sheet_url', label: 'Grade & Gaji (HRD)', menu: 'Grade & Gaji', jenis: 'sheet', sync: null, synced: null },
+  { key: 'hrd.grade_sheet_url', label: 'Grade & Gaji (HRD)', menu: 'Karyawan › Grade & gaji', jenis: 'sheet', sync: null, synced: null },
   { key: 'hrd.absensi_sheet_url', label: 'Laporan Absensi', menu: 'Absensi', jenis: 'sheet', sync: null, synced: null },
   { key: 'hrd.training_folder_url', label: 'Folder Training Karyawan', menu: 'Training', jenis: 'folder', sync: null, synced: 'hrd.training_synced' },
 ] as const

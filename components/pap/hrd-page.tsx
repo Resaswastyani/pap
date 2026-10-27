@@ -5,7 +5,7 @@ import { AlertTriangle, Award, Calculator, Clock, ExternalLink, FileSpreadsheet,
 import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
 import { PayrollCalc, PayrollEmployees, PayrollOvertime, PayrollSettingsView } from './payroll-page'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, peekQuickAction, usePaged, useQuickAction } from './ui'
 
 // HRD: data karyawan, grade operator, dan kebijakan gaji dari spreadsheet di Google Drive
 
@@ -293,6 +293,28 @@ export function GradeGajiPage(_props: { user: UserProfile }) {
       {gradeForm && data && <GradeForm item={gradeForm.item} penilai={data.meta?.penilai ?? []} onClose={() => setGradeForm(null)} onSaved={saved} />}
       {salaryForm && <SalaryForm item={salaryForm.item} onClose={() => setSalaryForm(null)} onSaved={saved} />}
       {sheetOpen && <HrSheetSync jenis="grade" onClose={() => setSheetOpen(false)} onImported={(t) => { setSheetOpen(false); setMessage(t); load() }} />}
+    </>
+  )
+}
+
+// ---------- Menu Karyawan: data karyawan + grade & gaji dalam satu menu ----------
+// Tab tampil sesuai akses: menu "karyawan" untuk data karyawan, "grade-gaji" untuk grade & gaji.
+export const KARYAWAN_GAJI_ACTION = 'karyawan-grade-gaji'
+export function KaryawanMenuPage({ user }: { user: UserProfile }) {
+  const menus = user.menus as string[]
+  const canData = menus.includes('karyawan')
+  const canGaji = menus.includes('grade-gaji')
+  const [view, setView] = useState<'data' | 'gaji'>(() => (!canData || peekQuickAction() === KARYAWAN_GAJI_ACTION ? 'gaji' : 'data'))
+  useQuickAction(KARYAWAN_GAJI_ACTION, () => { if (canGaji) setView('gaji') })
+  return (
+    <>
+      {canData && canGaji && (
+        <div className="pap-segmented pap-view-switch" role="tablist" aria-label="Tampilan menu Karyawan">
+          <button role="tab" aria-selected={view === 'data'} className={view === 'data' ? 'active' : ''} onClick={() => setView('data')}><Users /> Data karyawan</button>
+          <button role="tab" aria-selected={view === 'gaji'} className={view === 'gaji' ? 'active' : ''} onClick={() => setView('gaji')}><Wallet /> Grade &amp; gaji</button>
+        </div>
+      )}
+      {view === 'gaji' && canGaji ? <GradeGajiPage user={user} /> : <KaryawanPage user={user} />}
     </>
   )
 }

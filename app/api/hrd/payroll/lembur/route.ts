@@ -9,7 +9,7 @@ import { readOvertime } from '@/lib/payroll-overtime'
 // Lembur variabel input manual per periode cut off: ?periode=YYYY-MM
 export const GET = handle(async (request: Request) => {
   const user = await requireUser()
-  if (!canViewPayroll(user)) fail(403, 'Anda tidak punya akses ke menu Grade & Gaji.')
+  if (!canViewPayroll(user)) fail(403, 'Anda tidak punya akses ke Grade & gaji (menu Karyawan).')
   const periode = new URL(request.url).searchParams.get('periode') ?? ''
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(periode)) fail(400, 'Periode tidak valid.')
   const range = periodRange(periode, (await loadSettings()).cutoff_tanggal)

@@ -10,6 +10,9 @@ import { can, type UserProfile } from '@/lib/users'
 // Pengaturan menu per divisi (Manajemen Role): manajemen (Admin / GM) atau pemegang permission kelola role
 const canManageMenus = (user: UserProfile) => user.role.isAdmin || user.division.code === 'general_manager' || can(user, PERMISSIONS.rolesManage)
 
+// Grade & Gaji kini tab di menu Karyawan; kuncinya tetap dipakai sebagai hak akses tab tersebut
+const MENU_DISPLAY: Record<string, string> = { 'Grade & Gaji': 'Karyawan › tab Grade & gaji' }
+
 export const GET = handle(async () => {
   const user = await requireUser()
   if (!canManageMenus(user)) fail(403, 'Pengaturan menu divisi hanya untuk manajemen.')
@@ -19,7 +22,7 @@ export const GET = handle(async () => {
   )
   const [rows] = await db.query<(RowDataPacket & { division_id: number; menu_key: string })[]>('SELECT division_id, menu_key FROM division_menus')
   return NextResponse.json({
-    groups: MENU_GROUPS.map((g) => ({ label: g.label, items: g.items.map((label) => ({ label, key: MENU_KEYS[label], permission: PERMISSION_MENUS[MENU_KEYS[label]] ?? null })) })),
+    groups: MENU_GROUPS.map((g) => ({ label: g.label, items: g.items.map((label) => ({ label: MENU_DISPLAY[label] ?? label, key: MENU_KEYS[label], permission: PERMISSION_MENUS[MENU_KEYS[label]] ?? null })) })),
     divisions: divisions.map((d) => ({
       id: d.id, code: d.code, name: d.name, users: Number(d.users),
       menus: rows.filter((r) => r.division_id === d.id && (CONFIGURABLE_MENU_KEYS as string[]).includes(r.menu_key)).map((r) => r.menu_key),

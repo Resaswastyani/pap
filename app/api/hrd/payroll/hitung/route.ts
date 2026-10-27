@@ -6,7 +6,7 @@ import { hitungPeriode, loadSettings } from '@/lib/payroll'
 // Hitung gaji per periode cut off: ?periode=YYYY-MM (periode yang berakhir di tanggal cut off bulan itu)
 export const GET = handle(async (request: Request) => {
   const user = await requireUser()
-  if (!canViewPayroll(user)) fail(403, 'Anda tidak punya akses ke menu Grade & Gaji.')
+  if (!canViewPayroll(user)) fail(403, 'Anda tidak punya akses ke Grade & gaji (menu Karyawan).')
   let periode = new URL(request.url).searchParams.get('periode') ?? ''
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(periode)) {
     // Bawaan: periode yang sedang berjalan (lewat tanggal cut off = periode bulan berikutnya)

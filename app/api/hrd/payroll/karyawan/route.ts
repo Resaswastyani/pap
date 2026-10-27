@@ -8,7 +8,7 @@ import type { RowDataPacket } from 'mysql2'
 // Pengaturan gaji per karyawan; daftar karyawan aktif yang belum punya pengaturan untuk form tambah
 export const GET = handle(async () => {
   const user = await requireUser()
-  if (!canViewPayroll(user)) fail(403, 'Anda tidak punya akses ke menu Grade & Gaji.')
+  if (!canViewPayroll(user)) fail(403, 'Anda tidak punya akses ke Grade & gaji (menu Karyawan).')
   const manage = canManageHr(user)
   let items = await listPayrolls()
   // Pertama kali dibuka HRD: isi otomatis dari Data Karyawan & spreadsheet kebijakan gaji
