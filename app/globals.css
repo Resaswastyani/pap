@@ -1902,3 +1902,5 @@ a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity
 .pap-doc-cost { display:grid; grid-template-columns:minmax(0, 1fr) 160px auto; gap:8px; align-items:center; margin-bottom:8px; }
 .pap-po-totals dt .pap-doc-diskon { width:110px; }
 @media (max-width:700px) { .pap-doc-cost { grid-template-columns:minmax(0, 1fr) 110px auto; } }
+.pap-shell .crit { --tone:var(--viz-critical); }
+.pap-dash-subhead { margin:18px 0 10px; font-size:12px; color:var(--pap-muted); font-weight:700; text-transform:uppercase; letter-spacing:.05em; }

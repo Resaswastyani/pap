@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertTriangle, CalendarClock, CalendarDays, ClipboardList, Factory, FlaskConical, Handshake, ListChecks, MapPin, Palette, Repeat, Target, TrendingDown, TrendingUp } from 'lucide-react'
+import { AlertTriangle, Award, CalendarClock, CalendarDays, ClipboardList, Factory, FlaskConical, Handshake, ListChecks, MapPin, Palette, Repeat, Target, TrendingDown, TrendingUp, UserCheck, Users, UserX } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { BarList, ColumnChart, dayNumber, Gantt, todayNumber, useMediaQuery, type GanttBar, type GanttRow } from './charts'
@@ -39,7 +39,15 @@ type DashboardData = {
   meetings?: { id: number; judul: string; waktu: string; tempat: string | null }[]
   plannings?: { id: number; judul: string; tanggal_selesai: string; progress: number; status: string }[]
   planningGantt?: GanttPlanning[]
+  karyawan?: { aktif: number; tetap: number; kontrak: number; percobaan: number; percobaan_berakhir: number; divisi: { divisi: string; jumlah: number }[] }
+  absensi?: {
+    tanggal: string; hari: AttendanceCounts; harian: (AttendanceCounts & { tanggal: string })[]; bulan: AttendanceCounts & { terlambat_menit: number }
+    divisi: { divisi: string; hadir: number; wajib: number }[]
+    perhatian: { nip: string; nama: string; divisi: string | null; kali: number; menit: number; absen: number }[]
+  } | null
+  grade?: { rata: number | null; distribusi: { grade: string; jumlah: number; rata: number | null }[]; divisi: { divisi: string; rata: number; jumlah: number }[]; top: { nama: string; divisi: string | null; grade: string | null; nilai: number }[] }
 }
+type AttendanceCounts = { hadir: number; terlambat: number; tidak_hadir: number; izin: number; belum_scan: number; libur: number }
 export type DashboardTarget = { prospectId?: number; visitId?: number; meetingId?: number; planningId?: number }
 
 const KPI_LABEL: Record<string, Metric> = {
@@ -51,6 +59,14 @@ const FUNNEL: [string, string][] = [['baru', 'Baru'], ['dihubungi', 'Dihubungi']
 // Warna tahap produksi (slot kategorikal tetap, sama di semua Gantt)
 const STAGE_TONE: Record<string, string> = { Blow: 's1', Cetak: 's2', 'Bag making': 's3' }
 const STAGE_STATUS: Record<string, string> = { belum: 'Belum mulai', berjalan: 'Berjalan', selesai: 'Selesai' }
+// Absensi: segmen grafik kehadiran harian (hadir = tepat waktu)
+const ATTENDANCE_PARTS: { key: keyof AttendanceCounts; label: string; tone: string }[] = [
+  { key: 'hadir', label: 'Tepat waktu', tone: 's3' }, { key: 'terlambat', label: 'Terlambat', tone: 's2' },
+  { key: 'izin', label: 'Izin / sakit / cuti', tone: 's1' }, { key: 'tidak_hadir', label: 'Tidak hadir', tone: 'crit' },
+]
+const GRADE_TONE: Record<string, 's1' | 's2' | 's3' | 'muted'> = { A: 's3', B: 's1', C: 's2' }
+const wajibOf = (c: AttendanceCounts) => c.hadir + c.terlambat + c.tidak_hadir
+const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0)
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 const monthLabel = (ym: string) => `${MONTHS[Number(ym.slice(5, 7)) - 1]} ${ym.slice(2, 4)}`
 const shortRp = (v: number) => (v >= 1e9 ? `${(v / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 1 })} M` : v >= 1e6 ? `${(v / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 })} jt` : v.toLocaleString('id-ID'))
@@ -183,6 +199,10 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
     ['sample', d.sample && <Tile label="Request sample" value={d.sample.todo} note={`perlu tindakan · ${d.sample.aktif} berjalan`} icon={FlaskConical} tone={d.sample.todo ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Request Sample')} />],
     ['desain', d.desain && <Tile label="Request desain" value={d.desain.todo} note={`perlu tindakan · ${d.desain.aktif} berjalan`} icon={Palette} tone={d.desain.todo ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Request Desain')} />],
     ['produksi', d.produksi && <Tile label="Produksi berjalan" value={d.produksi.berjalan} note={`${d.produksi.menunggu} menunggu · ${d.produksi.dijadwalkan} terjadwal`} icon={Factory} onClick={() => onNavigate('Rencana Produksi')} />],
+    ['karyawan', d.karyawan && <Tile label="Karyawan aktif" value={d.karyawan.aktif} note={`${d.karyawan.tetap} tetap · ${d.karyawan.kontrak} kontrak · ${d.karyawan.percobaan} percobaan`} icon={Users} onClick={() => onNavigate('Karyawan')} />],
+    ['hadir', d.absensi && <Tile label={`Hadir · ${formatDate(d.absensi.tanggal)}`} value={`${d.absensi.hari.hadir + d.absensi.hari.terlambat}/${wajibOf(d.absensi.hari) + d.absensi.hari.belum_scan}`} note={`${pct(d.absensi.hari.hadir + d.absensi.hari.terlambat, wajibOf(d.absensi.hari) + d.absensi.hari.belum_scan)}% hadir · ${d.absensi.hari.terlambat} terlambat${d.absensi.hari.belum_scan ? ` · ${d.absensi.hari.belum_scan} belum scan` : ''}`} icon={UserCheck} tone="stat-0" onClick={() => onNavigate('Absensi')} />],
+    ['absen', d.absensi && <Tile label="Tidak hadir" value={d.absensi.hari.tidak_hadir} note={`${d.absensi.hari.izin} izin / sakit / cuti`} icon={UserX} tone={d.absensi.hari.tidak_hadir ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Absensi')} />],
+    ['grade', d.grade && <Tile label="Rata-rata nilai grade" value={d.grade.rata === null ? '—' : d.grade.rata.toFixed(1)} note={['A', 'B', 'C'].map((g) => `${d.grade!.distribusi.find((x) => x.grade === g)?.jumlah ?? 0} grade ${g}`).join(' · ')} icon={Award} onClick={() => onNavigate('Grade & Gaji')} />],
     ['produksi-telat', d.produksi && <Tile label="Produksi lewat tenggat" value={d.produksi.terlambat} note={`${d.produksi.selesai_bulan_ini} selesai bulan ini`} icon={AlertTriangle} tone={d.produksi.terlambat ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Rencana Produksi')} />],
   ]
   const PRIORITY: Record<string, string[]> = {
@@ -335,6 +355,93 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
           </section>
         )}
 
+        {d.absensi && (
+          <section className="pap-table-card pap-dash-card wide">
+            <div className="pap-card-head">
+              <div><h2>Kehadiran karyawan</h2><p>{d.absensi.harian.length} hari kerja terakhir · data terakhir {formatDate(d.absensi.tanggal)}</p></div>
+              <button className="pap-btn" onClick={() => onNavigate('Absensi')}>Absensi</button>
+            </div>
+            <div className="pap-dash-metrics">
+              <div><span>Tingkat kehadiran bulan ini</span><b>{pct(d.absensi.bulan.hadir + d.absensi.bulan.terlambat, wajibOf(d.absensi.bulan))}%</b></div>
+              <div><span>Terlambat bulan ini</span><b>{d.absensi.bulan.terlambat} kali · {d.absensi.bulan.terlambat_menit.toLocaleString('id-ID')} menit</b></div>
+              <div><span>Tidak hadir · izin bulan ini</span><b>{d.absensi.bulan.tidak_hadir} · {d.absensi.bulan.izin}</b></div>
+            </div>
+            <ColumnChart
+              ariaLabel="Grafik kehadiran karyawan per hari"
+              format={(v) => v.toLocaleString('id-ID')}
+              data={d.absensi.harian.map((h) => ({
+                key: h.tanggal,
+                label: formatDate(h.tanggal).replace(/ \d{4}$/, ''),
+                value: ATTENDANCE_PARTS.reduce((sum, a) => sum + h[a.key], 0),
+                segments: ATTENDANCE_PARTS.map((a) => ({ key: a.key, value: h[a.key], tone: a.tone })),
+                detail: <>{ATTENDANCE_PARTS.map((a) => <span key={a.key}>{a.label}: {h[a.key]}</span>)}<span>Kehadiran {pct(h.hadir + h.terlambat, wajibOf(h))}%</span></>,
+              }))}
+            />
+            <div className="pap-viz-legend">{ATTENDANCE_PARTS.map((a) => <span key={a.key}><i className={`swatch ${a.tone}`} />{a.label}</span>)}</div>
+          </section>
+        )}
+        {d.absensi && (
+          <section className="pap-table-card pap-dash-card">
+            <div className="pap-card-head"><div><h2>Kehadiran per divisi</h2><p>Bulan ini, dari hari wajib masuk · terendah di atas</p></div></div>
+            <div className="pap-dash-body">
+              {d.absensi.divisi.length
+                ? <BarList max={100} items={d.absensi.divisi.map((v) => { const p = pct(v.hadir, v.wajib); return { key: v.divisi, label: v.divisi, value: p, tone: p < 85 ? 'critical' as const : 's3' as const, display: `${p}% · ${v.hadir}/${v.wajib} hari` } })} />
+                : <p className="pap-muted">Belum ada data absensi bulan ini.</p>}
+            </div>
+          </section>
+        )}
+        {d.absensi && (
+          <section className="pap-table-card pap-dash-card">
+            <div className="pap-card-head"><div><h2>Perlu perhatian</h2><p>Paling sering tidak hadir / terlambat bulan ini</p></div><button className="pap-btn" onClick={() => onNavigate('Absensi')}>Rekap</button></div>
+            {d.absensi.perhatian.length ? (
+              <ul className="pap-dash-agenda">
+                {d.absensi.perhatian.map((p) => (
+                  <li key={p.nip}>
+                    <button onClick={() => onNavigate('Absensi')}>
+                      <UserX className={p.absen ? 'late' : ''} />
+                      <span><b>{p.nama}</b>{p.divisi ? ` · ${p.divisi}` : ''}</span>
+                      <span className={`pap-status ${p.absen ? 'danger' : 'warning'}`}>{[p.absen ? `${p.absen}× absen` : '', p.kali ? `${p.kali}× telat` : ''].filter(Boolean).join(' · ')}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : <div className="pap-empty">Belum ada karyawan yang tidak hadir atau terlambat bulan ini.</div>}
+          </section>
+        )}
+        {d.grade && (
+          <section className="pap-table-card pap-dash-card">
+            <div className="pap-card-head"><div><h2>Distribusi grade</h2><p>Karyawan aktif per grade{d.grade.rata !== null ? ` · rata-rata nilai ${d.grade.rata.toFixed(1)}` : ''}</p></div><button className="pap-btn" onClick={() => onNavigate('Grade & Gaji')}>Grade</button></div>
+            <div className="pap-dash-body">
+              <BarList items={[...d.grade.distribusi].sort((a, b) => (a.grade === '-' ? 1 : b.grade === '-' ? -1 : a.grade.localeCompare(b.grade))).map((g) => ({
+                key: g.grade, label: g.grade === '-' ? 'Belum dinilai' : `Grade ${g.grade}`, value: g.jumlah, tone: GRADE_TONE[g.grade] ?? 'muted',
+                display: `${g.jumlah} orang${g.rata !== null ? ` · nilai ${g.rata.toFixed(1)}` : ''}`,
+              }))} />
+              {d.grade.top.length > 0 && (
+                <>
+                  <h3 className="pap-dash-subhead">Nilai tertinggi</h3>
+                  <BarList max={100} items={d.grade.top.map((t) => ({ key: t.nama, label: `${t.nama}${t.divisi ? ` · ${t.divisi}` : ''}`, value: t.nilai, tone: GRADE_TONE[t.grade ?? ''] ?? 'muted', display: `${t.nilai.toFixed(1)}${t.grade ? ` · ${t.grade}` : ''}` }))} />
+                </>
+              )}
+            </div>
+          </section>
+        )}
+        {d.grade && d.grade.divisi.length > 0 && (
+          <section className="pap-table-card pap-dash-card">
+            <div className="pap-card-head"><div><h2>Nilai grade per divisi</h2><p>Rata-rata nilai penilaian karyawan (skala 100)</p></div></div>
+            <div className="pap-dash-body">
+              <BarList max={100} items={d.grade.divisi.map((v) => ({ key: v.divisi, label: v.divisi, value: v.rata, tone: v.rata >= 80 ? 's3' as const : v.rata >= 70 ? 's1' as const : 's2' as const, display: `${v.rata.toFixed(1)} · ${v.jumlah} orang` }))} />
+            </div>
+          </section>
+        )}
+        {d.karyawan && (
+          <section className="pap-table-card pap-dash-card">
+            <div className="pap-card-head"><div><h2>Karyawan per divisi</h2><p>{d.karyawan.aktif} karyawan aktif{d.karyawan.percobaan_berakhir ? ` · ${d.karyawan.percobaan_berakhir} masa percobaan berakhir ≤ 30 hari` : ''}</p></div><button className="pap-btn" onClick={() => onNavigate('Karyawan')}>Karyawan</button></div>
+            <div className="pap-dash-body">
+              <BarList items={d.karyawan.divisi.map((v) => ({ key: v.divisi, label: v.divisi, value: v.jumlah, display: `${v.jumlah} orang` }))} />
+            </div>
+          </section>
+        )}
+
         {d.marketing && (
           <section className="pap-table-card pap-dash-card">
             <div className="pap-card-head"><div><h2>Corong prospek</h2><p>{funnelTotal} prospek per tahap{d.marketing.funnel.gagal ? ` · ${d.marketing.funnel.gagal} gagal` : ''}</p></div><button className="pap-btn" onClick={() => onNavigate('Prospek')}>Detail</button></div>
@@ -414,7 +521,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
             </ul>
           </section>
         )}
-        {d.meetings && !d.meetings.length && d.plannings && !d.plannings.length && !d.marketing && !d.produksi && !sales && (
+        {d.meetings && !d.meetings.length && d.plannings && !d.plannings.length && !d.marketing && !d.produksi && !sales && !d.absensi && !d.grade && !d.karyawan && (
           <section className="pap-table-card pap-dash-card"><div className="pap-empty"><CalendarDays /> Tidak ada meeting atau planning yang menunggu Anda.</div></section>
         )}
       </div>

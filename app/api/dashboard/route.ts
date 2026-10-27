@@ -234,6 +234,89 @@ export const GET = handle(async () => {
     })())
   }
 
+  // ---- SDM: karyawan, absensi, grade ----
+  const AKTIF = "(e.tgl_berhenti IS NULL AND COALESCE(e.status_karyawan, '') <> 'Resign')"
+  if (has('karyawan')) {
+    tasks.push((async () => {
+      const [[k]] = await db.query<Row[]>(
+        `SELECT COUNT(*) AS aktif, COALESCE(SUM(e.status_karyawan = 'Tetap'), 0) AS tetap, COALESCE(SUM(e.status_karyawan = 'Kontrak'), 0) AS kontrak,
+           COALESCE(SUM(e.status_karyawan = 'Masa Percobaan'), 0) AS percobaan,
+           COALESCE(SUM(e.status_karyawan = 'Masa Percobaan' AND e.tgl_akhir_percobaan BETWEEN CURDATE() AND CURDATE() + INTERVAL 30 DAY), 0) AS percobaan_berakhir
+         FROM employees e WHERE ${AKTIF}`,
+      )
+      const [divisi] = await db.query<Row[]>(`SELECT COALESCE(e.divisi, 'Belum diisi') AS divisi, COUNT(*) AS jumlah FROM employees e WHERE ${AKTIF} GROUP BY 1 ORDER BY jumlah DESC`)
+      out.karyawan = {
+        aktif: n(k.aktif), tetap: n(k.tetap), kontrak: n(k.kontrak), percobaan: n(k.percobaan), percobaan_berakhir: n(k.percobaan_berakhir),
+        divisi: divisi.map((d) => ({ divisi: String(d.divisi), jumlah: n(d.jumlah) })),
+      }
+    })())
+  }
+  if (has('absensi')) {
+    tasks.push((async () => {
+      // Sama dengan menu Absensi: hari ini tanpa scan = belum scan, jadwal mendatang tidak dihitung
+      const STATUS = "CASE WHEN a.tanggal = CURDATE() AND a.jam_masuk IS NULL AND a.status = 'tidak_hadir' THEN 'belum_scan' ELSE a.status END"
+      const COUNTS = `SUM(a.status IN ('hadir', 'tanpa_scan')) AS hadir, SUM(a.status = 'terlambat') AS terlambat, SUM(${STATUS} = 'tidak_hadir') AS tidak_hadir,
+        SUM(a.status IN ('izin', 'sakit', 'cuti', 'dinas')) AS izin, SUM(${STATUS} = 'belum_scan') AS belum_scan, SUM(a.status = 'libur') AS libur`
+      const counts = (r: Row) => ({ hadir: n(r.hadir), terlambat: n(r.terlambat), tidak_hadir: n(r.tidak_hadir), izin: n(r.izin), belum_scan: n(r.belum_scan), libur: n(r.libur) })
+      // Hari terakhir yang sudah ada scan (data hari ini bisa belum tersinkron dari mesin absen)
+      const [[last]] = await db.query<Row[]>("SELECT MAX(tanggal) AS t FROM attendance_days WHERE tanggal <= CURDATE() AND status IN ('hadir', 'terlambat', 'tanpa_scan')")
+      if (!last?.t) { out.absensi = null; return }
+      const tanggal = String(last.t)
+      const [[hari]] = await db.query<Row[]>(`SELECT ${COUNTS} FROM attendance_days a WHERE a.tanggal = ?`, [tanggal])
+      // 14 hari terakhir yang ada datanya (hari libur semua karyawan dilewati)
+      const [harian] = await db.query<Row[]>(
+        `SELECT * FROM (SELECT a.tanggal, ${COUNTS} FROM attendance_days a WHERE a.tanggal <= CURDATE() AND a.tanggal > CURDATE() - INTERVAL 40 DAY
+           GROUP BY a.tanggal HAVING SUM(a.status <> 'libur') > 0 ORDER BY a.tanggal DESC LIMIT 14) x ORDER BY tanggal`,
+      )
+      const bulan = "a.tanggal >= DATE_FORMAT(?, '%Y-%m-01') AND a.tanggal <= ?"
+      const [[rekap]] = await db.query<Row[]>(`SELECT ${COUNTS}, SUM(a.terlambat_menit) AS terlambat_menit FROM attendance_days a WHERE ${bulan}`, [tanggal, tanggal])
+      const [perDivisi] = await db.query<Row[]>(
+        `SELECT COALESCE(e.divisi, 'Belum diisi') AS divisi, SUM(a.status IN ('hadir', 'terlambat', 'tanpa_scan')) AS hadir,
+           SUM(a.status IN ('hadir', 'terlambat', 'tanpa_scan') OR ${STATUS} = 'tidak_hadir') AS wajib
+         FROM attendance_days a LEFT JOIN employees e ON e.nip = a.nip WHERE ${bulan} GROUP BY 1 HAVING wajib > 0`,
+        [tanggal, tanggal],
+      )
+      const [telat] = await db.query<Row[]>(
+        `SELECT a.nip, MAX(a.nama) AS nama, MAX(e.divisi) AS divisi, SUM(a.status = 'terlambat') AS kali, SUM(a.terlambat_menit) AS menit, SUM(${STATUS} = 'tidak_hadir') AS absen
+         FROM attendance_days a LEFT JOIN employees e ON e.nip = a.nip WHERE ${bulan}
+         GROUP BY a.nip HAVING kali > 0 OR absen > 0 ORDER BY SUM(${STATUS} = 'tidak_hadir') + SUM(a.status = 'terlambat') DESC, SUM(a.terlambat_menit) DESC LIMIT 6`,
+        [tanggal, tanggal],
+      )
+      out.absensi = {
+        tanggal, hari: counts(hari),
+        harian: harian.map((h) => ({ tanggal: String(h.tanggal), ...counts(h) })),
+        bulan: { ...counts(rekap), terlambat_menit: n(rekap.terlambat_menit) },
+        // Kehadiran terendah di atas
+        divisi: perDivisi.map((d) => ({ divisi: String(d.divisi), hadir: n(d.hadir), wajib: n(d.wajib) })).sort((a, b) => a.hadir / a.wajib - b.hadir / b.wajib),
+        perhatian: telat.map((t) => ({ nip: String(t.nip), nama: String(t.nama), divisi: t.divisi ?? null, kali: n(t.kali), menit: n(t.menit), absen: n(t.absen) })),
+      }
+    })())
+  }
+  if (has('grade-gaji')) {
+    tasks.push((async () => {
+      // Hanya nilai & grade (tanpa nominal gaji); karyawan aktif yang belum ada di sheet grade = belum dinilai
+      const [dist] = await db.query<Row[]>(
+        `SELECT COALESCE(g.grade, '-') AS grade, COUNT(*) AS jumlah, AVG(g.rata_rata) AS rata FROM employees e
+         LEFT JOIN employee_grades g ON g.nama_key = e.nama_key WHERE ${AKTIF} GROUP BY 1`,
+      )
+      const [perDivisi] = await db.query<Row[]>(
+        `SELECT COALESCE(e.divisi, 'Belum diisi') AS divisi, AVG(g.rata_rata) AS rata, COUNT(*) AS jumlah FROM employees e
+         JOIN employee_grades g ON g.nama_key = e.nama_key WHERE ${AKTIF} AND g.rata_rata IS NOT NULL GROUP BY 1 ORDER BY rata DESC`,
+      )
+      const [top] = await db.query<Row[]>(
+        `SELECT g.nama, e.divisi, g.grade, g.rata_rata FROM employee_grades g LEFT JOIN employees e ON e.nama_key = g.nama_key
+         WHERE g.rata_rata IS NOT NULL AND (e.id IS NULL OR ${AKTIF}) ORDER BY g.rata_rata DESC LIMIT 5`,
+      )
+      const [[avg]] = await db.query<Row[]>(`SELECT AVG(g.rata_rata) AS rata FROM employee_grades g JOIN employees e ON e.nama_key = g.nama_key WHERE ${AKTIF}`)
+      out.grade = {
+        rata: avg?.rata === null || avg?.rata === undefined ? null : Number(avg.rata),
+        distribusi: dist.map((d) => ({ grade: String(d.grade), jumlah: n(d.jumlah), rata: d.rata === null ? null : Number(d.rata) })),
+        divisi: perDivisi.map((d) => ({ divisi: String(d.divisi), rata: Number(d.rata), jumlah: n(d.jumlah) })),
+        top: top.map((t) => ({ nama: String(t.nama), divisi: t.divisi ?? null, grade: t.grade ?? null, nilai: Number(t.rata_rata) })),
+      }
+    })())
+  }
+
   // ---- Kolaborasi: meeting & planning saya ----
   if (has('meeting')) {
     tasks.push((async () => {
