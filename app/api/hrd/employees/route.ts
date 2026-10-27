@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import type { RowDataPacket } from 'mysql2'
-import { fail, handle, requireUser } from '@/lib/api'
+import { logActivity } from '@/lib/activity'
+import { fail, handle, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
+import { createEmployee, readEmployeeInput } from '@/lib/employees'
 import { canManageHr, canViewEmployees, canViewPayroll } from '@/lib/hrd'
 
 type Row = RowDataPacket & Record<string, unknown>
@@ -13,7 +15,7 @@ export const GET = handle(async () => {
   const payroll = canViewPayroll(user)
   const [rows] = await db.query<Row[]>(
     `SELECT e.id, e.nip, e.nama, e.email, e.handphone, e.jenis_kelamin, e.tgl_masuk, e.departemen, e.divisi, e.jabatan, e.level_posisi,
-       e.status_karyawan, e.tgl_akhir_percobaan, e.tgl_berhenti, e.nama_atasan, e.masa_kerja, e.hari_kerja
+       e.status_karyawan, e.tgl_akhir_percobaan, e.tgl_akhir_kontrak, e.tgl_berhenti, e.nip_atasan, e.nama_atasan, e.masa_kerja, e.hari_kerja, e.sumber
        ${payroll ? ', g.grade AS grade_operator, g.rata_rata AS nilai_grade, s.grade AS grade_gaji, s.upah_harian, s.total_terima' : ''}
      FROM employees e
      ${payroll ? `LEFT JOIN employee_grades g ON g.nama_key = e.nama_key
@@ -26,4 +28,15 @@ export const GET = handle(async () => {
     synced_at: synced?.value ?? null,
     can: { manage: canManageHr(user), payroll },
   })
+})
+
+// Tambah karyawan baru (HRD / GM / admin): form Data Diri, Pekerjaan, Payroll
+export const POST = handle(async (request: Request) => {
+  const user = await requireUser()
+  if (!canManageHr(user)) fail(403, 'Data karyawan dikelola oleh HRD.')
+  const input = await readEmployeeInput(await readJson(request))
+  const id = await createEmployee(user, input)
+  // Log tanpa isi data pribadi (KTP, BPJS, rekening)
+  await logActivity(request, user, { module: 'Karyawan', action: 'create', entity: { type: 'karyawan', id, label: String(input.nama) }, description: `Menambah karyawan ${input.nama} (NIP ${input.nip})` })
+  return NextResponse.json({ id }, { status: 201 })
 })

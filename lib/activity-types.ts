@@ -17,8 +17,8 @@ export type ActivityAction = keyof typeof ACTIVITY_ACTIONS
 
 export const ACTIVITY_MODULES = [
   'Autentikasi', 'Manajemen User', 'Manajemen Role', 'Planning', 'Meeting', 'Prospek', 'Jadwal Visit',
-  'Request Sample', 'Request Desain', 'Quotation', 'HPP', 'Repeat Order', 'Customer', 'Data Produk', 'Master Data',
-  'Rencana Produksi', 'Kapasitas Produksi', 'Faktur Produksi', 'Pengiriman', 'Ekspedisi', 'Izin & Cuti', 'KPI Karyawan', 'Perizinan', 'Accounting', 'Grade & Gaji', 'Jadwal Shift', 'Data Mesin', 'Perawatan Mesin', 'SOP Mesin', 'Sparepart & Peralatan', 'Pengajuan Pembelian', 'Supplier', 'PO Pembelian', 'Harga Bahan', 'Catatan', 'Accurate',
+  'Request Sample', 'Request Desain', 'Quotation', 'Dokumen Order', 'HPP', 'Repeat Order', 'Customer', 'Data Produk', 'Master Data',
+  'Rencana Produksi', 'Kapasitas Produksi', 'Faktur Produksi', 'Pengiriman', 'Ekspedisi', 'Karyawan', 'Izin & Cuti', 'KPI Karyawan', 'Perizinan', 'Accounting', 'Grade & Gaji', 'Jadwal Shift', 'Data Mesin', 'Perawatan Mesin', 'SOP Mesin', 'Sparepart & Peralatan', 'Pengajuan Pembelian', 'Supplier', 'PO Pembelian', 'Harga Bahan', 'Catatan', 'Accurate',
 ] as const
 
 export type ActivityChange = { field: string; from: string | null; to: string | null }

@@ -85,7 +85,7 @@ const text = (value: unknown, max: number) => clean(value).slice(0, max) || null
 
 // ---------- Data Karyawan ----------
 export type EmployeeRow = {
-  nip: string; nama: string; nama_key: string; email: string | null; handphone: string | null; jenis_kelamin: string | null; tempat_lahir: string | null
+  nip: string; nama: string; nama_depan: string | null; nama_belakang: string | null; nama_key: string; email: string | null; handphone: string | null; jenis_kelamin: string | null; tempat_lahir: string | null
   tgl_lahir: string | null; agama: string | null; status_menikah: string | null; pendidikan: string | null; tgl_masuk: string | null; departemen: string | null
   divisi: string | null; jabatan: string | null; level_posisi: string | null; status_karyawan: string | null; tgl_akhir_percobaan: string | null; tgl_berhenti: string | null
   nip_atasan: string | null; nama_atasan: string | null; masa_kerja: string | null; hari_kerja: string | null; id_finger: string | null
@@ -114,11 +114,13 @@ export function parseEmployeeTabs(tabs: SheetTab[]) {
     for (let r = index + 1; r < tab.rows.length; r++) {
       const row = tab.rows[r] ?? []
       const nip = idText(at(row, c.nip), 30)
-      const nama = [clean(at(row, c.depan)), clean(at(row, c.belakang))].filter(Boolean).join(' ').slice(0, 150)
+      const depan = clean(at(row, c.depan)).slice(0, 100)
+      const belakang = clean(at(row, c.belakang)).slice(0, 100)
+      const nama = [depan, belakang].filter(Boolean).join(' ').slice(0, 150)
       if (!nip || !nama) continue
       const pendidikan = [clean(at(row, c.pendidikan)), clean(at(row, c.sekolah)), clean(at(row, c.major))].filter(Boolean).join(' · ')
       employees.push({
-        nip, nama, nama_key: nameKey(nama), email: text(at(row, c.email), 255), handphone: idText(at(row, c.hp), 40), jenis_kelamin: text(at(row, c.jk), 20),
+        nip, nama, nama_depan: depan || null, nama_belakang: belakang || null, nama_key: nameKey(nama), email: text(at(row, c.email), 255), handphone: idText(at(row, c.hp), 40), jenis_kelamin: text(at(row, c.jk), 20),
         tempat_lahir: text(at(row, c.tempat), 100), tgl_lahir: parseDate(at(row, c.lahir)), agama: text(at(row, c.agama), 30), status_menikah: text(at(row, c.menikah), 30),
         pendidikan: pendidikan.slice(0, 150) || null, tgl_masuk: parseDate(at(row, c.masuk)) ?? parseDate(at(row, c.bergabung)), departemen: text(at(row, c.dept), 100),
         divisi: text(at(row, c.divisi), 100), jabatan: text(at(row, c.jabatan), 100), level_posisi: text(at(row, c.level), 60), status_karyawan: text(at(row, c.status), 40),
@@ -290,7 +292,7 @@ export async function readGradeSheet() {
   return { url, tabs: tabs.map((t) => t.title), ...parseGradeTabs(tabs) }
 }
 
-const EMPLOYEE_COLS = ['nip', 'nama', 'nama_key', 'email', 'handphone', 'jenis_kelamin', 'tempat_lahir', 'tgl_lahir', 'agama', 'status_menikah', 'pendidikan', 'tgl_masuk',
+const EMPLOYEE_COLS = ['nip', 'nama', 'nama_depan', 'nama_belakang', 'nama_key', 'email', 'handphone', 'jenis_kelamin', 'tempat_lahir', 'tgl_lahir', 'agama', 'status_menikah', 'pendidikan', 'tgl_masuk',
   'departemen', 'divisi', 'jabatan', 'level_posisi', 'status_karyawan', 'tgl_akhir_percobaan', 'tgl_berhenti', 'nip_atasan', 'nama_atasan', 'masa_kerja', 'hari_kerja',
   'id_finger', 'no_id', 'alamat_id', 'alamat_tinggal', 'no_bpjs_tk', 'no_bpjs_kes', 'npwp', 'bank', 'no_rek', 'rek_an', 'status_pajak', 'nama_ibu', 'jumlah_anak', 'sheet_row'] as const
 
@@ -299,13 +301,19 @@ export async function importEmployees(employees: EmployeeRow[]) {
   const conn = await db.getConnection()
   try {
     await conn.beginTransaction()
-    // NIP yang tidak ada lagi di spreadsheet dihapus; sisanya diperbarui
-    await conn.query('DELETE FROM employees WHERE nip NOT IN (?)', [employees.map((e) => e.nip)])
-    await conn.query(
-      `INSERT INTO employees (${EMPLOYEE_COLS.join(', ')}, synced_at) VALUES ?
-       ON DUPLICATE KEY UPDATE ${EMPLOYEE_COLS.filter((k) => k !== 'nip').map((k) => `${k} = VALUES(${k})`).join(', ')}, synced_at = NOW()`,
-      [employees.map((e) => [...EMPLOYEE_COLS.map((k) => e[k]), new Date()])],
-    )
+    // Karyawan yang ditambah / diubah HRD di PAP-MS (sumber = 'pap') dan NIP yang dihapus di PAP-MS tidak disentuh sinkron
+    const [kept] = await conn.query<RowDataPacket[]>("SELECT nip FROM employees WHERE sumber = 'pap' UNION SELECT nip FROM employee_deletions")
+    const skip = new Set(kept.map((r) => String(r.nip)))
+    const rows = employees.filter((e) => !skip.has(e.nip))
+    // NIP dari spreadsheet yang tidak ada lagi di spreadsheet dihapus; sisanya diperbarui
+    await conn.query("DELETE FROM employees WHERE sumber = 'sheet' AND nip NOT IN (?)", [employees.map((e) => e.nip)])
+    if (rows.length) {
+      await conn.query(
+        `INSERT INTO employees (${EMPLOYEE_COLS.join(', ')}, synced_at) VALUES ?
+         ON DUPLICATE KEY UPDATE ${EMPLOYEE_COLS.filter((k) => k !== 'nip').map((k) => `${k} = VALUES(${k})`).join(', ')}, synced_at = NOW()`,
+        [rows.map((e) => [...EMPLOYEE_COLS.map((k) => e[k]), new Date()])],
+      )
+    }
     await conn.query("INSERT INTO app_settings (`key`, value) VALUES ('hrd.karyawan_synced_at', NOW()) ON DUPLICATE KEY UPDATE value = NOW()")
     await conn.commit()
   } catch (error) {

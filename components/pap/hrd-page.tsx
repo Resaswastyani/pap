@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, Award, Calculator, Clock, ExternalLink, FileSpreadsheet, Pencil, Plus, RefreshCw, Search, Settings, Trash2, UserCheck, UserMinus, Users, Wallet } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
+import { EmployeeForm } from './employee-form'
 import { PayrollCalc, PayrollEmployees, PayrollOvertime, PayrollSettingsView } from './payroll-page'
 import { api, Field, formatDate, Modal, Notice, Pager, peekQuickAction, usePaged, useQuickAction } from './ui'
 
@@ -12,7 +13,7 @@ import { api, Field, formatDate, Modal, Notice, Pager, peekQuickAction, usePaged
 type Employee = {
   id: number; nip: string; nama: string; email: string | null; handphone: string | null; jenis_kelamin: string | null; tgl_masuk: string | null
   departemen: string | null; divisi: string | null; jabatan: string | null; level_posisi: string | null; status_karyawan: string | null; tgl_akhir_percobaan: string | null
-  tgl_berhenti: string | null; nama_atasan: string | null; masa_kerja: string | null; hari_kerja: string | null
+  tgl_akhir_kontrak: string | null; tgl_berhenti: string | null; nip_atasan: string | null; nama_atasan: string | null; masa_kerja: string | null; hari_kerja: string | null; sumber: 'sheet' | 'pap'
   grade_operator?: string | null; nilai_grade?: number | null; grade_gaji?: string | null; upah_harian?: number | null; total_terima?: number | null
 }
 type Score = { penilai: string; teknis: number | null; qc: number | null; total: number | null }
@@ -73,13 +74,15 @@ export function KaryawanPage(_props: { user: UserProfile }) {
   const [detail, setDetail] = useState<number | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [showAllEnding, setShowAllEnding] = useState(false)
+  const [form, setForm] = useState<{ item: Record<string, unknown> | null } | null>(null)
   const load = useCallback(() => api<NonNullable<typeof data>>('/api/hrd/employees').then((r) => { setData(r); setError('') }).catch((e) => setError(e.message)), [])
   useEffect(() => { load() }, [load])
 
   const all = data?.items ?? []
   const aktif = all.filter((e) => !isResign(e))
-  const ending = aktif.filter((e) => /percobaan|kontrak/i.test(e.status_karyawan ?? '') && e.tgl_akhir_percobaan && daysUntil(e.tgl_akhir_percobaan) <= 30)
-    .sort((a, b) => a.tgl_akhir_percobaan!.localeCompare(b.tgl_akhir_percobaan!))
+  const akhir = (e: Employee) => (/kontrak/i.test(e.status_karyawan ?? '') && e.tgl_akhir_kontrak) || e.tgl_akhir_percobaan
+  const ending = aktif.filter((e) => /percobaan|kontrak/i.test(e.status_karyawan ?? '') && akhir(e) && daysUntil(akhir(e)!) <= 30)
+    .sort((a, b) => akhir(a)!.localeCompare(akhir(b)!))
   const divisions = [...new Set(all.map((e) => e.divisi).filter((d): d is string => !!d))].sort()
   const term = q.trim().toLowerCase()
   const shown = all.filter((e) => (status === 'aktif' ? !isResign(e) : status === 'resign' ? isResign(e) : status === 'tetap' ? !isResign(e) && /tetap/i.test(e.status_karyawan ?? '')
@@ -95,8 +98,9 @@ export function KaryawanPage(_props: { user: UserProfile }) {
         <div>
           <p className="pap-eyebrow">SDM · GOOGLE DRIVE</p>
           <h1>Karyawan</h1>
-          <span>Data karyawan dari spreadsheet Data Karyawan di Google Drive: divisi, jabatan, status kepegawaian, masa kerja, atasan{data?.can.payroll ? ', serta grade & gaji' : ''}.</span>
+          <span>Data karyawan dari spreadsheet Data Karyawan di Google Drive{data?.can.manage ? ' dan yang ditambah / diubah HRD di PAP-MS' : ''}: divisi, jabatan, status kepegawaian, masa kerja, atasan{data?.can.payroll ? ', serta grade & gaji' : ''}.</span>
         </div>
+        {data?.can.manage && <button className="pap-primary-button" onClick={() => setForm({ item: null })}><Plus /> Tambah karyawan</button>}
       </div>
       <SyncBar label="Data Karyawan" syncedAt={data?.synced_at ?? null} canSync={!!data?.can.manage} onOpen={() => setSheetOpen(true)} />
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
@@ -112,7 +116,7 @@ export function KaryawanPage(_props: { user: UserProfile }) {
           <div className="pap-card-head">
             <div>
               <h2>Masa percobaan / kontrak berakhir ({ending.length})</h2>
-              <p>Perlu keputusan HRD: diangkat, diperpanjang, atau tidak dilanjutkan.{ending.some((e) => daysUntil(e.tgl_akhir_percobaan!) < 0) ? ' Yang sudah lewat tetapi statusnya belum berubah: perbarui Status Karyawan di spreadsheet.' : ''}</p>
+              <p>Perlu keputusan HRD: diangkat, diperpanjang, atau tidak dilanjutkan.{ending.some((e) => daysUntil(akhir(e)!) < 0) ? ' Yang sudah lewat tetapi statusnya belum berubah: perbarui status karyawannya (klik lalu Ubah).' : ''}</p>
             </div>
             {ending.length > 6 && <button className="pap-btn" onClick={() => setShowAllEnding(!showAllEnding)}>{showAllEnding ? 'Ringkas' : `Lihat semua (${ending.length})`}</button>}
           </div>
@@ -120,12 +124,12 @@ export function KaryawanPage(_props: { user: UserProfile }) {
             <table>
               <tbody>
                 {(showAllEnding ? ending : ending.slice(0, 6)).map((e) => {
-                  const d = daysUntil(e.tgl_akhir_percobaan!)
+                  const d = daysUntil(akhir(e)!)
                   return (
                     <tr key={e.id} className="pap-row-link" onClick={() => setDetail(e.id)}>
                       <td><div className="pap-cell-title">{e.nama}</div><div className="pap-cell-sub">{e.jabatan ?? '—'} · {e.divisi ?? '—'}</div></td>
                       <td>{e.status_karyawan}</td>
-                      <td className="pap-nowrap">{formatDate(e.tgl_akhir_percobaan)}</td>
+                      <td className="pap-nowrap">{formatDate(akhir(e))}</td>
                       <td className="pap-nowrap"><span className={`pap-status ${d < 0 ? 'danger' : 'warning'}`}>{d < 0 ? `lewat ${-d} hari` : d === 0 ? 'hari ini' : `${d} hari lagi`}</span></td>
                     </tr>
                   )
@@ -136,7 +140,7 @@ export function KaryawanPage(_props: { user: UserProfile }) {
         </div>
       )}
       <div className="pap-table-card">
-        <div className="pap-card-head"><div><h2>Daftar karyawan</h2><p>{shown.length} karyawan · data dari Google Drive (ubah di spreadsheet, lalu sinkron)</p></div></div>
+        <div className="pap-card-head"><div><h2>Daftar karyawan</h2><p>{shown.length} karyawan · {data?.can.manage ? 'klik karyawan untuk melihat, mengubah, atau menghapus' : 'data dari Google Drive'}</p></div></div>
         <div className="pap-filters">
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama, NIP, jabatan, atasan..." /></label>
           <select className="pap-select" value={divisi} onChange={(e) => setDivisi(e.target.value)} aria-label="Filter divisi">
@@ -157,7 +161,7 @@ export function KaryawanPage(_props: { user: UserProfile }) {
             <tbody>
               {paged.items.map((e) => (
                 <tr key={e.id} className="pap-row-link" onClick={() => setDetail(e.id)}>
-                  <td><div className="pap-cell-title">{e.nama}</div><div className="pap-cell-sub">{e.nip} · {e.jabatan ?? '—'}</div></td>
+                  <td><div className="pap-cell-title">{e.nama}{e.sumber === 'pap' && <span className="pap-chip pap-emp-chip" title="Ditambah / diubah HRD di PAP-MS, tidak ditimpa sinkron spreadsheet">PAP-MS</span>}</div><div className="pap-cell-sub">{e.nip} · {e.jabatan ?? '—'}</div></td>
                   <td>{e.divisi ?? '—'}{e.departemen && e.departemen !== e.divisi && <div className="pap-cell-sub">{e.departemen}</div>}</td>
                   <td><span className={`pap-status ${STATUS_TONE(e.status_karyawan)}`}>{e.status_karyawan ?? '—'}</span>{e.tgl_berhenti && <div className="pap-cell-sub">keluar {formatDate(e.tgl_berhenti)}</div>}</td>
                   <td className="pap-nowrap">{formatDate(e.tgl_masuk)}<div className="pap-cell-sub">{e.masa_kerja ?? ''}</div></td>
@@ -173,7 +177,11 @@ export function KaryawanPage(_props: { user: UserProfile }) {
           <Pager {...paged.pager} noun="karyawan" />
         </div>
       </div>
-      {detail && <EmployeeDetail id={detail} onClose={() => setDetail(null)} />}
+      {detail && !form && (
+        <EmployeeDetail id={detail} onClose={() => setDetail(null)} onEdit={(item) => setForm({ item })}
+          onDeleted={(nama) => { setDetail(null); setMessage(`Karyawan ${nama} dihapus.`); load() }} />
+      )}
+      {form && <EmployeeForm item={form.item} employees={all} onClose={() => setForm(null)} onSaved={(t) => { setForm(null); setMessage(t); load() }} />}
       {sheetOpen && <HrSheetSync jenis="karyawan" onClose={() => setSheetOpen(false)} onImported={(t) => { setSheetOpen(false); setMessage(t); load() }} />}
     </>
   )
@@ -181,22 +189,42 @@ export function KaryawanPage(_props: { user: UserProfile }) {
 
 type Detail = { item: Record<string, string | number | null>; bawahan: { id: number; nama: string; jabatan: string | null }[]; grade: { skor: Score[]; rata_rata: number | null; grade: string | null } | null; gaji: Salary | null; can: { manage: boolean; payroll: boolean } }
 
-function EmployeeDetail({ id, onClose }: { id: number; onClose: () => void }) {
+function EmployeeDetail({ id, onClose, onEdit, onDeleted }: { id: number; onClose: () => void; onEdit: (item: Record<string, unknown>) => void; onDeleted: (nama: string) => void }) {
   const [d, setD] = useState<Detail | null>(null)
   const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
   useEffect(() => { api<Detail>(`/api/hrd/employees/${id}`).then(setD).catch((e) => setError(e.message)) }, [id])
+  async function remove() {
+    if (!d || !window.confirm(`Hapus karyawan ${d.item.nama} (NIP ${d.item.nip})? Data karyawan ini juga tidak akan diambil lagi saat sinkron spreadsheet.`)) return
+    setBusy(true)
+    try {
+      await api(`/api/hrd/employees/${id}`, { method: 'DELETE' })
+      onDeleted(String(d.item.nama))
+    } catch (e) {
+      setError((e as Error).message)
+      setBusy(false)
+    }
+  }
   if (!d) return <Modal title="Karyawan" onClose={onClose}>{error ? <Notice>{error}</Notice> : <p className="pap-muted">Memuat...</p>}</Modal>
   const e = d.item
   const v = (k: string) => (e[k] === null || e[k] === undefined || e[k] === '' ? '—' : String(e[k]))
   const date = (k: string) => (e[k] ? formatDate(String(e[k])) : '—')
   const grid = (rows: [string, string][]) => <dl className="pap-detail-grid">{rows.map(([dt, dd]) => <div key={dt}><dt>{dt}</dt><dd>{dd}</dd></div>)}</dl>
   return (
-    <Modal title={String(e.nama)} subtitle={`NIP ${v('nip')} · ${v('jabatan')} · ${v('divisi')}`} wide onClose={onClose} footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Tutup</button></>}>
+    <Modal title={String(e.nama)} subtitle={`NIP ${v('nip')} · ${v('jabatan')} · ${v('divisi')}`} wide onClose={onClose}
+      footer={<>
+        {d.can.manage && <button className="pap-btn danger" disabled={busy} onClick={remove}><Trash2 /> Hapus</button>}
+        <span className="pap-spacer" />
+        <button className="pap-btn" onClick={onClose}>Tutup</button>
+        {d.can.manage && <button className="pap-primary-button" disabled={busy} onClick={() => onEdit(e)}><Pencil /> Ubah</button>}
+      </>}>
+      {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      {e.sumber === 'pap' && <p className="pap-muted">Dikelola di PAP-MS{e.diubah_pada ? ` · terakhir diubah ${formatDate(String(e.diubah_pada), true)}` : ''}; tidak ditimpa sinkron spreadsheet.</p>}
       <div className="pap-detail-badges"><span className={`pap-status ${STATUS_TONE(e.status_karyawan as string)}`}>{v('status_karyawan')}</span>{d.grade?.grade && <span className={`pap-status ${GRADE_TONE[d.grade.grade] ?? 'neutral'}`}>Grade {d.grade.grade}</span>}</div>
       <section className="pap-detail-section">
         <h3>Pekerjaan</h3>
         {grid([['Departemen', v('departemen')], ['Divisi', v('divisi')], ['Jabatan', v('jabatan')], ['Level', v('level_posisi')], ['Tanggal masuk', date('tgl_masuk')], ['Masa kerja', v('masa_kerja')],
-          ['Akhir percobaan', date('tgl_akhir_percobaan')], ['Tanggal berhenti', date('tgl_berhenti')], ['Atasan', v('nama_atasan')], ['Hari kerja', v('hari_kerja')], ['ID finger', v('id_finger')]])}
+          ['Akhir percobaan', date('tgl_akhir_percobaan')], ['Berakhir kontrak', date('tgl_akhir_kontrak')], ['Tanggal berhenti', date('tgl_berhenti')], ['Atasan', v('nama_atasan')], ['Hari kerja', v('hari_kerja')], ['ID finger', v('id_finger')]])}
       </section>
       <section className="pap-detail-section">
         <h3>Kontak</h3>
@@ -205,8 +233,9 @@ function EmployeeDetail({ id, onClose }: { id: number; onClose: () => void }) {
       {d.can.manage && (
         <section className="pap-detail-section">
           <h3>Data pribadi <span className="pap-chip">HRD</span></h3>
-          {grid([['Tempat, tgl lahir', `${v('tempat_lahir')}, ${date('tgl_lahir')}`], ['Jenis kelamin', v('jenis_kelamin')], ['Agama', v('agama')], ['Status menikah', v('status_menikah')],
-            ['Jumlah anak', v('jumlah_anak')], ['Pendidikan', v('pendidikan')], ['No. KTP', v('no_id')], ['Nama ibu kandung', v('nama_ibu')], ['Alamat KTP', v('alamat_id')], ['Alamat tinggal', v('alamat_tinggal')],
+          {grid([['Tempat, tgl lahir', `${v('tempat_lahir')}, ${date('tgl_lahir')}`], ['Jenis kelamin', v('jenis_kelamin')], ['Golongan darah', v('golongan_darah')], ['Agama', v('agama')], ['Status menikah', v('status_menikah')],
+            ['Jumlah anak', v('jumlah_anak')], ['Pendidikan', v('pendidikan')], [`No. ${e.tipe_id ?? 'KTP'}`, `${v('no_id')}${e.tgl_akhir_id ? ` (s.d. ${date('tgl_akhir_id')})` : ''}`], ['Nama ibu kandung', v('nama_ibu')],
+            ['Kontak darurat', `${v('kontak_darurat')}${e.hp_darurat ? ` · ${v('hp_darurat')}` : ''}`], ['Alamat KTP', `${v('alamat_id')}${e.kode_pos ? ` ${v('kode_pos')}` : ''}`], ['Alamat tinggal', v('alamat_tinggal')],
             ['BPJS Ketenagakerjaan', v('no_bpjs_tk')], ['BPJS Kesehatan', v('no_bpjs_kes')], ['NPWP', v('npwp')], ['Status pajak', v('status_pajak')], ['Rekening', `${v('bank')} ${v('no_rek')} a.n. ${v('rek_an')}`]])}
         </section>
       )}

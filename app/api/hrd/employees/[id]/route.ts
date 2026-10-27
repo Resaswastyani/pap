@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server'
 import type { RowDataPacket } from 'mysql2'
-import { fail, handle, int, requireUser } from '@/lib/api'
+import { logActivity } from '@/lib/activity'
+import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
+import { deleteEmployee, loadEmployeeRow, readEmployeeInput, updateEmployee } from '@/lib/employees'
 import { canManageHr, canViewEmployees, canViewPayroll } from '@/lib/hrd'
 
 type Row = RowDataPacket & Record<string, unknown>
 type Ctx = { params: Promise<{ id: string }> }
 
 // Data pribadi hanya untuk HRD / GM / admin
-const PRIVATE = ['no_id', 'alamat_id', 'alamat_tinggal', 'no_bpjs_tk', 'no_bpjs_kes', 'npwp', 'bank', 'no_rek', 'rek_an', 'status_pajak', 'nama_ibu', 'jumlah_anak', 'tgl_lahir', 'tempat_lahir']
+const PRIVATE = ['no_id', 'tipe_id', 'tgl_akhir_id', 'alamat_id', 'alamat_tinggal', 'kode_pos', 'no_bpjs_tk', 'no_bpjs_kes', 'npwp', 'bank', 'no_rek', 'rek_an', 'status_pajak', 'nama_ibu',
+  'jumlah_anak', 'tgl_lahir', 'tempat_lahir', 'golongan_darah', 'kontak_darurat', 'hp_darurat']
 
 // Detail karyawan: profil, atasan & bawahan, grade operator & gaji (bila boleh melihat penggajian)
 export const GET = handle(async (_request: Request, ctx: Ctx) => {
@@ -35,4 +38,28 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
     }
   }
   return NextResponse.json({ item, bawahan, grade, gaji, can: { manage, payroll: canViewPayroll(user) } })
+})
+
+const employeeId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Karyawan tidak ditemukan.')
+
+// Ubah data karyawan (HRD / GM / admin); setelah diubah, data ini tidak lagi ditimpa sinkron spreadsheet
+export const PUT = handle(async (request: Request, ctx: Ctx) => {
+  const user = await requireUser()
+  if (!canManageHr(user)) fail(403, 'Data karyawan dikelola oleh HRD.')
+  const id = await employeeId(ctx)
+  await loadEmployeeRow(id)
+  const input = await readEmployeeInput(await readJson(request))
+  await updateEmployee(user, id, input)
+  await logActivity(request, user, { module: 'Karyawan', action: 'update', entity: { type: 'karyawan', id, label: String(input.nama) }, description: `Mengubah data karyawan ${input.nama} (NIP ${input.nip})` })
+  return NextResponse.json({ ok: true })
+})
+
+// Hapus karyawan (HRD / GM / admin); NIP-nya tidak diambil lagi saat sinkron spreadsheet
+export const DELETE = handle(async (request: Request, ctx: Ctx) => {
+  const user = await requireUser()
+  if (!canManageHr(user)) fail(403, 'Data karyawan dikelola oleh HRD.')
+  const id = await employeeId(ctx)
+  const e = await deleteEmployee(user, id)
+  await logActivity(request, user, { module: 'Karyawan', action: 'delete', entity: { type: 'karyawan', id, label: e.nama }, description: `Menghapus karyawan ${e.nama} (NIP ${e.nip})` })
+  return NextResponse.json({ ok: true, ...e })
 })

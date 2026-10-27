@@ -1914,3 +1914,6 @@ a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity
 .pap-back-button { display:grid; place-items:center; flex:0 0 auto; width:34px; height:34px; margin-right:4px; border:1px solid var(--pap-border); border-radius:9px; background:var(--pap-surface); color:var(--pap-text); cursor:pointer; }
 .pap-back-button:hover { border-color:var(--pap-primary); color:var(--pap-primary); }
 .pap-breadcrumb .pap-back-button svg { display:block; width:16px; color:inherit; }
+
+/* Karyawan: penanda data yang dikelola di PAP-MS */
+.pap-emp-chip { margin-left:6px; padding:1px 6px; font-size:10px; vertical-align:middle; }
