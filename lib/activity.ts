@@ -198,6 +198,9 @@ const RESOURCES: Record<string, Resource> = {
   maintenance: { module: 'Perawatan Mesin', noun: 'jadwal perawatan', table: 'maintenance_plans' },
   sop: { module: 'SOP Mesin', noun: 'video SOP', table: 'sop_videos' },
   'tech-items': { module: 'Sparepart & Peralatan', noun: 'barang teknik', table: 'tech_items' },
+  'ga/data': { module: 'Data GA', noun: 'data GA' },
+  'ga/sheet': { module: 'Data GA', noun: 'sinkron spreadsheet GA' },
+  'ga/requests': { module: 'Pengajuan GA', noun: 'pengajuan pembelian GA', table: 'ga_purchase_requests' },
   'purchase-requests': { module: 'Pengajuan Pembelian', noun: 'pengajuan pembelian', table: 'purchase_requests' },
   vendors: { module: 'Pengajuan Pembelian', noun: 'supplier' },
 }

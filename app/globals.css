@@ -1917,3 +1917,13 @@ a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity
 
 /* Karyawan: penanda data yang dikelola di PAP-MS */
 .pap-emp-chip { margin-left:6px; padding:1px 6px; font-size:10px; vertical-align:middle; }
+/* General Affair: status bayar per bulan & baris barang pengajuan */
+.ga-pay { display:grid; grid-template-columns:repeat(6, 34px); gap:3px; }
+.ga-pay button { height:22px; padding:0; border:1px solid var(--pap-border); border-radius:5px; background:transparent; color:var(--pap-muted); font-size:10px; cursor:pointer; }
+.ga-pay button.paid { border-color:transparent; background:#1db98a; color:#fff; }
+.ga-pay button.due { border-color:#ef5a3c; color:#ef5a3c; }
+.ga-pay button.none { opacity:.35; cursor:default; }
+.ga-pay button:disabled { cursor:default; }
+.ga-items { display:grid; gap:8px; }
+.ga-item-row { display:grid; grid-template-columns:minmax(0, 2.4fr) 80px 90px minmax(0, 1.2fr) 38px; gap:8px; align-items:center; }
+@media (max-width:700px) { .ga-item-row { grid-template-columns:1fr 1fr; } .ga-item-row > :first-child { grid-column:1 / -1; } }
