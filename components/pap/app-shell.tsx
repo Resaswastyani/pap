@@ -142,6 +142,8 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
 // Sesi per tab: tiap tab punya slot acak di sessionStorage yang dikirim di setiap request ke server sendiri,
 // sehingga beberapa tab di browser yang sama bisa login dengan akun berbeda (lihat lib/auth.ts)
 const SLOT_KEY = 'pap-tab-slot'
+// Menu terakhir di tab ini (dibuka lagi saat halaman dimuat ulang)
+const MENU_KEY = 'pap-active-menu'
 let tabSlot: string | null = null
 function installTabSession() {
   if (tabSlot) return
@@ -189,6 +191,23 @@ export function AppShell() {
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
+  // Reload / buka ulang: kembali ke menu terakhir di tab ini (history.state bertahan saat reload; sessionStorage cadangan),
+  // kecuali URL membawa tujuan sendiri (tautan notifikasi, ?buka=...)
+  const restored = useRef(false)
+  useEffect(() => {
+    if (!user || restored.current) return
+    restored.current = true
+    if (window.location.search) return
+    const state = window.history.state as { papMenu?: string; i?: number } | null
+    let saved = state?.papMenu ?? null
+    if (!saved) try { saved = sessionStorage.getItem(MENU_KEY) } catch {}
+    if (!saved || saved === 'Dashboard' || !canOpen(user, saved)) return
+    fromHistory.current = true
+    navIndex.current = state?.papMenu ? state.i ?? 0 : 0
+    if (!state?.papMenu) window.history.replaceState({ ...(window.history.state ?? {}), papMenu: saved, i: 0 }, '', window.location.pathname)
+    setActive(saved)
+  }, [user])
+  useEffect(() => { try { sessionStorage.setItem(MENU_KEY, active) } catch {} }, [active])
   useEffect(() => {
     if (!user) return
     if (fromHistory.current) { fromHistory.current = false; return }

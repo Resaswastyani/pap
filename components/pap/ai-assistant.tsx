@@ -10,7 +10,7 @@ type Message = { role: 'user' | 'model'; text: string; charts?: Chart[]; sources
 type Caps = { sales: boolean; customer: boolean; prospek: boolean; keuangan: boolean }
 
 const TONES = ['var(--viz-s1)', 'var(--viz-s2)', 'var(--viz-s3)', 'var(--viz-s4)']
-const STEPS = ['Membaca pertanyaan…', 'Mengambil data SIMPAP…', 'Menganalisis angka…', 'Menyusun grafik & rekomendasi…']
+const STEPS = ['Membaca pertanyaan…', 'Mencari jawaban…', 'Menganalisis…', 'Menyusun jawaban…']
 
 // ---------- Format angka ----------
 function shortRupiah(v: number) {
@@ -271,7 +271,7 @@ export function AiAssistant({ userId, userName }: { userId: number; userName: st
       <aside className={`pap-ai-panel ${open ? 'open' : ''} ${wide ? 'wide' : ''}`} aria-label="PAP AI" aria-hidden={!open}>
         <header className="pap-ai-head">
           <span className="pap-ai-logo"><Sparkles /></span>
-          <div><strong>PAP AI</strong><small>Asisten analisis data SIMPAP</small></div>
+          <div><strong>PAP AI</strong><small>Asisten data SIMPAP & pertanyaan umum</small></div>
           <span className="pap-spacer" />
           {messages.length > 0 && <button type="button" onClick={() => setMessages([])} aria-label="Percakapan baru" title="Percakapan baru" disabled={busy}><RotateCcw /></button>}
           <button type="button" className="pap-ai-wide-btn" onClick={() => setWide(!wide)} aria-label={wide ? 'Perkecil' : 'Perlebar'} title={wide ? 'Perkecil' : 'Perlebar'}>{wide ? <Minimize2 /> : <Maximize2 />}</button>
@@ -282,7 +282,7 @@ export function AiAssistant({ userId, userName }: { userId: number; userName: st
             <div className="pap-ai-welcome">
               <span className="pap-ai-logo big"><Sparkles /></span>
               <h3>Halo {first}, ada yang ingin dianalisis?</h3>
-              <p>PAP AI membaca data SIMPAP sesuai akses Anda (penjualan, customer, prospek, keuangan), lalu memberi ringkasan, grafik, dan rekomendasi.</p>
+              <p>PAP AI membaca data SIMPAP sesuai akses Anda (penjualan, customer, prospek, keuangan), lalu memberi ringkasan, grafik, dan rekomendasi. Bisa juga ditanya hal umum, mis. tips marketing, istilah bisnis, rumus Excel, atau membantu menulis pesan.</p>
               {!enabled && <p className="pap-ai-warn">PAP AI belum aktif: GEMINI_API_KEY belum diset di server.</p>}
               <div className="pap-ai-chips">{suggestions(caps).map((s) => <button type="button" key={s} onClick={() => send(s)}>{s}</button>)}</div>
             </div>
@@ -300,7 +300,7 @@ export function AiAssistant({ userId, userName }: { userId: number; userName: st
           {busy && <div className="pap-ai-msg model pending"><span className="pap-ai-dots"><i /><i /><i /></span>{STEPS[step]}</div>}
         </div>
         <form className="pap-ai-input" onSubmit={(e) => { e.preventDefault(); send(input) }}>
-          <textarea ref={inputRef} rows={1} value={input} placeholder="Tanya soal penjualan, customer, keuangan…" onChange={(e) => setInput(e.target.value)} maxLength={2000}
+          <textarea ref={inputRef} rows={1} value={input} placeholder="Tanya apa saja: data penjualan, customer, atau pertanyaan umum…" onChange={(e) => setInput(e.target.value)} maxLength={2000}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(input) } }} />
           <button type="submit" disabled={busy || !input.trim()} aria-label="Kirim"><ArrowUp /></button>
         </form>
