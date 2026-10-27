@@ -97,6 +97,15 @@ export function SupplierPage(_props: { user: UserProfile }) {
     && (!filter || (filter === 'aktif12' ? v.po_12m > 0 : filter === 'po' ? v.open_po > 0 : v.owing > 0))
     && (!term || [v.name, v.vendor_no, v.category, v.kontak, v.email].some((x) => x?.toLowerCase().includes(term))))
   const paged = usePaged(shown, [q, jenis, nonaktif, filter])
+  async function removeVendor(v: Vendor) {
+    if (!window.confirm(`Hapus pemasok ${v.name} dari Accurate? Tindakan ini tidak bisa dibatalkan.`)) return
+    try {
+      await api(`/api/purchasing/vendors/${v.id}`, { method: 'DELETE' })
+      flash(`Pemasok ${v.name} dihapus dari Accurate.`)
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
   const categories = [...new Set(all.map((v) => v.category).filter((c): c is string => !!c))].sort()
   const active = all.filter((v) => !v.suspended)
   const sum = (k: 'total_12m' | 'owing' | 'overdue') => all.reduce((s, v) => s + v[k], 0)
@@ -140,7 +149,7 @@ export function SupplierPage(_props: { user: UserProfile }) {
                   <td className="pap-num pap-nowrap"><strong>{v.total_12m ? formatRupiah(v.total_12m) : '—'}</strong><div className="pap-cell-sub">{v.po_12m} PO{v.open_po ? ` · ${v.open_po} berjalan` : ''}</div></td>
                   <td className="pap-nowrap">{v.last_po ? formatDate(v.last_po) : '—'}</td>
                   <td className="pap-num pap-nowrap">{v.owing ? <><strong>{formatRupiah(v.owing)}</strong>{v.overdue > 0 && <div className="pap-cell-sub pap-text-danger">{formatRupiah(v.overdue)} jatuh tempo</div>}</> : '—'}</td>
-                  <td className="pap-actions-cell"><RowActions label={v.name} onView={() => setDetailId(v.id)} onEdit={data?.can.manage ? () => setVendorForm(v.id) : undefined} /></td>
+                  <td className="pap-actions-cell"><RowActions label={v.name} onView={() => setDetailId(v.id)} onEdit={data?.can.manage ? () => setVendorForm(v.id) : undefined} onDelete={data?.can.manage && !v.suspended ? () => removeVendor(v) : undefined} /></td>
                 </tr>
               ))}
             </tbody>

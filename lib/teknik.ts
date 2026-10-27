@@ -14,10 +14,15 @@ export function requireTeknikMenu(user: UserProfile, key: 'perawatan-mesin' | 's
 }
 // Pengelola data teknik: divisi Teknik, GM, admin
 export const canManageTeknik = (user: UserProfile) => isManagement(user) || user.division.code === 'teknik'
-// Pengaju pembelian: Teknik (sparepart/peralatan) dan PPIC (bahan baku/pendukung), GM, admin
-export const canRequestPurchase = (user: UserProfile) => canManageTeknik(user) || user.division.code === 'ppic'
 // Pemroses pengajuan pembelian: divisi Purchasing, GM, admin
 export const canProcessPurchase = (user: UserProfile) => isManagement(user) || user.division.code === 'purchasing'
+// Pengaju pembelian: Teknik (sparepart/peralatan), PPIC (bahan baku/pendukung), Purchasing (pengajuan sendiri), GM, admin
+export const canRequestPurchase = (user: UserProfile) => canManageTeknik(user) || canProcessPurchase(user) || user.division.code === 'ppic'
+// Ubah isi pengajuan: selama masih diajukan, oleh pengaju atau Purchasing. Hapus: sebelum dipesan (diajukan / ditolak / batal).
+export const canEditPurchaseRequest = (user: UserProfile, pr: { status: string; requested_by: number }) =>
+  pr.status === 'diajukan' && (pr.requested_by === user.id || canProcessPurchase(user))
+export const canDeletePurchaseRequest = (user: UserProfile, pr: { status: string; requested_by: number }) =>
+  ['diajukan', 'ditolak', 'batal'].includes(pr.status) && (pr.requested_by === user.id || canProcessPurchase(user))
 
 // ---------- Label ----------
 export const CHECKUP_RESULT = { baik: 'Baik', perlu_tindakan: 'Perlu tindakan', rusak: 'Rusak' } as const

@@ -2,8 +2,8 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
-import { loadPr, loadPrItems, notifyPr, PR_FLOW } from '@/lib/purchase-requests'
-import { canManageTeknik, canProcessPurchase, moveStock, PR_STATUS, requireTeknikMenu, todayWib, type PrStatus } from '@/lib/teknik'
+import { loadPr, loadPrItems, notifyPr, PR_FLOW, readPrInput } from '@/lib/purchase-requests'
+import { canDeletePurchaseRequest, canEditPurchaseRequest, canManageTeknik, canProcessPurchase, moveStock, PR_STATUS, requireTeknikMenu, todayWib, type PrStatus } from '@/lib/teknik'
 
 type Ctx = { params: Promise<{ id: string }> }
 const prId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Pengajuan pembelian tidak ditemukan.')
@@ -15,7 +15,10 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
   return NextResponse.json({
     item: pr,
     items: await loadPrItems(pr.id),
-    can: { process: canProcessPurchase(user), cancel: pr.requested_by === user.id || canManageTeknik(user) || canProcessPurchase(user) },
+    can: {
+      process: canProcessPurchase(user), cancel: pr.requested_by === user.id || canManageTeknik(user) || canProcessPurchase(user),
+      edit: canEditPurchaseRequest(user, pr), delete: canDeletePurchaseRequest(user, pr),
+    },
   })
 })
 
@@ -68,4 +71,53 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   }
   await notifyPr(pr.id, user, false)
   return NextResponse.json({ item: await loadPr(pr.id) })
+})
+
+// Ubah isi pengajuan (barang, keperluan, prioritas, tanggal) selama masih diajukan: pengaju atau Purchasing
+export const PUT = handle(async (request: Request, ctx: Ctx) => {
+  const user = await requireUser()
+  requireTeknikMenu(user, 'pengajuan-pembelian', 'Pengajuan Pembelian')
+  const pr = await loadPr(await prId(ctx))
+  if (!canEditPurchaseRequest(user, pr)) fail(403, pr.status === 'diajukan' ? 'Pengajuan hanya bisa diubah oleh pengaju atau Purchasing.' : 'Pengajuan yang sudah diproses tidak bisa diubah.')
+  const input = await readPrInput(await readJson(request))
+  const conn = await db.getConnection()
+  try {
+    await conn.beginTransaction()
+    const [res] = await conn.query<ResultSetHeader>(
+      "UPDATE purchase_requests SET keperluan = ?, prioritas = ?, dibutuhkan = ?, repair_id = ? WHERE id = ? AND status = 'diajukan'",
+      [input.keperluan, input.prioritas, input.dibutuhkan, input.repairId, pr.id],
+    )
+    if (!res.affectedRows) fail(409, 'Status pengajuan baru saja berubah. Muat ulang lalu coba lagi.')
+  // Lampiran catatan & notifikasi yang menunjuk pengajuan ini ikut dibersihkan
+  await db.query("DELETE FROM note_attachments WHERE owner_type = 'purchase_request' AND owner_id = ?", [pr.id])
+  await db.query("DELETE FROM notifications WHERE target_page = 'Pengajuan Pembelian' AND target_id = ?", [pr.id])
+    await conn.query('DELETE FROM purchase_request_items WHERE request_id = ?', [pr.id])
+    await conn.query(
+      'INSERT INTO purchase_request_items (request_id, item_id, nama, spesifikasi, jumlah, satuan, urut) VALUES ?',
+      [input.items.map((it, i) => [pr.id, it.itemId, it.nama, it.spesifikasi, it.jumlah, it.satuan, i + 1])],
+    )
+    await conn.commit()
+  } catch (error) {
+    await conn.rollback()
+    throw error
+  } finally {
+    conn.release()
+  }
+  return NextResponse.json({ item: await loadPr(pr.id) })
+})
+
+// Hapus pengajuan yang belum dipesan (diajukan / ditolak / batal): pengaju atau Purchasing
+export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
+  const user = await requireUser()
+  requireTeknikMenu(user, 'pengajuan-pembelian', 'Pengajuan Pembelian')
+  const pr = await loadPr(await prId(ctx))
+  if (!canDeletePurchaseRequest(user, pr)) {
+    fail(403, ['diajukan', 'ditolak', 'batal'].includes(pr.status) ? 'Pengajuan hanya bisa dihapus oleh pengaju atau Purchasing.' : 'Pengajuan yang sudah disetujui / dipesan tidak bisa dihapus; batalkan saja.')
+  }
+  const [res] = await db.query<ResultSetHeader>("DELETE FROM purchase_requests WHERE id = ? AND status IN ('diajukan', 'ditolak', 'batal')", [pr.id])
+  if (!res.affectedRows) fail(409, 'Status pengajuan baru saja berubah. Muat ulang lalu coba lagi.')
+  // Lampiran catatan & notifikasi yang menunjuk pengajuan ini ikut dibersihkan
+  await db.query("DELETE FROM note_attachments WHERE owner_type = 'purchase_request' AND owner_id = ?", [pr.id])
+  await db.query("DELETE FROM notifications WHERE target_page = 'Pengajuan Pembelian' AND target_id = ?", [pr.id])
+  return NextResponse.json({ ok: true })
 })

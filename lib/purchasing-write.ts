@@ -5,21 +5,26 @@ import { accurate, accurateList, AccurateError, fromAccurateDate } from '@/lib/a
 import { refreshPurchaseOrder } from '@/lib/accurate-sync'
 import { fail, str } from '@/lib/api'
 import { db } from '@/lib/db'
-import { PERMISSIONS } from '@/lib/permissions'
+import { PERMISSIONS, type PermissionCode } from '@/lib/permissions'
 import { type PurchasingMenu } from '@/lib/purchasing'
-import { can, type UserProfile } from '@/lib/users'
+import { can, isManagement, type UserProfile } from '@/lib/users'
 
 // ---------- Hak akses per menu (permission, bisa diatur per role / per user) ----------
 const hasMenu = (user: UserProfile, menu: PurchasingMenu) => user.menus.includes(menu as never)
-export const purchasingCan = (user: UserProfile) => ({
-  supplier: hasMenu(user, 'supplier') && can(user, PERMISSIONS.purchasingSupplier),
-  poCreate: hasMenu(user, 'po-pembelian') && can(user, PERMISSIONS.purchasingPoCreate),
-  poUpdate: hasMenu(user, 'po-pembelian') && can(user, PERMISSIONS.purchasingPoUpdate),
-  poDelete: hasMenu(user, 'po-pembelian') && can(user, PERMISSIONS.purchasingPoDelete),
-  price: hasMenu(user, 'harga-bahan') && can(user, PERMISSIONS.purchasingPrice),
-  priceCreate: hasMenu(user, 'harga-bahan') && can(user, PERMISSIONS.purchasingPriceCreate),
-  priceDelete: hasMenu(user, 'harga-bahan') && can(user, PERMISSIONS.purchasingPriceDelete),
-})
+// Divisi Purchasing, GM, dan admin selalu boleh; divisi lain lewat permission
+export const purchasingCan = (user: UserProfile) => {
+  const owner = isManagement(user) || user.division.code === 'purchasing'
+  const allow = (menu: PurchasingMenu, code: PermissionCode) => hasMenu(user, menu) && (owner || can(user, code))
+  return {
+    supplier: allow('supplier', PERMISSIONS.purchasingSupplier),
+    poCreate: allow('po-pembelian', PERMISSIONS.purchasingPoCreate),
+    poUpdate: allow('po-pembelian', PERMISSIONS.purchasingPoUpdate),
+    poDelete: allow('po-pembelian', PERMISSIONS.purchasingPoDelete),
+    price: allow('harga-bahan', PERMISSIONS.purchasingPrice),
+    priceCreate: allow('harga-bahan', PERMISSIONS.purchasingPriceCreate),
+    priceDelete: allow('harga-bahan', PERMISSIONS.purchasingPriceDelete),
+  }
+}
 export function requirePurchasingCan(user: UserProfile, key: keyof ReturnType<typeof purchasingCan>, label: string) {
   if (!purchasingCan(user)[key]) fail(403, `Anda tidak punya izin untuk ${label}. Atur di Manajemen Role / Manajemen User (modul Purchasing).`)
 }

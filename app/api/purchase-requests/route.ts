@@ -41,11 +41,11 @@ export const GET = handle(async (request: Request) => {
   })
 })
 
-// Ajukan pembelian (Teknik / PPIC) -> notifikasi Purchasing
+// Ajukan pembelian (Teknik / PPIC / Purchasing) -> notifikasi Purchasing
 export const POST = handle(async (request: Request) => {
   const user = await requireUser()
   requireTeknikMenu(user, 'pengajuan-pembelian', 'Pengajuan Pembelian')
-  if (!canRequestPurchase(user)) fail(403, 'Pengajuan pembelian dibuat oleh divisi Teknik atau PPIC.')
+  if (!canRequestPurchase(user)) fail(403, 'Pengajuan pembelian dibuat oleh divisi Teknik, PPIC, atau Purchasing.')
   const input = await readPrInput(await readJson(request))
   const conn = await db.getConnection()
   let id: number

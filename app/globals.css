@@ -1644,6 +1644,8 @@ a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity
 .pap-row-action svg { width:14px; height:14px; }
 .pap-row-action:hover { border-color:#7c5cfc; color:#7050e7; }
 .pap-row-action.edit { color:#7050e7; }
+.pap-row-action.danger { color:#dc2626; }
+.pap-row-action.danger:hover { border-color:#dc2626; color:#b91c1c; }
 @media (max-width:640px) { .pap-row-action span { display:none; } .pap-row-action { padding:0 8px; } }
 /* Pencarian global di header (kotak "Cari data...") */
 .pap-search { position:relative; width:260px; cursor:text; }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Eye, EyeOff, Pencil, Search, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Eye, EyeOff, Pencil, Search, Trash2, X } from 'lucide-react'
 import { PLANNING_STATUS, type PlanningStatus } from '@/lib/permissions'
 import { clientHintHeaders } from './client-hints'
 
@@ -292,11 +292,12 @@ export function usePaged<T>(items: T[], resetKey: unknown = null, initialSize: n
 }
 
 // Tombol aksi di baris tabel: lihat detail & ubah (tidak ikut memicu klik baris)
-export function RowActions({ label, onView, onEdit }: { label: string; onView?: () => void; onEdit?: () => void }) {
+export function RowActions({ label, onView, onEdit, onDelete }: { label: string; onView?: () => void; onEdit?: () => void; onDelete?: () => void }) {
   return (
     <div className="pap-row-actions" onClick={(e) => e.stopPropagation()}>
       {onView && <button type="button" className="pap-row-action" title="Lihat detail" aria-label={`Lihat detail ${label}`} onClick={onView}><Eye /><span>Detail</span></button>}
       {onEdit && <button type="button" className="pap-row-action edit" title="Ubah" aria-label={`Ubah ${label}`} onClick={onEdit}><Pencil /><span>Ubah</span></button>}
+      {onDelete && <button type="button" className="pap-row-action danger" title="Hapus" aria-label={`Hapus ${label}`} onClick={onDelete}><Trash2 /><span>Hapus</span></button>}
     </div>
   )
 }

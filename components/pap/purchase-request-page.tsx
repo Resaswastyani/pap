@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Ban, CheckCircle2, PackageCheck, Phone, Plus, Search, ShoppingCart, Trash2, Truck, XCircle } from 'lucide-react'
+import { Ban, CheckCircle2, PackageCheck, Pencil, Phone, Plus, Save, Search, ShoppingCart, Trash2, Truck, XCircle } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AttachmentPanel } from './attachments'
 import { SupplierList, SupplierSelect } from './supplier-list'
@@ -36,6 +36,7 @@ export function PurchaseRequestPage({ user, focusId }: { user: UserProfile; focu
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState<{ item: Pr; rows: PrItem[] } | null>(null)
   useQuickAction('ajukan-pembelian', () => setFormOpen(true))
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
   const [tab, setTab] = useState<'pengajuan' | 'supplier'>('pengajuan')
@@ -76,7 +77,7 @@ export function PurchaseRequestPage({ user, focusId }: { user: UserProfile; focu
         <div>
           <p className="pap-eyebrow">TEKNIK · PURCHASING</p>
           <h1>Pengajuan Pembelian</h1>
-          <span>Teknik mengajukan sparepart / peralatan, PPIC mengajukan bahan baku / pendukung; Purchasing menyetujui, memesan (nomor PO Accurate), dan menandai diterima. Barang yang terhubung ke data sparepart otomatis masuk stok saat diterima.</span>
+          <span>Teknik mengajukan sparepart / peralatan, PPIC mengajukan bahan baku / pendukung, Purchasing juga bisa membuat pengajuan sendiri; Purchasing menyetujui, memesan (nomor PO Accurate), dan menandai diterima. Barang yang terhubung ke data sparepart otomatis masuk stok saat diterima.</span>
         </div>
         {can.create && tab === 'pengajuan' && <button className="pap-primary-button" onClick={() => setFormOpen(true)}><Plus /> Ajukan pembelian</button>}
       </div>
@@ -116,7 +117,12 @@ export function PurchaseRequestPage({ user, focusId }: { user: UserProfile; focu
         <Pager {...paged.pager} noun="pengajuan" />
       </div>}
       {formOpen && <PrForm techItems={techItems} repairs={repairs} onClose={() => setFormOpen(false)} onSaved={(id) => { setFormOpen(false); flash('Pengajuan terkirim. Purchasing sudah mendapat notifikasi.'); setDetailId(id) }} />}
-      {detailId && <PrDetail id={detailId} user={user} onClose={() => setDetailId(null)} onChanged={load} />}
+      {editing && <PrForm techItems={techItems} repairs={repairs} initial={editing} onClose={() => setEditing(null)} onSaved={(id) => { setEditing(null); flash('Pengajuan diperbarui.'); setDetailId(id) }} />}
+      {detailId && !editing && (
+        <PrDetail id={detailId} user={user} onClose={() => setDetailId(null)} onChanged={load}
+          onEdit={(item, rows) => { setDetailId(null); setEditing({ item, rows }) }}
+          onDeleted={(nomor) => { setDetailId(null); flash(`Pengajuan ${nomor} dihapus.`) }} />
+      )}
     </>
   )
 }
@@ -125,11 +131,15 @@ type Row = { key: number; item_id: string; nama: string; spesifikasi: string; ju
 let rowSeq = 0
 const newRow = (src: Partial<Row> = {}): Row => ({ key: ++rowSeq, item_id: '', nama: '', spesifikasi: '', jumlah: '', satuan: 'pcs', ...src })
 
-function PrForm({ techItems, repairs, onClose, onSaved }: { techItems: TechItem[]; repairs: Repair[]; onClose: () => void; onSaved: (id: number) => void }) {
+function PrForm({ techItems, repairs, initial, onClose, onSaved }: { techItems: TechItem[]; repairs: Repair[]; initial?: { item: Pr; rows: PrItem[] }; onClose: () => void; onSaved: (id: number) => void }) {
   // Sparepart yang stoknya menipis disarankan lebih dulu
   const lowItems = techItems.filter((t) => t.stok_minimum > 0 && t.stok <= t.stok_minimum)
-  const [values, setValues] = useState({ keperluan: '', prioritas: 'normal' as Priority, dibutuhkan: '', repair_id: '' })
-  const [rows, setRows] = useState<Row[]>(() => [newRow()])
+  const [values, setValues] = useState(() => initial
+    ? { keperluan: initial.item.keperluan, prioritas: initial.item.prioritas, dibutuhkan: initial.item.dibutuhkan?.slice(0, 10) ?? '', repair_id: initial.item.repair_id ? String(initial.item.repair_id) : '' }
+    : { keperluan: '', prioritas: 'normal' as Priority, dibutuhkan: '', repair_id: '' })
+  const [rows, setRows] = useState<Row[]>(() => initial?.rows.length
+    ? initial.rows.map((r) => newRow({ item_id: r.item_id ? String(r.item_id) : '', nama: r.nama, spesifikasi: r.spesifikasi ?? '', jumlah: String(r.jumlah), satuan: r.satuan }))
+    : [newRow()])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const update = (key: number, patch: Partial<Row>) => setRows((list) => list.map((r) => (r.key === key ? { ...r, ...patch } : r)))
@@ -142,8 +152,14 @@ function PrForm({ techItems, repairs, onClose, onSaved }: { techItems: TechItem[
     setBusy(true)
     setError('')
     try {
-      const res = await api<{ id: number }>('/api/purchase-requests', { method: 'POST', json: { ...values, items: rows.map(({ key: _k, ...r }) => r) } })
-      onSaved(res.id)
+      const json = { ...values, items: rows.map(({ key: _k, ...r }) => r) }
+      if (initial) {
+        await api(`/api/purchase-requests/${initial.item.id}`, { method: 'PUT', json })
+        onSaved(initial.item.id)
+      } else {
+        const res = await api<{ id: number }>('/api/purchase-requests', { method: 'POST', json })
+        onSaved(res.id)
+      }
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -152,11 +168,11 @@ function PrForm({ techItems, repairs, onClose, onSaved }: { techItems: TechItem[
   }
   return (
     <Modal
-      title="Ajukan pembelian ke Purchasing"
-      subtitle="Sparepart, peralatan, atau bahan teknik"
+      title={initial ? `Ubah pengajuan ${initial.item.nomor}` : 'Ajukan pembelian ke Purchasing'}
+      subtitle="Sparepart, peralatan, bahan baku / pendukung, atau kebutuhan lain"
       wide
       onClose={onClose}
-      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="pr-form" disabled={busy}><ShoppingCart /> {busy ? 'Mengirim...' : `Ajukan (${rows.length} barang)`}</button></>}
+      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="pr-form" disabled={busy}>{initial ? <><Save /> {busy ? 'Menyimpan...' : 'Simpan perubahan'}</> : <><ShoppingCart /> {busy ? 'Mengirim...' : `Ajukan (${rows.length} barang)`}</>}</button></>}
     >
       <form id="pr-form" className="pap-form-grid" onSubmit={submit}>
         {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
@@ -214,10 +230,10 @@ function PrForm({ techItems, repairs, onClose, onSaved }: { techItems: TechItem[
   )
 }
 
-function PrDetail({ id, user, onClose, onChanged }: { id: number; user: UserProfile; onClose: () => void; onChanged: () => void }) {
+function PrDetail({ id, user, onClose, onChanged, onEdit, onDeleted }: { id: number; user: UserProfile; onClose: () => void; onChanged: () => void; onEdit: (item: Pr, rows: PrItem[]) => void; onDeleted: (nomor: string) => void }) {
   const [item, setItem] = useState<Pr | null>(null)
   const [rows, setRows] = useState<PrItem[]>([])
-  const [can, setCan] = useState({ process: false, cancel: false })
+  const [can, setCan] = useState({ process: false, cancel: false, edit: false, delete: false })
   const [catatan, setCatatan] = useState('')
   const [poNumber, setPoNumber] = useState('')
   const [openPos, setOpenPos] = useState<{ number: string; vendor_name: string | null }[]>([])
@@ -270,6 +286,18 @@ function PrDetail({ id, user, onClose, onChanged }: { id: number; user: UserProf
       setBusy(false)
     }
   }
+  async function remove() {
+    if (!item || !window.confirm(`Hapus pengajuan ${item.nomor}? Data yang dihapus tidak bisa dikembalikan.`)) return
+    setBusy(true)
+    setError('')
+    try {
+      await api(`/api/purchase-requests/${id}`, { method: 'DELETE' })
+      onDeleted(item.nomor)
+    } catch (e) {
+      setError((e as Error).message)
+      setBusy(false)
+    }
+  }
   if (!item) return <Modal title="Pengajuan pembelian" onClose={onClose}>{error ? <Notice>{error}</Notice> : <p className="pap-muted">Memuat...</p>}</Modal>
   const s = item.status
   const flow: Status[] = ['diajukan', 'disetujui', 'dipesan', 'diterima']
@@ -282,7 +310,9 @@ function PrDetail({ id, user, onClose, onChanged }: { id: number; user: UserProf
       onClose={onClose}
       footer={<>
         {can.cancel && ['diajukan', 'disetujui', 'dipesan'].includes(s) && <button className="pap-btn danger" disabled={busy} onClick={() => act('batal')}><Ban /> Batalkan</button>}
+        {can.delete && <button className="pap-btn danger" disabled={busy} onClick={remove}><Trash2 /> Hapus</button>}
         <span className="pap-spacer" />
+        {can.edit && <button className="pap-btn" disabled={busy} onClick={() => onEdit(item, rows)}><Pencil /> Ubah</button>}
         <button className="pap-btn" onClick={onClose}>Tutup</button>
       </>}
     >
