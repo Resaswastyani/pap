@@ -47,7 +47,7 @@ export async function loadGaPr(id: number, user: UserProfile) {
 }
 export async function loadGaPrItems(id: number) {
   const [rows] = await db.query<(RowDataPacket & Record<string, unknown>)[]>('SELECT * FROM ga_purchase_request_items WHERE request_id = ? ORDER BY id', [id])
-  return rows.map((i) => ({ ...i, jumlah: Number(i.jumlah), harga_estimasi: i.harga_estimasi === null ? null : Number(i.harga_estimasi), harga_realisasi: i.harga_realisasi === null ? null : Number(i.harga_realisasi) }))
+  return rows.map((i) => ({ id: Number(i.id), nama: String(i.nama), satuan: String(i.satuan), catatan: (i.catatan as string | null) ?? null, jumlah: Number(i.jumlah), harga_estimasi: i.harga_estimasi === null ? null : Number(i.harga_estimasi), harga_realisasi: i.harga_realisasi === null ? null : Number(i.harga_realisasi) }))
 }
 export const serializeGaPr = (r: Record<string, unknown>) => ({
   ...r, item_count: Number(r.item_count ?? 0), total_estimasi: r.total_estimasi === null ? null : Number(r.total_estimasi), total_realisasi: r.total_realisasi === null ? null : Number(r.total_realisasi),

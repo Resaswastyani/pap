@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Ban, CheckCircle2, PackageCheck, Pencil, Phone, Plus, Save, Search, ShoppingCart, Trash2, Truck, XCircle } from 'lucide-react'
+import { Ban, CheckCircle2, FileText, PackageCheck, Pencil, Phone, Plus, Printer, Save, Search, ShoppingCart, Trash2, Truck, XCircle } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AttachmentPanel } from './attachments'
 import { SupplierList, SupplierSelect } from './supplier-list'
@@ -312,6 +312,8 @@ function PrDetail({ id, user, onClose, onChanged, onEdit, onDeleted }: { id: num
         {can.cancel && ['diajukan', 'disetujui', 'dipesan'].includes(s) && <button className="pap-btn danger" disabled={busy} onClick={() => act('batal')}><Ban /> Batalkan</button>}
         {can.delete && <button className="pap-btn danger" disabled={busy} onClick={remove}><Trash2 /> Hapus</button>}
         <span className="pap-spacer" />
+        <a className="pap-btn" href={`/cetak/pengajuan-pembelian/${item.id}`} target="_blank" rel="noreferrer"><Printer /> Cetak / PDF</a>
+        <a className="pap-btn" href={`/api/purchase-requests/${item.id}/word`}><FileText /> Word</a>
         {can.edit && <button className="pap-btn" disabled={busy} onClick={() => onEdit(item, rows)}><Pencil /> Ubah</button>}
         <button className="pap-btn" onClick={onClose}>Tutup</button>
       </>}

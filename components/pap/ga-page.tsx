@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, ExternalLink, FileSpreadsheet, Plus, RefreshCw, Search, ShoppingBag, Smartphone, Trash2, Wallet, Wifi, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ExternalLink, FileSpreadsheet, FileText, Plus, Printer, RefreshCw, Search, ShoppingBag, Smartphone, Trash2, Wallet, Wifi, X } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { api, askReason, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged } from './ui'
@@ -563,6 +563,8 @@ function GaPrDetail({ id, userId, onClose, onEdit, onChanged }: { id: number; us
         {(data.can.process || (mine && s === 'diajukan')) && <button className="pap-btn danger" disabled={busy} onClick={remove}><Trash2 /> Hapus</button>}
         {data.can.cancel && <button className="pap-btn danger" disabled={busy} onClick={async () => { const a = await askReason({ title: 'Batalkan pengajuan GA', label: 'Alasan pembatalan', confirmLabel: 'Batalkan pengajuan' }); if (a) act({ status: 'batal', catatan: a }, 'Pengajuan dibatalkan.') }}>Batalkan</button>}
         <span className="pap-spacer" />
+        <a className="pap-btn" href={`/cetak/pengajuan-ga/${p.id}`} target="_blank" rel="noreferrer"><Printer /> Cetak / PDF</a>
+        <a className="pap-btn" href={`/api/ga/requests/${p.id}/word`}><FileText /> Word</a>
         {data.can.edit && <button className="pap-btn" onClick={() => onEdit(p.id)}>Ubah</button>}
         <button className="pap-btn" onClick={onClose}>Tutup</button>
       </>}>
