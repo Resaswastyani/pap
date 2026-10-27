@@ -91,7 +91,7 @@ export function ColumnChart({ data, format, axisFormat, ariaLabel }: { data: Col
   )
 }
 
-export type BarItem = { key: string; label: string; value: number; display?: string; tone?: 'critical' | 'muted' | 's1' | 's2' | 's3' | 's4'; icon?: ReactNode; onClick?: () => void }
+export type BarItem = { key: string; label: string; value: number; display?: string; tone?: 'critical' | 'muted' | 's1' | 's2' | 's3' | 's4' | 's5'; icon?: ReactNode; onClick?: () => void }
 
 export function BarList({ items, max }: { items: BarItem[]; max?: number }) {
   const top = max ?? Math.max(1, ...items.map((i) => i.value))

@@ -1906,3 +1906,7 @@ a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity
 @media (max-width:700px) { .pap-doc-cost { grid-template-columns:minmax(0, 1fr) 110px auto; } }
 .pap-shell .crit { --tone:var(--viz-critical); }
 .pap-dash-subhead { margin:18px 0 10px; font-size:12px; color:var(--pap-muted); font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+/* Tone tambahan grafik: s5 = ungu (sakit) */
+.pap-shell .s5 { --tone:#a35ad8; }
+.pap-shell.dark .s5 { --tone:#b77ae6; }
+.pap-barlist-fill.s5 { background:var(--tone); }

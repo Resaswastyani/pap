@@ -256,17 +256,19 @@ export const GET = handle(async () => {
       // Sama dengan menu Absensi: hari ini tanpa scan = belum scan, jadwal mendatang tidak dihitung
       const STATUS = "CASE WHEN a.tanggal = CURDATE() AND a.jam_masuk IS NULL AND a.status = 'tidak_hadir' THEN 'belum_scan' ELSE a.status END"
       const COUNTS = `SUM(a.status IN ('hadir', 'tanpa_scan')) AS hadir, SUM(a.status = 'terlambat') AS terlambat, SUM(${STATUS} = 'tidak_hadir') AS tidak_hadir,
-        SUM(a.status IN ('izin', 'sakit', 'cuti', 'dinas')) AS izin, SUM(${STATUS} = 'belum_scan') AS belum_scan, SUM(a.status = 'libur') AS libur`
-      const counts = (r: Row) => ({ hadir: n(r.hadir), terlambat: n(r.terlambat), tidak_hadir: n(r.tidak_hadir), izin: n(r.izin), belum_scan: n(r.belum_scan), libur: n(r.libur) })
+        SUM(a.status IN ('izin', 'dinas')) AS izin, SUM(a.status = 'sakit') AS sakit, SUM(a.status = 'cuti') AS cuti, SUM(${STATUS} = 'belum_scan') AS belum_scan, SUM(a.status = 'libur') AS libur`
+      const counts = (r: Row) => ({ hadir: n(r.hadir), terlambat: n(r.terlambat), tidak_hadir: n(r.tidak_hadir), izin: n(r.izin), sakit: n(r.sakit), cuti: n(r.cuti), belum_scan: n(r.belum_scan), libur: n(r.libur) })
       // Hari terakhir yang sudah ada scan (data hari ini bisa belum tersinkron dari mesin absen)
       const [[last]] = await db.query<Row[]>("SELECT MAX(tanggal) AS t FROM attendance_days WHERE tanggal <= CURDATE() AND status IN ('hadir', 'terlambat', 'tanpa_scan')")
       if (!last?.t) { out.absensi = null; return }
       const tanggal = String(last.t)
       const [[hari]] = await db.query<Row[]>(`SELECT ${COUNTS} FROM attendance_days a WHERE a.tanggal = ?`, [tanggal])
-      // 14 hari terakhir yang ada datanya (hari libur semua karyawan dilewati)
+      // 14 hari terakhir sampai hari terakhir yang ada scan (hari libur semua karyawan dilewati;
+      // hari sesudahnya belum tersinkron sehingga akan terbaca "tidak hadir" semua)
       const [harian] = await db.query<Row[]>(
-        `SELECT * FROM (SELECT a.tanggal, ${COUNTS} FROM attendance_days a WHERE a.tanggal <= CURDATE() AND a.tanggal > CURDATE() - INTERVAL 40 DAY
+        `SELECT * FROM (SELECT a.tanggal, ${COUNTS} FROM attendance_days a WHERE a.tanggal <= ? AND a.tanggal > ? - INTERVAL 40 DAY
            GROUP BY a.tanggal HAVING SUM(a.status <> 'libur') > 0 ORDER BY a.tanggal DESC LIMIT 14) x ORDER BY tanggal`,
+        [tanggal, tanggal],
       )
       const bulan = "a.tanggal >= DATE_FORMAT(?, '%Y-%m-01') AND a.tanggal <= ?"
       const [[rekap]] = await db.query<Row[]>(`SELECT ${COUNTS}, SUM(a.terlambat_menit) AS terlambat_menit FROM attendance_days a WHERE ${bulan}`, [tanggal, tanggal])
