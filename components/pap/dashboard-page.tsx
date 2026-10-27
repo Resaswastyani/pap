@@ -47,7 +47,7 @@ type DashboardData = {
   } | null
   grade?: { rata: number | null; distribusi: { grade: string; jumlah: number; rata: number | null }[]; divisi: { divisi: string; rata: number; jumlah: number }[]; top: { nama: string; divisi: string | null; grade: string | null; nilai: number }[] }
 }
-type AttendanceCounts = { hadir: number; terlambat: number; tidak_hadir: number; izin: number; belum_scan: number; libur: number }
+type AttendanceCounts = { hadir: number; terlambat: number; tidak_hadir: number; izin: number; sakit: number; cuti: number; belum_scan: number; libur: number }
 export type DashboardTarget = { prospectId?: number; visitId?: number; meetingId?: number; planningId?: number }
 
 const KPI_LABEL: Record<string, Metric> = {
@@ -62,7 +62,8 @@ const STAGE_STATUS: Record<string, string> = { belum: 'Belum mulai', berjalan: '
 // Absensi: segmen grafik kehadiran harian (hadir = tepat waktu)
 const ATTENDANCE_PARTS: { key: keyof AttendanceCounts; label: string; tone: string }[] = [
   { key: 'hadir', label: 'Tepat waktu', tone: 's3' }, { key: 'terlambat', label: 'Terlambat', tone: 's2' },
-  { key: 'izin', label: 'Izin / sakit / cuti', tone: 's1' }, { key: 'tidak_hadir', label: 'Tidak hadir', tone: 'crit' },
+  { key: 'izin', label: 'Izin / dinas', tone: 's1' }, { key: 'sakit', label: 'Sakit', tone: 's5' }, { key: 'cuti', label: 'Cuti', tone: 's4' },
+  { key: 'tidak_hadir', label: 'Tidak hadir', tone: 'crit' },
 ]
 const GRADE_TONE: Record<string, 's1' | 's2' | 's3' | 'muted'> = { A: 's3', B: 's1', C: 's2' }
 const wajibOf = (c: AttendanceCounts) => c.hadir + c.terlambat + c.tidak_hadir
@@ -153,6 +154,8 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
   const [error, setError] = useState('')
   // Filter sektor pada kartu penjualan (klik legenda / daftar per sektor); null = semua sektor
   const [sektor, setSektor] = useState<SectorKey | null>(null)
+  // Filter status pada grafik kehadiran (klik legenda / daftar per status); null = semua status
+  const [absenStatus, setAbsenStatus] = useState<keyof AttendanceCounts | null>(null)
   const narrow = useMediaQuery('(max-width: 640px)')
   useEffect(() => { api<DashboardData>('/api/dashboard').then(setData).catch((e) => setError(e.message)) }, [])
   const hour = new Date().getHours()
@@ -201,7 +204,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
     ['produksi', d.produksi && <Tile label="Produksi berjalan" value={d.produksi.berjalan} note={`${d.produksi.menunggu} menunggu · ${d.produksi.dijadwalkan} terjadwal`} icon={Factory} onClick={() => onNavigate('Rencana Produksi')} />],
     ['karyawan', d.karyawan && <Tile label="Karyawan aktif" value={d.karyawan.aktif} note={`${d.karyawan.tetap} tetap · ${d.karyawan.kontrak} kontrak · ${d.karyawan.percobaan} percobaan`} icon={Users} onClick={() => onNavigate('Karyawan')} />],
     ['hadir', d.absensi && <Tile label={`Hadir · ${formatDate(d.absensi.tanggal)}`} value={`${d.absensi.hari.hadir + d.absensi.hari.terlambat}/${wajibOf(d.absensi.hari) + d.absensi.hari.belum_scan}`} note={`${pct(d.absensi.hari.hadir + d.absensi.hari.terlambat, wajibOf(d.absensi.hari) + d.absensi.hari.belum_scan)}% hadir · ${d.absensi.hari.terlambat} terlambat${d.absensi.hari.belum_scan ? ` · ${d.absensi.hari.belum_scan} belum scan` : ''}`} icon={UserCheck} tone="stat-0" onClick={() => onNavigate('Absensi')} />],
-    ['absen', d.absensi && <Tile label="Tidak hadir" value={d.absensi.hari.tidak_hadir} note={`${d.absensi.hari.izin} izin / sakit / cuti`} icon={UserX} tone={d.absensi.hari.tidak_hadir ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Absensi')} />],
+    ['absen', d.absensi && <Tile label="Tidak hadir" value={d.absensi.hari.tidak_hadir} note={`${d.absensi.hari.izin + d.absensi.hari.sakit + d.absensi.hari.cuti} izin / sakit / cuti`} icon={UserX} tone={d.absensi.hari.tidak_hadir ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Absensi')} />],
     ['grade', d.grade && <Tile label="Rata-rata nilai grade" value={d.grade.rata === null ? '—' : d.grade.rata.toFixed(1)} note={['A', 'B', 'C'].map((g) => `${d.grade!.distribusi.find((x) => x.grade === g)?.jumlah ?? 0} grade ${g}`).join(' · ')} icon={Award} onClick={() => onNavigate('Grade & Gaji')} />],
     ['produksi-telat', d.produksi && <Tile label="Produksi lewat tenggat" value={d.produksi.terlambat} note={`${d.produksi.selesai_bulan_ini} selesai bulan ini`} icon={AlertTriangle} tone={d.produksi.terlambat ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Rencana Produksi')} />],
   ]
@@ -361,23 +364,64 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
               <div><h2>Kehadiran karyawan</h2><p>{d.absensi.harian.length} hari kerja terakhir · data terakhir {formatDate(d.absensi.tanggal)}</p></div>
               <button className="pap-btn" onClick={() => onNavigate('Absensi')}>Absensi</button>
             </div>
-            <div className="pap-dash-metrics">
-              <div><span>Tingkat kehadiran bulan ini</span><b>{pct(d.absensi.bulan.hadir + d.absensi.bulan.terlambat, wajibOf(d.absensi.bulan))}%</b></div>
-              <div><span>Terlambat bulan ini</span><b>{d.absensi.bulan.terlambat} kali · {d.absensi.bulan.terlambat_menit.toLocaleString('id-ID')} menit</b></div>
-              <div><span>Tidak hadir · izin bulan ini</span><b>{d.absensi.bulan.tidak_hadir} · {d.absensi.bulan.izin}</b></div>
-            </div>
-            <ColumnChart
-              ariaLabel="Grafik kehadiran karyawan per hari"
-              format={(v) => v.toLocaleString('id-ID')}
-              data={d.absensi.harian.map((h) => ({
-                key: h.tanggal,
-                label: formatDate(h.tanggal).replace(/ \d{4}$/, ''),
-                value: ATTENDANCE_PARTS.reduce((sum, a) => sum + h[a.key], 0),
-                segments: ATTENDANCE_PARTS.map((a) => ({ key: a.key, value: h[a.key], tone: a.tone })),
-                detail: <>{ATTENDANCE_PARTS.map((a) => <span key={a.key}>{a.label}: {h[a.key]}</span>)}<span>Kehadiran {pct(h.hadir + h.terlambat, wajibOf(h))}%</span></>,
-              }))}
-            />
-            <div className="pap-viz-legend">{ATTENDANCE_PARTS.map((a) => <span key={a.key}><i className={`swatch ${a.tone}`} />{a.label}</span>)}</div>
+            {(() => {
+              const abs = d.absensi!
+              const picked = ATTENDANCE_PARTS.find((a) => a.key === absenStatus) ?? null
+              const parts = picked ? [picked] : ATTENDANCE_PARTS
+              const totalBulan = ATTENDANCE_PARTS.reduce((sum, a) => sum + abs.bulan[a.key], 0)
+              const toggle = (key: keyof AttendanceCounts) => setAbsenStatus((cur) => (cur === key ? null : key))
+              return (
+                <>
+                  <div className="pap-dash-metrics">
+                    {picked ? (
+                      <>
+                        <div><span>{picked.label} bulan ini</span><b>{abs.bulan[picked.key].toLocaleString('id-ID')} hari-orang</b>{totalBulan ? <small className="pap-muted"> {pct(abs.bulan[picked.key], totalBulan)}% dari semua catatan</small> : null}</div>
+                        <div><span>{picked.label} · {formatDate(abs.tanggal)}</span><b>{abs.hari[picked.key]} orang</b></div>
+                        <div><span>Rata-rata per hari kerja</span><b>{abs.harian.length ? (abs.harian.reduce((sum, h) => sum + h[picked.key], 0) / abs.harian.length).toLocaleString('id-ID', { maximumFractionDigits: 1 }) : 0} orang</b></div>
+                      </>
+                    ) : (
+                      <>
+                        <div><span>Tingkat kehadiran bulan ini</span><b>{pct(abs.bulan.hadir + abs.bulan.terlambat, wajibOf(abs.bulan))}%</b></div>
+                        <div><span>Terlambat bulan ini</span><b>{abs.bulan.terlambat} kali · {abs.bulan.terlambat_menit.toLocaleString('id-ID')} menit</b></div>
+                        <div><span>Tidak hadir · izin, sakit, cuti bulan ini</span><b>{abs.bulan.tidak_hadir} · {abs.bulan.izin + abs.bulan.sakit + abs.bulan.cuti}</b></div>
+                      </>
+                    )}
+                  </div>
+                  <ColumnChart
+                    ariaLabel={`Grafik kehadiran karyawan per hari${picked ? `, status ${picked.label}` : ' per status'}`}
+                    format={(v) => v.toLocaleString('id-ID')}
+                    data={abs.harian.map((h) => ({
+                      key: h.tanggal,
+                      label: formatDate(h.tanggal).replace(/ \d{4}$/, ''),
+                      value: parts.reduce((sum, a) => sum + h[a.key], 0),
+                      segments: parts.map((a) => ({ key: a.key, value: h[a.key], tone: a.tone })),
+                      detail: <>{parts.filter((a) => h[a.key] > 0 || picked).map((a) => <span key={a.key}>{a.label}: {h[a.key]} orang</span>)}<span>Kehadiran {pct(h.hadir + h.terlambat, wajibOf(h))}%</span></>,
+                    }))}
+                  />
+                  <div className="pap-viz-legend" role="group" aria-label="Pilih status kehadiran">
+                    {ATTENDANCE_PARTS.map((a) => (
+                      <button key={a.key} type="button" aria-pressed={absenStatus === a.key} className={absenStatus === a.key ? 'active' : absenStatus ? 'dim' : ''} onClick={() => toggle(a.key)}>
+                        <i className={`swatch ${a.tone}`} />{a.label}
+                      </button>
+                    ))}
+                    {absenStatus ? <button type="button" className="pap-legend-reset" onClick={() => setAbsenStatus(null)}>Semua status</button> : <span>Klik status untuk menampilkan status itu saja</span>}
+                  </div>
+                  <div className="pap-dash-split">
+                    <div>
+                      <h3>Per status bulan ini</h3>
+                      {totalBulan
+                        ? <BarList max={Math.max(...ATTENDANCE_PARTS.map((a) => abs.bulan[a.key]))} items={ATTENDANCE_PARTS.map((a) => ({ key: a.key, label: absenStatus === a.key ? `${a.label} · dipilih` : a.label, value: abs.bulan[a.key], tone: a.tone === 'crit' ? 'critical' as const : a.tone as 's1' | 's2' | 's3' | 's4' | 's5', onClick: () => toggle(a.key), display: `${abs.bulan[a.key].toLocaleString('id-ID')} · ${pct(abs.bulan[a.key], totalBulan)}%` }))} />
+                        : <p className="pap-muted">Belum ada data absensi bulan ini.</p>}
+                    </div>
+                    <div>
+                      <h3>{formatDate(abs.tanggal)}{picked ? ` · ${picked.label}` : ''}</h3>
+                      <BarList max={Math.max(1, ...ATTENDANCE_PARTS.map((a) => abs.hari[a.key]))} items={parts.map((a) => ({ key: a.key, label: a.label, value: abs.hari[a.key], tone: a.tone === 'crit' ? 'critical' as const : a.tone as 's1' | 's2' | 's3' | 's4' | 's5', onClick: () => toggle(a.key), display: `${abs.hari[a.key]} orang` }))} />
+                      <small className="pap-muted">Hari terakhir yang sudah ada scan. Hari sesudahnya belum tersinkron dari mesin absen.</small>
+                    </div>
+                  </div>
+                </>
+              )
+            })()}
           </section>
         )}
         {d.absensi && (
