@@ -1,12 +1,12 @@
 import { randomBytes } from 'node:crypto'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-import { fail, handle, requireUser } from '@/lib/api'
+import { fail, handle, requireUser, publicOrigin } from '@/lib/api'
 import { disconnectDriveAccount, driveAuthUrl, oauthConfigured } from '@/lib/drive'
 import { canManageMaster } from '@/lib/master'
 
 const STATE_COOKIE = 'pap_drive_oauth'
-const callbackUrl = (request: Request) => `${new URL(request.url).origin}/api/master/drive/oauth/callback`
+const callbackUrl = (request: Request) => `${publicOrigin(request)}/api/master/drive/oauth/callback`
 
 // Admin: mulai "Hubungkan akun Google" -> diarahkan ke halaman izin Google
 export const GET = handle(async (request: Request) => {

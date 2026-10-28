@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/users'
 import { connectDriveAccount } from '@/lib/drive'
 import { canManageMaster } from '@/lib/master'
+import { publicOrigin } from '@/lib/api'
 
 const STATE_COOKIE = 'pap_drive_oauth'
 
@@ -10,7 +11,8 @@ const STATE_COOKIE = 'pap_drive_oauth'
 // Hasil (berhasil / gagal) dikirim ke halaman Master Data lewat ?drive=...
 export async function GET(request: Request) {
   const url = new URL(request.url)
-  const back = (result: string) => NextResponse.redirect(`${url.origin}/?drive=${encodeURIComponent(result)}`)
+  const origin = publicOrigin(request)
+  const back = (result: string) => NextResponse.redirect(`${origin}/?drive=${encodeURIComponent(result)}`)
   const store = await cookies()
   const expected = store.get(STATE_COOKIE)?.value
   store.delete({ name: STATE_COOKIE, path: '/api/master/drive/oauth' })
@@ -22,7 +24,7 @@ export async function GET(request: Request) {
   const code = url.searchParams.get('code')
   if (!expected || !state || state !== expected || !code) return back('error:Sesi menghubungkan Google kedaluwarsa. Ulangi klik "Hubungkan akun Google".')
   try {
-    const email = await connectDriveAccount(code, `${url.origin}/api/master/drive/oauth/callback`, user.id)
+    const email = await connectDriveAccount(code, `${origin}/api/master/drive/oauth/callback`, user.id)
     return back(`ok:${email}`)
   } catch (error) {
     console.error('[drive/oauth]', error)

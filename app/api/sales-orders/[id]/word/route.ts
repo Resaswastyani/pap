@@ -1,4 +1,4 @@
-import { fail, handle, int, requireUser } from '@/lib/api'
+import { fail, handle, int, requireUser, publicOrigin } from '@/lib/api'
 import { loadSoDocument, readSoJenis, requireDokumenOrder, soDocNomor, soDocumentHtml, wordResponse } from '@/lib/so-document'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -12,5 +12,5 @@ export const GET = handle(async (request: Request, ctx: Ctx) => {
   const dpRaw = url.searchParams.get('dp')
   const dp = dpRaw === null ? undefined : Number(dpRaw) > 0 && Number(dpRaw) <= 100 ? Number(dpRaw) : null
   const so = await loadSoDocument(int((await ctx.params).id) ?? fail(404, 'Sales order tidak ditemukan.'))
-  return wordResponse(soDocNomor(so, jenis), await soDocumentHtml(so, jenis, `${url.origin}/logo-pap.png`, { dp }))
+  return wordResponse(soDocNomor(so, jenis), await soDocumentHtml(so, jenis, `${publicOrigin(request)}/logo-pap.png`, { dp }))
 })

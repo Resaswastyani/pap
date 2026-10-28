@@ -1,4 +1,4 @@
-import { fail, handle, int, requireUser } from '@/lib/api'
+import { fail, handle, int, requireUser, publicOrigin } from '@/lib/api'
 import { documentNomor, loadQuotationDocument, quotationDocumentHtml, readJenis, WORD_CSS } from '@/lib/quotation-document'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -12,7 +12,7 @@ export const GET = handle(async (request: Request, ctx: Ctx) => {
   if (data.missingOrder) fail(400, 'Surat order belum dibuat. Buka penawaran yang sudah Diterima lalu isi data order.')
   const nomor = documentNomor(data.q, jenis)
   // Word mengambil logo lewat URL lengkap
-  const body = quotationDocumentHtml(data, jenis, `${url.origin}/logo-pap.png`)
+  const body = quotationDocumentHtml(data, jenis, `${publicOrigin(request)}/logo-pap.png`)
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${nomor}</title>
 <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->

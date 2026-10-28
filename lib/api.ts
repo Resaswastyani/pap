@@ -43,6 +43,18 @@ export async function readJson(request: Request) {
   return body as Record<string, unknown>
 }
 
+// Alamat publik aplikasi (https://domain). Di VPS aplikasi berjalan di belakang Nginx, sehingga request.url berisi
+// localhost:3000; pakai APP_URL bila diset, selain itu header dari proxy (X-Forwarded-Host / Host).
+export function publicOrigin(request: Request) {
+  const env = process.env.APP_URL?.trim().replace(/\/+$/, '')
+  if (env) return env
+  const url = new URL(request.url)
+  const first = (v: string | null) => v?.split(',')[0].trim() || null
+  const host = first(request.headers.get('x-forwarded-host')) ?? first(request.headers.get('host')) ?? url.host
+  const proto = first(request.headers.get('x-forwarded-proto')) ?? url.protocol.replace(':', '')
+  return `${/^localhost(:|$)|^127\./.test(host) ? proto : 'https'}://${host}`
+}
+
 export const str = (value: unknown, max = 255) => (typeof value === 'string' ? value.trim().slice(0, max) : '')
 export const int = (value: unknown) => {
   const n = Number(value)
