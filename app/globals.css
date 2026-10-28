@@ -1943,3 +1943,14 @@ a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity
 @keyframes pap-confirm-fade { from { opacity:0; } }
 @keyframes pap-confirm-pop { from { opacity:0; transform:translateY(8px) scale(.97); } }
 @media (prefers-reduced-motion:reduce) { .pap-confirm, .pap-confirm-backdrop { animation:none; } }
+/* Data Terhapus: pilih banyak & pulihkan sekaligus */
+.pap-bulk-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:0 22px 14px; color:var(--pap-muted); font-size:12px; }
+.pap-bulk-bar svg { width:15px; height:15px; }
+.pap-table-wrap .pap-check-col { width:1%; padding-right:0; }
+.pap-check-col input { width:16px; height:16px; accent-color:#7c5cfc; cursor:pointer; }
+.pap-table-wrap tr.pap-row-selected td { background:rgb(124 92 252 / .07); }
+@media (max-width:800px) {
+  .pap-bulk-bar { padding:0 12px 12px; }
+  .pap-bulk-bar > button { flex:1 1 auto; justify-content:center; }
+  .pap-table-wrap table tr td.pap-check-col { padding:8px 0 0; border-top:0; }
+}

@@ -26,7 +26,11 @@ export function RecycleBinPage({ user }: { user: UserProfile }) {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
+
   useEffect(() => setPage(1), [status, modul, term])
+  useEffect(() => setSelected(new Set()), [status, modul, term, page, pageSize])
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -56,6 +60,30 @@ export function RecycleBinPage({ user }: { user: UserProfile }) {
       setBusy(null)
     }
   }
+  // Pulihkan banyak: yang dicentang, atau semua yang cocok dengan filter (semua halaman)
+  async function restoreMany(mode: 'selected' | 'all') {
+    const count = mode === 'selected' ? selected.size : data?.total ?? 0
+    if (!count) return
+    const scope = mode === 'selected' ? `${count} data terpilih` : `semua ${count} data terhapus${modul ? ` modul ${modul}` : ''}${term ? ` yang cocok dengan "${term}"` : ''}`
+    if (!(await confirmDialog({ title: 'Pulihkan data', message: `Pulihkan ${scope}? Data akan tampil lagi di modul asalnya.`, confirmLabel: 'Ya, pulihkan' }))) return
+    setBulkBusy(true)
+    setError('')
+    try {
+      const res = await api<{ restored: number; failed: { label: string; error: string }[] }>('/api/recycle-bin/restore', {
+        method: 'POST', json: mode === 'selected' ? { ids: [...selected] } : { all: true, modul, q: term },
+      })
+      setNotice(`${res.restored} data berhasil dipulihkan.`)
+      if (res.failed.length) setError(`${res.failed.length} data gagal dipulihkan:\n${res.failed.slice(0, 5).map((f) => `• ${f.label} — ${f.error}`).join('\n')}`)
+      setSelected(new Set())
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+  const toggle = (id: number) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
+
   async function purge(item: Item) {
     if (!(await confirmDialog(`Hapus PERMANEN ${item.modul}: ${item.label}? Data ini tidak bisa dipulihkan lagi.`))) return
     setBusy(item.id)
@@ -98,13 +126,27 @@ export function RecycleBinPage({ user }: { user: UserProfile }) {
           </select>
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama data, modul, atau penghapus..." /></label>
         </div>
-        {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        {open && !!data?.total && (
+          <div className="pap-bulk-bar">
+            <span>{selected.size ? `${selected.size} data dipilih` : `${data.total} data terhapus${modul || term ? ' (sesuai filter)' : ''}`}</span>
+            <span className="pap-spacer" />
+            {!!selected.size && <button type="button" className="pap-btn" disabled={bulkBusy} onClick={() => setSelected(new Set())}>Batal pilih</button>}
+            {!!selected.size && <button type="button" className="pap-primary-button" disabled={bulkBusy} onClick={() => restoreMany('selected')}><RotateCcw /> Pulihkan terpilih ({selected.size})</button>}
+            <button type="button" className={selected.size ? 'pap-btn' : 'pap-primary-button'} disabled={bulkBusy} onClick={() => restoreMany('all')}><RotateCcw /> {bulkBusy ? 'Memulihkan…' : `Pulihkan semua (${data.total})`}</button>
+          </div>
+        )}
+        {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}><span style={{ whiteSpace: 'pre-line' }}>{error}</span></Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Data</th><th>Modul</th><th>{open ? 'Dihapus' : 'Dipulihkan'}</th><th>Isi</th><th className="pap-actions-col">Aksi</th></tr></thead>
+            <thead><tr>
+              {open && <th className="pap-check-col"><input type="checkbox" aria-label="Pilih semua di halaman ini" checked={!!items.length && items.every((i) => selected.has(i.id))}
+                onChange={(e) => setSelected(e.target.checked ? new Set([...selected, ...items.map((i) => i.id)]) : new Set([...selected].filter((id) => !items.some((i) => i.id === id))))} /></th>}
+              <th>Data</th><th>Modul</th><th>{open ? 'Dihapus' : 'Dipulihkan'}</th><th>Isi</th><th className="pap-actions-col">Aksi</th>
+            </tr></thead>
             <tbody>
               {items.map((it) => (
-                <tr key={it.id}>
+                <tr key={it.id} className={selected.has(it.id) ? 'pap-row-selected' : undefined}>
+                  {open && <td className="pap-check-col"><input type="checkbox" aria-label={`Pilih ${it.label}`} checked={selected.has(it.id)} onChange={() => toggle(it.id)} /></td>}
                   <td><div className="pap-cell-title">{it.label}</div></td>
                   <td><span className="pap-status info">{it.modul}</span></td>
                   <td className="pap-nowrap">
