@@ -68,6 +68,7 @@ export async function toProfile(user: UserRow): Promise<UserProfile> {
     const [rows] = await db.query<(RowDataPacket & { menu_key: MenuKey })[]>('SELECT menu_key FROM division_menus WHERE division_id = ?', [user.division_id])
     const allowed = new Set<string>(rows.map((row) => row.menu_key))
     for (const [menu, permission] of Object.entries(PERMISSION_MENUS)) if (permissions.includes(permission as PermissionCode)) allowed.add(menu)
+    allowed.add('data-terhapus')
     menus = ALL_MENU_KEYS.filter((key) => allowed.has(key))
   }
   return {

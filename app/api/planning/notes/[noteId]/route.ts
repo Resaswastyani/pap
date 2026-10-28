@@ -3,6 +3,7 @@ import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { PERMISSIONS } from '@/lib/permissions'
 import { loadNote, loadNotes, loadPlanning, noteAbilities } from '@/lib/planning'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ noteId: string }> }
 
@@ -26,6 +27,6 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
 export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const { user, note, planning, can } = await load(ctx)
   if (!can.delete) fail(403, 'Anda hanya dapat menghapus catatan milik sendiri.')
-  await db.query('DELETE FROM planning_progress_notes WHERE id = ?', [note.id])
+  await softDelete({ table: 'planning_progress_notes', id: note.id, modul: 'Planning', label: `Catatan progress ${planning.nomor ?? ''}`, user })
   return NextResponse.json({ notes: await loadNotes(user, planning) })
 })

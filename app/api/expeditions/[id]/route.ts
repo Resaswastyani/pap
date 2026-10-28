@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canEditExpeditions, readExpeditionInput } from '@/lib/orders'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -20,6 +21,6 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
 export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const user = await requireUser()
   if (!canEditExpeditions(user)) fail(403, 'Data ekspedisi diubah oleh Marketing / Admin.')
-  await db.query('DELETE FROM expeditions WHERE id = ?', [int((await ctx.params).id) ?? 0])
+  await softDelete({ table: 'expeditions', id: int((await ctx.params).id) ?? 0, modul: 'Ekspedisi', user })
   return NextResponse.json({ ok: true })
 })

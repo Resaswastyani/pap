@@ -5,6 +5,7 @@ import { canManageProduct, canViewProducts, requireMenu } from '@/lib/customers'
 import { db } from '@/lib/db'
 import { loadProduct, loadProductFiles, loadProductOrders, readProductInput } from '@/lib/products'
 import { renameAccurateItem } from '@/lib/materials'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 const productId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Produk tidak ditemukan.')
@@ -52,6 +53,6 @@ export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   if (!canManageProduct(user)) fail(403, 'Anda tidak punya akses untuk menghapus produk.')
   const item = await loadProduct(await productId(ctx))
   if (item.accurate_item_id) fail(400, 'Produk dari Accurate tidak bisa dihapus. Ubah statusnya menjadi nonaktif.')
-  await db.query('DELETE FROM customer_products WHERE id = ?', [item.id])
+  await softDelete({ table: 'customer_products', id: item.id, modul: 'Data Produk', user })
   return NextResponse.json({ ok: true })
 })

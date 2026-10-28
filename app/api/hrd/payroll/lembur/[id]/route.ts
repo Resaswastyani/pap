@@ -4,6 +4,7 @@ import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canManageHr, canViewPayroll } from '@/lib/hrd'
 import { readOvertime } from '@/lib/payroll-overtime'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 async function guard(ctx: Ctx) {
@@ -25,7 +26,6 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
 
 export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const id = await guard(ctx)
-  const [res] = await db.query<ResultSetHeader>('DELETE FROM overtime_entries WHERE id = ?', [id])
-  if (!res.affectedRows) fail(404, 'Data lembur tidak ditemukan.')
+  await softDelete({ table: 'overtime_entries', id, modul: 'Lembur', user: await requireUser() })
   return NextResponse.json({ ok: true })
 })

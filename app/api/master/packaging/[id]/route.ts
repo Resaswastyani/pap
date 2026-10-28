@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canManageMaster, readPackagingInput } from '@/lib/master'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -20,6 +21,6 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
 export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const user = await requireUser()
   if (!canManageMaster(user)) fail(403, 'Hanya Admin / Super Admin yang dapat mengubah master data.')
-  await db.query('DELETE FROM packaging_types WHERE id = ?', [int((await ctx.params).id) ?? 0])
+  await softDelete({ table: 'packaging_types', id: int((await ctx.params).id) ?? 0, modul: 'Master Data', user })
   return NextResponse.json({ ok: true })
 })

@@ -4,6 +4,7 @@ import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { loadPr, loadPrItems, notifyPr, PR_FLOW, readPrInput } from '@/lib/purchase-requests'
 import { canDeletePurchaseRequest, canEditPurchaseRequest, canManageTeknik, canProcessPurchase, moveStock, PR_STATUS, requireTeknikMenu, todayWib, type PrStatus } from '@/lib/teknik'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 const prId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Pengajuan pembelian tidak ditemukan.')
@@ -114,10 +115,12 @@ export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   if (!canDeletePurchaseRequest(user, pr)) {
     fail(403, ['diajukan', 'ditolak', 'batal'].includes(pr.status) ? 'Pengajuan hanya bisa dihapus oleh pengaju atau Purchasing.' : 'Pengajuan yang sudah disetujui / dipesan tidak bisa dihapus; batalkan saja.')
   }
-  const [res] = await db.query<ResultSetHeader>("DELETE FROM purchase_requests WHERE id = ? AND status IN ('diajukan', 'ditolak', 'batal')", [pr.id])
-  if (!res.affectedRows) fail(409, 'Status pengajuan baru saja berubah. Muat ulang lalu coba lagi.')
-  // Lampiran catatan & notifikasi yang menunjuk pengajuan ini ikut dibersihkan
-  await db.query("DELETE FROM note_attachments WHERE owner_type = 'purchase_request' AND owner_id = ?", [pr.id])
+  // Lampiran catatan ikut masuk Data Terhapus; notifikasi yang menunjuk pengajuan ini dibersihkan
+  await softDelete({
+    table: 'purchase_requests', id: pr.id, modul: 'Pengajuan Pembelian', user,
+    guard: { sql: "status IN ('diajukan', 'ditolak', 'batal')", params: [], message: 'Status pengajuan baru saja berubah. Muat ulang lalu coba lagi.' },
+    extra: [{ table: 'note_attachments', where: "owner_type = 'purchase_request' AND owner_id = ?", params: [pr.id] }],
+  })
   await db.query("DELETE FROM notifications WHERE target_page = 'Pengajuan Pembelian' AND target_id = ?", [pr.id])
   return NextResponse.json({ ok: true })
 })

@@ -4,6 +4,7 @@ import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { canManageAccounting, requireAccounting } from '@/lib/accounting'
 import { readPlan } from '@/lib/accounting-input'
 import { db } from '@/lib/db'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 async function guard(ctx: Ctx) {
@@ -26,7 +27,6 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
 
 export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const id = await guard(ctx)
-  const [res] = await db.query<ResultSetHeader>('DELETE FROM cash_plans WHERE id = ?', [id])
-  if (!res.affectedRows) fail(404, 'Rencana tidak ditemukan.')
+  await softDelete({ table: 'cash_plans', id, modul: 'Arus Kas', user: await requireUser() })
   return NextResponse.json({ ok: true })
 })

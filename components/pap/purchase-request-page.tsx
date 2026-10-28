@@ -5,7 +5,7 @@ import { Ban, CheckCircle2, FileText, PackageCheck, Pencil, Phone, Plus, Printer
 import type { UserProfile } from '@/lib/users'
 import { AttachmentPanel } from './attachments'
 import { SupplierList, SupplierSelect } from './supplier-list'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged, useQuickAction } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged, useQuickAction } from './ui'
 
 type Status = 'diajukan' | 'disetujui' | 'dipesan' | 'diterima' | 'ditolak' | 'batal'
 type Priority = 'darurat' | 'tinggi' | 'normal'
@@ -39,6 +39,17 @@ export function PurchaseRequestPage({ user, focusId }: { user: UserProfile; focu
   const [editing, setEditing] = useState<{ item: Pr; rows: PrItem[] } | null>(null)
   useQuickAction('ajukan-pembelian', () => setFormOpen(true))
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
+  // Sama dengan canEditPurchaseRequest di server: masih diajukan, oleh pengaju atau Purchasing
+  const editable = (p: Pr) => p.status === 'diajukan' && (p.requested_by === user.id || can.process)
+  async function openEdit(id: number) {
+    try {
+      const res = await api<{ item: Pr; items: PrItem[]; can: { edit: boolean } }>(`/api/purchase-requests/${id}`)
+      if (!res.can.edit) return setError('Pengajuan yang sudah diproses tidak bisa diubah.')
+      setEditing({ item: res.item, rows: res.items })
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
   const [tab, setTab] = useState<'pengajuan' | 'supplier'>('pengajuan')
 
   const load = useCallback(async () => {
@@ -98,7 +109,7 @@ export function PurchaseRequestPage({ user, focusId }: { user: UserProfile; focu
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Pengajuan</th><th>Barang</th><th>Prioritas</th><th>Dibutuhkan</th><th>Status</th></tr></thead>
+            <thead><tr><th>Pengajuan</th><th>Barang</th><th>Prioritas</th><th>Dibutuhkan</th><th>Status</th><th className="pap-actions-col">Aksi</th></tr></thead>
             <tbody>
               {paged.items.map((p) => (
                 <tr key={p.id} className="pap-row-link" onClick={() => setDetailId(p.id)}>
@@ -107,6 +118,7 @@ export function PurchaseRequestPage({ user, focusId }: { user: UserProfile; focu
                   <td><span className={`pap-status ${PRIORITY_TONE[p.prioritas]}`}>{PRIORITY_LABEL[p.prioritas]}</span></td>
                   <td className="pap-nowrap">{p.dibutuhkan ? formatDate(p.dibutuhkan) : '—'}</td>
                   <td><span className={`pap-status ${STATUS_TONE[p.status]}`}>{STATUS_LABEL[p.status]}</span>{(p.vendor_name || p.po_number || p.processed_name) && <div className="pap-cell-sub">{[p.vendor_name, p.po_number, p.processed_name].filter(Boolean).join(' · ')}</div>}</td>
+                  <td className="pap-actions-cell"><RowActions label={p.nomor} onView={() => setDetailId(p.id)} onEdit={editable(p) ? () => openEdit(p.id) : undefined} /></td>
                 </tr>
               ))}
             </tbody>
@@ -287,7 +299,7 @@ function PrDetail({ id, user, onClose, onChanged, onEdit, onDeleted }: { id: num
     }
   }
   async function remove() {
-    if (!item || !window.confirm(`Hapus pengajuan ${item.nomor}? Data yang dihapus tidak bisa dikembalikan.`)) return
+    if (!item || !window.confirm(`Hapus pengajuan ${item.nomor}? Data bisa dipulihkan dari menu Data Terhapus.`)) return
     setBusy(true)
     setError('')
     try {

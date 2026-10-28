@@ -59,6 +59,7 @@ export const MENU_KEYS = {
   'Manajemen User': 'users',
   'Manajemen Role': 'roles',
   Pengaturan: 'pengaturan',
+  'Data Terhapus': 'data-terhapus',
 } as const
 
 export type MenuKey = (typeof MENU_KEYS)[keyof typeof MENU_KEYS]

@@ -3,6 +3,7 @@ import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canSupervise, loadVisit, logActivity, parseDateTime, readVisitSales, requireMarketing, saveVisitSales, VISIT_TYPES } from '@/lib/marketing'
 import { formatWaktu } from '@/lib/notifications'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -48,6 +49,6 @@ export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const visit = await loadVisit(await visitId(ctx), user)
   if (visit.checkin_at && !user.role.isAdmin) fail(400, 'Visit yang sudah check-in tidak dapat dihapus.')
   if (!canSupervise(user) && visit.created_by !== user.id) fail(403, 'Hanya pembuat jadwal atau Lead yang dapat menghapus.')
-  await db.query('DELETE FROM visits WHERE id = ?', [visit.id])
+  await softDelete({ table: 'visits', id: visit.id, modul: 'Jadwal Visit', label: `Visit ${String(visit.jadwal ?? '').slice(0, 16)}`, user })
   return NextResponse.json({ ok: true })
 })

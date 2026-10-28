@@ -5,6 +5,7 @@ import {
   canProcessGa, GA_PR_FLOW, GA_PR_STATUS, loadGaPr, loadGaPrItems, notifyGaPr, readGaPrInput, requireGaRequest, saveGaPrItems, saveGaRealisasi, serializeGaPr,
   type GaPrStatus,
 } from '@/lib/ga-requests'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 const idOf = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Pengajuan tidak ditemukan.')
@@ -67,6 +68,6 @@ export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const id = await idOf(ctx)
   const pr = await loadGaPr(id, user)
   if (!canProcessGa(user) && !(pr.requested_by === user.id && pr.status === 'diajukan')) fail(403, 'Pengajuan yang sudah diproses tidak bisa dihapus.')
-  await db.query('DELETE FROM ga_purchase_requests WHERE id = ?', [id])
+  await softDelete({ table: 'ga_purchase_requests', id, modul: 'Pengajuan GA', user })
   return NextResponse.json({ ok: true })
 })

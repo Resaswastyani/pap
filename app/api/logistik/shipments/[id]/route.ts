@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canManageLogistik, readShipment, requireLogistik, saveShipment, serializeShipment, setShipmentStatus, SHIPMENT_SELECT, shipmentItems } from '@/lib/logistik'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 const shipId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Pengiriman tidak ditemukan.')
@@ -38,7 +39,9 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
 // Hapus (hanya yang masih packing / batal)
 export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   await manager()
-  const [res] = await db.query<ResultSetHeader>("DELETE FROM shipments WHERE id = ? AND status IN ('packing', 'batal')", [await shipId(ctx)])
-  if (!res.affectedRows) fail(400, 'Hanya pengiriman berstatus Packing / Batal yang bisa dihapus.')
+  await softDelete({
+    table: 'shipments', id: await shipId(ctx), modul: 'Pengiriman', user: await requireUser(),
+    guard: { sql: "status IN ('packing', 'batal')", params: [], message: 'Hanya pengiriman berstatus Packing / Batal yang bisa dihapus.' },
+  })
   return NextResponse.json({ ok: true })
 })

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canManageTraining, embedUrl, readModuleInput, requireTraining } from '@/lib/training'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Row = RowDataPacket & Record<string, unknown>
 type Ctx = { params: Promise<{ id: string }> }
@@ -72,6 +73,6 @@ export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const [[m]] = await db.query<Row[]>('SELECT drive_folder_id FROM training_modules WHERE id = ?', [id])
   if (!m) fail(404, 'Modul training tidak ditemukan.')
   if (m.drive_folder_id) fail(400, 'Modul ini dari folder Google Drive. Hapus / pindahkan subfoldernya di Drive, atau sembunyikan modul.')
-  await db.query('DELETE FROM training_modules WHERE id = ?', [id])
+  await softDelete({ table: 'training_modules', id, modul: 'Training', user })
   return NextResponse.json({ ok: true })
 })

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { canManageCapacity, readCapacityInput, requireCapacity } from '@/lib/capacity'
 import { db } from '@/lib/db'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -28,7 +29,6 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
 
 export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const { id } = await guard(ctx)
-  const [res] = await db.query<ResultSetHeader>('DELETE FROM production_capacities WHERE id = ?', [id])
-  if (!res.affectedRows) fail(404, 'Data kapasitas tidak ditemukan.')
+  await softDelete({ table: 'production_capacities', id, modul: 'Kapasitas Produksi', user: await requireUser() })
   return NextResponse.json({ ok: true })
 })

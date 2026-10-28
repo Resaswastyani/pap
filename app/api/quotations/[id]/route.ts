@@ -3,6 +3,7 @@ import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canEditHppParams, loadSettings } from '@/lib/hpp'
 import { canApproveQuotation, canWriteQuotation, loadQuotation, QUOTATION_APPROVAL_REQUIRED, loadQuotationItems, readQuotationInput, requireQuotation, saveQuotationItems } from '@/lib/quotations'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 const quotationId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Quotation tidak ditemukan.')
@@ -51,6 +52,6 @@ export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const item = await loadQuotation(await quotationId(ctx), user)
   if (item.status !== 'draft') fail(400, 'Penawaran yang sudah dikirim tidak dapat dihapus; gunakan Batal.')
   if (item.created_by !== user.id && !user.role.isAdmin) fail(403, 'Hanya pembuat penawaran yang dapat menghapus.')
-  await db.query('DELETE FROM quotations WHERE id = ?', [item.id])
+  await softDelete({ table: 'quotations', id: item.id, modul: 'Quotation', label: `${item.nomor} · ${item.kepada ?? ''}`, user })
   return NextResponse.json({ ok: true })
 })

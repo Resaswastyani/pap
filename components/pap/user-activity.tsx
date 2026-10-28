@@ -24,7 +24,7 @@ type ActivityLog = {
 
 const ACTION_TONE: Record<ActivityAction, string> = {
   create: 'success', update: 'info', delete: 'danger', upload: 'success', password: 'warning', permission: 'warning',
-  checkin: 'info', import: 'success', sync: 'neutral', login: 'neutral', login_failed: 'danger', logout: 'neutral',
+  checkin: 'info', import: 'success', sync: 'neutral', login: 'neutral', login_failed: 'danger', logout: 'neutral', restore: 'success',
 }
 const DEVICE_ICON = { desktop: Monitor, mobile: Smartphone, tablet: Tablet, lainnya: Monitor }
 

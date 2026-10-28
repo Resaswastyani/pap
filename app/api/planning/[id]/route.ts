@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { PERMISSIONS, PLANNING_STATUS } from '@/lib/permissions'
 import { pushToUsers } from '@/lib/push'
 import { assertDivision, canViewAllDivisions, loadFiles, loadNotes, loadPics, loadPlanning, notifyPics, parseDate, planningAbilities, serializePlanning, validPics } from '@/lib/planning'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -100,6 +101,6 @@ export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const user = await requireUser(PERMISSIONS.planningView)
   const row = await loadPlanning(user, await planningId(ctx))
   if (!planningAbilities(user, row).delete) fail(403, 'Anda tidak punya akses untuk menghapus planning ini.')
-  await db.query('DELETE FROM plannings WHERE id = ?', [row.id])
+  await softDelete({ table: 'plannings', id: row.id, modul: 'Planning', user })
   return NextResponse.json({ ok: true })
 })

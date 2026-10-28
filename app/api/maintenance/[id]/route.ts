@@ -4,6 +4,7 @@ import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { LOG_SELECT, loadPlan, readPlanInput, serializeLog } from '@/lib/maintenance'
 import { canManageTeknik, requireTeknikMenu } from '@/lib/teknik'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 const planId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Jadwal perawatan tidak ditemukan.')
@@ -42,6 +43,6 @@ export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   requireTeknikMenu(user, 'perawatan-mesin', 'Perawatan Mesin')
   if (!canManageTeknik(user)) fail(403, 'Jadwal perawatan diatur oleh divisi Teknik.')
   const plan = await loadPlan(await planId(ctx))
-  await db.query('DELETE FROM maintenance_plans WHERE id = ?', [plan.id])
+  await softDelete({ table: 'maintenance_plans', id: plan.id, modul: 'Perawatan Mesin', user })
   return NextResponse.json({ ok: true })
 })

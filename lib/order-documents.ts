@@ -7,6 +7,7 @@ import { db } from '@/lib/db'
 import { loadSettings } from '@/lib/hpp'
 import { type DocView, loadSoDocument, proformaTagihan, readSoJenis, soDocNomor, type SoJenis, todayWib } from '@/lib/so-document'
 import { isManagement, type UserProfile } from '@/lib/users'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Row = RowDataPacket & Record<string, unknown>
 type PpnMode = 'none' | 'exclusive' | 'inclusive'
@@ -146,7 +147,7 @@ export async function updateOrderDocument(user: UserProfile, id: number, d: DocI
 export async function deleteOrderDocument(user: UserProfile, id: number) {
   const doc = await loadOrderDocument(id)
   if (!canDeleteDoc(user, doc)) fail(403, 'Hanya pembuat dokumen atau manajemen yang bisa menghapus.')
-  await db.query('DELETE FROM order_documents WHERE id = ?', [id])
+  await softDelete({ table: 'order_documents', id, modul: 'Dokumen Order', user })
 }
 
 // Isian awal form: salinan SO Accurate (?so=ID) atau dokumen kosong

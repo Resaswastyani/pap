@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canManagePermit, readPermit, requirePermit } from '@/lib/permits'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -22,6 +23,6 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
 
 export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const { id } = await guard(ctx)
-  await db.query('DELETE FROM company_permits WHERE id = ?', [id])
+  await softDelete({ table: 'company_permits', id, modul: 'Perizinan', user: await requireUser() })
   return NextResponse.json({ ok: true })
 })

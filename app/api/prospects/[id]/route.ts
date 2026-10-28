@@ -9,6 +9,7 @@ import {
 } from '@/lib/marketing'
 import { notify } from '@/lib/notifications'
 import { pushToUsers } from '@/lib/push'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -115,7 +116,10 @@ export const DELETE = handle(async (_request: Request, { params }: Ctx) => {
   requireMarketing(user, 'prospek')
   const prospect = await loadProspect(Number((await params).id), user)
   if (!canSupervise(user) && prospect.created_by !== user.id) fail(403, 'Hanya pembuat prospek atau Lead yang dapat menghapus.')
-  await db.query("DELETE na FROM note_attachments na JOIN marketing_activities a ON a.id = na.owner_id AND na.owner_type = 'activity' WHERE a.prospect_id = ?", [prospect.id])
-  await db.query('DELETE FROM prospects WHERE id = ?', [prospect.id])
+  // Lampiran catatan aktivitas (polimorfik, bukan FK) ikut masuk Data Terhapus
+  await softDelete({
+    table: 'prospects', id: prospect.id, modul: 'Prospek', user,
+    extra: [{ table: 'note_attachments', where: "owner_type = 'activity' AND owner_id IN (SELECT id FROM marketing_activities WHERE prospect_id = ?)", params: [prospect.id] }],
+  })
   return NextResponse.json({ ok: true })
 })

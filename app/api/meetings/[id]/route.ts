@@ -8,6 +8,7 @@ import { pushToUsers } from '@/lib/push'
 import { MEETING_STATUS, PERMISSIONS } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
 import { loadPlanning } from '@/lib/planning'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -111,6 +112,6 @@ export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const user = await requireUser(PERMISSIONS.meetingView)
   const row = await loadMeeting(user, await meetingId(ctx))
   if (!meetingAbilities(user, row).delete) fail(403, 'Anda tidak punya akses untuk menghapus meeting ini.')
-  await db.query('DELETE FROM meetings WHERE id = ?', [row.id])
+  await softDelete({ table: 'meetings', id: row.id, modul: 'Meeting', user })
   return NextResponse.json({ ok: true })
 })

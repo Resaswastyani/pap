@@ -79,7 +79,7 @@ function SavedDocs({ user, reload, onEdit, onDeleted }: { user: UserProfile; rel
   const management = user.role.isAdmin || user.division.code === 'general_manager'
 
   async function remove(d: SavedDoc) {
-    if (!window.confirm(`Hapus ${JENIS_LABEL[d.jenis]} ${d.nomor} (${d.kepada})? Dokumen yang dihapus tidak bisa dikembalikan.`)) return
+    if (!window.confirm(`Hapus ${JENIS_LABEL[d.jenis]} ${d.nomor} (${d.kepada})? Dokumen bisa dipulihkan dari menu Data Terhapus.`)) return
     setBusy(d.id)
     try {
       await api(`/api/order-documents/${d.id}`, { method: 'DELETE' })

@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { canManageHr, canViewPayroll } from '@/lib/hrd'
 import { updatePayroll } from '@/lib/payroll'
 import type { UserProfile } from '@/lib/users'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -22,6 +23,6 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
 export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const user = await requireUser()
   const id = await target(user, ctx)
-  await db.query('DELETE FROM employee_payrolls WHERE id = ?', [id])
+  await softDelete({ table: 'employee_payrolls', id, modul: 'Gaji Karyawan', user })
   return NextResponse.json({ ok: true })
 })

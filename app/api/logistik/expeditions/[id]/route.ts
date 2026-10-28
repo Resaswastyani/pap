@@ -4,6 +4,7 @@ import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canManageLogistik, readRoute, requireLogistik } from '@/lib/logistik'
 import { canEditExpeditions } from '@/lib/orders'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 async function guard(ctx: Ctx) {
@@ -51,6 +52,6 @@ export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
     await db.query('UPDATE expeditions SET aktif = 0 WHERE id = ?', [id])
     return NextResponse.json({ ok: true, nonaktif: true })
   }
-  await db.query('DELETE FROM expeditions WHERE id = ?', [id])
+  await softDelete({ table: 'expeditions', id, modul: 'Ekspedisi', user: await requireUser() })
   return NextResponse.json({ ok: true })
 })

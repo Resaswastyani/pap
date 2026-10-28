@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { canManageProduction, canProgressProduction, canQcProduction } from '@/lib/production'
 import { QC_STATUS, readResultInput, refreshStageProgress, RESULT_SELECT, serializeResult } from '@/lib/production-results'
 import type { UserProfile } from '@/lib/users'
+import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 type Row = RowDataPacket & { id: number; stage_id: number; status_qc: string; reported_by: number }
@@ -53,7 +54,7 @@ export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const user = await requireUser()
   const row = await loadRow(ctx)
   if (!canEdit(user, row)) fail(403, 'Laporan yang sudah diperiksa QC hanya bisa dihapus PPIC / GM.')
-  await db.query('DELETE FROM production_results WHERE id = ?', [row.id])
+  await softDelete({ table: 'production_results', id: row.id, modul: 'Hasil Produksi', label: `Laporan hasil produksi ${String(row.tanggal ?? '').slice(0, 10)} (${row.shift ?? '-'})`, user })
   await refreshStageProgress(row.stage_id)
   return NextResponse.json({ ok: true })
 })
