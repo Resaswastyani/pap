@@ -5,7 +5,7 @@ import { FilePlus2, FileText, Pencil, Plus, Printer, ReceiptText, Save, Search, 
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { MonthNav, monthLabel, useDebounced } from './accurate-production'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged, confirmDialog } from './ui'
 
 // Dokumen Order: Surat Order & Proforma Invoice. Tab "Dokumen tersimpan" untuk dokumen yang dibuat, diubah, dan
 // dihapus di PAP-MS; tab "Sales order Accurate" untuk cetak langsung dari SO atau membuat dokumen tersimpan darinya.
@@ -79,7 +79,7 @@ function SavedDocs({ user, reload, onEdit, onDeleted }: { user: UserProfile; rel
   const management = user.role.isAdmin || user.division.code === 'general_manager'
 
   async function remove(d: SavedDoc) {
-    if (!window.confirm(`Hapus ${JENIS_LABEL[d.jenis]} ${d.nomor} (${d.kepada})? Dokumen bisa dipulihkan dari menu Data Terhapus.`)) return
+    if (!(await confirmDialog(`Hapus ${JENIS_LABEL[d.jenis]} ${d.nomor} (${d.kepada})? Dokumen bisa dipulihkan dari menu Data Terhapus.`))) return
     setBusy(d.id)
     try {
       await api(`/api/order-documents/${d.id}`, { method: 'DELETE' })

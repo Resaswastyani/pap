@@ -7,7 +7,7 @@ import { AccurateSyncBar, formatNumber } from './accurate'
 import { AttachmentPanel } from './attachments'
 import { QcForm, ResultForm, ResultsTable, type Result } from './results-page'
 import { FormulaBar, formulaSnapshot, type Formulation } from './formulation-page'
-import { api, Field, formatDate, Modal, Notice, Pager, Progress, type UserOption } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, Progress, type UserOption, confirmDialog } from './ui'
 
 type JobStatus = 'menunggu' | 'dijadwalkan' | 'berjalan' | 'selesai' | 'batal'
 type StageStatus = 'belum' | 'berjalan' | 'selesai' | 'dilewati'
@@ -441,7 +441,7 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
         <>
           {can.manage && (job.status === 'batal'
             ? <button className="pap-btn" disabled={busy} onClick={() => run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { batal: false } }), 'Produksi diaktifkan kembali.')}>Aktifkan produksi lagi</button>
-            : <button className="pap-btn danger" disabled={busy} title="Hentikan produksi job ini. Sales Order di Accurate tidak ikut dibatalkan." onClick={() => window.confirm(`Batalkan produksi ${job.item_name}?\n\nJob dan SPK-nya dihentikan dan hilang dari daftar aktif. Laporan hasil baru tidak bisa dikirim.\nSales Order ${job.so_number ?? ''} di Accurate TIDAK ikut dibatalkan.\n\nBisa diaktifkan lagi kapan saja.`) && run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { batal: true } }), 'Produksi dibatalkan. Sales Order di Accurate tidak berubah.')}><Trash2 /> Batalkan produksi</button>)}
+            : <button className="pap-btn danger" disabled={busy} title="Hentikan produksi job ini. Sales Order di Accurate tidak ikut dibatalkan." onClick={async () => (await confirmDialog(`Batalkan produksi ${job.item_name}?\n\nJob dan SPK-nya dihentikan dan hilang dari daftar aktif. Laporan hasil baru tidak bisa dikirim.\nSales Order ${job.so_number ?? ''} di Accurate TIDAK ikut dibatalkan.\n\nBisa diaktifkan lagi kapan saja.`)) && run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { batal: true } }), 'Produksi dibatalkan. Sales Order di Accurate tidak berubah.')}><Trash2 /> Batalkan produksi</button>)}
           <span className="pap-spacer" />
           {can.manage && <button className="pap-btn" disabled={busy} onClick={() => run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { prioritas: job.prioritas === 'tinggi' ? 'normal' : 'tinggi' } }))}><Flag /> {job.prioritas === 'tinggi' ? 'Prioritas normal' : 'Prioritas tinggi'}</button>}
           <button className="pap-btn" onClick={() => printSpk(job, stages, product, results)}><Printer /> Cetak SPK</button>
@@ -496,7 +496,7 @@ function JobDetail({ id, user, onClose, onChanged }: { id: number; user: UserPro
             <div className="full pap-inline-actions">
               <span className="pap-spacer" />
               <button className="pap-btn" disabled={busy || (spkForm.target_qty === (job.target_qty === null ? '' : String(job.target_qty)) && spkForm.tingkat_kualitas === (job.tingkat_kualitas ?? '') && spkForm.formulasi === (job.formulasi ?? '') && spkForm.formulasi_bom_id === (job.formulasi_bom_id ? String(job.formulasi_bom_id) : '') && spkForm.acuan_kerja === (job.acuan_kerja ?? ''))} onClick={() => run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { ...spkForm, target_qty: spkForm.target_qty || null, formulasi_bom_id: spkForm.formulasi_bom_id || null } }), 'Isi SPK disimpan.')}>Simpan isi SPK</button>
-              {!job.spk_nomor && <button className="pap-primary-button" disabled={busy} onClick={() => window.confirm('Terbitkan SPK untuk job ini? Nomor SPK dibuat dan SPK bisa dicetak untuk Produksi.') && run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { ...spkForm, target_qty: spkForm.target_qty || null, formulasi_bom_id: spkForm.formulasi_bom_id || null, terbitkan_spk: true } }), 'SPK diterbitkan.')}><Stamp /> {job.spk_revisi ? `Terbitkan ulang SPK (revisi R${job.spk_revisi})` : 'Terbitkan SPK'}</button>}
+              {!job.spk_nomor && <button className="pap-primary-button" disabled={busy} onClick={async () => (await confirmDialog('Terbitkan SPK untuk job ini? Nomor SPK dibuat dan SPK bisa dicetak untuk Produksi.')) && run(() => api(`/api/production/${job.id}`, { method: 'PATCH', json: { ...spkForm, target_qty: spkForm.target_qty || null, formulasi_bom_id: spkForm.formulasi_bom_id || null, terbitkan_spk: true } }), 'SPK diterbitkan.')}><Stamp /> {job.spk_revisi ? `Terbitkan ulang SPK (revisi R${job.spk_revisi})` : 'Terbitkan SPK'}</button>}
             </div>
           </div>
         ) : (

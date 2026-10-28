@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Pencil, Plus, Search, Send, Trash2 } from 'lucide-react'
 import { formatRupiah } from './accurate'
 import { ItemPicker } from './purchasing-forms'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { api, Field, formatDate, Modal, Notice, confirmDialog } from './ui'
 
 // Harga Pemasok (dokumen VPA di Accurate): daftar harga beli per pemasok yang berlaku mulai tanggal tertentu.
 type VpLine = { id: number | null; item_no: string; item_name: string; unit: string; price: number }
@@ -47,7 +47,7 @@ export function VendorPriceList() {
     load()
   }
   async function remove(d: Vp) {
-    if (!window.confirm(`Hapus harga pemasok ${d.number} (${d.vendor_name}) dari Accurate?`)) return
+    if (!(await confirmDialog(`Hapus harga pemasok ${d.number} (${d.vendor_name}) dari Accurate?`))) return
     try {
       await api(`/api/purchasing/vendor-prices/${d.id}`, { method: 'DELETE' })
       flash(`Harga pemasok ${d.number} dihapus dari Accurate.`)

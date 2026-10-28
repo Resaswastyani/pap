@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlarmClock, CalendarCheck, CalendarClock, ClipboardCheck, History, List, Pencil, Plus, Printer, Search, Wrench } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, pendingCount, uploadNoteAttachments, type PendingAttachments } from './attachments'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged, RowActions, useQuickAction } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged, RowActions, useQuickAction, confirmDialog } from './ui'
 
 type Hasil = 'baik' | 'perlu_tindakan' | 'rusak'
 type Plan = {
@@ -264,7 +264,7 @@ function PlanForm({ initial, machines, komponen, technicians, onClose, onSaved }
       onClose={onClose}
       footer={<>
         {initial && <button className="pap-btn" disabled={busy} onClick={() => run(() => api(`/api/maintenance/${initial.id}`, { method: 'PATCH', json: { aktif: !initial.aktif } }), initial.aktif ? 'Jadwal dinonaktifkan.' : 'Jadwal diaktifkan kembali.')}>{initial.aktif ? 'Nonaktifkan' : 'Aktifkan'}</button>}
-        {initial && <button className="pap-btn danger" disabled={busy} onClick={() => window.confirm(`Hapus jadwal "${initial.judul}"? Riwayat checkup tetap tersimpan.`) && run(() => api(`/api/maintenance/${initial.id}`, { method: 'DELETE' }), 'Jadwal perawatan dihapus.')}>Hapus</button>}
+        {initial && <button className="pap-btn danger" disabled={busy} onClick={async () => (await confirmDialog(`Hapus jadwal "${initial.judul}"? Riwayat checkup tetap tersimpan.`)) && run(() => api(`/api/maintenance/${initial.id}`, { method: 'DELETE' }), 'Jadwal perawatan dihapus.')}>Hapus</button>}
         <span className="pap-spacer" />
         <button className="pap-btn" onClick={onClose}>Batal</button>
         <button className="pap-primary-button" form="plan-form" disabled={busy}>{busy ? 'Menyimpan...' : 'Simpan'}</button>

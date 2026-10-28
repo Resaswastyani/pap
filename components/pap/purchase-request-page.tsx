@@ -5,7 +5,7 @@ import { Ban, CheckCircle2, FileText, PackageCheck, Pencil, Phone, Plus, Printer
 import type { UserProfile } from '@/lib/users'
 import { AttachmentPanel } from './attachments'
 import { SupplierList, SupplierSelect } from './supplier-list'
-import { api, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged, useQuickAction } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged, useQuickAction, confirmDialog } from './ui'
 
 type Status = 'diajukan' | 'disetujui' | 'dipesan' | 'diterima' | 'ditolak' | 'batal'
 type Priority = 'darurat' | 'tinggi' | 'normal'
@@ -283,7 +283,7 @@ function PrDetail({ id, user, onClose, onChanged, onEdit, onDeleted }: { id: num
   }
   async function act(status: Status) {
     if (status === 'ditolak' && !catatan.trim()) return setError('Tuliskan alasan penolakan di kolom catatan.')
-    if (status === 'batal' && !window.confirm('Batalkan pengajuan ini?')) return
+    if (status === 'batal' && !(await confirmDialog('Batalkan pengajuan ini?'))) return
     setBusy(true)
     setError('')
     try {
@@ -299,7 +299,7 @@ function PrDetail({ id, user, onClose, onChanged, onEdit, onDeleted }: { id: num
     }
   }
   async function remove() {
-    if (!item || !window.confirm(`Hapus pengajuan ${item.nomor}? Data bisa dipulihkan dari menu Data Terhapus.`)) return
+    if (!item || !(await confirmDialog(`Hapus pengajuan ${item.nomor}? Data bisa dipulihkan dari menu Data Terhapus.`))) return
     setBusy(true)
     setError('')
     try {

@@ -5,7 +5,7 @@ import { AlertTriangle, CalendarCheck2, CalendarOff, CheckCircle2, Clock, Downlo
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { MonthNav, monthLabel } from './accurate-production'
-import { api, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged, confirmDialog } from './ui'
 
 const thisMonth = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 7)
 const today = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
@@ -188,7 +188,7 @@ function LeaveDetail({ item, user, approver, onClose, onEdit, onChanged }: { ite
   const [error, setError] = useState('')
   const mine = item.created_by === user.id
   async function act(action: 'setujui' | 'tolak' | 'batal') {
-    if (action !== 'setujui' && !window.confirm(action === 'tolak' ? 'Tolak pengajuan ini?' : 'Batalkan pengajuan ini?')) return
+    if (action !== 'setujui' && !(await confirmDialog(action === 'tolak' ? 'Tolak pengajuan ini?' : 'Batalkan pengajuan ini?'))) return
     setBusy(true)
     try {
       await api(`/api/hrd/leaves/${item.id}`, { method: 'PATCH', json: { action, catatan } })
@@ -200,7 +200,7 @@ function LeaveDetail({ item, user, approver, onClose, onEdit, onChanged }: { ite
     }
   }
   async function remove() {
-    if (!window.confirm(`Hapus ${item.nomor}?`)) return
+    if (!(await confirmDialog(`Hapus ${item.nomor}?`))) return
     try {
       await api(`/api/hrd/leaves/${item.id}`, { method: 'DELETE' })
       onChanged(`${item.nomor} dihapus.`)
@@ -482,7 +482,7 @@ export function PermitPage(_props: { user: UserProfile }) {
   const rows = (data?.items ?? []).filter((x) => !term || `${x.nama} ${x.nomor ?? ''} ${x.instansi ?? ''} ${x.kategori ?? ''}`.toLowerCase().includes(term))
   const count = (st: Permit['status']) => (data?.items ?? []).filter((x) => x.status === st).length
   async function remove(p: Permit) {
-    if (!window.confirm(`Hapus ${p.nama}?`)) return
+    if (!(await confirmDialog(`Hapus ${p.nama}?`))) return
     try {
       await api(`/api/hrd/permits/${p.id}`, { method: 'DELETE' })
       setMessage(`${p.nama} dihapus.`)

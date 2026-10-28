@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, Clock, Pencil, Plus, Printer, Search, Settings, ShieldCheck, Trash2, UserPlus, Users, Wallet } from 'lucide-react'
 import { formatNumber, formatRupiah } from './accurate'
 import { ReportDownloadButton } from './report-download'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged, confirmDialog } from './ui'
 
 // Grade & Gaji: pengaturan gaji per karyawan, pengaturan payroll, dan hitung gaji per periode cut off (lib/payroll.ts)
 
@@ -66,7 +66,7 @@ export function PayrollEmployees() {
     }
   }
   async function remove(p: Payroll) {
-    if (!window.confirm(`Hapus pengaturan gaji ${p.nama}?`)) return
+    if (!(await confirmDialog(`Hapus pengaturan gaji ${p.nama}?`))) return
     try {
       await api(`/api/hrd/payroll/karyawan/${p.id}`, { method: 'DELETE' })
       setMessage(`Pengaturan gaji ${p.nama} dihapus.`)
@@ -478,7 +478,7 @@ export function PayrollOvertime() {
   const items = (data?.items ?? []).filter((o) => !term || o.nama.toLowerCase().includes(term) || o.nip.includes(term))
   const paged = usePaged(items, `${q}-${periode}`, 50)
   async function remove(o: Overtime) {
-    if (!window.confirm(`Hapus lembur ${o.nama} ${formatDate(o.tanggal)}?`)) return
+    if (!(await confirmDialog(`Hapus lembur ${o.nama} ${formatDate(o.tanggal)}?`))) return
     try {
       await api(`/api/hrd/payroll/lembur/${o.id}`, { method: 'DELETE' })
       load()

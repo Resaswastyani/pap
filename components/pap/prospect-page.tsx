@@ -11,7 +11,7 @@ import {
 import { QuotationForm } from './quotation-page'
 import { DesignForm, SampleForm } from './request-page'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
-import { api, askReason, Field, formatDate, Modal, Notice, Pager, RowActions, useQuickAction } from './ui'
+import { api, askReason, Field, formatDate, Modal, Notice, Pager, RowActions, useQuickAction, confirmDialog } from './ui'
 
 export type Prospect = {
   id: number
@@ -512,7 +512,7 @@ function ProspectDetail({ id, autoEdit = false, user, users, onClose, onEdit, on
     patch({ status: next, alasan_gagal: alasan }, `Status diubah ke ${PROSPECT_LABEL[next]}.`)
   }
   async function remove() {
-    if (!item || !window.confirm(`Hapus prospek ${item.nama_usaha} beserta riwayat follow-up & visit?`)) return
+    if (!item || !(await confirmDialog(`Hapus prospek ${item.nama_usaha} beserta riwayat follow-up & visit?`))) return
     try {
       await api(`/api/prospects/${id}`, { method: 'DELETE' })
       onDeleted()
@@ -754,7 +754,7 @@ function CustomerLinkPanel({ prospect, onDone, onError }: { prospect: Prospect; 
       <p className="pap-muted">Hubungkan ke customer yang sudah ada di Accurate, atau buat customer baru di Accurate dari data prospek ini.</p>
       <CustomerSelect value={customer} onChange={setCustomer} />
       <div className="pap-inline-actions pap-wrap">
-        <button className="pap-btn" disabled={busy} onClick={() => window.confirm(`Buat customer baru "${prospect.nama_usaha}" di Accurate?`) && submit({ create: true }, 'Customer baru dibuat di Accurate dan dihubungkan.')}>Buat customer baru di Accurate</button>
+        <button className="pap-btn" disabled={busy} onClick={async () => (await confirmDialog(`Buat customer baru "${prospect.nama_usaha}" di Accurate?`)) && submit({ create: true }, 'Customer baru dibuat di Accurate dan dihubungkan.')}>Buat customer baru di Accurate</button>
         <span className="pap-spacer" />
         <button className="pap-primary-button" disabled={busy || !customer} onClick={() => submit({ customerId: customer!.id }, 'Prospek dihubungkan ke customer.')}>Hubungkan</button>
       </div>

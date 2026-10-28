@@ -8,7 +8,7 @@ import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
 import { MonthNav, monthLabel, useDebounced } from './accurate-production'
 import { BarList, ColumnChart } from './charts'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged, confirmDialog } from './ui'
 
 // Accounting, Pajak & Finance (Guidance): angka dari Accurate, catatan Accounting di PAP-MS.
 
@@ -173,7 +173,7 @@ export function CashBankPage(_props: { user: UserProfile }) {
   const days = [...new Set(tx.map((t) => t.tanggal))].sort().reverse()
   const leaves = (data?.accounts ?? []).filter((a) => !a.is_parent)
   async function removeRecon(r: Recon) {
-    if (!window.confirm(`Hapus catatan pencocokan ${r.account_name} ${formatDate(r.tanggal)}?`)) return
+    if (!(await confirmDialog(`Hapus catatan pencocokan ${r.account_name} ${formatDate(r.tanggal)}?`))) return
     try {
       await api(`/api/accounting/cash/${r.id}`, { method: 'DELETE' })
       load()
@@ -563,7 +563,7 @@ export function CashFlowPage(_props: { user: UserProfile }) {
   const { data, loading, error, setError, load } = useLoad<ForecastRes>('/api/accounting/forecast')
   const [form, setForm] = useState<CashPlan | 'baru' | null>(null)
   async function remove(p: CashPlan) {
-    if (!window.confirm(`Hapus rencana ${p.kategori}?`)) return
+    if (!(await confirmDialog(`Hapus rencana ${p.kategori}?`))) return
     try {
       await api(`/api/accounting/plans/${p.id}`, { method: 'DELETE' })
       load()
@@ -775,7 +775,7 @@ function FilingForm({ masa, duty, onClose, onSaved }: { masa: string; duty: Duty
     }
   }
   async function reset() {
-    if (!duty.id || !window.confirm(`Hapus catatan ${duty.label} masa ${monthLabel(masa)}?`)) return
+    if (!duty.id || !(await confirmDialog(`Hapus catatan ${duty.label} masa ${monthLabel(masa)}?`))) return
     try {
       await api(`/api/accounting/tax/${duty.id}`, { method: 'DELETE' })
       onSaved()

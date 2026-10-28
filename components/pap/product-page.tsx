@@ -5,7 +5,7 @@ import { Download, ExternalLink, FileText, ImageIcon, Package, Pencil, Plus, Pri
 import { PRODUCT_FILE_ACCEPT, PRODUCT_FILE_MAX_BYTES } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatNumber, formatRupiah } from './accurate'
-import { api, Field, formatDate, formatSize, Modal, Notice, Pager, RowActions } from './ui'
+import { api, Field, formatDate, formatSize, Modal, Notice, Pager, RowActions, confirmDialog } from './ui'
 
 export type Product = {
   id: number
@@ -373,7 +373,7 @@ export function ProductDetail({ id, onClose, onEdit, onChanged, onDeleted }: { i
       onClose={onClose}
       footer={
         <>
-          {canManage && !item.accurate_item_id && <button className="pap-btn danger" disabled={busy} onClick={() => window.confirm(`Hapus produk "${item.nama}" beserta desainnya?`) && run(async () => { await api(`/api/products/${item.id}`, { method: 'DELETE' }); onDeleted() })}><Trash2 /> Hapus</button>}
+          {canManage && !item.accurate_item_id && <button className="pap-btn danger" disabled={busy} onClick={async () => (await confirmDialog(`Hapus produk "${item.nama}" beserta desainnya?`)) && run(async () => { await api(`/api/products/${item.id}`, { method: 'DELETE' }); onDeleted() })}><Trash2 /> Hapus</button>}
           <span className="pap-spacer" />
           <a className="pap-btn" href={`/cetak/produk/${item.id}`} target="_blank" rel="noreferrer"><Printer /> Dokumen spek / PDF</a>
           {canManage && <button className="pap-btn" onClick={() => onEdit(item)}><Pencil /> Edit</button>}
@@ -410,7 +410,7 @@ export function ProductDetail({ id, onClose, onEdit, onChanged, onDeleted }: { i
                 </div>
                 <a className="pap-icon-button" href={`/api/products/files/${file.id}`} target="_blank" rel="noopener noreferrer" aria-label={`Lihat & cetak ${file.name}`} title="Lihat & cetak"><Printer /></a>
                 <a className="pap-icon-button" href={`/api/products/files/${file.id}?download=1`} aria-label={`Unduh ${file.name}`} title="Unduh"><Download /></a>
-                {canManage && <button className="pap-icon-button" aria-label={`Hapus ${file.name}`} disabled={busy} onClick={() => window.confirm(`Hapus desain "${file.name}"?`) && run(() => api(`/api/products/files/${file.id}`, { method: 'DELETE' }))}><Trash2 /></button>}
+                {canManage && <button className="pap-icon-button" aria-label={`Hapus ${file.name}`} disabled={busy} onClick={async () => (await confirmDialog(`Hapus desain "${file.name}"?`)) && run(() => api(`/api/products/files/${file.id}`, { method: 'DELETE' }))}><Trash2 /></button>}
               </li>
             ))}
           </ul>

@@ -6,7 +6,7 @@ import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { toInputDateTime } from './marketing'
 import { DesignForm } from './request-page'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged, confirmDialog } from './ui'
 
 const PLATFORMS: Record<string, string> = { sosmed: 'Semua sosmed (IG/FB/TikTok)', instagram: 'Instagram', tiktok: 'TikTok', facebook: 'Facebook', website: 'Website / blog', whatsapp: 'WhatsApp blast', marketplace: 'Marketplace', google: 'Google (Maps / Ads)', lainnya: 'Lainnya' }
 const TYPES: Record<string, string> = { feed: 'Feed / post', reels: 'Reels / video pendek', story: 'Story', video: 'Video', artikel: 'Artikel', iklan: 'Iklan berbayar', blasting: 'Blasting pesan', lainnya: 'Lainnya' }
@@ -210,7 +210,7 @@ function ContentForm({ initial, jadwal, users, canEdit, currentUserId, onClose, 
     }
   }
   async function remove() {
-    if (!initial || !window.confirm(`Hapus rencana "${initial.judul}"?`)) return
+    if (!initial || !(await confirmDialog(`Hapus rencana "${initial.judul}"?`))) return
     try {
       const res = await api<{ warning?: string | null }>(`/api/content/${initial.id}`, { method: 'DELETE' })
       onSaved('Rencana konten dihapus.', res.warning)

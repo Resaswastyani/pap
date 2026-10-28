@@ -6,7 +6,7 @@ import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
 import { EmployeeForm } from './employee-form'
 import { PayrollCalc, PayrollEmployees, PayrollOvertime, PayrollSettingsView } from './payroll-page'
-import { api, Field, formatDate, Modal, Notice, Pager, peekQuickAction, usePaged, useQuickAction } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, peekQuickAction, usePaged, useQuickAction, confirmDialog } from './ui'
 
 // HRD: data karyawan, grade operator, dan kebijakan gaji dari spreadsheet di Google Drive
 
@@ -195,7 +195,7 @@ function EmployeeDetail({ id, onClose, onEdit, onDeleted }: { id: number; onClos
   const [busy, setBusy] = useState(false)
   useEffect(() => { api<Detail>(`/api/hrd/employees/${id}`).then(setD).catch((e) => setError(e.message)) }, [id])
   async function remove() {
-    if (!d || !window.confirm(`Hapus karyawan ${d.item.nama} (NIP ${d.item.nip})? Data karyawan ini juga tidak akan diambil lagi saat sinkron spreadsheet.`)) return
+    if (!d || !(await confirmDialog(`Hapus karyawan ${d.item.nama} (NIP ${d.item.nip})? Data karyawan ini juga tidak akan diambil lagi saat sinkron spreadsheet.`))) return
     setBusy(true)
     try {
       await api(`/api/hrd/employees/${id}`, { method: 'DELETE' })
@@ -284,7 +284,7 @@ export function GradeGajiPage(_props: { user: UserProfile }) {
   useEffect(() => { load() }, [load])
   const saved = (text: string) => { setGradeForm(null); setSalaryForm(null); setMessage(text); load() }
   async function remove(jenis: 'grade' | 'gaji', item: { id: number; nama: string }) {
-    if (!window.confirm(`Hapus ${item.nama} dari tab ${jenis === 'grade' ? 'grade' : 'kebijakan gaji'} di spreadsheet?`)) return
+    if (!(await confirmDialog(`Hapus ${item.nama} dari tab ${jenis === 'grade' ? 'grade' : 'kebijakan gaji'} di spreadsheet?`))) return
     try {
       await api(`/api/hrd/payroll/${item.id}?jenis=${jenis}`, { method: 'DELETE' })
       saved(`${item.nama} dihapus dari spreadsheet.`)

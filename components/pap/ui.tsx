@@ -45,6 +45,74 @@ export function Modal({ title, subtitle, onClose, children, footer, wide }: { ti
   )
 }
 
+// ---------- Dialog konfirmasi (pengganti window.confirm) ----------
+// Pemakaian: if (!(await confirmDialog('Hapus data ini?'))) return
+// Judul, tombol, dan warna ditebak dari kalimatnya (Hapus -> merah); bisa diatur lewat opsi.
+export type ConfirmOptions = { message: ReactNode; title?: string; confirmLabel?: string; cancelLabel?: string; tone?: 'danger' | 'primary' }
+type ConfirmRequest = ConfirmOptions & { resolve: (ok: boolean) => void }
+const confirmState = globalThis as unknown as { papConfirm?: ((req: ConfirmRequest) => void) | null }
+
+function guessConfirm(o: ConfirmOptions): Required<Omit<ConfirmOptions, 'message'>> {
+  const text = typeof o.message === 'string' ? o.message.toLowerCase() : ''
+  const del = /^(hapus|kosongkan|cabut|keluarkan)/.test(text) || text.includes('permanen')
+  const cancel = /^batal/.test(text) || text.includes('batalkan')
+  return {
+    title: o.title ?? (del ? 'Konfirmasi hapus' : cancel ? 'Konfirmasi pembatalan' : 'Konfirmasi'),
+    confirmLabel: o.confirmLabel ?? (del ? 'Ya, hapus' : cancel ? 'Ya, batalkan' : 'Ya, lanjutkan'),
+    cancelLabel: o.cancelLabel ?? (cancel ? 'Tidak' : 'Batal'),
+    tone: o.tone ?? (del || cancel ? 'danger' : 'primary'),
+  }
+}
+
+export function confirmDialog(options: ConfirmOptions | string): Promise<boolean> {
+  const o = typeof options === 'string' ? { message: options } : options
+  const show = confirmState.papConfirm
+  // Tanpa ConfirmHost (mis. halaman cetak) kembali ke dialog bawaan browser
+  if (!show) return Promise.resolve(window.confirm(typeof o.message === 'string' ? o.message : 'Lanjutkan?'))
+  return new Promise((resolve) => show({ ...o, resolve }))
+}
+
+// Dipasang sekali di app shell; menampilkan antrean konfirmasi di atas modal lain
+export function ConfirmHost() {
+  const [queue, setQueue] = useState<ConfirmRequest[]>([])
+  const okRef = useRef<HTMLButtonElement>(null)
+  const cancelRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    confirmState.papConfirm = (req) => setQueue((q) => [...q, req])
+    return () => { confirmState.papConfirm = null }
+  }, [])
+  const current = queue[0]
+  const done = (ok: boolean) => {
+    current?.resolve(ok)
+    setQueue((q) => q.slice(1))
+  }
+  useEffect(() => {
+    if (!current) return
+    // Aksi berbahaya: fokus awal di Batal agar Enter tak sengaja tidak menghapus
+    ;(guessConfirm(current).tone === 'danger' ? cancelRef : okRef).current?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); done(false) }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  })
+  if (!current) return null
+  const c = guessConfirm(current)
+  return (
+    <div className="pap-modal-backdrop pap-confirm-backdrop" onMouseDown={(e) => e.target === e.currentTarget && done(false)}>
+      <div className={`pap-confirm ${c.tone}`} role="alertdialog" aria-modal="true" aria-labelledby="pap-confirm-title" aria-describedby="pap-confirm-msg">
+        <span className="pap-confirm-icon">{c.tone === 'danger' ? <Trash2 /> : <span>?</span>}</span>
+        <h2 id="pap-confirm-title">{c.title}</h2>
+        <div id="pap-confirm-msg" className="pap-confirm-msg">{current.message}</div>
+        <div className="pap-confirm-actions">
+          <button type="button" ref={cancelRef} className="pap-btn" onClick={() => done(false)}>{c.cancelLabel}</button>
+          <button type="button" ref={okRef} className={c.tone === 'danger' ? 'pap-btn pap-btn-danger-solid' : 'pap-primary-button'} onClick={() => done(true)}>{c.confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export type UserOption = { id: number; name: string; division_id: number; division_name: string }
 
 // Pilih banyak user dikelompokkan per divisi (peserta meeting, PIC planning). lockedId (opsional) selalu terpilih.

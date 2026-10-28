@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertOctagon, CheckCircle2, Clock3, PauseCircle, Plus, Search, Siren, Wrench } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AttachmentPanel } from './attachments'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged, useQuickAction } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged, useQuickAction, confirmDialog } from './ui'
 
 type Status = 'baru' | 'dikerjakan' | 'menunggu_part' | 'selesai' | 'batal'
 type Priority = 'darurat' | 'tinggi' | 'normal'
@@ -251,7 +251,7 @@ function RepairDetail({ id, user, onClose, onChanged }: { id: number; user: User
       onClose={onClose}
       footer={
         <>
-          {can.cancel && <button className="pap-btn danger" disabled={busy} onClick={() => window.confirm('Batalkan laporan kerusakan ini?') && save({ batal: true }, 'Laporan dibatalkan.')}>Batalkan laporan</button>}
+          {can.cancel && <button className="pap-btn danger" disabled={busy} onClick={async () => (await confirmDialog('Batalkan laporan kerusakan ini?')) && save({ batal: true }, 'Laporan dibatalkan.')}>Batalkan laporan</button>}
           <span className="pap-spacer" />
           {can.handle && <button className="pap-btn" disabled={busy} onClick={() => save(handling, 'Penanganan disimpan.')}>Simpan</button>}
           {can.handle && next.map(([s, label]) => (

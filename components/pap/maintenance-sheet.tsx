@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { BookOpenCheck, CalendarCheck, ExternalLink, FileSpreadsheet, Pencil, Plus, Printer, RefreshCw, Search, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { MaintenancePage } from './maintenance-page'
-import { api, Field, formatDate, Modal, Notice, useQuickActionWatch } from './ui'
+import { api, Field, formatDate, Modal, Notice, useQuickActionWatch, confirmDialog } from './ui'
 
 // Menu Perawatan Mesin: Jadwal & checkup (dari aplikasi) dan Lembar perawatan (dari Google Drive)
 export function PerawatanMesinPage({ user, focusId }: { user: UserProfile; focusId?: number | null }) {
@@ -56,7 +56,7 @@ function MaintenanceSheetView() {
   const current = data?.machines.find((m) => m.tab === data.tab)
   const canEdit = !!data?.can.edit
   async function removeStep(s: Step) {
-    if (!window.confirm(`Hapus langkah "${s.langkah.slice(0, 60)}" dari spreadsheet Lembar Perawatan?`)) return
+    if (!(await confirmDialog(`Hapus langkah "${s.langkah.slice(0, 60)}" dari spreadsheet Lembar Perawatan?`))) return
     try {
       await api(`/api/maintenance/checklist/${s.id}`, { method: 'DELETE' })
       setMessage('Langkah dihapus dari spreadsheet.')

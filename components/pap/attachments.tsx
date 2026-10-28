@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, Download, FileText, Link2, Paperclip, Trash2, X } from 'lucide-react'
 import { ATTACHMENT_MAX_BYTES } from '@/lib/permissions'
-import { api, formatDate, formatSize, Notice } from './ui'
+import { api, formatDate, formatSize, Notice, confirmDialog } from './ui'
 
 // Lampiran generik Prospek & Request Sample: semua format file (maks 2 MB), foto langsung dari kamera, atau link
 // draft: link yang sudah diketik tetapi belum ditekan "Tambah link" (tetap ikut terkirim)
@@ -196,7 +196,7 @@ export function AttachmentPanel({ title = 'Lampiran', basePath, fileBase, canAdd
               <span>{a.kind === 'link' ? a.url : formatSize(a.size)} · {a.uploaded_by_name} · {formatDate(a.created_at, true)}</span>
             </div>
             {a.kind === 'file' && <a className="pap-icon-button" href={`${fileBase}/${a.id}?download=1`} aria-label={`Unduh ${a.name}`}><Download /></a>}
-            {(a.uploaded_by === currentUserId || isAdmin) && <button type="button" className="pap-icon-button" aria-label={`Hapus ${a.name}`} onClick={() => window.confirm(`Hapus lampiran ${a.name}?`) && run(() => api(`${fileBase}/${a.id}`, { method: 'DELETE' }))}><Trash2 /></button>}
+            {(a.uploaded_by === currentUserId || isAdmin) && <button type="button" className="pap-icon-button" aria-label={`Hapus ${a.name}`} onClick={async () => (await confirmDialog(`Hapus lampiran ${a.name}?`)) && run(() => api(`${fileBase}/${a.id}`, { method: 'DELETE' }))}><Trash2 /></button>}
           </li>
         ))}
       </ul>
@@ -223,7 +223,7 @@ export function NoteFiles({ items, currentUserId, isAdmin, onChanged }: { items?
   const [error, setError] = useState('')
   if (!items?.length) return null
   async function remove(a: NoteAttachment) {
-    if (!window.confirm(`Hapus lampiran ${a.name}?`)) return
+    if (!(await confirmDialog(`Hapus lampiran ${a.name}?`))) return
     try {
       await api(`/api/notes/attachments/${a.id}`, { method: 'DELETE' })
       onChanged?.()

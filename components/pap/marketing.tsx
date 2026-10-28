@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, CheckCircle2, Crosshair, Download, ExternalLink, FileText, Link2, MapPin, MessageCircle, Paperclip, Pencil, Plus, Trash2, X, XCircle } from 'lucide-react'
 import { CustomerSelect, type CustomerOption } from './product-page'
 import { prepareFiles } from './attachments'
-import { api, askReason, Field, formatDate, formatSize, Modal, Notice } from './ui'
+import { api, askReason, Field, formatDate, formatSize, Modal, Notice, confirmDialog } from './ui'
 
 // ---- Konstanta bersama halaman Prospek & Jadwal Visit ----
 export type ProspectStatus = 'baru' | 'dihubungi' | 'janji_temu' | 'visit' | 'penawaran' | 'order_pertama' | 'handover' | 'gagal'
@@ -357,7 +357,7 @@ function VisitAttachments({ visitId, canAdd, currentUserId, isAdmin }: { visitId
               <span>{a.kind === 'link' ? a.url : formatSize(a.size)} · {a.uploaded_by_name} · {formatDate(a.created_at, true)}</span>
             </div>
             {a.kind === 'file' && <a className="pap-icon-button" href={`/api/visits/attachments/${a.id}?download=1`} aria-label={`Unduh ${a.name}`}><Download /></a>}
-            {(a.uploaded_by === currentUserId || isAdmin) && <button className="pap-icon-button" aria-label={`Hapus ${a.name}`} onClick={() => window.confirm(`Hapus lampiran ${a.name}?`) && run(() => api(`/api/visits/attachments/${a.id}`, { method: 'DELETE' }))}><Trash2 /></button>}
+            {(a.uploaded_by === currentUserId || isAdmin) && <button className="pap-icon-button" aria-label={`Hapus ${a.name}`} onClick={async () => (await confirmDialog(`Hapus lampiran ${a.name}?`)) && run(() => api(`/api/visits/attachments/${a.id}`, { method: 'DELETE' }))}><Trash2 /></button>}
           </li>
         ))}
       </ul>
@@ -511,7 +511,7 @@ export function VisitDetail({ visit, currentUserId, canSupervise, isAdmin, onClo
     }
   }
   async function remove() {
-    if (!window.confirm('Hapus jadwal visit ini?')) return
+    if (!(await confirmDialog('Hapus jadwal visit ini?'))) return
     setBusy(true)
     try {
       await api(`/api/visits/${visit.id}`, { method: 'DELETE' })

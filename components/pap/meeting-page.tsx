@@ -5,7 +5,7 @@ import { CalendarClock, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, C
 import { MEETING_STATUS, PERMISSIONS, type MeetingStatus, type PlanningStatus } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
 import { AttachmentPicker, FileItems, PendingItems, PlanningForm, type PendingAttachment, type PlanningFile } from './planning-page'
-import { api, Field, formatDate, Modal, Notice, Pager, Progress, StatusBadge, usePaged, type UserOption, UserPicker, RowActions, useQuickAction } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, Progress, StatusBadge, usePaged, type UserOption, UserPicker, RowActions, useQuickAction, confirmDialog } from './ui'
 
 type Abilities = { edit: boolean; delete: boolean; result: boolean }
 type Meeting = {
@@ -524,7 +524,7 @@ function MeetingDetail({ user, id, onOpenPlanning, onClose, onChanged, onEdit, o
   }
 
   async function remove() {
-    if (!item || !window.confirm(`Hapus meeting ${item.nomor}?`)) return
+    if (!item || !(await confirmDialog(`Hapus meeting ${item.nomor}?`))) return
     setBusy(true)
     try {
       await api(`/api/meetings/${item.id}`, { method: 'DELETE' })

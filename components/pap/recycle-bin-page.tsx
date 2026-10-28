@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ArchiveRestore, RotateCcw, Search, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { useDebounced } from './accurate-production'
-import { api, formatDate, formatSize, Notice, Pager } from './ui'
+import { api, formatDate, formatSize, Notice, Pager, confirmDialog } from './ui'
 
 type Item = {
   id: number; modul: string; label: string; row_count: number; size_bytes: number
@@ -43,7 +43,7 @@ export function RecycleBinPage({ user }: { user: UserProfile }) {
   useEffect(() => { load() }, [load])
 
   async function restore(item: Item) {
-    if (!window.confirm(`Pulihkan ${item.modul}: ${item.label}?`)) return
+    if (!(await confirmDialog(`Pulihkan ${item.modul}: ${item.label}?`))) return
     setBusy(item.id)
     setError('')
     try {
@@ -57,7 +57,7 @@ export function RecycleBinPage({ user }: { user: UserProfile }) {
     }
   }
   async function purge(item: Item) {
-    if (!window.confirm(`Hapus PERMANEN ${item.modul}: ${item.label}? Data ini tidak bisa dipulihkan lagi.`)) return
+    if (!(await confirmDialog(`Hapus PERMANEN ${item.modul}: ${item.label}? Data ini tidak bisa dipulihkan lagi.`))) return
     setBusy(item.id)
     setError('')
     try {

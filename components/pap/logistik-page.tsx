@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Clock, PackageCheck, Pencil, Plus, Printer, RefreshCw, Search, Settings, Trash2, Truck } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
-import { api, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged, confirmDialog } from './ui'
 
 // Inventory & Logistik: pengiriman order (surat jalan) & ekspedisi termurah per tujuan
 
@@ -323,7 +323,7 @@ function ShipmentDetail({ id, onClose, onEdit, onChanged }: { id: number; onClos
     }
   }
   async function remove() {
-    if (!data || !window.confirm(`Hapus pengiriman ${data.item.nomor}?`)) return
+    if (!data || !(await confirmDialog(`Hapus pengiriman ${data.item.nomor}?`))) return
     try {
       await api(`/api/logistik/shipments/${id}`, { method: 'DELETE' })
       onChanged(`Pengiriman ${data.item.nomor} dihapus.`)
@@ -390,7 +390,7 @@ function ShipmentDetail({ id, onClose, onEdit, onChanged }: { id: number; onClos
               {x.status === 'dikirim' && <button className="pap-primary-button" onClick={() => setStep({ status: 'diterima', tanggal: today(), no_resi: '', penerima: '', estimasi_hari: '' })}><CheckCircle2 /> Tandai diterima</button>}
               {x.status === 'siap_kirim' && <button className="pap-btn" disabled={busy} onClick={() => change('packing')}><Clock /> Kembali ke packing</button>}
               {x.status === 'diterima' && <button className="pap-btn" disabled={busy} onClick={() => change('dikirim')}>Batalkan status diterima</button>}
-              {['packing', 'siap_kirim'].includes(x.status) && <button className="pap-btn danger" disabled={busy} onClick={() => window.confirm('Batalkan pengiriman ini?') && change('batal')}>Batalkan pengiriman</button>}
+              {['packing', 'siap_kirim'].includes(x.status) && <button className="pap-btn danger" disabled={busy} onClick={async () => (await confirmDialog('Batalkan pengiriman ini?')) && change('batal')}>Batalkan pengiriman</button>}
             </div>
           )}
         </section>
@@ -433,7 +433,7 @@ export function ExpeditionPage(_props: { user: UserProfile }) {
     }
   }
   async function remove(r: RouteRow) {
-    if (!window.confirm(`Hapus ${r.nama} → ${r.tujuan}?`)) return
+    if (!(await confirmDialog(`Hapus ${r.nama} → ${r.tujuan}?`))) return
     try {
       const res = await api<{ nonaktif?: boolean }>(`/api/logistik/expeditions/${r.id}`, { method: 'DELETE' })
       setMessage(res.nonaktif ? 'Rute sudah dipakai, jadi dinonaktifkan.' : 'Rute dihapus.')

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Pencil, Plus, Search, Send, Trash2 } from 'lucide-react'
 import { AccurateSyncBar, formatNumber, formatRupiah } from './accurate'
 import { useDebounced } from './accurate-production'
-import { api, Field, Modal, Notice, Pager, usePaged } from './ui'
+import { api, Field, Modal, Notice, Pager, usePaged, confirmDialog } from './ui'
 
 // Data Bahan: tambah / ubah / hapus barang bahan langsung di data Barang & Jasa Accurate.
 type Material = {
@@ -51,7 +51,7 @@ export function MaterialList() {
     load()
   }
   async function remove(m: Material) {
-    if (!window.confirm(`Hapus bahan ${m.name} dari Accurate?\nBila bahan sudah dipakai di transaksi, bahan dinonaktifkan sebagai gantinya.`)) return
+    if (!(await confirmDialog(`Hapus bahan ${m.name} dari Accurate?\nBila bahan sudah dipakai di transaksi, bahan dinonaktifkan sebagai gantinya.`))) return
     try {
       const res = await api<{ deleted: boolean; name: string }>(`/api/purchasing/materials/${m.id}`, { method: 'DELETE' })
       flash(res.deleted ? `${res.name} dihapus dari Accurate.` : `${res.name} sudah dipakai transaksi, jadi dinonaktifkan di Accurate.`)

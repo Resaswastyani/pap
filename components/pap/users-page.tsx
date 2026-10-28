@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { History, KeyRound, List, Pencil, Plus, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
-import { api, Field, formatDate, Modal, Notice, Pager, PasswordInput, usePaged } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, PasswordInput, usePaged, confirmDialog } from './ui'
 import { UserActivityLog } from './user-activity'
 
 type Division = { id: number; code: string; name: string; has_levels: boolean }
@@ -67,7 +67,7 @@ export function UsersPage({ user }: { user: UserProfile }) {
   }, [items, q, division])
 
   async function remove(target: ManagedUser) {
-    if (!window.confirm(`Hapus user "${target.name}"? Tindakan ini tidak bisa dibatalkan.`)) return
+    if (!(await confirmDialog(`Hapus user "${target.name}"? Tindakan ini tidak bisa dibatalkan.`))) return
     try {
       await api(`/api/users/${target.id}`, { method: 'DELETE' })
       flash('User dihapus.')

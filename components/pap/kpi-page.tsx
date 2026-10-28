@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, Copy, Target, TrendingDown, TrendingUp } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
-import { api, Field, Modal, Notice, Pager, usePaged } from './ui'
+import { api, Field, Modal, Notice, Pager, usePaged, confirmDialog } from './ui'
 
 type MetricInfo = { label: string; hint: string; satuan: string }
 type KpiRow = {
@@ -44,7 +44,7 @@ export function KpiPage({ user }: { user: UserProfile }) {
   const tgt = totals('target')
 
   async function copyTargets() {
-    if (!window.confirm(`Salin semua target ${periodeLabel(shift(current, -1))} ke ${periodeLabel(current)}?`)) return
+    if (!(await confirmDialog(`Salin semua target ${periodeLabel(shift(current, -1))} ke ${periodeLabel(current)}?`))) return
     try {
       await api('/api/kpi', { method: 'PUT', json: { periode: current, copy: true } })
       setMessage('Target bulan lalu disalin.')

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Pencil, Plus, Search, Trash2, Truck } from 'lucide-react'
 import { formatRupiah } from './accurate'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged, confirmDialog } from './ui'
 
 type Expedition = {
   id: number; nama: string; kontak: string | null; telepon: string | null; tujuan: string; tarif_per_kg: number | null; minimal_kg: number | null
@@ -103,7 +103,7 @@ function ExpeditionForm({ initial, onClose, onSaved }: { initial: Expedition | n
     }
   }
   async function remove() {
-    if (!initial || !window.confirm(`Hapus ${initial.nama} (${initial.tujuan})?`)) return
+    if (!initial || !(await confirmDialog(`Hapus ${initial.nama} (${initial.tujuan})?`))) return
     try {
       await api(`/api/expeditions/${initial.id}`, { method: 'DELETE' })
       onSaved('Ekspedisi dihapus.')

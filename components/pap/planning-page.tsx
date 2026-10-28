@@ -5,7 +5,7 @@ import { CalendarDays, CheckCircle2, ClipboardList, Clock3, ExternalLink, FileTe
 import { FILE_MAX_BYTES, PERMISSIONS, PLANNING_STATUS, type PlanningStatus } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
 import { prepareFiles } from './attachments'
-import { api, Field, formatDate, formatSize, Modal, Notice, Pager, Progress, StatusBadge, usePaged, type UserOption, UserPicker, RowActions, useQuickAction } from './ui'
+import { api, Field, formatDate, formatSize, Modal, Notice, Pager, Progress, StatusBadge, usePaged, type UserOption, UserPicker, RowActions, useQuickAction, confirmDialog } from './ui'
 
 type Division = { id: number; code: string; name: string }
 type Abilities = { edit: boolean; delete: boolean; progress: boolean; attach: boolean }
@@ -373,7 +373,7 @@ export function FileItems({ files, canDelete, busy, onDelete, basePath = '/api/p
             <a href={file.type === 'link' ? file.url! : `${basePath}/${file.id}`} target="_blank" rel="noopener noreferrer">{file.name} <ExternalLink className="pap-inline-icon" /></a>
             <span>{file.type === 'link' ? file.url : formatSize(file.size)} · {file.uploaded_by_name}</span>
           </div>
-          {(typeof canDelete === 'function' ? canDelete(file) : canDelete) && <button className="pap-icon-button" aria-label={`Hapus ${file.name}`} disabled={busy} onClick={() => window.confirm(`Hapus lampiran "${file.name}"?`) && onDelete(file)}><Trash2 /></button>}
+          {(typeof canDelete === 'function' ? canDelete(file) : canDelete) && <button className="pap-icon-button" aria-label={`Hapus ${file.name}`} disabled={busy} onClick={async () => (await confirmDialog(`Hapus lampiran "${file.name}"?`)) && onDelete(file)}><Trash2 /></button>}
         </li>
       ))}
     </ul>
@@ -408,7 +408,7 @@ function NoteCard({ note, planningId, busy, run, onError }: { note: ProgressNote
         {note.can.edit && !editing && (
           <span className="pap-note-actions">
             <button className="pap-icon-button" aria-label="Edit catatan" disabled={busy} onClick={() => { setText(note.catatan ?? ''); setEditing(true) }}><Pencil /></button>
-            <button className="pap-icon-button danger" aria-label="Hapus catatan" disabled={busy} onClick={() => window.confirm('Hapus catatan progress ini beserta lampirannya?') && run(() => api(`/api/planning/notes/${note.id}`, { method: 'DELETE' }))}><Trash2 /></button>
+            <button className="pap-icon-button danger" aria-label="Hapus catatan" disabled={busy} onClick={async () => (await confirmDialog('Hapus catatan progress ini beserta lampirannya?')) && run(() => api(`/api/planning/notes/${note.id}`, { method: 'DELETE' }))}><Trash2 /></button>
           </span>
         )}
       </div>
@@ -506,7 +506,7 @@ function PlanningDetail({ id, onOpenMeeting, onClose, onChanged, onEdit, onDelet
       onClose={onClose}
       footer={!(item.can.delete || item.can.edit) ? undefined : (
         <>
-          {item.can.delete && <button className="pap-btn danger" disabled={busy} onClick={() => window.confirm(`Hapus planning "${item.judul}"?`) && run(async () => { await api(`/api/planning/${item.id}`, { method: 'DELETE' }); onDeleted() })}><Trash2 /> Hapus</button>}
+          {item.can.delete && <button className="pap-btn danger" disabled={busy} onClick={async () => (await confirmDialog(`Hapus planning "${item.judul}"?`)) && run(async () => { await api(`/api/planning/${item.id}`, { method: 'DELETE' }); onDeleted() })}><Trash2 /> Hapus</button>}
           <span className="pap-spacer" />
           {item.can.edit && <button className="pap-btn" onClick={() => onEdit(item)}><Pencil /> Edit</button>}
         </>

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Moon, Pencil, Plus, Printer, Sun, Sunrise, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatNumber } from './accurate'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged, confirmDialog } from './ui'
 
 export type QcStatus = 'menunggu' | 'lolos' | 'perbaikan' | 'reject'
 export type Result = {
@@ -165,7 +165,7 @@ export function ResultsTable({ items, can, showDate, showJob = true, currentUser
   if (!items.length) return null
   const editable = (r: Result) => can.manage || (can.report && r.status_qc === 'menunggu' && (currentUserId === undefined || r.reported_by === currentUserId))
   async function remove(r: Result) {
-    if (!window.confirm('Hapus laporan hasil produksi ini?')) return
+    if (!(await confirmDialog('Hapus laporan hasil produksi ini?'))) return
     try {
       await api(`/api/production/results/${r.id}`, { method: 'DELETE' })
       onDeleted()

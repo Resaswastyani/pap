@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Cog, ExternalLink, FileSpreadsheet, FileText, ListChecks, Pencil, Plus, RefreshCw, Trash2, Wrench } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
-import { api, Field, Modal, Notice, Pager, usePaged, RowActions } from './ui'
+import { api, Field, Modal, Notice, Pager, usePaged, RowActions, confirmDialog } from './ui'
 
 type Machine = { id: number; kode: string; nama: string; tahap: string; kapasitas: string | null; status: 'aktif' | 'maintenance' | 'nonaktif'; keterangan: string | null; lini: string | null; antrian: number; sedang_dikerjakan: string | null; critical_point: number; perbaikan_terbuka: number }
 
@@ -123,7 +123,7 @@ function MachineDetail({ id, onClose, onEdit }: { id: number; onClose: () => voi
   const reload = useCallback(() => api<NonNullable<typeof data>>(`/api/machines/${id}`).then(setData).catch((e) => setError(e.message)), [id])
   useEffect(() => { reload() }, [reload])
   async function removeCp(c: Checkpoint) {
-    if (!window.confirm(`Hapus "${c.teks.slice(0, 60)}" dari spreadsheet Mapping Teknis Mesin?`)) return
+    if (!(await confirmDialog(`Hapus "${c.teks.slice(0, 60)}" dari spreadsheet Mapping Teknis Mesin?`))) return
     try {
       await api(`/api/machines/checkpoints/${c.id}`, { method: 'DELETE' })
       setMessage('Critical point dihapus dari spreadsheet.')
@@ -320,7 +320,7 @@ function MachineForm({ initial, tahapList, onClose, onSaved }: { initial: Machin
     }
   }
   async function remove() {
-    if (!initial || !window.confirm(`Hapus mesin ${initial.nama}? Tahap yang memakai mesin ini perlu dijadwalkan ulang.`)) return
+    if (!initial || !(await confirmDialog(`Hapus mesin ${initial.nama}? Tahap yang memakai mesin ini perlu dijadwalkan ulang.`))) return
     setSaving(true)
     try {
       await api(`/api/machines/${initial.id}`, { method: 'DELETE' })

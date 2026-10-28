@@ -6,7 +6,7 @@ import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { MonthNav, monthLabel, useDebounced } from './accurate-production'
 import { ItemPicker } from './purchasing-forms'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, usePaged, confirmDialog } from './ui'
 
 // Faktur Produksi: faktur penjualan Accurate untuk pesanan (SO) yang produksinya selesai.
 type ReadyLine = { item_no: string; item_name: string; quantity: number; unit: string | null; diproduksi: boolean; diproduksi_qty: number }
@@ -124,7 +124,7 @@ function InvoiceList({ onEdit, onCreate, onDeleted }: { onEdit: (id: number) => 
   useEffect(() => { load() }, [load])
   const paged = usePaged(data?.items ?? [], [periode, status, query])
   async function remove(f: Invoice) {
-    if (!window.confirm(`Hapus faktur ${f.number} (${f.customer_name ?? '-'}) dari Accurate? Jurnal & stok terkait ikut dibatalkan di Accurate.`)) return
+    if (!(await confirmDialog(`Hapus faktur ${f.number} (${f.customer_name ?? '-'}) dari Accurate? Jurnal & stok terkait ikut dibatalkan di Accurate.`))) return
     try {
       await api(`/api/faktur/${f.id}`, { method: 'DELETE' })
       onDeleted(`Faktur ${f.number} dihapus dari Accurate.`)

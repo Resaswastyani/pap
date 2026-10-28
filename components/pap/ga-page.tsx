@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CheckCircle2, ExternalLink, FileSpreadsheet, FileText, Plus, Printer, RefreshCw, Search, ShoppingBag, Smartphone, Trash2, Wallet, Wifi, X } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
-import { api, askReason, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged } from './ui'
+import { api, askReason, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged, confirmDialog } from './ui'
 
 // General Affair: Data GA (nomor HP, langganan, WiFi; dua arah dengan spreadsheet GA) & Pengajuan Pembelian GA
 
@@ -106,7 +106,7 @@ export function GaDataPage(_props: { user: UserProfile }) {
     }
   }
   async function remove(jenis: Jenis, id: number, label: string) {
-    if (!window.confirm(`Hapus ${label} dari spreadsheet GA?`)) return
+    if (!(await confirmDialog(`Hapus ${label} dari spreadsheet GA?`))) return
     try {
       await api(`/api/ga/data/${id}?jenis=${jenis}`, { method: 'DELETE' })
       setMessage(`${label} dihapus dari spreadsheet.`)
@@ -544,7 +544,7 @@ function GaPrDetail({ id, userId, onClose, onEdit, onChanged }: { id: number; us
     }
   }
   async function remove() {
-    if (!window.confirm('Hapus pengajuan ini?')) return
+    if (!(await confirmDialog('Hapus pengajuan ini?'))) return
     try {
       await api(`/api/ga/requests/${id}`, { method: 'DELETE' })
       onChanged('Pengajuan dihapus.')

@@ -9,7 +9,7 @@ import { BarList, ColumnChart } from './charts'
 import { PoFormModal, PriceEditor, VendorFormModal } from './purchasing-forms'
 import { VendorPriceList } from './vendor-price-list'
 import { MaterialList } from './material-list'
-import { api, Field, formatDate, Modal, Notice, Pager, Progress, usePaged, RowActions } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, Progress, usePaged, RowActions, confirmDialog } from './ui'
 
 // Purchasing: supplier, PO pembelian, harga bahan, hutang supplier. Data dari Accurate Online; supplier, PO, dan harga beli acuan
 // bisa ditambah / diubah / dihapus dari PAP-MS sesuai permission modul Purchasing (lihat lib/purchasing-write.ts).
@@ -98,7 +98,7 @@ export function SupplierPage(_props: { user: UserProfile }) {
     && (!term || [v.name, v.vendor_no, v.category, v.kontak, v.email].some((x) => x?.toLowerCase().includes(term))))
   const paged = usePaged(shown, [q, jenis, nonaktif, filter])
   async function removeVendor(v: Vendor) {
-    if (!window.confirm(`Hapus pemasok ${v.name} dari Accurate? Tindakan ini tidak bisa dibatalkan.`)) return
+    if (!(await confirmDialog(`Hapus pemasok ${v.name} dari Accurate? Tindakan ini tidak bisa dibatalkan.`))) return
     try {
       await api(`/api/purchasing/vendors/${v.id}`, { method: 'DELETE' })
       flash(`Pemasok ${v.name} dihapus dari Accurate.`)
@@ -193,7 +193,7 @@ function SupplierDetail({ id, canManage, onClose, onSaved, onEdit, onDeleted }: 
     }
   }
   async function remove() {
-    if (!data || !window.confirm(`Hapus pemasok ${data.item.name} dari Accurate? Tindakan ini tidak bisa dibatalkan.`)) return
+    if (!data || !(await confirmDialog(`Hapus pemasok ${data.item.name} dari Accurate? Tindakan ini tidak bisa dibatalkan.`))) return
     setBusy(true)
     try {
       await api(`/api/purchasing/vendors/${id}`, { method: 'DELETE' })
@@ -330,7 +330,7 @@ export function PurchaseOrderPage(_props: { user: UserProfile }) {
   const [message, setMessage] = useState('')
   const flash = (text: string) => { setMessage(text); setTimeout(() => setMessage(''), 6000); load() }
   async function removePo(o: Po) {
-    if (!window.confirm(`Hapus PO ${o.number} (${o.vendor_name ?? '-'}) dari Accurate? Tindakan ini tidak bisa dibatalkan.`)) return
+    if (!(await confirmDialog(`Hapus PO ${o.number} (${o.vendor_name ?? '-'}) dari Accurate? Tindakan ini tidak bisa dibatalkan.`))) return
     try {
       await api(`/api/purchasing/orders/${o.id}`, { method: 'DELETE' })
       flash(`PO ${o.number} dihapus dari Accurate.`)

@@ -7,7 +7,7 @@ import { CustomerPage } from './customer-page'
 import { ExpeditionList } from './expedition-list'
 import { MachinePage } from './machine-page'
 import { CustomerSelect, ProductPage, type CustomerOption } from './product-page'
-import { api, Field, formatDate, formatSize, Modal, Notice, Pager } from './ui'
+import { api, Field, formatDate, formatSize, Modal, Notice, Pager, confirmDialog } from './ui'
 
 type Tab = 'desain' | 'packaging' | 'produk' | 'customer' | 'mesin' | 'ekspedisi'
 const TABS: { key: Tab; label: string; icon: typeof Database; menu?: string }[] = [
@@ -96,7 +96,7 @@ function DesignLibrary() {
   }, [])
 
   async function disconnect() {
-    if (!window.confirm('Putuskan akun Google? Desain yang sudah tersinkron tetap ada, tetapi tidak diperbarui sampai akun dihubungkan lagi.')) return
+    if (!(await confirmDialog('Putuskan akun Google? Desain yang sudah tersinkron tetap ada, tetapi tidak diperbarui sampai akun dihubungkan lagi.'))) return
     try {
       await api('/api/master/drive/oauth', { method: 'DELETE' })
       setMessage('Akun Google diputuskan.')
@@ -354,7 +354,7 @@ function PackagingForm({ initial, onClose, onSaved }: { initial: Packaging | nul
     }
   }
   async function remove() {
-    if (!initial || !window.confirm(`Hapus ${initial.nama}?`)) return
+    if (!initial || !(await confirmDialog(`Hapus ${initial.nama}?`))) return
     try {
       await api(`/api/master/packaging/${initial.id}`, { method: 'DELETE' })
       onSaved('Produk packaging dihapus.')

@@ -1927,3 +1927,19 @@ a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity
 .ga-items { display:grid; gap:8px; }
 .ga-item-row { display:grid; grid-template-columns:minmax(0, 2.4fr) 80px 90px minmax(0, 1.2fr) 38px; gap:8px; align-items:center; }
 @media (max-width:700px) { .ga-item-row { grid-template-columns:1fr 1fr; } .ga-item-row > :first-child { grid-column:1 / -1; } }
+
+/* ---------- Dialog konfirmasi (pengganti confirm browser) ---------- */
+.pap-confirm-backdrop { z-index:80; animation:pap-confirm-fade .15s ease; }
+.pap-confirm { width:min(420px, calc(100vw - 32px)); padding:24px 24px 20px; border:1px solid var(--pap-border); border-radius:16px; background:var(--pap-surface); color:var(--pap-text); box-shadow:0 24px 60px rgb(0 0 0 / .28); text-align:center; animation:pap-confirm-pop .18s cubic-bezier(.2,.8,.2,1); }
+.pap-confirm-icon { display:inline-grid; place-items:center; width:48px; height:48px; margin-bottom:12px; border-radius:50%; background:rgb(124 92 252 / .12); color:#7050e7; font-size:22px; font-weight:800; }
+.pap-confirm.danger .pap-confirm-icon { background:rgb(239 90 60 / .12); color:#d93036; }
+.pap-confirm-icon svg { width:22px; height:22px; }
+.pap-confirm h2 { margin:0 0 8px; font-size:16px; }
+.pap-confirm-msg { color:var(--pap-muted); font-size:13px; line-height:1.55; white-space:pre-line; overflow-wrap:anywhere; }
+.pap-confirm-actions { display:flex; gap:10px; margin-top:20px; }
+.pap-confirm-actions > * { flex:1; justify-content:center; min-height:40px; }
+.pap-btn.pap-btn-danger-solid { border-color:#d93036; background:#d93036; color:#fff; font-weight:700; }
+.pap-btn.pap-btn-danger-solid:hover { background:#c0262c; }
+@keyframes pap-confirm-fade { from { opacity:0; } }
+@keyframes pap-confirm-pop { from { opacity:0; transform:translateY(8px) scale(.97); } }
+@media (prefers-reduced-motion:reduce) { .pap-confirm, .pap-confirm-backdrop { animation:none; } }

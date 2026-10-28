@@ -6,7 +6,7 @@ import type { UserProfile } from '@/lib/users'
 import { ProspectSelect, type ProspectOption } from './marketing'
 import { CustomerSelect, type CustomerOption } from './product-page'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, uploadPendingAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
-import { api, askReason, Field, formatDate, formatSize, Modal, Notice, Pager, usePaged, useQuickAction } from './ui'
+import { api, askReason, Field, formatDate, formatSize, Modal, Notice, Pager, usePaged, useQuickAction, confirmDialog } from './ui'
 
 // ---------------- Konstanta ----------------
 type SampleStatus = 'diajukan' | 'dijadwalkan' | 'diproduksi' | 'selesai' | 'dikirim' | 'disetujui' | 'revisi' | 'batal'
@@ -768,7 +768,7 @@ function DesignDetail({ id, user, onClose, onChanged }: { id: number; user: User
     }
   }
   async function removeFile(f: DesignFile) {
-    if (!window.confirm(`Hapus file ${f.name}?`)) return
+    if (!(await confirmDialog(`Hapus file ${f.name}?`))) return
     try {
       await api(`/api/designs/files/${f.id}`, { method: 'DELETE' })
       await load()

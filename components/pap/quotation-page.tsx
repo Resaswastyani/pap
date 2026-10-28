@@ -8,7 +8,7 @@ import { DocForm, useHppData } from './hpp-page'
 import { ProspectSelect, waLink, type ProspectOption } from './marketing'
 import { PaymentForm } from './payment-page'
 import { CustomerSelect, type CustomerOption } from './product-page'
-import { api, askReason, Field, formatDate, Modal, Notice, Pager, usePaged, RowActions } from './ui'
+import { api, askReason, Field, formatDate, Modal, Notice, Pager, usePaged, RowActions, confirmDialog } from './ui'
 
 type Status = 'draft' | 'dikirim' | 'diterima' | 'ditolak' | 'batal'
 const STATUS_LABEL: Record<Status, string> = { draft: 'Draft', dikirim: 'Dikirim', diterima: 'Diterima', ditolak: 'Ditolak', batal: 'Batal' }
@@ -416,7 +416,7 @@ function QuotationDetail({ id, autoEdit = false, onClose, onChanged, onEdit, onC
     }
   }
   async function remove() {
-    if (!window.confirm('Hapus draft penawaran ini?')) return
+    if (!(await confirmDialog('Hapus draft penawaran ini?'))) return
     try {
       await api(`/api/quotations/${id}`, { method: 'DELETE' })
       onDeleted()

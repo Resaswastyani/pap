@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Factory, Gauge, Pencil, Plus, Printer, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { api, Field, formatDate, Modal, Notice, confirmDialog } from './ui'
 
 type Capacity = {
   id: number; jenis_plastik: string; lebar_maks_cm: number | null; kapasitas_maks_ton: number; efisiensi_pct: number; kapasitas_eff_ton: number
@@ -40,7 +40,7 @@ export function CapacityPage(_props: { user: UserProfile }) {
     load()
   }
   async function remove(c: Capacity) {
-    if (!window.confirm(`Hapus kapasitas ${c.mesin} (${c.jenis_plastik})?`)) return
+    if (!(await confirmDialog(`Hapus kapasitas ${c.mesin} (${c.jenis_plastik})?`))) return
     try {
       await api(`/api/capacity/${c.id}`, { method: 'DELETE' })
       done('Data kapasitas dihapus.')

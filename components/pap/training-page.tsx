@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { BookOpen, CheckCircle2, ExternalLink, EyeOff, FileText, FolderOpen, GraduationCap, Link2, Pencil, PlayCircle, Plus, RefreshCw, Search, Trash2, Users } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { api, Field, formatDate, Modal, Notice, confirmDialog } from './ui'
 
 // Training Karyawan: modul dari folder Google Drive (subfolder = modul) + link video, peserta & nilai dicatat HRD
 
@@ -155,7 +155,7 @@ function ModuleDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose:
   return (
     <Modal title={m.judul} subtitle={[m.kategori, m.sasaran ? `Sasaran: ${m.sasaran}` : 'Semua karyawan', m.durasi_menit && `${m.durasi_menit} menit`, m.dari_drive ? 'dari Google Drive' : 'modul manual'].filter(Boolean).join(' · ')} wide onClose={onClose}
       footer={<>
-        {d.can.manage && !m.dari_drive && <button className="pap-btn danger" onClick={() => window.confirm(`Hapus modul ${m.judul}? Catatan pesertanya ikut terhapus.`) && run(async () => { await api(`/api/hrd/training/${id}`, { method: 'DELETE' }); onClose() })}><Trash2 /> Hapus</button>}
+        {d.can.manage && !m.dari_drive && <button className="pap-btn danger" onClick={async () => (await confirmDialog(`Hapus modul ${m.judul}? Catatan pesertanya ikut terhapus.`)) && run(async () => { await api(`/api/hrd/training/${id}`, { method: 'DELETE' }); onClose() })}><Trash2 /> Hapus</button>}
         {d.can.manage && <button className="pap-btn" onClick={() => run(() => api(`/api/hrd/training/${id}`, { method: 'PATCH', json: { aktif: !m.aktif } }))}><EyeOff /> {m.aktif ? 'Sembunyikan' : 'Tampilkan'}</button>}
         <span className="pap-spacer" />
         <button className="pap-btn" onClick={onClose}>Tutup</button>
@@ -184,14 +184,14 @@ function ModuleDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose:
               <PlayCircle />
               <div><button type="button" className="pap-link-plain" onClick={() => setPlaying(x)}>{x.judul}</button><span>{[x.folder, x.sumber === 'drive' ? 'Video Google Drive' : 'Link video'].filter(Boolean).join(' · ')}</span></div>
               {x.link && <a className="pap-icon-button" href={x.link} target="_blank" rel="noreferrer" aria-label="Buka di tab baru"><ExternalLink /></a>}
-              {d.can.manage && x.sumber === 'manual' && <button className="pap-icon-button" aria-label="Hapus link" onClick={() => window.confirm('Hapus link materi ini?') && run(() => api(`/api/hrd/training/materials/${x.id}`, { method: 'DELETE' }))}><Trash2 /></button>}
+              {d.can.manage && x.sumber === 'manual' && <button className="pap-icon-button" aria-label="Hapus link" onClick={async () => (await confirmDialog('Hapus link materi ini?')) && run(() => api(`/api/hrd/training/materials/${x.id}`, { method: 'DELETE' }))}><Trash2 /></button>}
             </li>
           ))}
           {others.map((x) => (
             <li key={x.id}>
               {x.jenis === 'link' ? <Link2 /> : <FileText />}
               <div>{x.link ? <a href={x.link} target="_blank" rel="noreferrer">{x.judul} <ExternalLink className="pap-inline-icon" /></a> : <span>{x.judul}</span>}<span>{[x.folder, x.jenis === 'link' ? 'Link' : 'Dokumen Google Drive'].filter(Boolean).join(' · ')}</span></div>
-              {d.can.manage && x.sumber === 'manual' && <button className="pap-icon-button" aria-label="Hapus link" onClick={() => window.confirm('Hapus link materi ini?') && run(() => api(`/api/hrd/training/materials/${x.id}`, { method: 'DELETE' }))}><Trash2 /></button>}
+              {d.can.manage && x.sumber === 'manual' && <button className="pap-icon-button" aria-label="Hapus link" onClick={async () => (await confirmDialog('Hapus link materi ini?')) && run(() => api(`/api/hrd/training/materials/${x.id}`, { method: 'DELETE' }))}><Trash2 /></button>}
             </li>
           ))}
         </ul>
@@ -234,7 +234,7 @@ function Participants({ id, detail, onChanged }: { id: number; detail: Detail; o
     }
   }
   async function remove(employeeId: number) {
-    if (!window.confirm('Hapus karyawan ini dari peserta?')) return
+    if (!(await confirmDialog('Hapus karyawan ini dari peserta?'))) return
     await api(`/api/hrd/training/${id}/participants?employee_id=${employeeId}`, { method: 'DELETE' }).catch((e) => setError(e.message))
     onChanged()
   }
