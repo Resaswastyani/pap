@@ -1963,3 +1963,30 @@ a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity
   .ga-pay button { height:28px; font-size:11px; }
 }
 @media (max-width:360px) { .ga-pay { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
+
+/* ---------- Perbaikan tampilan HP (Harga Bahan, Grade & Gaji, Kas & Bank, Meeting, Lampiran, Data Terhapus) ---------- */
+@media (max-width:640px) {
+  /* Tab segmented: satu baris, bisa digeser bila banyak (tidak lagi teks bertumpuk) */
+  .pap-segmented { display:flex; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  .pap-segmented::-webkit-scrollbar { display:none; }
+  .pap-segmented button, .pap-page-tabs.pap-segmented button { flex:1 0 auto; min-width:max-content; white-space:nowrap; }
+  /* Judul bagian + tombol (mis. Lampiran): tombol pindah ke baris sendiri */
+  .pap-section-head { flex-wrap:wrap; }
+  .pap-section-head > .pap-inline-actions { width:100%; }
+  .pap-section-head > .pap-inline-actions > * { flex:1 1 auto; justify-content:center; }
+}
+@media (max-width:800px) {
+  /* Baris kelompok di tabel kartu (mis. KAS / BANK): label kolom tidak menimpa nilai */
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) tr.pap-group-row { padding:6px 14px; border:1px solid var(--pap-border); border-radius:12px; background:rgb(124 92 252 / .06); }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) tr.pap-group-row td { padding:7px 0 7px 38% !important; background:transparent; color:var(--pap-text); font-size:12px !important; letter-spacing:0; text-transform:none; }
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) tr.pap-group-row td[data-title],
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) tr.pap-group-row td:first-child { padding:8px 0 !important; color:#7050e7; font-weight:800; }
+  /* Meeting: tempat / link boleh turun baris dengan lebar penuh */
+  .pap-table-wrap td.pap-meeting-place { max-width:none; white-space:normal; }
+  /* Tabel kosong: jangan tampilkan bingkai baris kosong */
+  .pap-table-wrap tbody:empty { display:none !important; }
+}
+@media (max-width:800px) {
+  .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) td[data-long] { min-height:46px; }
+}
+@media (max-width:640px) { .pap-filters > .pap-segmented { width:100%; } }

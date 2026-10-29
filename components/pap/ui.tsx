@@ -265,6 +265,8 @@ function labelTables(root: ParentNode) {
         const label = heads[col] ?? ''
         if (cell.getAttribute('data-label') !== label) cell.setAttribute('data-label', label)
         cell.toggleAttribute('data-title', col === titleIndex)
+        // Label panjang turun 2 baris: beri tinggi minimum agar tidak menimpa baris berikutnya
+        cell.toggleAttribute('data-long', label.length > 14)
         col += (cell as HTMLTableCellElement).colSpan || 1
       }
     })
