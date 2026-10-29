@@ -8,6 +8,7 @@ import { MonthNav, monthLabel } from './accurate-production'
 import { BarList, ColumnChart } from './charts'
 import type { DashboardTarget } from './dashboard-page'
 import { formatDate, Notice } from './ui'
+import { ArrangeButton, ArrangeGrid, useArrange } from './arrange'
 
 // Monitoring Top Management: performa perusahaan, performa divisi, plan monitoring & koordinasi, KPI
 type Section<T> = { ok: true; data: T } | { ok: false; error: string }
@@ -47,6 +48,8 @@ export function MonitoringPage({ onNavigate }: { user: UserProfile; onNavigate: 
   const [periode, setPeriode] = useState(thisMonth)
   const [data, setData] = useState<Res | null>(null)
   const [error, setError] = useState('')
+  // Susunan kartu (urutan & yang disembunyikan) per user
+  const arrange = useArrange('monitoring')
   useEffect(() => {
     let alive = true
     setData(null)
@@ -71,8 +74,12 @@ export function MonitoringPage({ onNavigate }: { user: UserProfile; onNavigate: 
           <h1>Monitoring</h1>
           <span>Analisa performa perusahaan, monitoring performa tiap divisi, plan monitoring & koordinasi, dan KPI dalam satu halaman. {p?.berjalan ? `Bulan berjalan dibandingkan pada tanggal 1–${Number(p.sampai_tanggal.slice(8, 10))}.` : ''}</span>
         </div>
-        <MonthNav periode={periode} onChange={setPeriode} />
+        <div className="pap-inline-actions pap-wrap">
+          {data && <ArrangeButton arrange={arrange} hiddenCount={arrange.layout.hidden.length} />}
+          <MonthNav periode={periode} onChange={setPeriode} />
+        </div>
       </div>
+      {arrange.editing && <Notice kind="success" onClose={() => arrange.setEditing(false)}>Seret kartu (atau pakai tombol ↑ ↓) untuk mengubah urutan, dan klik Sembunyikan untuk kartu yang tidak diperlukan. Susunan tersimpan otomatis untuk akun Anda.</Notice>}
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       {!data && !error && <div className="pap-table-card"><div className="pap-empty">Mengumpulkan data semua divisi (±10–30 detik bila laporan Accurate belum tersimpan)...</div></div>}
 
@@ -101,8 +108,8 @@ export function MonitoringPage({ onNavigate }: { user: UserProfile; onNavigate: 
             </div>
           </div>
 
-          <div className="pap-mon-grid">
-            <div className="pap-table-card">
+          <ArrangeGrid arrange={arrange} className="pap-dash-grid pap-mon-arrange">
+            <section key="tren" data-title="Tren penjualan 12 bulan" className="pap-table-card pap-dash-card">
               <div className="pap-card-head"><div><h2>Tren penjualan 12 bulan</h2><p>Faktur penjualan (batang) · nilai SO baru ada di detail tiap bulan</p></div></div>
               {p ? (
                 <div className="pap-dash-body">
@@ -110,8 +117,8 @@ export function MonitoringPage({ onNavigate }: { user: UserProfile; onNavigate: 
                     data={p.trend.map((t, i) => ({ key: t.bulan, label: monthLabel(t.bulan), value: t.omzet, partial: i === p.trend.length - 1 && p.berjalan, detail: <><span>Faktur: {shortRp(t.omzet)}</span><span>SO baru: {shortRp(t.so)}</span></> }))} />
                 </div>
               ) : !data.perusahaan.ok && <Err s={data.perusahaan} />}
-            </div>
-            <div className="pap-table-card">
+            </section>
+            <section key="keuangan" data-title="Keuangan" className="pap-table-card pap-dash-card">
               <div className="pap-card-head"><div><h2>Keuangan</h2><p>Laba rugi bulan ini, piutang & hutang (Accurate)</p></div></div>
               {k ? (
                 <dl className="pap-mon-list">
@@ -123,11 +130,10 @@ export function MonitoringPage({ onNavigate }: { user: UserProfile; onNavigate: 
                   <div className="pap-mon-links"><button className="pap-link-button" onClick={() => onNavigate('Laporan Keuangan')}>Laporan keuangan <ChevronRight /></button><button className="pap-link-button" onClick={() => onNavigate('Piutang Customer')}>Piutang <ChevronRight /></button></div>
                 </dl>
               ) : !data.keuangan.ok && <Err s={data.keuangan} />}
-            </div>
-          </div>
+            </section>
 
           {/* ---------- Performa divisi ---------- */}
-          <div className="pap-table-card pap-acc-spaced">
+            <section key="divisi" data-title="Performa divisi" className="pap-table-card pap-dash-card wide">
             <div className="pap-card-head">
               <div><h2>Performa divisi</h2><p>{counts ? (counts.bad || counts.warn ? `${counts.bad} divisi kritis · ${counts.warn} perlu perhatian` : 'Semua divisi dalam kondisi sehat') : ''}</p></div>
             </div>
@@ -150,11 +156,10 @@ export function MonitoringPage({ onNavigate }: { user: UserProfile; onNavigate: 
                 ))}
               </div>
             ) : !data.divisi.ok && <Err s={data.divisi} />}
-          </div>
+            </section>
 
           {/* ---------- Plan monitoring & koordinasi ---------- */}
-          <div className="pap-mon-grid">
-            <div className="pap-table-card">
+            <section key="planning" data-title="Plan monitoring" className="pap-table-card pap-dash-card">
               <div className="pap-card-head"><div><h2>Plan monitoring</h2><p>Planning aktif per divisi dan yang melewati target selesai</p></div><button className="pap-link-button" onClick={() => onNavigate('Planning')}>Planning <ChevronRight /></button></div>
               {data.planning.ok ? (
                 <>
@@ -174,8 +179,8 @@ export function MonitoringPage({ onNavigate }: { user: UserProfile; onNavigate: 
                   )}
                 </>
               ) : <Err s={data.planning} />}
-            </div>
-            <div className="pap-table-card">
+            </section>
+            <section key="koordinasi" data-title="Koordinasi 7 hari ke depan" className="pap-table-card pap-dash-card">
               <div className="pap-card-head"><div><h2>Koordinasi 7 hari ke depan</h2><p>Meeting lintas divisi yang dijadwalkan</p></div><button className="pap-link-button" onClick={() => onNavigate('Meeting')}>Meeting <ChevronRight /></button></div>
               {data.planning.ok ? (
                 data.planning.data.meeting.length ? (
@@ -186,36 +191,34 @@ export function MonitoringPage({ onNavigate }: { user: UserProfile; onNavigate: 
                   </ul>
                 ) : <div className="pap-empty">Belum ada meeting terjadwal minggu ini.</div>
               ) : <Err s={data.planning} />}
-            </div>
-          </div>
+            </section>
 
           {/* ---------- KPI ---------- */}
-          <div className="pap-mon-grid">
-            <div className="pap-table-card">
+            <section key="kpi-karyawan" data-title="KPI karyawan per divisi" className="pap-table-card pap-dash-card">
               <div className="pap-card-head"><div><h2>KPI karyawan per divisi</h2><p>Rata-rata skor {monthLabel(periode)} (0–100)</p></div><button className="pap-link-button" onClick={() => onNavigate('KPI Karyawan')}>KPI Karyawan <ChevronRight /></button></div>
               {data.kpi.ok ? (
                 <div className="pap-dash-body">
                   <BarList items={data.kpi.data.karyawan.map((r) => ({ key: r.divisi, label: `${r.divisi} (${r.dinilai})`, value: r.rata, display: `${String(r.rata).replace('.', ',')}${r.pembinaan ? ` · ${r.pembinaan} pembinaan` : ''}`, tone: r.rata < 70 ? 'critical' : 's1' }))} max={100} />
                   <div className="pap-mon-kpi">
-                    <div><h3><Trophy /> Skor tertinggi</h3><ol>{data.kpi.data.terbaik.map((x) => <li key={x.nama}>{x.nama} <small>{x.divisi}</small> <b>{String(x.skor).replace('.', ',')}</b></li>)}</ol></div>
-                    <div><h3><AlertTriangle /> Perlu pembinaan</h3>{data.kpi.data.pembinaan.length ? <ol>{data.kpi.data.pembinaan.map((x) => <li key={x.nama} title={x.tindak_lanjut ?? 'Belum ada tindak lanjut'}>{x.nama} <small>{x.divisi}</small> <b className="pap-text-danger">{String(x.skor).replace('.', ',')}</b></li>)}</ol> : <p className="pap-muted">Tidak ada.</p>}</div>
+                    <div><h3><Trophy /> Skor tertinggi</h3><ol>{data.kpi.data.terbaik.map((x, i) => <li key={`${x.nama}-${i}`}>{x.nama} <small>{x.divisi}</small> <b>{String(x.skor).replace('.', ',')}</b></li>)}</ol></div>
+                    <div><h3><AlertTriangle /> Perlu pembinaan</h3>{data.kpi.data.pembinaan.length ? <ol>{data.kpi.data.pembinaan.map((x, i) => <li key={`${x.nama}-${i}`} title={x.tindak_lanjut ?? 'Belum ada tindak lanjut'}>{x.nama} <small>{x.divisi}</small> <b className="pap-text-danger">{String(x.skor).replace('.', ',')}</b></li>)}</ol> : <p className="pap-muted">Tidak ada.</p>}</div>
                   </div>
                 </div>
               ) : <Err s={data.kpi} />}
-            </div>
-            <div className="pap-table-card">
+            </section>
+            <section key="kpi-marketing" data-title="KPI marketing" className="pap-table-card pap-dash-card">
               <div className="pap-card-head"><div><h2>KPI marketing</h2><p>Per sales di {monthLabel(periode)}</p></div><button className="pap-link-button" onClick={() => onNavigate('KPI Marketing')}>KPI Marketing <ChevronRight /></button></div>
               {data.kpi.ok ? (
                 <div className="pap-table-wrap">
                   <table>
                     <thead><tr><th>Sales</th><th className="pap-num">Lead</th><th className="pap-num">Visit</th><th className="pap-num">Deal</th></tr></thead>
-                    <tbody>{data.kpi.data.marketing.map((m) => <tr key={m.nama}><td><Users className="pap-inline-icon" /> {m.nama}</td><td className="pap-num">{m.lead}</td><td className="pap-num">{m.visit}</td><td className="pap-num pap-nowrap">{m.nilai ? shortRp(m.nilai) : '—'}</td></tr>)}</tbody>
+                    <tbody>{data.kpi.data.marketing.map((m, i) => <tr key={`${m.nama}-${i}`}><td><Users className="pap-inline-icon" /> {m.nama}</td><td className="pap-num">{m.lead}</td><td className="pap-num">{m.visit}</td><td className="pap-num pap-nowrap">{m.nilai ? shortRp(m.nilai) : '—'}</td></tr>)}</tbody>
                   </table>
                   {!data.kpi.data.marketing.length && <div className="pap-empty">Belum ada user marketing aktif.</div>}
                 </div>
               ) : <Err s={data.kpi} />}
-            </div>
-          </div>
+            </section>
+          </ArrangeGrid>
           {counts && !counts.bad && !counts.warn && <p className="pap-muted"><CheckCircle2 className="pap-inline-icon" /> Tidak ada catatan kritis.</p>}
         </>
       )}
