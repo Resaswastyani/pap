@@ -106,13 +106,15 @@ export function GaDataPage(_props: { user: UserProfile }) {
     }
   }
   async function remove(jenis: Jenis, id: number, label: string) {
-    if (!(await confirmDialog(`Hapus ${label} dari spreadsheet GA?`))) return
+    if (!(await confirmDialog(`Hapus ${label} dari spreadsheet GA? Barisnya ikut terhapus di Google Sheet dan tidak masuk Data Terhapus.`))) return false
     try {
       await api(`/api/ga/data/${id}?jenis=${jenis}`, { method: 'DELETE' })
       setMessage(`${label} dihapus dari spreadsheet.`)
       await load()
+      return true
     } catch (e) {
       setError((e as Error).message)
+      return false
     }
   }
   async function togglePay(jenis: 'hp' | 'wifi', id: number, bulan: string, lunas: boolean) {
@@ -202,7 +204,7 @@ export function GaDataPage(_props: { user: UserProfile }) {
         <div className="pap-table-wrap">
           <table>
             {tab === 'hp' && <>
-              <thead><tr><th>Nomor</th><th>Provider</th><th>Masa aktif</th><th>Bayar {year}</th>{manage && <th aria-label="Aksi" />}</tr></thead>
+              <thead><tr><th>Nomor</th><th>Provider</th><th>Masa aktif</th><th>Bayar {year}</th>{manage && <th className="pap-actions-col">Aksi</th>}</tr></thead>
               <tbody>
                 {(paged.items as Phone[]).map((p) => (
                   <tr key={p.id}>
@@ -216,7 +218,7 @@ export function GaDataPage(_props: { user: UserProfile }) {
               </tbody>
             </>}
             {tab === 'langganan' && <>
-              <thead><tr><th>Layanan</th><th>Vendor</th><th className="pap-num">Biaya</th><th>Jatuh tempo</th><th>Pembayaran</th><th>Penanggung jawab</th>{manage && <th aria-label="Aksi" />}</tr></thead>
+              <thead><tr><th>Layanan</th><th>Vendor</th><th className="pap-num">Biaya</th><th>Jatuh tempo</th><th>Pembayaran</th><th>Penanggung jawab</th>{manage && <th className="pap-actions-col">Aksi</th>}</tr></thead>
               <tbody>
                 {(paged.items as Sub[]).map((s) => (
                   <tr key={s.id}>
@@ -232,7 +234,7 @@ export function GaDataPage(_props: { user: UserProfile }) {
               </tbody>
             </>}
             {tab === 'wifi' && <>
-              <thead><tr><th>WiFi</th><th>Pelanggan</th><th className="pap-num">Biaya</th><th>Jatuh tempo</th><th>Bayar {year}</th>{manage && <th aria-label="Aksi" />}</tr></thead>
+              <thead><tr><th>WiFi</th><th>Pelanggan</th><th className="pap-num">Biaya</th><th>Jatuh tempo</th><th>Bayar {year}</th>{manage && <th className="pap-actions-col">Aksi</th>}</tr></thead>
               <tbody>
                 {(paged.items as Wifi[]).map((w) => (
                   <tr key={w.id}>
@@ -252,13 +254,14 @@ export function GaDataPage(_props: { user: UserProfile }) {
           <Pager {...paged.pager} noun={label} />
         </div>
       </div>
-      {form && <GaForm jenis={form.jenis} item={form.item} onClose={() => setForm(null)} onSaved={(t) => { setForm(null); setMessage(t); load() }} />}
+      {form && <GaForm jenis={form.jenis} item={form.item} onClose={() => setForm(null)} onSaved={(t) => { setForm(null); setMessage(t); load() }}
+        onDelete={form.item ? async () => { const it = form.item as { id: number; nomor?: string; nama?: string }; if (await remove(form.jenis, it.id, it.nomor ?? it.nama ?? 'data')) setForm(null) } : undefined} />}
       {sheetOpen && <GaSheetDialog manage={manage} onClose={() => setSheetOpen(false)} onSynced={(t) => { setSheetOpen(false); setMessage(t); load() }} />}
     </>
   )
 }
 
-function GaForm({ jenis, item, onClose, onSaved }: { jenis: Jenis; item: Phone | Sub | Wifi | null; onClose: () => void; onSaved: (text: string) => void }) {
+function GaForm({ jenis, item, onClose, onSaved, onDelete }: { jenis: Jenis; item: Phone | Sub | Wifi | null; onClose: () => void; onSaved: (text: string) => void; onDelete?: () => Promise<void> }) {
   const it = (item ?? {}) as Record<string, unknown>
   const s = (k: string) => (it[k] === null || it[k] === undefined ? '' : String(it[k]))
   const [v, setV] = useState<Record<string, string>>((): Record<string, string> => (
@@ -291,7 +294,7 @@ function GaForm({ jenis, item, onClose, onSaved }: { jenis: Jenis; item: Phone |
   }
   return (
     <Modal title={item ? `Ubah ${noun}` : `Tambah ${noun}`} subtitle="Disimpan langsung ke spreadsheet GA di Google Drive" wide={jenis !== 'hp'} onClose={onClose}
-      footer={<><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="ga-form" disabled={busy}>{busy ? 'Menyimpan ke sheet...' : 'Simpan'}</button></>}>
+      footer={<>{onDelete && <button type="button" className="pap-btn pap-btn-danger" disabled={busy} onClick={onDelete}><Trash2 /> Hapus</button>}<span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="ga-form" disabled={busy}>{busy ? 'Menyimpan ke sheet...' : 'Simpan'}</button></>}>
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       <form id="ga-form" className="pap-form-grid" onSubmit={save}>
         {jenis === 'hp' && <>

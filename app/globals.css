@@ -1940,6 +1940,9 @@ a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity
 .pap-confirm-actions > * { flex:1; justify-content:center; min-height:40px; }
 .pap-btn.pap-btn-danger-solid { border-color:#d93036; background:#d93036; color:#fff; font-weight:700; }
 .pap-btn.pap-btn-danger-solid:hover { background:#c0262c; }
+.pap-btn.pap-btn-danger { border-color:#f3c4c6; color:#d93036; }
+.pap-btn.pap-btn-danger:hover { background:#fdf0f0; }
+.pap-btn.pap-btn-danger svg { width:15px; height:15px; }
 @keyframes pap-confirm-fade { from { opacity:0; } }
 @keyframes pap-confirm-pop { from { opacity:0; transform:translateY(8px) scale(.97); } }
 @media (prefers-reduced-motion:reduce) { .pap-confirm, .pap-confirm-backdrop { animation:none; } }
