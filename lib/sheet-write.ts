@@ -34,6 +34,11 @@ async function call<T = Record<string, unknown>>(path: string, init: RequestInit
   const json = await res.json().catch(() => ({}))
   if (!res.ok) {
     const msg = String(json.error?.message ?? `Google Sheets error ${res.status}`)
+    // 403 karena Google Sheets API belum diaktifkan di project Google Cloud (bukan soal izin file)
+    if (res.status === 403 && /SERVICE_DISABLED|has not been used|is disabled/i.test(`${msg} ${JSON.stringify(json.error?.details ?? '')}`)) {
+      const project = msg.match(/project (\d+)/)?.[1]
+      throw new SheetWriteError(`Google Sheets API belum diaktifkan di Google Cloud${project ? ` (project ${project})` : ''}. Admin perlu membuka console.cloud.google.com > APIs & Services > Library > Google Sheets API > Enable, tunggu beberapa menit, lalu ulangi.`)
+    }
     if (res.status === 403 && /insufficient|scope/i.test(msg)) {
       throw new SheetWriteError('Akun Google yang terhubung belum punya izin edit spreadsheet. Admin perlu klik "Hubungkan akun Google" lagi di Master Data dan mencentang izin edit.')
     }
