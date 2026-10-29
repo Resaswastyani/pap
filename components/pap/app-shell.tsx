@@ -293,7 +293,7 @@ export function AppShell() {
         const res = await fetch('/api/auth/me', { cache: 'no-store' })
         const json = await res.json().catch(() => ({}))
         if (res.ok && json.user) { setUser(json.user); setSessionError(''); return }
-        if (res.status === 401) {
+        if (res.status === 401 || (res.ok && !json.user)) {
           // Belum login: langsung muat reCAPTCHA sebelum form login dirender
           if (json.captcha) {
             primeCaptchaConfig(json.captcha)
