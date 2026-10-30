@@ -1,18 +1,25 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { BookOpen, ChevronLeft, ChevronRight, ExternalLink, Eye, FileSpreadsheet, FileText, Image as ImageIcon, Link2, Maximize, PlayCircle, Presentation, Search } from 'lucide-react'
-import { api, formatSize, Modal, Notice } from './ui'
+import { BookOpen, ChevronLeft, ChevronRight, ExternalLink, Eye, EyeOff, FileSpreadsheet, FileText, Image as ImageIcon, Link2, Maximize, Pencil, PlayCircle, Plus, Presentation, Search, Trash2, Upload } from 'lucide-react'
+import { api, confirmDialog, Field, formatSize, Modal, Notice } from './ui'
 
 // Tab Materi: semua file dari folder Drive Training dengan preview di dalam SIMPAP.
 // Folder bersifat privat, jadi Slides/Docs/PDF ditampilkan lewat server (akun Google di Master Data) dan digambar dengan PDF.js,
 // sehingga karyawan tanpa akses Drive tetap bisa melihat, termasuk di HP (browser HP tidak bisa menampilkan PDF di iframe).
 
-export type PreviewItem = { id: number; judul: string; jenis: 'video' | 'dokumen' | 'link'; mime: string | null; drive_file_id: string | null; link: string | null; embed: string | null }
-type Item = PreviewItem & { modul: string; ukuran: number | null; folder: string | null }
+export type PreviewItem = { id: number; sumber: 'drive' | 'manual' | 'upload'; judul: string; jenis: 'video' | 'dokumen' | 'link'; mime: string | null; drive_file_id: string | null; link: string | null; embed: string | null }
+export type MaterialItem = PreviewItem & { url: string | null; tersembunyi: boolean; ukuran: number | null; folder: string | null }
+type Item = MaterialItem & { module_id: number; modul: string }
 
-type Mode = 'pdf' | 'image' | 'frame' | 'none'
+type Mode = 'pdf' | 'image' | 'video' | 'frame' | 'none'
 function previewMode(m: PreviewItem): Mode {
+  if (m.sumber === 'upload') {
+    if (m.mime === 'application/pdf') return 'pdf'
+    if (/^image\/(png|jpeg|gif|webp)$/.test(m.mime ?? '')) return 'image'
+    if (/^video\/(mp4|webm)$/.test(m.mime ?? '')) return 'video'
+    return 'none'
+  }
   if (m.jenis === 'dokumen' && m.drive_file_id) {
     if (m.mime === 'application/pdf' || m.mime?.startsWith('application/vnd.google-apps.')) return 'pdf'
     if (m.mime?.startsWith('image/')) return 'image'
@@ -36,19 +43,22 @@ export function MateriTab({ manage }: { manage: boolean }) {
   const [error, setError] = useState('')
   const [q, setQ] = useState('')
   const [preview, setPreview] = useState<number | null>(null)
-  useEffect(() => {
-    api<{ items: Item[] }>('/api/hrd/training/materials').then((r) => setItems(r.items)).catch((e) => setError(e.message))
-  }, [])
+  const [modules, setModules] = useState<{ id: number; judul: string }[]>([])
+  const [form, setForm] = useState<Item | 'baru' | null>(null)
+  const [message, setMessage] = useState('')
+  const load = useCallback(() => api<{ items: Item[]; modules: { id: number; judul: string }[] }>('/api/hrd/training/materials').then((r) => { setItems(r.items); setModules(r.modules) }).catch((e) => setError(e.message)), [])
+  useEffect(() => { load() }, [load])
   const term = q.trim().toLowerCase()
   const shown = (items ?? []).filter((m) => !term || [m.judul, m.modul, m.folder].some((x) => x?.toLowerCase().includes(term)))
   const groups = [...new Set(shown.map((m) => m.modul))].map((modul) => ({ modul, files: shown.filter((m) => m.modul === modul) }))
   return (
     <div className="pap-table-card">
-      <div className="pap-card-head"><div><h2>Materi training</h2><p>Klik materi untuk melihat preview-nya di sini, tanpa perlu membuka Google Drive.</p></div></div>
+      <div className="pap-card-head"><div><h2>Materi training</h2><p>Klik materi untuk melihat preview-nya di sini, tanpa perlu membuka Google Drive.</p></div>{manage && <button className="pap-primary-button" onClick={() => setForm('baru')}><Plus /> Tambah materi</button>}</div>
       <div className="pap-filters">
         <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari materi..." /></label>
       </div>
       {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+      {message && <div className="pap-card-notice"><Notice kind="success" onClose={() => setMessage('')}>{message}</Notice></div>}
       <div className="pap-sop-group">
         {groups.map((g) => (
           <div key={g.modul} className="pap-materi-group">
@@ -57,15 +67,18 @@ export function MateriTab({ manage }: { manage: boolean }) {
               {g.files.map((m) => {
                 const { label, Icon } = kindOf(m)
                 return (
-                  <button key={m.id} type="button" className="pap-sop-card" onClick={() => setPreview(m.id)}>
+                  <div key={m.id} className={`pap-materi-item ${m.tersembunyi ? 'is-hidden' : ''}`}>
+                  <button type="button" className="pap-sop-card" onClick={() => setPreview(m.id)}>
                     <span className="pap-sop-thumb">
                       <Icon />
                       {m.drive_file_id && <img src={`/api/hrd/training/materials/${m.id}/thumb?s=480`} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.display = 'none' }} />}
                       <span className="pap-materi-kind">{label}</span>
                     </span>
                     <span className="pap-sop-title">{m.judul}</span>
-                    <span className="pap-sop-meta pap-materi-meta"><Eye /> Lihat preview{m.ukuran ? ` · ${formatSize(m.ukuran)}` : ''}</span>
+                    <span className="pap-sop-meta pap-materi-meta">{m.tersembunyi ? <><EyeOff /> Disembunyikan</> : <><Eye /> Lihat preview</>}{m.ukuran ? ` · ${formatSize(m.ukuran)}` : ''}</span>
                   </button>
+                  {manage && <button type="button" className="pap-icon-button pap-materi-edit" aria-label={`Ubah ${m.judul}`} title="Ubah materi" onClick={() => setForm(m)}><Pencil /></button>}
+                  </div>
                 )
               })}
             </div>
@@ -78,7 +91,87 @@ export function MateriTab({ manage }: { manage: boolean }) {
         {!items && !error && <div className="pap-empty">Memuat materi...</div>}
       </div>
       {preview !== null && <PreviewDialog items={shown} id={preview} onChange={setPreview} onClose={() => setPreview(null)} />}
+      {form && <MaterialForm item={form === 'baru' ? null : form} modules={modules} onClose={() => setForm(null)} onSaved={(t) => { setForm(null); setMessage(t); load() }} />}
     </div>
+  )
+}
+
+// Tambah / ubah materi: file diunggah ke SIMPAP (maks 10 MB) atau link. Materi dari Drive: ubah judul & sembunyikan.
+export function MaterialForm({ item, moduleId, modules, onClose, onSaved }: { item: MaterialItem | null; moduleId?: number; modules?: { id: number; judul: string }[]; onClose: () => void; onSaved: (text: string) => void }) {
+  const [mode, setMode] = useState<'file' | 'link'>(item?.sumber === 'manual' ? 'link' : 'file')
+  const [modul, setModul] = useState(String(moduleId ?? ''))
+  const [judul, setJudul] = useState(item?.judul ?? '')
+  const [url, setUrl] = useState(item?.url ?? '')
+  const [file, setFile] = useState<File | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const isDrive = item?.sumber === 'drive'
+  const path = item ? `/api/hrd/training/materials/${item.id}` : `/api/hrd/training/${modul}/materials`
+  async function run(fn: () => Promise<unknown>, text: string) {
+    setBusy(true)
+    setError('')
+    try {
+      await fn()
+      onSaved(text)
+    } catch (e) {
+      setError((e as Error).message)
+      setBusy(false)
+    }
+  }
+  function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (file && file.size > 10 * 1024 * 1024) return setError(`${file.name}: ukuran maksimal 10 MB. Untuk file lebih besar, simpan di folder Drive Training atau tambahkan sebagai link.`)
+    if (mode === 'file' && !isDrive && (file || !item)) {
+      if (!file) return setError('Pilih file terlebih dahulu.')
+      const body = new FormData()
+      body.set('file', file)
+      body.set('judul', judul)
+      return run(() => api(path, { method: item ? 'PATCH' : 'POST', body }), item ? 'Materi diperbarui.' : 'Materi ditambahkan.')
+    }
+    if (item?.sumber === 'upload') {
+      const body = new FormData()
+      body.set('judul', judul)
+      return run(() => api(path, { method: 'PATCH', body }), 'Materi diperbarui.')
+    }
+    run(() => api(path, { method: item ? 'PATCH' : 'POST', json: isDrive ? { judul } : { judul, url } }), item ? 'Materi diperbarui.' : 'Materi ditambahkan.')
+  }
+  const remove = async () => {
+    if (await confirmDialog(`Hapus materi ${item!.judul}? Tindakan ini tidak bisa dibatalkan.`)) run(() => api(path, { method: 'DELETE' }), 'Materi dihapus.')
+  }
+  return (
+    <Modal title={item ? 'Ubah materi' : 'Tambah materi'} subtitle={isDrive ? 'Materi dari Google Drive: isi file diubah di Drive' : undefined} onClose={onClose}
+      footer={<>
+        {item && !isDrive && <button type="button" className="pap-btn danger" disabled={busy} onClick={remove}><Trash2 /> Hapus</button>}
+        {isDrive && <button type="button" className="pap-btn" disabled={busy} onClick={() => run(() => api(path, { method: 'PATCH', json: { tersembunyi: !item!.tersembunyi } }), item!.tersembunyi ? 'Materi ditampilkan lagi.' : 'Materi disembunyikan dari karyawan.')}>{item!.tersembunyi ? <Eye /> : <EyeOff />} {item!.tersembunyi ? 'Tampilkan' : 'Sembunyikan'}</button>}
+        <span className="pap-spacer" />
+        <button type="button" className="pap-btn" onClick={onClose}>Batal</button>
+        <button className="pap-primary-button" form="material-form" disabled={busy}>{busy ? 'Menyimpan...' : 'Simpan'}</button>
+      </>}>
+      <form id="material-form" className="pap-form-grid" onSubmit={submit}>
+        {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        {!item && !moduleId && (
+          <Field label="Modul training *" full>
+            <select className="pap-select" required value={modul} onChange={(e) => setModul(e.target.value)}>
+              <option value="">Pilih modul...</option>
+              {modules?.map((m) => <option key={m.id} value={m.id}>{m.judul}</option>)}
+            </select>
+          </Field>
+        )}
+        {!item && (
+          <div className="full pap-segmented" role="tablist">
+            <button type="button" role="tab" aria-selected={mode === 'file'} className={mode === 'file' ? 'active' : ''} onClick={() => setMode('file')}><Upload /> Unggah file</button>
+            <button type="button" role="tab" aria-selected={mode === 'link'} className={mode === 'link' ? 'active' : ''} onClick={() => setMode('link')}><Link2 /> Link</button>
+          </div>
+        )}
+        <Field label={item ? 'Judul *' : 'Judul'} hint={item ? undefined : 'Kosongkan untuk memakai nama file / link'} full><input className="pap-input" required={!!item} maxLength={255} value={judul} onChange={(e) => setJudul(e.target.value)} /></Field>
+        {mode === 'link' && !isDrive && <Field label="Link *" hint="YouTube, Google Drive, Vimeo, atau halaman web" full><input className="pap-input" type="url" required maxLength={1000} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" /></Field>}
+        {mode === 'file' && !isDrive && (
+          <Field label={item ? 'Ganti file' : 'File *'} hint={item ? 'Kosongkan bila file tidak diganti. Maksimal 10 MB.' : 'PDF, gambar, Word, Excel, PowerPoint, dll. Maksimal 10 MB; file lebih besar lewat folder Drive atau link.'} full>
+            <input className="pap-input" type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          </Field>
+        )}
+      </form>
+    </Modal>
   )
 }
 
@@ -93,13 +186,14 @@ export function PreviewDialog({ items, id, onChange, onClose }: { items: Preview
   return (
     <Modal title={m.judul} subtitle={`${kindOf(m).label} · materi ${index + 1} dari ${items.length}`} wide onClose={onClose}
       footer={<>
-        {m.link && <a className="pap-btn" href={m.link} target="_blank" rel="noreferrer"><ExternalLink /> <span className="pap-materi-hide-sm">Buka di Drive</span></a>}
+        {m.link && <a className="pap-btn" href={m.link} target="_blank" rel="noreferrer"><ExternalLink /> <span className="pap-materi-hide-sm">{m.sumber === 'upload' ? 'Buka / unduh' : m.sumber === 'manual' ? 'Buka link' : 'Buka di Drive'}</span></a>}
         <span className="pap-spacer" />
         <button type="button" className="pap-btn" disabled={!prev} onClick={() => prev && onChange(prev.id)}><ChevronLeft /> <span className="pap-materi-hide-sm">Sebelumnya</span></button>
         <button type="button" className="pap-btn" disabled={!next} onClick={() => next && onChange(next.id)}><span className="pap-materi-hide-sm">Berikutnya</span> <ChevronRight /></button>
       </>}>
-      {mode === 'pdf' && <PdfViewer key={m.id} url={`/api/hrd/training/materials/${m.id}/pdf`} fallback={m.embed} />}
-      {mode === 'image' && <div className="pap-materi-image"><img src={`/api/hrd/training/materials/${m.id}/thumb?s=1200`} alt={m.judul} /></div>}
+      {mode === 'pdf' && <PdfViewer key={m.id} url={m.sumber === 'upload' ? m.link! : `/api/hrd/training/materials/${m.id}/pdf`} fallback={m.embed} />}
+      {mode === 'image' && <div className="pap-materi-image"><img src={m.sumber === 'upload' ? m.link! : `/api/hrd/training/materials/${m.id}/thumb?s=1200`} alt={m.judul} /></div>}
+      {mode === 'video' && <div className="pap-sop-player"><video key={m.id} src={m.link!} controls /></div>}
       {mode === 'frame' && (
         <>
           <div className="pap-sop-player"><iframe key={m.id} src={m.embed!} title={m.judul} allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowFullScreen /></div>

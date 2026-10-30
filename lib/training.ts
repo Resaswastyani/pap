@@ -59,7 +59,7 @@ export const isVideoLink = (url: string) => !!embedUrl(url) || VIDEO_EXT.test(ur
 type Entry = { id: string; name: string; mime: string | null; size: number | null; folder: string | null }
 type ModuleEntry = { id: string | null; name: string; files: Entry[] }
 
-const kindOf = (name: string, mime: string | null) => (mime?.startsWith('video/') || VIDEO_EXT.test(name) ? 'video' : 'dokumen')
+export const kindOf = (name: string, mime: string | null) => (mime?.startsWith('video/') || VIDEO_EXT.test(name) ? 'video' : 'dokumen')
 
 async function listViaApi(rootId: string) {
   const modules: ModuleEntry[] = []
@@ -146,7 +146,7 @@ export async function syncTraining() {
     if (files.length) {
       await db.query(
         `INSERT INTO training_materials (module_id, sumber, drive_file_id, judul, jenis, mime, ukuran, folder, urut, synced_at) VALUES ?
-         ON DUPLICATE KEY UPDATE module_id = VALUES(module_id), judul = VALUES(judul), jenis = VALUES(jenis), mime = COALESCE(VALUES(mime), mime),
+         ON DUPLICATE KEY UPDATE module_id = VALUES(module_id), judul = IF(judul_edited = 1, judul, VALUES(judul)), jenis = VALUES(jenis), mime = COALESCE(VALUES(mime), mime),
            ukuran = COALESCE(VALUES(ukuran), ukuran), folder = VALUES(folder), urut = VALUES(urut), synced_at = VALUES(synced_at)`,
         [files.map((f, j) => [mod.id, 'drive', f.id, f.name.replace(/\.[a-z0-9]{2,5}$/i, '').trim().slice(0, 255) || f.name.slice(0, 255), kindOf(f.name, f.mime), f.mime, f.size, f.folder?.slice(0, 500) ?? null, j + 1, now])],
       )
@@ -162,6 +162,21 @@ export async function syncTraining() {
 export async function recordTrainingSyncError(message: string) {
   const info = await loadTrainingSync()
   await saveSetting(SYNC_KEY, JSON.stringify({ ...info, error: message.slice(0, 500) }), null)
+}
+
+// ---------- File materi yang diunggah HRD ----------
+// Disimpan di database (ikut pap-backup). Video besar sebaiknya lewat folder Drive atau link.
+export const TRAINING_FILE_MAX = 10 * 1024 * 1024
+export async function readTrainingFile(value: unknown) {
+  if (!(value instanceof File) || !value.size) fail(400, 'File wajib dipilih.')
+  const file = value as File
+  if (file.size > TRAINING_FILE_MAX) fail(400, `${file.name}: ukuran maksimal 10 MB. Untuk file lebih besar, simpan di folder Drive Training atau tambahkan sebagai link.`)
+  return { name: file.name.trim().slice(0, 255) || 'materi', mime: file.type.slice(0, 120) || null, size: file.size, data: Buffer.from(await file.arrayBuffer()) }
+}
+// Tautan materi menurut sumbernya
+export function materialLink(x: Record<string, unknown>) {
+  if (x.drive_file_id) return `https://drive.google.com/file/d/${x.drive_file_id}/view`
+  return x.sumber === 'upload' ? `/api/hrd/training/materials/${x.id}/file` : ((x.url as string | null) ?? null)
 }
 
 // Isian modul (tambah / ubah)

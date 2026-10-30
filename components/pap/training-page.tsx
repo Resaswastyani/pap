@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { BookOpen, CheckCircle2, ExternalLink, Eye, EyeOff, FileText, FolderOpen, GraduationCap, Link2, Pencil, PlayCircle, Plus, RefreshCw, Search, Trash2, Users } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
-import { api, Field, formatDate, Modal, Notice, confirmDialog } from './ui'
-import { MateriTab, PreviewDialog } from './training-materi'
+import { api, Field, formatDate, formatSize, Modal, Notice, confirmDialog } from './ui'
+import { MaterialForm, MateriTab, PreviewDialog } from './training-materi'
 import { JadwalTab } from './training-schedule'
 
 // Training Karyawan: tab Materi (folder Google Drive + preview), Jadwal (spreadsheet), Modul & Peserta (subfolder = modul, peserta & nilai dicatat HRD)
@@ -15,7 +15,7 @@ type Module = {
 }
 type Sync = { at: string | null; source: string | null; modul: number; materi: number; error: string | null }
 type Res = { items: Module[]; divisi: string[]; folderUrl: string | null; sync: Sync; warning: string | null; can: { manage: boolean } }
-type Material = { id: number; sumber: 'drive' | 'manual'; drive_file_id: string | null; judul: string; jenis: 'video' | 'dokumen' | 'link'; url: string | null; folder: string | null; mime: string | null; link: string | null; embed: string | null }
+type Material = { id: number; sumber: 'drive' | 'manual' | 'upload'; tersembunyi: boolean; ukuran: number | null; drive_file_id: string | null; judul: string; jenis: 'video' | 'dokumen' | 'link'; url: string | null; folder: string | null; mime: string | null; link: string | null; embed: string | null }
 type Participant = { id: number; employee_id: number; nama: string; nip: string; divisi: string | null; jabatan: string | null; status: 'terdaftar' | 'selesai' | 'tidak_lulus'; tanggal: string | null; nilai: number | null; catatan: string | null }
 type Employee = { id: number; nama: string; nip: string; divisi: string | null; jabatan: string | null }
 type Detail = { item: Module & { created_at: string }; materials: Material[]; participants: Participant[]; summary: { peserta: number; selesai: number }; employees: Employee[]; can: { manage: boolean } }
@@ -147,8 +147,7 @@ function ModuleDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose:
   const [d, setD] = useState<Detail | null>(null)
   const [error, setError] = useState('')
   const [playing, setPlaying] = useState<Material | null>(null)
-  const [link, setLink] = useState({ judul: '', url: '' })
-  const [adding, setAdding] = useState(false)
+  const [materialForm, setMaterialForm] = useState<Material | 'baru' | null>(null)
   const [preview, setPreview] = useState<number | null>(null)
   const load = useCallback(() => api<Detail>(`/api/hrd/training/${id}`).then((r) => {
     setD(r)
@@ -169,7 +168,8 @@ function ModuleDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose:
   const m = d.item
   const videos = d.materials.filter((x) => x.embed)
   const others = d.materials.filter((x) => !x.embed)
-  const previewable = others.filter((x) => x.drive_file_id).map((x) => ({ ...x, embed: `https://drive.google.com/file/d/${x.drive_file_id}/preview` }))
+  const previewable = others.filter((x) => x.drive_file_id || x.sumber === 'upload').map((x) => ({ ...x, embed: x.drive_file_id ? `https://drive.google.com/file/d/${x.drive_file_id}/preview` : null }))
+  const editButton = (x: Material) => d.can.manage && <button type="button" className="pap-icon-button" aria-label={`Ubah ${x.judul}`} title="Ubah materi" onClick={() => setMaterialForm(x)}><Pencil /></button>
   return (
     <Modal title={m.judul} subtitle={[m.kategori, m.sasaran ? `Sasaran: ${m.sasaran}` : 'Semua karyawan', m.durasi_menit && `${m.durasi_menit} menit`, m.dari_drive ? 'dari Google Drive' : 'modul manual'].filter(Boolean).join(' · ')} wide onClose={onClose}
       footer={<>
@@ -195,35 +195,30 @@ function ModuleDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose:
       )}
       <section className="pap-detail-section">
         <h3>Materi ({d.materials.length})</h3>
-        {!d.materials.length && <p className="pap-muted">Belum ada materi. {m.dari_drive ? 'Tambahkan file ke subfolder modul di Google Drive, lalu sinkron.' : 'Tambahkan link video di bawah.'}</p>}
+        {!d.materials.length && <p className="pap-muted">Belum ada materi. {d.can.manage ? 'Klik "Tambah materi" di bawah untuk mengunggah file atau menambah link.' : ''}</p>}
         <ul className="pap-file-list">
           {videos.map((x) => (
             <li key={x.id} className={playing?.id === x.id ? 'active' : ''}>
               <PlayCircle />
-              <div><button type="button" className="pap-link-plain" onClick={() => setPlaying(x)}>{x.judul}</button><span>{[x.folder, x.sumber === 'drive' ? 'Video Google Drive' : 'Link video'].filter(Boolean).join(' · ')}</span></div>
+              <div><button type="button" className="pap-link-plain" onClick={() => setPlaying(x)}>{x.judul}</button><span>{[x.folder, x.sumber === 'drive' ? 'Video Google Drive' : 'Link video', x.tersembunyi && 'Disembunyikan'].filter(Boolean).join(' · ')}</span></div>
               {x.link && <a className="pap-icon-button" href={x.link} target="_blank" rel="noreferrer" aria-label="Buka di tab baru"><ExternalLink /></a>}
-              {d.can.manage && x.sumber === 'manual' && <button className="pap-icon-button" aria-label="Hapus link" onClick={async () => (await confirmDialog('Hapus link materi ini?')) && run(() => api(`/api/hrd/training/materials/${x.id}`, { method: 'DELETE' }))}><Trash2 /></button>}
+              {editButton(x)}
             </li>
           ))}
           {others.map((x) => (
             <li key={x.id}>
               {x.jenis === 'link' ? <Link2 /> : <FileText />}
-              <div>{x.link ? <a href={x.link} target="_blank" rel="noreferrer">{x.judul} <ExternalLink className="pap-inline-icon" /></a> : <span>{x.judul}</span>}<span>{[x.folder, x.jenis === 'link' ? 'Link' : 'Dokumen Google Drive'].filter(Boolean).join(' · ')}</span></div>
-              {x.drive_file_id && <button type="button" className="pap-icon-button" title="Lihat preview" aria-label={`Lihat preview ${x.judul}`} onClick={() => setPreview(x.id)}><Eye /></button>}
-              {d.can.manage && x.sumber === 'manual' && <button className="pap-icon-button" aria-label="Hapus link" onClick={async () => (await confirmDialog('Hapus link materi ini?')) && run(() => api(`/api/hrd/training/materials/${x.id}`, { method: 'DELETE' }))}><Trash2 /></button>}
+              <div>{x.link ? <a href={x.link} target="_blank" rel="noreferrer">{x.judul} <ExternalLink className="pap-inline-icon" /></a> : <span>{x.judul}</span>}<span>{[x.folder, x.jenis === 'link' ? 'Link' : x.sumber === 'upload' ? 'File SIMPAP' : 'Dokumen Google Drive', x.ukuran ? formatSize(x.ukuran) : null, x.tersembunyi && 'Disembunyikan'].filter(Boolean).join(' · ')}</span></div>
+              {(x.drive_file_id || x.sumber === 'upload') && <button type="button" className="pap-icon-button" title="Lihat preview" aria-label={`Lihat preview ${x.judul}`} onClick={() => setPreview(x.id)}><Eye /></button>}
+              {editButton(x)}
             </li>
           ))}
         </ul>
-        {d.can.manage && (
-          <form className="pap-inline-actions pap-wrap pap-training-link" onSubmit={(e) => { e.preventDefault(); setAdding(true); run(async () => { await api(`/api/hrd/training/${id}/materials`, { method: 'POST', json: link }); setLink({ judul: '', url: '' }) }).finally(() => setAdding(false)) }}>
-            <input className="pap-input" maxLength={255} value={link.judul} onChange={(e) => setLink({ ...link, judul: e.target.value })} placeholder="Judul (opsional)" />
-            <input className="pap-input" type="url" required maxLength={1000} value={link.url} onChange={(e) => setLink({ ...link, url: e.target.value })} placeholder="Link video YouTube / Google Drive / web" />
-            <button className="pap-btn" disabled={adding}><Plus /> Tambah link</button>
-          </form>
-        )}
+        {d.can.manage && <button type="button" className="pap-btn pap-add-item" onClick={() => setMaterialForm('baru')}><Plus /> Tambah materi</button>}
       </section>
       {d.can.manage && <Participants id={id} detail={d} onChanged={() => run(async () => {})} />}
       {preview !== null && <PreviewDialog items={previewable} id={preview} onChange={setPreview} onClose={() => setPreview(null)} />}
+      {materialForm && <MaterialForm item={materialForm === 'baru' ? null : materialForm} moduleId={id} onClose={() => setMaterialForm(null)} onSaved={() => { setMaterialForm(null); run(async () => {}) }} />}
     </Modal>
   )
 }

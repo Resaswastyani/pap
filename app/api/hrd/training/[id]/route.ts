@@ -2,7 +2,7 @@ import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
-import { canManageTraining, embedUrl, readModuleInput, requireTraining } from '@/lib/training'
+import { canManageTraining, embedUrl, materialLink, readModuleInput, requireTraining } from '@/lib/training'
 import { softDelete } from '@/lib/recycle-bin'
 
 type Row = RowDataPacket & Record<string, unknown>
@@ -18,7 +18,7 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
   const [[m]] = await db.query<Row[]>('SELECT *, drive_folder_id IS NOT NULL AS dari_drive FROM training_modules WHERE id = ?', [id])
   if (!m || (!m.aktif && !manage)) fail(404, 'Modul training tidak ditemukan.')
   const [materials] = await db.query<Row[]>(
-    'SELECT id, sumber, drive_file_id, judul, jenis, url, mime, ukuran, folder FROM training_materials WHERE module_id = ? ORDER BY sumber, urut, id', [id],
+    `SELECT id, sumber, drive_file_id, judul, jenis, url, mime, ukuran, folder, tersembunyi FROM training_materials WHERE module_id = ? ${manage ? '' : 'AND tersembunyi = 0'} ORDER BY sumber, urut, id`, [id],
   )
   const [participants] = await db.query<Row[]>(
     `SELECT p.id, p.employee_id, e.nama, e.nip, e.divisi, e.jabatan, p.status, p.tanggal, p.nilai, p.catatan, p.updated_at, u.name AS updated_name
@@ -32,9 +32,9 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
   return NextResponse.json({
     item: { ...m, dari_drive: !!m.dari_drive, wajib: !!m.wajib, aktif: !!m.aktif },
     materials: materials.map((x) => {
-      const link = x.drive_file_id ? `https://drive.google.com/file/d/${x.drive_file_id}/view` : (x.url as string | null)
+      const link = materialLink(x)
       const embed = x.jenis === 'dokumen' ? null : x.drive_file_id ? `https://drive.google.com/file/d/${x.drive_file_id}/preview` : embedUrl(x.url as string | null)
-      return { ...x, ukuran: x.ukuran === null ? null : Number(x.ukuran), link, embed }
+      return { ...x, ukuran: x.ukuran === null ? null : Number(x.ukuran), tersembunyi: !!x.tersembunyi, link, embed }
     }),
     // Peserta: HRD melihat semua; selain HRD hanya ringkasan
     participants: manage ? participants.map((p) => ({ ...p, nilai: p.nilai === null ? null : Number(p.nilai) })) : [],

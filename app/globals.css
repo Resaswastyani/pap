@@ -2070,3 +2070,13 @@ a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity
 .pap-dash-tiles .pap-arrange-bar button span { display:none; }
 .pap-dash-tiles .pap-arrange-content { flex:1; display:flex; }
 .pap-dash-tiles .pap-arrange-content > * { flex:1; }
+
+/* Jobdesk & materi training */
+.pap-jobdesk-head { margin:14px 0 6px; font-size:13px; }
+.pap-jobdesk-text { margin:0 0 6px; font-size:13px; }
+.pap-jobdesk-list { margin:0; padding-left:20px; font-size:13px; list-style:disc; }
+ol.pap-jobdesk-list { list-style:decimal; }
+.pap-jobdesk-list li { margin:3px 0; }
+.pap-materi-item { position:relative; display:grid; min-width:0; }
+.pap-materi-item.is-hidden { opacity:.55; }
+.pap-materi-edit { position:absolute; top:8px; right:8px; background:var(--pap-surface); }

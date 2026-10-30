@@ -168,6 +168,8 @@ const RESOURCES: Record<string, Resource> = {
   'logistik/shipments': { module: 'Pengiriman', noun: 'pengiriman', table: 'shipments' },
   'logistik/expeditions': { module: 'Ekspedisi', noun: 'ekspedisi', table: 'expeditions' },
   'hrd/payroll': { module: 'Grade & Gaji', noun: 'pengaturan gaji', table: 'employee_payrolls' },
+  'hrd/jobdesks': { module: 'Jobdesk', noun: 'jobdesk', table: 'job_descriptions' },
+  'hrd/training': { module: 'Training', noun: 'modul training', table: 'training_modules' },
   'hrd/leaves': { module: 'Izin & Cuti', noun: 'pengajuan izin', table: 'leave_requests' },
   'hrd/kpi': { module: 'KPI Karyawan', noun: 'penilaian KPI', table: 'employee_kpis' },
   'hrd/permits': { module: 'Perizinan', noun: 'izin perusahaan', table: 'company_permits' },
@@ -280,6 +282,14 @@ function planFor(method: string, path: string): Plan | null {
       ...base, action: !b ? 'create' : method === 'DELETE' ? 'delete' : 'update', entityType: 'lembur', table: 'overtime_entries', id: b,
       describe: (_l, f) => (!b ? `Input lembur ${f.jam ?? ''} jam (${f.hari === 'libur' ? 'hari libur' : 'hari kerja'}) NIP ${f.nip ?? ''} tanggal ${f.tanggal ?? ''}` : `${method === 'DELETE' ? 'Menghapus' : 'Mengubah'} lembur #${b}`),
     }
+  if (res === 'hrd/jobdesks' && a === 'assign')
+    return { ...base, action: 'update', always: true, describe: (_l, f) => `${f.job_description_id ? 'Memasang' : 'Melepas'} jobdesk karyawan NIP ${f.nip ?? ''}` }
+  if (res === 'hrd/training') {
+    if (isId(a) && b === 'materials') return { ...base, action: 'create', entityType: 'materi training', table: r.table, id: a, describe: (l, f) => `Menambah materi ${f.judul || f.file || f.url || ''} ke modul ${l}` }
+    if (a === 'materials' && isId(b)) return { ...base, action: method === 'DELETE' ? 'delete' : 'update', always: true, entityType: 'materi training', table: 'training_materials', id: b, describe: (l, f) => `${method === 'DELETE' ? 'Menghapus' : 'tersembunyi' in f ? 'Menyembunyikan / menampilkan' : 'Mengubah'} materi training ${l}` }
+    if (isId(a) && b === 'participants') return { ...base, action: 'update', always: true, table: r.table, id: a, describe: (l) => `Mengubah peserta modul training ${l}` }
+    if (a === 'schedule' || a === 'sync') return null
+  }
   if (res === 'hrd/leaves' && !a && method === 'POST')
     return { ...base, action: 'create', table: 'leave_requests', describe: (l, f) => `Mengajukan ${String(f.jenis ?? 'izin').replace('_', ' ')} ${l} NIP ${f.nip ?? ''} (${f.tanggal_mulai ?? ''}${f.tanggal_selesai && f.tanggal_selesai !== f.tanggal_mulai ? ` s/d ${f.tanggal_selesai}` : ''})` }
   if (res === 'hrd/leaves' && isId(a) && method === 'PATCH')

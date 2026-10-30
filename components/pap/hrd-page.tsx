@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Award, Calculator, Clock, ExternalLink, FileSpreadsheet, Pencil, Plus, RefreshCw, Search, Settings, Trash2, UserCheck, UserMinus, Users, Wallet } from 'lucide-react'
+import { AlertTriangle, Award, Calculator, ClipboardList, Clock, ExternalLink, FileSpreadsheet, Pencil, Plus, RefreshCw, Search, Settings, Trash2, UserCheck, UserMinus, Users, Wallet } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
 import { EmployeeForm } from './employee-form'
+import { EmployeeJobdesk, JobdeskPage, type Jobdesk } from './jobdesk'
 import { PayrollCalc, PayrollEmployees, PayrollOvertime, PayrollSettingsView } from './payroll-page'
 import { api, Field, formatDate, Modal, Notice, Pager, peekQuickAction, usePaged, useQuickAction, confirmDialog } from './ui'
 
@@ -187,7 +188,7 @@ export function KaryawanPage(_props: { user: UserProfile }) {
   )
 }
 
-type Detail = { item: Record<string, string | number | null>; bawahan: { id: number; nama: string; jabatan: string | null }[]; grade: { skor: Score[]; rata_rata: number | null; grade: string | null } | null; gaji: Salary | null; can: { manage: boolean; payroll: boolean } }
+type Detail = { item: Record<string, string | number | null>; bawahan: { id: number; nama: string; jabatan: string | null }[]; grade: { skor: Score[]; rata_rata: number | null; grade: string | null } | null; gaji: Salary | null; jobdesk: Jobdesk | null; can: { manage: boolean; payroll: boolean } }
 
 function EmployeeDetail({ id, onClose, onEdit, onDeleted }: { id: number; onClose: () => void; onEdit: (item: Record<string, unknown>) => void; onDeleted: (nama: string) => void }) {
   const [d, setD] = useState<Detail | null>(null)
@@ -226,6 +227,7 @@ function EmployeeDetail({ id, onClose, onEdit, onDeleted }: { id: number; onClos
         {grid([['Departemen', v('departemen')], ['Divisi', v('divisi')], ['Jabatan', v('jabatan')], ['Level', v('level_posisi')], ['Tanggal masuk', date('tgl_masuk')], ['Masa kerja', v('masa_kerja')],
           ['Akhir percobaan', date('tgl_akhir_percobaan')], ['Berakhir kontrak', date('tgl_akhir_kontrak')], ['Tanggal berhenti', date('tgl_berhenti')], ['Atasan', v('nama_atasan')], ['Hari kerja', v('hari_kerja')], ['ID finger', v('id_finger')]])}
       </section>
+      <EmployeeJobdesk nip={String(e.nip)} jobdesk={d.jobdesk} manage={d.can.manage} />
       <section className="pap-detail-section">
         <h3>Kontak</h3>
         {grid([['Handphone', v('handphone')], ['Email', v('email')]])}
@@ -333,17 +335,18 @@ export function KaryawanMenuPage({ user }: { user: UserProfile }) {
   const menus = user.menus as string[]
   const canData = menus.includes('karyawan')
   const canGaji = menus.includes('grade-gaji')
-  const [view, setView] = useState<'data' | 'gaji'>(() => (!canData || peekQuickAction() === KARYAWAN_GAJI_ACTION ? 'gaji' : 'data'))
+  const [view, setView] = useState<'data' | 'jobdesk' | 'gaji'>(() => (!canData || peekQuickAction() === KARYAWAN_GAJI_ACTION ? 'gaji' : 'data'))
   useQuickAction(KARYAWAN_GAJI_ACTION, () => { if (canGaji) setView('gaji') })
   return (
     <>
-      {canData && canGaji && (
+      {canData && (
         <div className="pap-segmented pap-view-switch" role="tablist" aria-label="Tampilan menu Karyawan">
           <button role="tab" aria-selected={view === 'data'} className={view === 'data' ? 'active' : ''} onClick={() => setView('data')}><Users /> Data karyawan</button>
-          <button role="tab" aria-selected={view === 'gaji'} className={view === 'gaji' ? 'active' : ''} onClick={() => setView('gaji')}><Wallet /> Grade &amp; gaji</button>
+          <button role="tab" aria-selected={view === 'jobdesk'} className={view === 'jobdesk' ? 'active' : ''} onClick={() => setView('jobdesk')}><ClipboardList /> Jobdesk</button>
+          {canGaji && <button role="tab" aria-selected={view === 'gaji'} className={view === 'gaji' ? 'active' : ''} onClick={() => setView('gaji')}><Wallet /> Grade &amp; gaji</button>}
         </div>
       )}
-      {view === 'gaji' && canGaji ? <GradeGajiPage user={user} /> : <KaryawanPage user={user} />}
+      {view === 'gaji' && canGaji ? <GradeGajiPage user={user} /> : view === 'jobdesk' && canData ? <JobdeskPage /> : <KaryawanPage user={user} />}
     </>
   )
 }

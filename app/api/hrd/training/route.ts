@@ -27,9 +27,9 @@ export const GET = handle(async () => {
   }
   const [rows] = await db.query<Row[]>(
     `SELECT m.id, m.drive_folder_id IS NOT NULL AS dari_drive, m.judul, m.kategori, m.deskripsi, m.sasaran, m.wajib, m.durasi_menit, m.aktif, m.urut,
-       (SELECT COUNT(*) FROM training_materials x WHERE x.module_id = m.id AND x.jenis = 'video') AS video,
-       (SELECT COUNT(*) FROM training_materials x WHERE x.module_id = m.id AND x.jenis IN ('dokumen', 'link')) AS dokumen,
-       (SELECT x.id FROM training_materials x WHERE x.module_id = m.id AND x.drive_file_id IS NOT NULL ORDER BY x.jenis = 'video' DESC, x.urut LIMIT 1) AS thumb_id,
+       (SELECT COUNT(*) FROM training_materials x WHERE x.module_id = m.id AND x.tersembunyi = 0 AND x.jenis = 'video') AS video,
+       (SELECT COUNT(*) FROM training_materials x WHERE x.module_id = m.id AND x.tersembunyi = 0 AND x.jenis IN ('dokumen', 'link')) AS dokumen,
+       (SELECT x.id FROM training_materials x WHERE x.module_id = m.id AND x.tersembunyi = 0 AND x.drive_file_id IS NOT NULL ORDER BY x.jenis = 'video' DESC, x.urut LIMIT 1) AS thumb_id,
        (SELECT COUNT(*) FROM training_participants p WHERE p.module_id = m.id) AS peserta,
        (SELECT COUNT(*) FROM training_participants p WHERE p.module_id = m.id AND p.status = 'selesai') AS selesai
      FROM training_modules m ${manage ? '' : 'WHERE m.aktif = 1'} ORDER BY m.aktif DESC, m.wajib DESC, m.urut, m.judul`,

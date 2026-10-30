@@ -5,6 +5,7 @@ import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { deleteEmployee, loadEmployeeRow, readEmployeeInput, updateEmployee } from '@/lib/employees'
 import { canManageHr, canViewEmployees, canViewPayroll } from '@/lib/hrd'
+import { jobdeskOfNip } from '@/lib/jobdesk'
 
 type Row = RowDataPacket & Record<string, unknown>
 type Ctx = { params: Promise<{ id: string }> }
@@ -37,7 +38,7 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
       delete gaji.no_rek_lain
     }
   }
-  return NextResponse.json({ item, bawahan, grade, gaji, can: { manage, payroll: canViewPayroll(user) } })
+  return NextResponse.json({ item, bawahan, grade, gaji, jobdesk: await jobdeskOfNip(String(e.nip)), can: { manage, payroll: canViewPayroll(user) } })
 })
 
 const employeeId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Karyawan tidak ditemukan.')
