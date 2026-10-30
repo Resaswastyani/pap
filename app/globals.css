@@ -1993,3 +1993,56 @@ a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity
   .pap-table-wrap table:not(.pap-perm-table):not(.pap-shift-table):not(.pap-fin-list) td[data-long] { min-height:46px; }
 }
 @media (max-width:640px) { .pap-filters > .pap-segmented { width:100%; } }
+
+/* ---------- Training: materi & jadwal ---------- */
+.pap-materi-group + .pap-materi-group { margin-top:18px; }
+.pap-materi-grid { grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); }
+.pap-materi-grid .pap-sop-thumb { background:linear-gradient(135deg, #ece8ff, #f6f4ff); }
+.pap-materi-grid .pap-sop-thumb > svg { color:#7c5cfc; filter:none; }
+.pap-materi-grid .pap-sop-thumb img { position:relative; object-fit:cover; object-position:top; }
+.pap-materi-kind { position:absolute; top:8px; left:8px; padding:2px 8px; border-radius:999px; background:rgb(20 20 40 / .72); color:#fff; font-size:10px; font-weight:700; }
+.pap-materi-grid .pap-sop-title { font-size:13px; }
+.pap-materi-meta { display:flex; align-items:center; gap:5px; color:#7050e7; font-weight:600; }
+.pap-materi-meta svg { width:13px; height:13px; }
+.pap-materi-image { display:grid; place-items:center; }
+.pap-materi-image img { max-width:100%; border-radius:10px; }
+.pap-pdf { display:flex; flex-direction:column; gap:10px; }
+.pap-pdf-stage { position:relative; display:flex; align-items:center; justify-content:center; min-height:220px; overflow:hidden; border-radius:12px; background:#1d1f33; touch-action:pan-y; }
+.pap-pdf-stage canvas { display:block; max-width:100%; background:#fff; }
+.pap-pdf-empty { width:0; height:0; }
+.pap-pdf-loading { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:8px; background:rgb(29 31 51 / .55); color:#fff; font-size:12px; font-weight:600; }
+.pap-spinner { width:16px; height:16px; border:2px solid rgb(255 255 255 / .35); border-top-color:#fff; border-radius:50%; animation:pap-spinner .8s linear infinite; }
+@keyframes pap-spinner { to { transform:rotate(360deg); } }
+.pap-pdf-bar { display:flex; align-items:center; justify-content:center; gap:10px; color:var(--pap-muted); font-size:12px; font-weight:600; }
+.pap-pdf-bar span { min-width:110px; text-align:center; }
+.pap-pdf-full { margin-left:6px; }
+.pap-pdf:fullscreen { justify-content:center; padding:12px; background:#111; }
+.pap-pdf:fullscreen .pap-pdf-stage { flex:1; background:#111; }
+.pap-pdf:fullscreen .pap-pdf-bar { color:#fff; }
+.pap-jadwal-batches { display:flex; flex-wrap:nowrap; gap:8px; padding:0 22px 14px; overflow-x:auto; scrollbar-width:none; }
+.pap-jadwal-batches button { flex:none; white-space:nowrap; }
+.pap-jadwal-batches small { margin-left:4px; font-weight:500; opacity:.75; }
+.pap-jadwal-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:12px; padding:0 22px 18px; }
+.pap-jadwal-card { display:flex; gap:14px; padding:14px; border:1px solid var(--pap-border); border-radius:14px; background:var(--pap-surface); }
+.pap-jadwal-date { display:flex; flex:none; flex-direction:column; align-items:center; justify-content:center; width:68px; height:68px; border-radius:12px; background:rgb(124 92 252 / .1); color:#7050e7; text-align:center; }
+.pap-jadwal-date strong { font-size:22px; line-height:1.1; }
+.pap-jadwal-date span { font-size:10px; font-weight:600; }
+.pap-jadwal-body { flex:1; min-width:0; display:flex; flex-direction:column; gap:8px; }
+.pap-jadwal-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px; font-size:13px; }
+.pap-jadwal-people { display:flex; flex-wrap:wrap; gap:5px; }
+.pap-jadwal-note { padding:0 22px; }
+.pap-jadwal-info { margin:0 22px 20px; padding:14px 16px; border-radius:12px; background:rgb(124 92 252 / .06); }
+.pap-jadwal-info h3 { margin:0 0 8px; font-size:13px; }
+.pap-jadwal-info ul { margin:0; padding-left:18px; color:var(--pap-muted); font-size:12px; line-height:1.7; }
+.pap-jadwal-materi { display:flex; flex-wrap:wrap; gap:4px; }
+@media (max-width:640px) {
+  .pap-materi-grid { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); }
+  .pap-materi-hide-sm { display:none; }
+  .pap-jadwal-batches { padding:0 14px 12px; }
+  .pap-jadwal-list { grid-template-columns:minmax(0, 1fr); padding:0 14px 14px; }
+  .pap-jadwal-card { gap:10px; padding:12px; }
+  .pap-jadwal-date { width:56px; height:56px; }
+  .pap-jadwal-date strong { font-size:18px; }
+  .pap-jadwal-note { padding:0 14px; }
+  .pap-jadwal-info { margin:0 14px 14px; }
+}

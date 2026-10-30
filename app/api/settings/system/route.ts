@@ -23,6 +23,7 @@ const SOURCES = [
   { key: 'hrd.absensi_sheet_url', label: 'Laporan Absensi', menu: 'Absensi', jenis: 'sheet', sync: null, synced: null },
   { key: 'ga.sheet_url', label: 'Data General Affair (No HP, Langganan, WiFi)', menu: 'Data GA', jenis: 'sheet', sync: '/api/ga/sheet', synced: 'ga.synced_at' },
   { key: 'hrd.training_folder_url', label: 'Folder Training Karyawan', menu: 'Training', jenis: 'folder', sync: null, synced: 'hrd.training_synced' },
+  { key: 'hrd.training_schedule_url', label: 'Jadwal Training', menu: 'Training › Jadwal', jenis: 'sheet', sync: null, synced: 'hrd.training_schedule_synced' },
 ] as const
 
 // Pengaturan > Integrasi & Info sistem (Admin / GM)

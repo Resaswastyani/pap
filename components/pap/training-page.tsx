@@ -1,11 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { BookOpen, CheckCircle2, ExternalLink, EyeOff, FileText, FolderOpen, GraduationCap, Link2, Pencil, PlayCircle, Plus, RefreshCw, Search, Trash2, Users } from 'lucide-react'
+import { BookOpen, CheckCircle2, ExternalLink, Eye, EyeOff, FileText, FolderOpen, GraduationCap, Link2, Pencil, PlayCircle, Plus, RefreshCw, Search, Trash2, Users } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { api, Field, formatDate, Modal, Notice, confirmDialog } from './ui'
+import { MateriTab, PreviewDialog } from './training-materi'
+import { JadwalTab } from './training-schedule'
 
-// Training Karyawan: modul dari folder Google Drive (subfolder = modul) + link video, peserta & nilai dicatat HRD
+// Training Karyawan: tab Materi (folder Google Drive + preview), Jadwal (spreadsheet), Modul & Peserta (subfolder = modul, peserta & nilai dicatat HRD)
 
 type Module = {
   id: number; dari_drive: boolean; judul: string; kategori: string | null; deskripsi: string | null; sasaran: string | null; wajib: boolean; durasi_menit: number | null
@@ -13,7 +15,7 @@ type Module = {
 }
 type Sync = { at: string | null; source: string | null; modul: number; materi: number; error: string | null }
 type Res = { items: Module[]; divisi: string[]; folderUrl: string | null; sync: Sync; warning: string | null; can: { manage: boolean } }
-type Material = { id: number; sumber: 'drive' | 'manual'; drive_file_id: string | null; judul: string; jenis: 'video' | 'dokumen' | 'link'; url: string | null; folder: string | null; link: string | null; embed: string | null }
+type Material = { id: number; sumber: 'drive' | 'manual'; drive_file_id: string | null; judul: string; jenis: 'video' | 'dokumen' | 'link'; url: string | null; folder: string | null; mime: string | null; link: string | null; embed: string | null }
 type Participant = { id: number; employee_id: number; nama: string; nip: string; divisi: string | null; jabatan: string | null; status: 'terdaftar' | 'selesai' | 'tidak_lulus'; tanggal: string | null; nilai: number | null; catatan: string | null }
 type Employee = { id: number; nama: string; nip: string; divisi: string | null; jabatan: string | null }
 type Detail = { item: Module & { created_at: string }; materials: Material[]; participants: Participant[]; summary: { peserta: number; selesai: number }; employees: Employee[]; can: { manage: boolean } }
@@ -25,6 +27,8 @@ export function TrainingPage(_props: { user: UserProfile }) {
   const [data, setData] = useState<Res | null>(null)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [tab, setTab] = useState<'materi' | 'jadwal' | 'modul'>('materi')
+  const [materiKey, setMateriKey] = useState(0)
   const [q, setQ] = useState('')
   const [kategori, setKategori] = useState('')
   const [open, setOpen] = useState<number | null>(null)
@@ -38,6 +42,7 @@ export function TrainingPage(_props: { user: UserProfile }) {
     try {
       const r = await api<{ sync: Sync }>('/api/hrd/training', { method: 'PUT' })
       setMessage(`Sinkron selesai: ${r.sync.modul} modul, ${r.sync.materi} materi dari Google Drive.`)
+      setMateriKey((k) => k + 1)
       load()
     } catch (e) {
       setError((e as Error).message)
@@ -57,20 +62,30 @@ export function TrainingPage(_props: { user: UserProfile }) {
         <div>
           <p className="pap-eyebrow">SDM · GOOGLE DRIVE</p>
           <h1>Training Karyawan</h1>
-          <span>Program pengembangan karyawan: modul training dari folder Google Drive (video diputar langsung, dokumen dibuka di Drive), link video tambahan, serta catatan peserta & nilai oleh HRD.</span>
+          <span>Materi training dari Google Drive dengan preview langsung, jadwal & rekap kehadiran dari spreadsheet, serta catatan peserta & nilai oleh HRD.</span>
         </div>
-        {manage && <button className="pap-primary-button" onClick={() => setForm('baru')}><Plus /> Modul baru</button>}
+        {manage && tab === 'modul' && <button className="pap-primary-button" onClick={() => setForm('baru')}><Plus /> Modul baru</button>}
       </div>
+      <div className="pap-segmented pap-page-tabs" role="tablist" aria-label="Bagian training">
+        <button role="tab" aria-selected={tab === 'materi'} className={tab === 'materi' ? 'active' : ''} onClick={() => setTab('materi')}>Materi</button>
+        <button role="tab" aria-selected={tab === 'jadwal'} className={tab === 'jadwal' ? 'active' : ''} onClick={() => setTab('jadwal')}>Jadwal Training</button>
+        <button role="tab" aria-selected={tab === 'modul'} className={tab === 'modul' ? 'active' : ''} onClick={() => setTab('modul')}>Modul & Peserta</button>
+      </div>
+      {tab !== 'jadwal' && <>
       <div className="pap-sync-bar">
         <div className="pap-sync-items">
           <span className="pap-sync-title">Google Drive</span>
           <span className="pap-sync-item">Folder Training: {data?.sync.at ? `sinkron ${formatDate(data.sync.at, true)}${data.sync.source ? ` · ${data.sync.source}` : ''}` : manage && !data?.folderUrl ? 'link folder belum diisi' : 'belum pernah sinkron'}</span>
         </div>
-        {manage && <button className="pap-btn" onClick={() => setFolderForm(true)}><FolderOpen /> Folder Drive</button>}
+        {manage && <button className="pap-btn" onClick={() => setFolderForm(true)}><FolderOpen /> Sumber Drive</button>}
         {manage && data?.folderUrl && <button className="pap-btn" disabled={busy} onClick={sync}><RefreshCw className={busy ? 'pap-spin' : ''} /> {busy ? 'Menyinkronkan...' : 'Sinkron'}</button>}
       </div>
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       {(error || data?.warning) && <Notice onClose={() => setError('')}>{error || data?.warning}</Notice>}
+      </>}
+      {tab === 'materi' && <MateriTab key={materiKey} manage={manage} />}
+      {tab === 'jadwal' && <JadwalTab />}
+      {tab === 'modul' && <>
       <div className="pap-stat-grid four">
         {([
           ['Modul training', `${items.filter((m) => m.aktif).length}`, `${items.filter((m) => m.aktif && m.wajib).length} wajib`, BookOpen, 'stat-1'],
@@ -120,9 +135,10 @@ export function TrainingPage(_props: { user: UserProfile }) {
           {!data && !error && <div className="pap-empty">Memuat modul training...</div>}
         </div>
       </div>
+      </>}
       {open && <ModuleDetail id={open} onClose={() => setOpen(null)} onEdit={(m) => { setOpen(null); setForm(m) }} onChanged={load} />}
       {form && <ModuleForm item={form === 'baru' ? null : form} divisi={data?.divisi ?? []} onClose={() => setForm(null)} onSaved={(t) => { setForm(null); setMessage(t); load() }} />}
-      {folderForm && <FolderForm current={data?.folderUrl ?? ''} onClose={() => setFolderForm(false)} onSaved={(t) => { setFolderForm(false); setMessage(t); load() }} />}
+      {folderForm && <FolderForm current={data?.folderUrl ?? ''} onClose={() => setFolderForm(false)} onSaved={(t) => { setFolderForm(false); setMessage(t); setMateriKey((k) => k + 1); load() }} />}
     </>
   )
 }
@@ -133,6 +149,7 @@ function ModuleDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose:
   const [playing, setPlaying] = useState<Material | null>(null)
   const [link, setLink] = useState({ judul: '', url: '' })
   const [adding, setAdding] = useState(false)
+  const [preview, setPreview] = useState<number | null>(null)
   const load = useCallback(() => api<Detail>(`/api/hrd/training/${id}`).then((r) => {
     setD(r)
     setPlaying((cur) => cur ?? r.materials.find((m) => m.embed) ?? null)
@@ -152,6 +169,7 @@ function ModuleDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose:
   const m = d.item
   const videos = d.materials.filter((x) => x.embed)
   const others = d.materials.filter((x) => !x.embed)
+  const previewable = others.filter((x) => x.drive_file_id).map((x) => ({ ...x, embed: `https://drive.google.com/file/d/${x.drive_file_id}/preview` }))
   return (
     <Modal title={m.judul} subtitle={[m.kategori, m.sasaran ? `Sasaran: ${m.sasaran}` : 'Semua karyawan', m.durasi_menit && `${m.durasi_menit} menit`, m.dari_drive ? 'dari Google Drive' : 'modul manual'].filter(Boolean).join(' · ')} wide onClose={onClose}
       footer={<>
@@ -191,6 +209,7 @@ function ModuleDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose:
             <li key={x.id}>
               {x.jenis === 'link' ? <Link2 /> : <FileText />}
               <div>{x.link ? <a href={x.link} target="_blank" rel="noreferrer">{x.judul} <ExternalLink className="pap-inline-icon" /></a> : <span>{x.judul}</span>}<span>{[x.folder, x.jenis === 'link' ? 'Link' : 'Dokumen Google Drive'].filter(Boolean).join(' · ')}</span></div>
+              {x.drive_file_id && <button type="button" className="pap-icon-button" title="Lihat preview" aria-label={`Lihat preview ${x.judul}`} onClick={() => setPreview(x.id)}><Eye /></button>}
               {d.can.manage && x.sumber === 'manual' && <button className="pap-icon-button" aria-label="Hapus link" onClick={async () => (await confirmDialog('Hapus link materi ini?')) && run(() => api(`/api/hrd/training/materials/${x.id}`, { method: 'DELETE' }))}><Trash2 /></button>}
             </li>
           ))}
@@ -204,6 +223,7 @@ function ModuleDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose:
         )}
       </section>
       {d.can.manage && <Participants id={id} detail={d} onChanged={() => run(async () => {})} />}
+      {preview !== null && <PreviewDialog items={previewable} id={preview} onChange={setPreview} onClose={() => setPreview(null)} />}
     </Modal>
   )
 }
@@ -334,6 +354,8 @@ function ModuleForm({ item, divisi, onClose, onSaved }: { item: Module | null; d
 
 function FolderForm({ current, onClose, onSaved }: { current: string; onClose: () => void; onSaved: (message: string) => void }) {
   const [url, setUrl] = useState(current)
+  const [sheet, setSheet] = useState('')
+  useEffect(() => { api<{ url: string | null }>('/api/hrd/training/schedule').then((r) => setSheet(r.url ?? '')).catch(() => {}) }, [])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   async function save(e: React.FormEvent) {
@@ -342,7 +364,8 @@ function FolderForm({ current, onClose, onSaved }: { current: string; onClose: (
     setError('')
     try {
       const r = await api<{ sync: Sync }>('/api/hrd/training', { method: 'PATCH', json: { folder_url: url } })
-      onSaved(url ? `Folder disimpan dan disinkron: ${r.sync.modul} modul, ${r.sync.materi} materi.` : 'Link folder dikosongkan.')
+      await api('/api/hrd/training/schedule', { method: 'PATCH', json: { url: sheet } })
+      onSaved(url ? `Sumber disimpan dan disinkron: ${r.sync.materi} materi, jadwal${sheet ? ' diperbarui' : ' dikosongkan'}.` : 'Link folder dikosongkan.')
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -350,12 +373,13 @@ function FolderForm({ current, onClose, onSaved }: { current: string; onClose: (
     }
   }
   return (
-    <Modal title="Folder Google Drive Training" subtitle="Satu subfolder = satu modul training" onClose={onClose}
+    <Modal title="Sumber Google Drive Training" subtitle="Folder materi dan spreadsheet jadwal" onClose={onClose}
       footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="training-folder" disabled={busy}>{busy ? 'Menyinkronkan...' : 'Simpan & sinkron'}</button></>}>
       <form id="training-folder" className="pap-form-grid" onSubmit={save}>
         {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
-        <Field label="Link folder Drive" full><input className="pap-input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://drive.google.com/drive/folders/..." /></Field>
-        <p className="pap-muted full">Susunan folder: Training Karyawan → K3 Dasar / Operasional Mesin Blow / Pelayanan Customer / ... Isi tiap subfolder: video (mp4/mov) dan dokumen (PDF, Slides, Docs). File langsung di folder induk masuk modul &quot;Umum&quot;. Folder dibaca dengan akun Google di Master Data; agar semua karyawan bisa memutar video, bagikan folder ke &quot;siapa saja yang memiliki link&quot;. Sinkron otomatis tiap ±30 menit.</p>
+        <Field label="Link folder materi" full><input className="pap-input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://drive.google.com/drive/folders/..." /></Field>
+        <Field label="Link spreadsheet jadwal" full><input className="pap-input" value={sheet} onChange={(e) => setSheet(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/..." /></Field>
+        <p className="pap-muted full">File langsung di folder induk masuk modul &quot;Umum&quot;; subfolder menjadi modul tersendiri. Folder dan spreadsheet dibaca dengan akun Google di Master Data (bagikan ke akun itu sebagai Viewer). Spreadsheet perlu tab &quot;Rekap Data&quot; dan &quot;BATCH-1, BATCH-2, ...&quot;. Sinkron otomatis tiap ±6 jam.</p>
       </form>
     </Modal>
   )

@@ -434,6 +434,21 @@ export async function downloadSpreadsheetXlsx(id: string, headers?: Record<strin
   return Buffer.from(await res.arrayBuffer())
 }
 
+// Isi file sebagai PDF: Google Slides/Docs/Sheets diekspor, PDF diunduh apa adanya (dipakai preview materi Training)
+export async function drivePdf(fileId: string, mime: string | null) {
+  const headers = { Authorization: `Bearer ${await accessToken()}` }
+  const id = encodeURIComponent(fileId)
+  const res = mime?.startsWith('application/vnd.google-apps.')
+    ? await fetch(`https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=application/pdf`, { headers })
+    : await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media&supportsAllDrives=true`, { headers })
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}))
+    const tooBig = json.error?.errors?.[0]?.reason === 'exportSizeLimitExceeded'
+    throw new DriveError(res.status, tooBig ? 'File terlalu besar untuk preview. Buka langsung di Google Drive.' : json.error?.message ?? `Google Drive error ${res.status}`)
+  }
+  return Buffer.from(await res.arrayBuffer())
+}
+
 // Isi satu folder Drive (dipakai SOP Mesin); shortcut diganti dengan file tujuannya
 export async function listDriveFolder(folderId: string) {
   return (await listChildren(folderId)).map((item) => {
