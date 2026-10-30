@@ -6,6 +6,7 @@ import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { BarList, ColumnChart, dayNumber, Gantt, todayNumber, useMediaQuery, type GanttBar, type GanttRow } from './charts'
 import { api, formatDate, Notice, Progress } from './ui'
+import { ArrangeButton, ArrangeGrid, useArrange } from './arrange'
 import { SECTORS, type SectorKey } from '@/lib/sectors'
 
 type Metric = { label: string; satuan: string }
@@ -162,6 +163,8 @@ function planningRows(items: GanttPlanning[], today: number, onOpen: (id: number
 export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavigate: (menu: string, target?: DashboardTarget) => void }) {
   const [data, setData] = useState<DashboardData | null>(null)
   const [error, setError] = useState('')
+  // Susunan kartu (urutan & yang disembunyikan) per user
+  const arrange = useArrange('dashboard')
   // Filter sektor pada kartu penjualan (klik legenda / daftar per sektor); null = semua sektor
   const [sektor, setSektor] = useState<SectorKey | null>(null)
   // Filter status pada grafik kehadiran (klik legenda / daftar per status); null = semua status
@@ -237,17 +240,19 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
           <h1>{salam}, {user.name.split(' ')[0]}</h1>
           <span>{user.role.name} · {user.division.name}. Ringkasan pekerjaan Anda hari ini.</span>
         </div>
+        {data && <ArrangeButton arrange={arrange} hiddenCount={arrange.layout.hidden.length} />}
       </div>
+      {arrange.editing && <Notice kind="success" onClose={() => arrange.setEditing(false)}>Seret kartu (atau pakai tombol ↑ ↓) untuk mengubah urutan, dan klik Sembunyikan untuk kartu yang tidak diperlukan. Susunan tersimpan otomatis untuk akun Anda.</Notice>}
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       {!data && !error && <div className="pap-empty">Memuat ringkasan...</div>}
       {empty && <div className="pap-empty">Belum ada ringkasan untuk menu Anda.</div>}
 
-      {!!tiles.length && <div className="pap-stat-grid four pap-dash-tiles">{tiles.map(([key, node]) => <span key={key} className="pap-dash-tile">{node}</span>)}</div>}
+      {!!tiles.length && <ArrangeGrid arrange={arrange} className="pap-stat-grid four pap-dash-tiles">{tiles.map(([key, node]) => <span key={`tile-${key}`} data-title={String((node as React.ReactElement<{ label?: string }>).props?.label ?? key)} className="pap-dash-tile">{node}</span>)}</ArrangeGrid>}
 
-      <div className="pap-dash-grid">
+      <ArrangeGrid arrange={arrange} className="pap-dash-grid">
         {/* General Affair: tagihan & langganan yang harus dibayar bulan ini */}
         {d.ga && (
-          <section className="pap-table-card pap-dash-card wide">
+          <section key="ga-tagihan" data-title="Tagihan &amp; langganan" className="pap-table-card pap-dash-card wide">
             <div className="pap-card-head">
               <div><h2>Tagihan &amp; langganan {formatDate(`${d.ga.bulan}-01`).replace(/^\d+\s/, '')}</h2><p>{d.ga.ringkasan.belum ? `${d.ga.ringkasan.belum} belum dibayar${d.ga.ringkasan.nominal_belum ? ` · ${formatRupiah(d.ga.ringkasan.nominal_belum)}` : ''}${d.ga.ringkasan.lewat ? ` · ${d.ga.ringkasan.lewat} lewat jatuh tempo` : ''}` : 'Semua tagihan bulan ini sudah dibayar'} · {d.ga.ringkasan.lunas} sudah dibayar</p></div>
               <button className="pap-btn" onClick={() => onNavigate('Data GA')}>Data GA</button>
@@ -272,7 +277,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
           </section>
         )}
         {d.ga && d.ga.pembelian.length > 0 && (
-          <section className="pap-table-card pap-dash-card wide">
+          <section key="ga-pembelian" data-title="Pembelian GA" className="pap-table-card pap-dash-card wide">
             <div className="pap-card-head"><div><h2>Pembelian GA yang perlu diproses</h2><p>{d.ga.ringkasan.perlu_dibeli} sudah disetujui, perlu dibeli · {d.ga.ringkasan.perlu_disetujui} menunggu persetujuan</p></div><button className="pap-btn" onClick={() => onNavigate('Pengajuan GA')}>Pengajuan GA</button></div>
             <ul className="pap-dash-agenda">
               {d.ga.pembelian.map((p) => {
@@ -292,7 +297,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         )}
         {/* Marketing Maintenance: customer yang waktunya order ulang / berisiko berhenti order */}
         {d.fokus === 'maintenance' && d.repeat && (
-          <section className="pap-table-card pap-dash-card wide">
+          <section key="repeat" data-title="Customer perlu dihubungi" className="pap-table-card pap-dash-card wide">
             <div className="pap-card-head"><div><h2>Customer perlu dihubungi</h2><p>{d.repeat.berisiko} berisiko berhenti order · {d.repeat.waktunya} waktunya order ulang{d.repeat.tim ? '' : ' · customer pegangan Anda'}</p></div><button className="pap-btn" onClick={() => onNavigate('Repeat Order')}>Repeat Order</button></div>
             {d.repeat.list.length ? (
               <ul className="pap-dash-agenda">
@@ -311,7 +316,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         )}
         {/* Marketing Digital: sumber lead & jadwal konten */}
         {d.leads && (
-          <section className="pap-table-card pap-dash-card">
+          <section key="leads" data-title="Sumber lead" className="pap-table-card pap-dash-card">
             <div className="pap-card-head"><div><h2>Sumber lead</h2><p>Prospek masuk 30 hari terakhir · {d.leads.bulan_ini} bulan ini</p></div><button className="pap-btn" onClick={() => onNavigate('Prospek')}>Prospek</button></div>
             <div className="pap-dash-body">
               {d.leads.sumber.length ? <BarList items={d.leads.sumber.map((s) => ({ key: s.sumber, label: s.sumber, value: s.jumlah }))} /> : <p className="pap-muted">Belum ada lead 30 hari terakhir.</p>}
@@ -319,7 +324,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
           </section>
         )}
         {d.konten && (
-          <section className="pap-table-card pap-dash-card">
+          <section key="konten" data-title="Konten 7 hari ke depan" className="pap-table-card pap-dash-card">
             <div className="pap-card-head"><div><h2>Konten 7 hari ke depan</h2><p>Bulan ini {d.konten.tayang} tayang · {d.konten.rencana} direncanakan · {d.konten.leads} lead dari konten</p></div><button className="pap-btn" onClick={() => onNavigate('Kalender Konten')}>Kalender</button></div>
             {d.konten.items.length ? (
               <ul className="pap-dash-agenda">
@@ -329,7 +334,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
           </section>
         )}
         {sales && (
-          <section className="pap-table-card pap-dash-card wide">
+          <section key="penjualan" data-title="Penjualan per sektor" className="pap-table-card pap-dash-card wide">
             <div className="pap-card-head">
               <div><h2>Penjualan {picked ? `· ${picked.label}` : 'per sektor'} (faktur Accurate)</h2><p>Omzet per bulan{picked ? '' : ' per sektor customer'}, 12 bulan terakhir · bulan ini {shownNow ? `${shownNow.faktur} faktur, ${shownNow.customer} customer` : 'belum ada faktur'}</p></div>
               <div className="pap-dash-total">
@@ -384,7 +389,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         )}
 
         {d.produksi && (
-          <section className="pap-table-card pap-dash-card wide">
+          <section key="timeline-produksi" data-title="Timeline produksi" className="pap-table-card pap-dash-card wide">
             <div className="pap-card-head">
               <div><h2>Timeline produksi</h2><p>Tahap terjadwal & tanggal kirim · {gantt.before} hari lalu s/d {gantt.days - gantt.before - 1} hari ke depan</p></div>
               <button className="pap-btn" onClick={() => onNavigate('Rencana Produksi')}>Jadwal lengkap</button>
@@ -400,7 +405,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         )}
 
         {d.planningGantt && d.planningGantt.length > 0 && (
-          <section className="pap-table-card pap-dash-card wide">
+          <section key="timeline-planning" data-title="Timeline planning" className="pap-table-card pap-dash-card wide">
             <div className="pap-card-head">
               <div><h2>Timeline planning</h2><p>Planning aktif · isi batang = progress</p></div>
               <button className="pap-btn" onClick={() => onNavigate('Planning')}>Semua planning</button>
@@ -416,7 +421,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         )}
 
         {d.absensi && (
-          <section className="pap-table-card pap-dash-card wide">
+          <section key="kehadiran" data-title="Kehadiran karyawan" className="pap-table-card pap-dash-card wide">
             <div className="pap-card-head">
               <div><h2>Kehadiran karyawan</h2><p>{d.absensi.harian.length} hari kerja terakhir · data terakhir {formatDate(d.absensi.tanggal)}</p></div>
               <button className="pap-btn" onClick={() => onNavigate('Absensi')}>Absensi</button>
@@ -482,7 +487,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
           </section>
         )}
         {d.absensi && (
-          <section className="pap-table-card pap-dash-card">
+          <section key="kehadiran-divisi" data-title="Kehadiran per divisi" className="pap-table-card pap-dash-card">
             <div className="pap-card-head"><div><h2>Kehadiran per divisi</h2><p>Bulan ini, dari hari wajib masuk · terendah di atas</p></div></div>
             <div className="pap-dash-body">
               {d.absensi.divisi.length
@@ -492,7 +497,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
           </section>
         )}
         {d.absensi && (
-          <section className="pap-table-card pap-dash-card">
+          <section key="absensi-perhatian" data-title="Absensi perlu perhatian" className="pap-table-card pap-dash-card">
             <div className="pap-card-head"><div><h2>Perlu perhatian</h2><p>Paling sering tidak hadir / terlambat bulan ini</p></div><button className="pap-btn" onClick={() => onNavigate('Absensi')}>Rekap</button></div>
             {d.absensi.perhatian.length ? (
               <ul className="pap-dash-agenda">
@@ -510,7 +515,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
           </section>
         )}
         {d.grade && (
-          <section className="pap-table-card pap-dash-card">
+          <section key="grade" data-title="Distribusi grade" className="pap-table-card pap-dash-card">
             <div className="pap-card-head"><div><h2>Distribusi grade</h2><p>Karyawan aktif per grade{d.grade.rata !== null ? ` · rata-rata nilai ${d.grade.rata.toFixed(1)}` : ''}</p></div><button className="pap-btn" onClick={() => onNavigate('Grade & Gaji')}>Grade</button></div>
             <div className="pap-dash-body">
               <BarList items={[...d.grade.distribusi].sort((a, b) => (a.grade === '-' ? 1 : b.grade === '-' ? -1 : a.grade.localeCompare(b.grade))).map((g) => ({
@@ -527,7 +532,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
           </section>
         )}
         {d.grade && d.grade.divisi.length > 0 && (
-          <section className="pap-table-card pap-dash-card">
+          <section key="grade-divisi" data-title="Nilai grade per divisi" className="pap-table-card pap-dash-card">
             <div className="pap-card-head"><div><h2>Nilai grade per divisi</h2><p>Rata-rata nilai penilaian karyawan (skala 100)</p></div></div>
             <div className="pap-dash-body">
               <BarList max={100} items={d.grade.divisi.map((v) => ({ key: v.divisi, label: v.divisi, value: v.rata, tone: v.rata >= 80 ? 's3' as const : v.rata >= 70 ? 's1' as const : 's2' as const, display: `${v.rata.toFixed(1)} · ${v.jumlah} orang` }))} />
@@ -535,7 +540,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
           </section>
         )}
         {d.karyawan && (
-          <section className="pap-table-card pap-dash-card">
+          <section key="karyawan-divisi" data-title="Karyawan per divisi" className="pap-table-card pap-dash-card">
             <div className="pap-card-head"><div><h2>Karyawan per divisi</h2><p>{d.karyawan.aktif} karyawan aktif{d.karyawan.percobaan_berakhir ? ` · ${d.karyawan.percobaan_berakhir} masa percobaan berakhir ≤ 30 hari` : ''}</p></div><button className="pap-btn" onClick={() => onNavigate('Karyawan')}>Karyawan</button></div>
             <div className="pap-dash-body">
               <BarList items={d.karyawan.divisi.map((v) => ({ key: v.divisi, label: v.divisi, value: v.jumlah, display: `${v.jumlah} orang` }))} />
@@ -544,7 +549,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         )}
 
         {d.marketing && (
-          <section className="pap-table-card pap-dash-card">
+          <section key="corong" data-title="Corong prospek" className="pap-table-card pap-dash-card">
             <div className="pap-card-head"><div><h2>Corong prospek</h2><p>{funnelTotal} prospek per tahap{d.marketing.funnel.gagal ? ` · ${d.marketing.funnel.gagal} gagal` : ''}</p></div><button className="pap-btn" onClick={() => onNavigate('Prospek')}>Detail</button></div>
             <div className="pap-dash-body">
               <BarList items={FUNNEL.map(([k, label]) => ({ key: k, label, value: d.marketing!.funnel[k] ?? 0 }))} />
@@ -553,7 +558,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         )}
 
         {d.produksi && (
-          <section className="pap-table-card pap-dash-card">
+          <section key="status-produksi" data-title="Status job produksi" className="pap-table-card pap-dash-card">
             <div className="pap-card-head"><div><h2>Status job produksi</h2><p>Semua job yang belum selesai</p></div></div>
             <div className="pap-dash-body">
               <BarList items={[
@@ -568,7 +573,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         )}
 
         {d.kpi?.nilai && (
-          <section className="pap-table-card pap-dash-card">
+          <section key="kpi-saya" data-title="KPI saya bulan ini" className="pap-table-card pap-dash-card">
             <div className="pap-card-head"><div><h2>KPI saya bulan ini</h2><p>Target diatur Lead / GM</p></div><button className="pap-btn" onClick={() => onNavigate('KPI Marketing')}>Detail</button></div>
             <div className="pap-kpi-mini">
               {Object.entries(KPI_LABEL).map(([k, m]) => {
@@ -587,7 +592,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         )}
 
         {d.marketing && (d.marketing.followups.length > 0 || d.marketing.visits.length > 0) && (
-          <section className="pap-table-card pap-dash-card">
+          <section key="agenda-marketing" data-title="Agenda marketing hari ini" className="pap-table-card pap-dash-card">
             <div className="pap-card-head"><div><h2>Agenda marketing hari ini</h2><p>Visit & follow-up jatuh tempo</p></div></div>
             <ul className="pap-dash-agenda">
               {d.marketing.visits.map((v) => <li key={`v${v.id}`}><button onClick={() => onNavigate('Jadwal Visit', { visitId: v.id })}><MapPin /><span><b>{v.jadwal.slice(11, 16)}</b> Visit {v.target ?? ''}</span></button></li>)}
@@ -597,7 +602,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         )}
 
         {d.produksi && d.produksi.jatuh_tempo.length > 0 && (
-          <section className="pap-table-card pap-dash-card">
+          <section key="produksi-kirim" data-title="Produksi mendekati tanggal kirim" className="pap-table-card pap-dash-card">
             <div className="pap-card-head"><div><h2>Produksi mendekati tanggal kirim</h2><p>Job yang belum selesai</p></div></div>
             <ul className="pap-dash-agenda">
               {d.produksi.jatuh_tempo.map((j) => <li key={j.id}><button onClick={() => onNavigate('Rencana Produksi')}><Factory /><span><b>{formatDate(j.due_date)}</b> {j.nomor} · {j.item_name}{j.customer ? ` · ${j.customer}` : ''}</span></button></li>)}
@@ -606,7 +611,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         )}
 
         {d.meetings && d.meetings.length > 0 && (
-          <section className="pap-table-card pap-dash-card">
+          <section key="meeting" data-title="Meeting 7 hari ke depan" className="pap-table-card pap-dash-card">
             <div className="pap-card-head"><div><h2>Meeting 7 hari ke depan</h2></div></div>
             <ul className="pap-dash-agenda">
               {d.meetings.map((m) => <li key={m.id}><button onClick={() => onNavigate('Meeting', { meetingId: m.id })}><Handshake /><span><b>{formatDate(m.waktu, true)}</b> {m.judul}{m.tempat ? ` · ${m.tempat}` : ''}</span></button></li>)}
@@ -615,7 +620,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         )}
 
         {d.plannings && d.plannings.length > 0 && (
-          <section className="pap-table-card pap-dash-card">
+          <section key="planning-saya" data-title="Planning saya" className="pap-table-card pap-dash-card">
             <div className="pap-card-head"><div><h2>Planning saya</h2><p>Sebagai PIC</p></div></div>
             <ul className="pap-dash-agenda">
               {d.plannings.map((p) => <li key={p.id}><button onClick={() => onNavigate('Planning', { planningId: p.id })}><ListChecks /><span><b>{formatDate(p.tanggal_selesai)}</b> {p.judul}</span><Progress value={p.progress} /></button></li>)}
@@ -623,9 +628,9 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
           </section>
         )}
         {d.meetings && !d.meetings.length && d.plannings && !d.plannings.length && !d.marketing && !d.produksi && !sales && !d.absensi && !d.grade && !d.karyawan && !d.ga && (
-          <section className="pap-table-card pap-dash-card"><div className="pap-empty"><CalendarDays /> Tidak ada meeting atau planning yang menunggu Anda.</div></section>
+          <section key="kosong" data-title="Info agenda kosong" className="pap-table-card pap-dash-card"><div className="pap-empty"><CalendarDays /> Tidak ada meeting atau planning yang menunggu Anda.</div></section>
         )}
-      </div>
+      </ArrangeGrid>
     </>
   )
 }

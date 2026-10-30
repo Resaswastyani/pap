@@ -2046,3 +2046,27 @@ a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity
   .pap-jadwal-note { padding:0 14px; }
   .pap-jadwal-info { margin:0 14px 14px; }
 }
+/* Atur tampilan kartu (Dashboard & Monitoring) */
+.pap-mon-arrange { margin-top:4px; }
+.pap-arrange-editing .pap-arrange-item { position:relative; min-width:0; outline:2px dashed rgb(124 92 252 / .45); outline-offset:-2px; cursor:grab; }
+.pap-arrange-editing .pap-arrange-item.is-drag { opacity:.45; }
+.pap-arrange-editing .pap-arrange-item.is-over { outline-color:#7c5cfc; box-shadow:0 0 0 4px rgb(124 92 252 / .18); }
+.pap-arrange-editing .pap-arrange-item.is-hidden { opacity:.55; outline-color:var(--pap-border); }
+.pap-arrange-editing .pap-arrange-item.is-hidden .pap-arrange-content { display:none; }
+.pap-arrange-bar { display:flex; align-items:center; gap:6px; padding:8px 10px; border-bottom:1px solid var(--pap-border); background:rgb(124 92 252 / .06); font-size:12px; }
+.pap-arrange-bar b { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--pap-text); }
+.pap-arrange-grip { display:grid; place-items:center; color:var(--pap-muted); cursor:grab; }
+.pap-arrange-grip svg { width:16px; height:16px; }
+.pap-arrange-bar button { display:inline-flex; align-items:center; gap:4px; height:28px; padding:0 8px; border:1px solid var(--pap-border); border-radius:8px; background:var(--pap-surface); color:var(--pap-text); font-size:11px; font-weight:600; cursor:pointer; }
+.pap-arrange-bar button:disabled { opacity:.35; cursor:default; }
+.pap-arrange-bar button.on { border-color:#7c5cfc; color:#7050e7; }
+.pap-arrange-bar button svg { width:14px; height:14px; }
+@media (max-width:640px) { .pap-arrange-bar button span { display:none; } }
+.pap-arrange-editing .pap-arrange-content { pointer-events:none; user-select:none; }
+.pap-dash-tiles.pap-arrange-editing .pap-arrange-item { display:flex; flex-direction:column; border-radius:14px; }
+.pap-dash-tiles .pap-arrange-bar { gap:4px; padding:5px 6px; border:1px solid var(--pap-border); border-bottom:0; border-radius:12px 12px 0 0; }
+.pap-dash-tiles .pap-arrange-bar b { font-size:11px; }
+.pap-dash-tiles .pap-arrange-bar button { height:24px; padding:0 6px; }
+.pap-dash-tiles .pap-arrange-bar button span { display:none; }
+.pap-dash-tiles .pap-arrange-content { flex:1; display:flex; }
+.pap-dash-tiles .pap-arrange-content > * { flex:1; }
