@@ -27,6 +27,8 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
 // Masuk Data Terhapus bersama pemasangannya ke karyawan, sehingga bisa dipulihkan
 export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const { user, id } = await guard(ctx)
-  await softDelete({ table: 'job_descriptions', id, modul: 'Jobdesk', user })
+  const [[row]] = await db.query<RowDataPacket[]>('SELECT jabatan FROM job_descriptions WHERE id = ?', [id])
+  if (!row) fail(404, 'Jobdesk tidak ditemukan.')
+  await softDelete({ table: 'job_descriptions', id, modul: 'Jobdesk', label: String(row!.jabatan), user })
   return NextResponse.json({ ok: true })
 })
