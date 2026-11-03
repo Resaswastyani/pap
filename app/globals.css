@@ -2089,3 +2089,9 @@ ol.pap-jobdesk-list { list-style:decimal; }
 .pap-account-photo { display:flex; flex-direction:column; align-items:center; gap:8px; flex:none; }
 .pap-account-photo .pap-account-avatar { width:88px; height:88px; font-size:24px; }
 .pap-account-photo .pap-btn { width:100%; justify-content:center; }
+
+/* Login: "Ingat saya" + Lupa password sebaris */
+.pap-login-options { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:10px; }
+.pap-login-options .pap-forgot-link { margin:0; }
+.pap-login-card label.pap-remember { flex-direction:row; align-items:center; gap:8px; margin:0; font-weight:600; cursor:pointer; user-select:none; }
+.pap-login-card .pap-remember input { width:16px; height:16px; padding:0; margin:0; accent-color:#7c5cfc; cursor:pointer; }

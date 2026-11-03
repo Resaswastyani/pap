@@ -3,6 +3,7 @@ import { cookies, headers } from 'next/headers'
 
 export const SESSION_COOKIE = 'pap_session'
 const MAX_AGE = 60 * 60 * 8 // 8 jam
+const REMEMBER_MAX_AGE = 60 * 60 * 24 * 30 // "Ingat saya": 30 hari
 
 // Sesi per tab: tiap tab punya "slot" (id acak di sessionStorage) yang dikirim lewat header X-PAP-Slot,
 // dan cookie pap_s_<slot> berisi sesinya. Jadi dua tab di browser yang sama bisa login dengan akun berbeda.
@@ -70,11 +71,12 @@ async function setSlot(slot: string, token: string, exp: number) {
   store.set(slotCookie(slot), token, cookieOptions(remaining(exp)))
 }
 
-export async function createSession(user: SessionUser) {
-  const token = await sign(user.id)
-  const exp = Math.floor(Date.now() / 1000) + MAX_AGE
+export async function createSession(user: SessionUser, remember = false) {
+  const maxAge = remember ? REMEMBER_MAX_AGE : MAX_AGE
+  const exp = Math.floor(Date.now() / 1000) + maxAge
+  const token = await sign(user.id, exp)
   const store = await cookies()
-  store.set(SESSION_COOKIE, token, cookieOptions(MAX_AGE))
+  store.set(SESSION_COOKIE, token, cookieOptions(maxAge))
   const slot = await requestSlot()
   if (slot) await setSlot(slot, token, exp)
 }

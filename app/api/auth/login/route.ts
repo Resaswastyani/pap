@@ -31,8 +31,9 @@ export async function POST(request: Request) {
     }
 
     await db.query('UPDATE users SET last_login_at = NOW() WHERE id = ?', [user.id])
-    await createSession({ id: user.id })
-    await insertLog(request, { id: user.id, name: user.name }, { module: 'Autentikasi', action: 'login', entity: { type: 'user', id: user.id, label: email }, description: 'Login ke sistem' })
+    // "Ingat saya": sesi bertahan 30 hari (tanpa itu 8 jam)
+    await createSession({ id: user.id }, body?.remember === true)
+    await insertLog(request, { id: user.id, name: user.name }, { module: 'Autentikasi', action: 'login', entity: { type: 'user', id: user.id, label: email }, description: body?.remember === true ? 'Login ke sistem (ingat saya)' : 'Login ke sistem' })
     return NextResponse.json({ user: await toProfile(user) })
   } catch (error) {
     console.error('[auth/login]', error)

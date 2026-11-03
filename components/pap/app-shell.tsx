@@ -91,8 +91,13 @@ const canOpen = (user: User, label: string) => label === 'Pengaturan' || user.me
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
 
+const REMEMBER_KEY = 'pap-remember-email'
+
 function Login({ onLogin }: { onLogin: (user: User) => void }) {
+  // "Ingat saya": email terakhir disimpan di perangkat ini; password tidak disimpan aplikasi (diisi pengelola sandi browser)
   const [email, setEmail] = useState('')
+  const [remember, setRemember] = useState(false)
+  useEffect(() => { try { const saved = localStorage.getItem(REMEMBER_KEY); if (saved) { setEmail(saved); setRemember(true) } } catch {} }, [])
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -121,7 +126,7 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
     setError('')
     try {
       const captchaToken = challenge ? undefined : await getRecaptchaToken('login')
-      const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await clientHintHeaders()) }, body: JSON.stringify({ ...credentials, captchaToken, captchaV2Token: challenge ? v2Token : undefined }) })
+      const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await clientHintHeaders()) }, body: JSON.stringify({ ...credentials, remember, captchaToken, captchaV2Token: challenge ? v2Token : undefined }) })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
         if (challenge && widgetId.current !== null) {
@@ -130,6 +135,7 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
         }
         return setError(json.error ?? 'Gagal masuk. Coba lagi.')
       }
+      try { if (remember) localStorage.setItem(REMEMBER_KEY, credentials.email.trim()); else localStorage.removeItem(REMEMBER_KEY) } catch {}
       onLogin(json.user)
     } catch (e) {
       setError(e instanceof Error && e.message.includes('reCAPTCHA') ? e.message : 'Tidak dapat terhubung ke server.')
@@ -137,7 +143,7 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
       setLoading(false)
     }
   }
-  return <main className="pap-auth"><section className="pap-auth-hero" aria-label="PT. Pandawa Amerta Packindo"><div className="pap-auth-hero-content"><span className="pap-auth-hero-logo"><img src="/logo-mark.png" alt="" /></span><p className="pap-auth-tagline">Focus on Quality</p><h2>PT. Pandawa Amerta Packindo</h2><p className="pap-auth-sub">Flexible Plastic Packaging Manufacture</p><p className="pap-auth-desc">Produsen kantong plastik HD, PP, dan PE dari biji plastik melalui proses blow, cetak rotogravure, hingga bag making (gusset, cut seal, dan side seal). Melayani produk custom B2B dari berbagai sektor usaha, plastik laundry, serta mika rigid.</p></div></section><section className="pap-auth-panel"><div className="pap-login-card"><img className="pap-login-logo" src="/logo-pap.png" alt="PT. Pandawa Amerta Packindo — Flexible Plastic Packaging Manufacture" /><p className="pap-eyebrow">PAP MANAGEMENT SYSTEM</p><form onSubmit={(e) => { e.preventDefault(); login({ email, password }) }}><label>Email<input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nama@perusahaan.com" /></label><label>Password<span className="pap-password-field"><input type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" /><button type="button" className="pap-password-toggle" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'} aria-pressed={showPassword}>{showPassword ? <EyeOff /> : <Eye />}</button></span></label><a className="pap-forgot-link" href="/lupa-password">Lupa password?</a>{challenge && <div className="pap-captcha" ref={challengeRef} />}{error && <p className="pap-login-error" role="alert">{error}</p>}<button type="submit" className="pap-primary-button pap-login-button" disabled={loading || (challenge && !v2Token)}>{loading ? 'Memproses...' : 'Masuk'} <ChevronRight /></button></form></div></section></main>
+  return <main className="pap-auth"><section className="pap-auth-hero" aria-label="PT. Pandawa Amerta Packindo"><div className="pap-auth-hero-content"><span className="pap-auth-hero-logo"><img src="/logo-mark.png" alt="" /></span><p className="pap-auth-tagline">Focus on Quality</p><h2>PT. Pandawa Amerta Packindo</h2><p className="pap-auth-sub">Flexible Plastic Packaging Manufacture</p><p className="pap-auth-desc">Produsen kantong plastik HD, PP, dan PE dari biji plastik melalui proses blow, cetak rotogravure, hingga bag making (gusset, cut seal, dan side seal). Melayani produk custom B2B dari berbagai sektor usaha, plastik laundry, serta mika rigid.</p></div></section><section className="pap-auth-panel"><div className="pap-login-card"><img className="pap-login-logo" src="/logo-pap.png" alt="PT. Pandawa Amerta Packindo — Flexible Plastic Packaging Manufacture" /><p className="pap-eyebrow">PAP MANAGEMENT SYSTEM</p><form onSubmit={(e) => { e.preventDefault(); login({ email, password }) }}><label>Email<input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nama@perusahaan.com" /></label><label>Password<span className="pap-password-field"><input type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" /><button type="button" className="pap-password-toggle" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'} aria-pressed={showPassword}>{showPassword ? <EyeOff /> : <Eye />}</button></span></label><div className="pap-login-options"><label className="pap-remember"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />Ingat saya</label><a className="pap-forgot-link" href="/lupa-password">Lupa password?</a></div>{challenge && <div className="pap-captcha" ref={challengeRef} />}{error && <p className="pap-login-error" role="alert">{error}</p>}<button type="submit" className="pap-primary-button pap-login-button" disabled={loading || (challenge && !v2Token)}>{loading ? 'Memproses...' : 'Masuk'} <ChevronRight /></button></form></div></section></main>
 }
 
 // Sesi per tab: tiap tab punya slot acak di sessionStorage yang dikirim di setiap request ke server sendiri,
