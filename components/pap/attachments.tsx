@@ -240,6 +240,7 @@ export function NoteFiles({ items, currentUserId, isAdmin, onChanged }: { items?
             {a.kind === 'link' ? <Link2 /> : <FileText />}
             <a href={a.kind === 'link' ? a.url! : `/api/notes/attachments/${a.id}`} target="_blank" rel="noreferrer">{a.name}</a>
             {a.kind === 'file' && <small>{formatSize(a.size)}</small>}
+            {a.kind === 'file' && <a className="pap-note-download" href={`/api/notes/attachments/${a.id}?download=1`} aria-label={`Unduh ${a.name}`} title="Unduh"><Download /></a>}
             {onChanged && (a.uploaded_by === currentUserId || isAdmin) && <button type="button" aria-label={`Hapus ${a.name}`} onClick={() => remove(a)}><X /></button>}
           </li>
         ))}

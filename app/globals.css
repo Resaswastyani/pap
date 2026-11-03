@@ -2080,3 +2080,5 @@ ol.pap-jobdesk-list { list-style:decimal; }
 .pap-materi-item { position:relative; display:grid; min-width:0; }
 .pap-materi-item.is-hidden { opacity:.55; }
 .pap-materi-edit { position:absolute; top:8px; right:8px; background:var(--pap-surface); }
+.pap-note-files a.pap-note-download { display:grid; place-items:center; overflow:visible; color:var(--pap-muted); }
+.pap-note-files a.pap-note-download:hover { color:#0096cf; }

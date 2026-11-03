@@ -27,14 +27,13 @@ export async function leadDmUsers() {
   )
   return rows.map((r) => r.id)
 }
-// Anggota tim desain yang bisa ditugaskan mengerjakan request
-export async function designTeamUsers() {
-  const [rows] = await db.query<(RowDataPacket & { id: number; name: string; divisi: string })[]>(
-    `SELECT u.id, u.name, d.name AS divisi FROM users u JOIN divisions d ON d.id = u.division_id
-     WHERE u.is_active = 1 AND d.code IN (?) ORDER BY d.code = 'tim_desain' DESC, u.name`,
-    [DESIGN_TEAM],
+// Pengerja request desain yang diterima: anggota Tim Desain (Mas Nanang), tanpa dipilih
+export async function designAssignee() {
+  const [[row]] = await db.query<(RowDataPacket & { id: number; name: string })[]>(
+    `SELECT u.id, u.name FROM users u JOIN divisions d ON d.id = u.division_id
+     WHERE u.is_active = 1 AND d.code = 'tim_desain' ORDER BY u.id LIMIT 1`,
   )
-  return rows.map((r) => ({ id: Number(r.id), name: String(r.name), divisi: String(r.divisi) }))
+  return row ? { id: Number(row.id), name: String(row.name) } : null
 }
 
 export function requireRequestMenu(user: UserProfile, menu: 'sample' | 'desain') {
@@ -47,7 +46,8 @@ export function sampleScope(user: UserProfile) {
   return { sql: 's.requested_by = ?', params: [user.id] }
 }
 export function designScope(user: UserProfile) {
-  if (isDesigner(user) || canSupervise(user) || isGM(user)) return { sql: '1 = 1', params: [] as number[] }
+  // Semua marketing bisa melihat (dan mengunduh hasil) seluruh request desain
+  if (isDesigner(user) || canSupervise(user) || isGM(user) || isMarketing(user)) return { sql: '1 = 1', params: [] as number[] }
   return { sql: '(d.requested_by = ? OR d.designer_id = ?)', params: [user.id, user.id] }
 }
 

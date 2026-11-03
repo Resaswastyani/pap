@@ -45,8 +45,9 @@ export function requireMarketing(user: UserProfile, menu: 'prospek' | 'visit') {
 }
 
 // Prospek yang boleh dilihat staff: miliknya (sales / maintenance / pembuat)
+// Semua marketing melihat seluruh prospek (dan bisa follow-up); di luar marketing hanya prospek yang terkait dirinya
 export function prospectScope(user: UserProfile, alias = 'p') {
-  if (canSupervise(user)) return { sql: '1 = 1', params: [] as number[] }
+  if (canSupervise(user) || isMarketing(user)) return { sql: '1 = 1', params: [] as number[] }
   return { sql: `(${alias}.assigned_to = ? OR ${alias}.maintenance_to = ? OR ${alias}.created_by = ?)`, params: [user.id, user.id, user.id] }
 }
 
@@ -69,6 +70,10 @@ export async function loadProspect(id: number, user: UserProfile) {
 // Staff hanya boleh mengubah prospek miliknya; supervisor semua
 export const canEditProspect = (user: UserProfile, p: { assigned_to: number | null; maintenance_to: number | null; created_by: number }) =>
   canSupervise(user) || [p.assigned_to, p.maintenance_to, p.created_by].includes(user.id)
+
+// Follow-up boleh dicatat semua marketing untuk prospek mana pun (mengubah data prospek tetap pemilik / supervisor)
+export const canFollowUpProspect = (user: UserProfile, p: { assigned_to: number | null; maintenance_to: number | null; created_by: number }) =>
+  isMarketing(user) || canEditProspect(user, p)
 
 // "2026-10-15T09:30" / "2026-10-15 09:30" -> "2026-10-15 09:30:00" (WIB, sama dengan zona sesi DB)
 export function parseDateTime(value: unknown, label: string, required = false) {

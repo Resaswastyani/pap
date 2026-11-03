@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
-import { ACTIVITY_TYPES, canEditProspect, loadProspect, logActivity, parseDateTime, PROSPECT_STATUS, requireMarketing, type ProspectStatus } from '@/lib/marketing'
+import { ACTIVITY_TYPES, canFollowUpProspect, loadProspect, logActivity, parseDateTime, PROSPECT_STATUS, requireMarketing, type ProspectStatus } from '@/lib/marketing'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -10,7 +10,7 @@ export const POST = handle(async (request: Request, { params }: Ctx) => {
   const user = await requireUser()
   requireMarketing(user, 'prospek')
   const prospect = await loadProspect(Number((await params).id), user)
-  if (!canEditProspect(user, prospect as never)) fail(403, 'Anda hanya dapat mencatat follow-up prospek milik Anda.')
+  if (!canFollowUpProspect(user, prospect as never)) fail(403, 'Follow-up prospek dicatat oleh tim marketing.')
   const body = await readJson(request)
   const jenis = str(body.jenis, 20)
   if (!(jenis in ACTIVITY_TYPES)) fail(400, 'Jenis aktivitas tidak valid.')

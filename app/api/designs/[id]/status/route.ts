@@ -4,13 +4,13 @@ import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canSupervise, logActivity } from '@/lib/marketing'
 import {
-  canAcceptDesign, DESIGN_STATUS, DESIGN_TEAM, designTeamUsers, divisionUsers, loadDesign, logRequest, notifyRequest, publishDesignToProduct, requireRequestMenu,
+  canAcceptDesign, DESIGN_STATUS, DESIGN_TEAM, designAssignee, divisionUsers, loadDesign, logRequest, notifyRequest, publishDesignToProduct, requireRequestMenu,
   type DesignStatus,
 } from '@/lib/requests'
 
 type Ctx = { params: Promise<{ id: string }> }
 
-// Alur: diajukan -(Lead Digital Marketing terima & tugaskan)-> dikerjakan | batal (ditolak) -(unggah desain, kirim review)-> review
+// Alur: diajukan -(Lead Digital Marketing terima, dikerjakan Tim Desain)-> dikerjakan | batal (ditolak) -(unggah desain, kirim review)-> review
 //       -(customer)-> disetujui (masuk Data Produk) | revisi -(desainer unggah versi baru)-> review
 const NEXT: Record<DesignStatus, DesignStatus[]> = {
   diajukan: ['dikerjakan', 'batal'],
@@ -39,12 +39,10 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   let finalFileId: number | null = null
   let assignee: { id: number; name: string } | null = null
   if (to === 'dikerjakan') {
-    // Diterima Lead Digital Marketing sekaligus ditugaskan ke anggota tim (default: dirinya sendiri)
+    // Diterima Lead Digital Marketing, langsung dikerjakan Tim Desain (Mas Nanang)
     if (!canAcceptDesign(user)) fail(403, 'Hanya Lead Digital Marketing yang dapat menerima request desain.')
-    const team = await designTeamUsers()
-    const pick = int(body.designer_id) ?? user.id
-    assignee = team.find((t) => t.id === pick) ?? (pick === user.id ? { id: user.id, name: user.name } : null)
-    if (!assignee) fail(400, `Pengerja harus anggota ${DESIGN_TEAM.length > 1 ? 'Marketing Digital / Tim Desain' : 'tim desain'} yang aktif.`)
+    assignee = await designAssignee()
+    if (!assignee) fail(400, 'Belum ada anggota Tim Desain yang aktif untuk mengerjakan request ini.')
     sets.push('designer_id = ?')
     values.push(assignee!.id)
     note = `Diterima ${user.name}, dikerjakan oleh ${assignee!.name}${catatan ? `. ${catatan}` : ''}`

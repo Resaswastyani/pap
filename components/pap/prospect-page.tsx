@@ -162,7 +162,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
 
       <div className="pap-table-card">
         <div className="pap-card-head">
-          <div><h2>Daftar prospek</h2><p>{data?.canSupervise ? 'Anda melihat semua prospek dan dapat membagikannya ke sales.' : 'Prospek yang ditugaskan ke Anda atau Anda buat.'}</p></div>
+          <div><h2>Daftar prospek</h2><p>{data?.canSupervise ? 'Anda melihat semua prospek dan dapat membagikannya ke sales.' : 'Semua prospek tim marketing. Follow-up bisa dicatat untuk prospek mana pun; data prospek diubah oleh pemiliknya.'}</p></div>
           <div className="pap-segmented" role="tablist" aria-label="Tampilan prospek">
             <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}><LayoutList /> Daftar</button>
             <button className={view === 'kanban' ? 'active' : ''} onClick={() => setView('kanban')}><Columns3 /> Kanban</button>
@@ -182,7 +182,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
             {(data?.sources ?? []).map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           <select className="pap-select" value={owner} onChange={(e) => setOwner(e.target.value)} aria-label="Filter sales">
-            <option value="">{data?.canSupervise ? 'Semua sales' : 'Semua milik saya'}</option>
+            <option value="">{data?.canSupervise ? 'Semua sales' : 'Semua prospek'}</option>
             <option value="me">Ditugaskan ke saya</option>
             {data?.canSupervise && <option value="none">Belum ada sales</option>}
             {data?.canSupervise && data.users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
@@ -202,7 +202,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
                     <td>{p.assigned_name ?? <span className="pap-muted">Belum dibagi</span>}{p.maintenance_name && <div className="pap-cell-sub">Maint: {p.maintenance_name}</div>}</td>
                     <td className={`pap-followup ${followupState(p)}`}>{p.next_followup_at ? formatDate(p.next_followup_at, true) : '—'}{p.next_visit && <div className="pap-cell-sub">Visit {formatDate(p.next_visit, true)}</div>}</td>
                     <td><ProspectBadge value={p.status} /></td>
-                    <td className="pap-actions-cell"><RowActions label={p.nama_usaha} onView={() => { setAutoEdit(false); setDetailId(p.id) }} onEdit={() => { setAutoEdit(true); setDetailId(p.id) }} /></td>
+                    <td className="pap-actions-cell"><RowActions label={p.nama_usaha} onView={() => { setAutoEdit(false); setDetailId(p.id) }} onEdit={data?.canSupervise || [p.assigned_to, p.maintenance_to, p.created_by].includes(user.id) ? () => { setAutoEdit(true); setDetailId(p.id) } : undefined} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -458,6 +458,7 @@ function ProspectDetail({ id, autoEdit = false, user, users, onClose, onEdit, on
   const [activities, setActivities] = useState<Activity[]>([])
   const [visits, setVisits] = useState<Visit[]>([])
   const [canEdit, setCanEdit] = useState(false)
+  const [canFollowUp, setCanFollowUp] = useState(false)
   const [canSupervise, setCanSupervise] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -469,11 +470,12 @@ function ProspectDetail({ id, autoEdit = false, user, users, onClose, onEdit, on
 
   const load = useCallback(async () => {
     try {
-      const res = await api<{ item: Prospect; activities: Activity[]; visits: Visit[]; canEdit: boolean; canSupervise: boolean }>(`/api/prospects/${id}`)
+      const res = await api<{ item: Prospect; activities: Activity[]; visits: Visit[]; canEdit: boolean; canFollowUp?: boolean; canSupervise: boolean }>(`/api/prospects/${id}`)
       setItem(res.item)
       setActivities(res.activities)
       setVisits(res.visits)
       setCanEdit(res.canEdit)
+      setCanFollowUp(res.canFollowUp ?? res.canEdit)
       setCanSupervise(res.canSupervise)
       // Dibuka dari tombol Ubah di daftar: langsung ke form bila boleh diubah
       if (autoEdit && !editOpened.current) {
@@ -597,7 +599,7 @@ function ProspectDetail({ id, autoEdit = false, user, users, onClose, onEdit, on
           <HandoverPanel users={maintUsers} current={item.maintenance_to} onCancel={() => setPanel('')} onSubmit={(maintenanceTo, catatan) => { setPanel(''); patch({ maintenance_to: maintenanceTo, catatan_handover: catatan, status: 'handover' }, 'Prospek diserahkan ke Marketing Maintenance.') }} />
         )}
 
-        {canEdit && <ActivityForm prospect={item} onSaved={(text) => changed(text)} />}
+        {canFollowUp && <ActivityForm prospect={item} onSaved={(text) => changed(text)} />}
 
         <AttachmentPanel basePath={`/api/prospects/${item.id}/attachments`} fileBase="/api/prospects/attachments" canAdd={canEdit} currentUserId={user.id} isAdmin={user.role.isAdmin} />
 

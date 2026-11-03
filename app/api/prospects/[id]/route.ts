@@ -4,7 +4,7 @@ import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { withNoteAttachments } from '@/lib/attachments'
 import { db } from '@/lib/db'
 import {
-  canEditProspect, canSupervise, loadProspect, loadProspectProducts, readProspectProducts, saveProspectProducts, logActivity, parseDateTime, PROSPECT_STATUS, readProspectInput, requireMarketing,
+  canEditProspect, canFollowUpProspect, canSupervise, loadProspect, loadProspectProducts, readProspectProducts, saveProspectProducts, logActivity, parseDateTime, PROSPECT_STATUS, readProspectInput, requireMarketing,
   requireMarketingUser, serializeVisit, VISIT_SELECT, type ProspectStatus,
 } from '@/lib/marketing'
 import { notify } from '@/lib/notifications'
@@ -25,7 +25,7 @@ export const GET = handle(async (_request: Request, { params }: Ctx) => {
   )
   const notes = await withNoteAttachments('activity', activities as (RowDataPacket & { id: number })[])
   const [visits] = await db.query<RowDataPacket[]>(`${VISIT_SELECT} WHERE v.prospect_id = ? ORDER BY v.jadwal DESC`, [prospect.id])
-  return NextResponse.json({ item: { ...prospect, products: await loadProspectProducts(prospect.id) }, activities: notes, visits: visits.map(serializeVisit), canEdit: canEditProspect(user, prospect as never), canSupervise: canSupervise(user) })
+  return NextResponse.json({ item: { ...prospect, products: await loadProspectProducts(prospect.id) }, activities: notes, visits: visits.map(serializeVisit), canEdit: canEditProspect(user, prospect as never), canFollowUp: canFollowUpProspect(user, prospect as never), canSupervise: canSupervise(user) })
 })
 
 // Ubah data prospek, sales/maintenance, status, atau jadwal follow-up (field yang dikirim saja)
