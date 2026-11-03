@@ -4,17 +4,16 @@ import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canSupervise, logActivity } from '@/lib/marketing'
 import {
-  canAcceptDesign, DESIGN_STATUS, divisionUsers, isDesigner, loadDesign, logRequest, notifyRequest, publishDesignToProduct, requireRequestMenu,
+  canAcceptDesign, DESIGN_STATUS, DESIGN_TEAM, designTeamUsers, divisionUsers, loadDesign, logRequest, notifyRequest, publishDesignToProduct, requireRequestMenu,
   type DesignStatus,
 } from '@/lib/requests'
 
 type Ctx = { params: Promise<{ id: string }> }
 
-// Alur: diajukan -(Lead Digital Marketing terima)-> diterima -(desainer ambil)-> dikerjakan -(unggah desain, kirim review)-> review
+// Alur: diajukan -(Lead Digital Marketing terima & tugaskan)-> dikerjakan | batal (ditolak) -(unggah desain, kirim review)-> review
 //       -(customer)-> disetujui (masuk Data Produk) | revisi -(desainer unggah versi baru)-> review
 const NEXT: Record<DesignStatus, DesignStatus[]> = {
-  diajukan: ['diterima', 'batal'],
-  diterima: ['dikerjakan', 'batal'],
+  diajukan: ['dikerjakan', 'batal'],
   dikerjakan: ['review', 'batal'],
   review: ['disetujui', 'revisi', 'batal'],
   revisi: ['review', 'batal'],
@@ -38,14 +37,17 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   const values: unknown[] = [to]
   let note = catatan
   let finalFileId: number | null = null
-  if (to === 'diterima') {
-    if (!canAcceptDesign(user)) fail(403, 'Request desain diterima oleh Lead Digital Marketing.')
-    note = `Diterima oleh ${user.name}${catatan ? `. ${catatan}` : ''}`
-  } else if (to === 'dikerjakan') {
-    if (!isDesigner(user)) fail(403, 'Hanya Tim Desain yang dapat mengambil request desain.')
+  let assignee: { id: number; name: string } | null = null
+  if (to === 'dikerjakan') {
+    // Diterima Lead Digital Marketing sekaligus ditugaskan ke anggota tim (default: dirinya sendiri)
+    if (!canAcceptDesign(user)) fail(403, 'Hanya Lead Digital Marketing yang dapat menerima request desain.')
+    const team = await designTeamUsers()
+    const pick = int(body.designer_id) ?? user.id
+    assignee = team.find((t) => t.id === pick) ?? (pick === user.id ? { id: user.id, name: user.name } : null)
+    if (!assignee) fail(400, `Pengerja harus anggota ${DESIGN_TEAM.length > 1 ? 'Marketing Digital / Tim Desain' : 'tim desain'} yang aktif.`)
     sets.push('designer_id = ?')
-    values.push(user.id)
-    note = `Dikerjakan oleh ${user.name}${catatan ? `. ${catatan}` : ''}`
+    values.push(assignee!.id)
+    note = `Diterima ${user.name}, dikerjakan oleh ${assignee!.name}${catatan ? `. ${catatan}` : ''}`
   } else if (to === 'review') {
     if (!designer) fail(403, 'Hanya desainer yang mengerjakan yang dapat mengirim desain untuk review.')
     const [[file]] = await db.query<(RowDataPacket & { n: number })[]>(
@@ -73,7 +75,8 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
     sets.push('feedback = ?', 'revisi_ke = revisi_ke + 1')
     values.push(catatan)
   } else if (to === 'batal') {
-    if (!requester && !designer && !canAcceptDesign(user)) fail(403, 'Hanya sales pengaju, desainer, atau Lead Digital Marketing yang dapat membatalkan.')
+    // Menunggu diterima: ditolak Lead Digital Marketing, atau dibatalkan sales pengajunya sendiri
+    if (from === 'diajukan' ? !(canAcceptDesign(user) || item.requested_by === user.id) : !requester && !designer && !canAcceptDesign(user)) fail(403, from === 'diajukan' ? 'Hanya Lead Digital Marketing yang dapat menolak request desain.' : 'Hanya sales pengaju, desainer, atau Lead Digital Marketing yang dapat membatalkan.')
     if (!catatan) fail(400, 'Tulis alasan pembatalan.')
   }
 
@@ -91,15 +94,14 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
     await logActivity(db, { prospectId: item.prospect_id, userId: user.id, jenis: 'catatan', hasil: `Desain ${item.nomor}: ${DESIGN_STATUS[to]}${note ? ` — ${note}` : ''}` })
   }
 
-  const desainers = item.designer_id ? [item.designer_id] : await divisionUsers(['tim_desain'])
+  const desainers = assignee ? [assignee.id] : item.designer_id ? [item.designer_id] : await divisionUsers(DESIGN_TEAM)
   const recipients: Record<DesignStatus, number[]> = {
     diajukan: desainers,
-    diterima: [item.requested_by, ...desainers],
-    dikerjakan: [item.requested_by],
+    dikerjakan: [item.requested_by, ...desainers],
     review: [item.requested_by],
     revisi: desainers,
     disetujui: desainers,
-    // Ditolak saat menunggu diterima: hanya pengaju (Tim Desain belum menerima request ini)
+    // Ditolak saat menunggu diterima: hanya pengaju (tim desain belum menerima request ini)
     batal: from === 'diajukan' ? [item.requested_by] : [item.requested_by, ...desainers],
   }
   await notifyRequest(recipients[to], user.id, {
