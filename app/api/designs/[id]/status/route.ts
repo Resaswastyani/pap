@@ -4,14 +4,14 @@ import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canSupervise, logActivity } from '@/lib/marketing'
 import {
-  canAcceptDesign, DESIGN_STATUS, DESIGN_TEAM, designAssignee, divisionUsers, loadDesign, logRequest, notifyRequest, publishDesignToProduct, requireRequestMenu,
+  canAcceptDesign, DESIGN_STATUS, DESIGN_TEAM, divisionUsers, isDesigner, loadDesign, logRequest, notifyRequest, publishDesignToProduct, requireRequestMenu,
   type DesignStatus,
 } from '@/lib/requests'
 
 type Ctx = { params: Promise<{ id: string }> }
 
-// Alur: diajukan -(Lead Digital Marketing terima, dikerjakan Tim Desain)-> dikerjakan | batal (ditolak) -(unggah desain, kirim review)-> review
-//       -(customer)-> disetujui (masuk Data Produk) | revisi -(desainer unggah versi baru)-> review
+// Alur: diajukan -(Lead Digital Marketing terima)-> dikerjakan | batal (ditolak) -(staff Digital Marketing unggah desain, kirim review)-> review
+//       -(customer)-> disetujui (masuk Data Produk) | revisi -(staff Digital Marketing unggah versi baru)-> review
 const NEXT: Record<DesignStatus, DesignStatus[]> = {
   diajukan: ['dikerjakan', 'batal'],
   dikerjakan: ['review', 'batal'],
@@ -31,23 +31,22 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   if (!(to in DESIGN_STATUS) || !NEXT[from].includes(to)) fail(400, `Status tidak bisa diubah dari "${DESIGN_STATUS[from]}" ke "${DESIGN_STATUS[to] ?? to}".`)
   const catatan = str(body.catatan, 5000) || null
   const requester = item.requested_by === user.id || user.role.isAdmin || canSupervise(user)
-  const designer = item.designer_id === user.id || user.role.isAdmin
+  // Semua staff Digital Marketing boleh mengerjakan request yang sudah diterima
+  const designer = isDesigner(user)
 
   const sets: string[] = ['status = ?']
   const values: unknown[] = [to]
   let note = catatan
   let finalFileId: number | null = null
-  let assignee: { id: number; name: string } | null = null
   if (to === 'dikerjakan') {
-    // Diterima Lead Digital Marketing, langsung dikerjakan Tim Desain (Mas Nanang)
+    // Diterima Lead Digital Marketing; setelah itu staff Digital Marketing bisa mengunggah & mengirim desain
     if (!canAcceptDesign(user)) fail(403, 'Hanya Lead Digital Marketing yang dapat menerima request desain.')
-    assignee = await designAssignee()
-    if (!assignee) fail(400, 'Belum ada anggota Tim Desain yang aktif untuk mengerjakan request ini.')
-    sets.push('designer_id = ?')
-    values.push(assignee!.id)
-    note = `Diterima ${user.name}, dikerjakan oleh ${assignee!.name}${catatan ? `. ${catatan}` : ''}`
+    note = `Diterima ${user.name}, dikerjakan tim Digital Marketing${catatan ? `. ${catatan}` : ''}`
   } else if (to === 'review') {
-    if (!designer) fail(403, 'Hanya desainer yang mengerjakan yang dapat mengirim desain untuk review.')
+    if (!designer) fail(403, 'Desain dikirim untuk review oleh tim Digital Marketing.')
+    // Pengirim tercatat sebagai desainer request ini
+    sets.push('designer_id = ?')
+    values.push(user.id)
     const [[file]] = await db.query<(RowDataPacket & { n: number })[]>(
       "SELECT COUNT(*) AS n FROM design_request_files WHERE design_id = ? AND kind = 'desain' AND versi = ?",
       [item.id, Number(item.revisi_ke) + 1],
@@ -74,7 +73,7 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
     values.push(catatan)
   } else if (to === 'batal') {
     // Menunggu diterima: ditolak Lead Digital Marketing, atau dibatalkan sales pengajunya sendiri
-    if (from === 'diajukan' ? !(canAcceptDesign(user) || item.requested_by === user.id) : !requester && !designer && !canAcceptDesign(user)) fail(403, from === 'diajukan' ? 'Hanya Lead Digital Marketing yang dapat menolak request desain.' : 'Hanya sales pengaju, desainer, atau Lead Digital Marketing yang dapat membatalkan.')
+    if (from === 'diajukan' ? !(canAcceptDesign(user) || item.requested_by === user.id) : !requester && !designer && !canAcceptDesign(user)) fail(403, from === 'diajukan' ? 'Hanya Lead Digital Marketing yang dapat menolak request desain.' : 'Hanya sales pengaju atau tim Digital Marketing yang dapat membatalkan.')
     if (!catatan) fail(400, 'Tulis alasan pembatalan.')
   }
 
@@ -92,14 +91,16 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
     await logActivity(db, { prospectId: item.prospect_id, userId: user.id, jenis: 'catatan', hasil: `Desain ${item.nomor}: ${DESIGN_STATUS[to]}${note ? ` — ${note}` : ''}` })
   }
 
-  const desainers = assignee ? [assignee.id] : item.designer_id ? [item.designer_id] : await divisionUsers(DESIGN_TEAM)
+  // Diterima / revisi: seluruh tim Digital Marketing; selesai / batal: desainer pengirim (bila sudah ada)
+  const team = await divisionUsers(DESIGN_TEAM)
+  const desainers = item.designer_id ? [item.designer_id] : team
   const recipients: Record<DesignStatus, number[]> = {
-    diajukan: desainers,
-    dikerjakan: [item.requested_by, ...desainers],
+    diajukan: team,
+    dikerjakan: [item.requested_by, ...team],
     review: [item.requested_by],
-    revisi: desainers,
+    revisi: [...desainers, ...team],
     disetujui: desainers,
-    // Ditolak saat menunggu diterima: hanya pengaju (tim desain belum menerima request ini)
+    // Ditolak saat menunggu diterima: hanya pengaju (belum diterima Lead Digital Marketing)
     batal: from === 'diajukan' ? [item.requested_by] : [item.requested_by, ...desainers],
   }
   await notifyRequest(recipients[to], user.id, {

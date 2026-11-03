@@ -83,7 +83,7 @@ export function ContentPage({ user }: { user: UserProfile }) {
         <div>
           <p className="pap-eyebrow">MARKETING DIGITAL · TIM DESAIN</p>
           <h1>Kalender Konten</h1>
-          <span>Rencana posting sosial media, iklan, dan blasting; request desain/video ke Tim Desain; hasil (reach, engagement, lead); dan bank konten.</span>
+          <span>Rencana posting sosial media, iklan, dan blasting; request desain/video ke tim Digital Marketing; hasil (reach, engagement, lead); dan bank konten.</span>
         </div>
         <div className="pap-inline-actions">
           <button className="pap-btn" onClick={() => setSheetOpen(true)}><FileSpreadsheet /> Google Sheet</button>
@@ -223,7 +223,7 @@ function ContentForm({ initial, jadwal, users, canEdit, currentUserId, onClose, 
       footer={<>
         {initial && canEdit && <button type="button" className="pap-btn danger" onClick={remove}><Trash2 /> Hapus</button>}
         <span className="pap-spacer" />
-        {initial && canEdit && !initial.design_request_id && <button type="button" className="pap-btn" onClick={() => onRequestDesign(initial)}><Palette /> Request desain ke Tim Desain</button>}
+        {initial && canEdit && !initial.design_request_id && <button type="button" className="pap-btn" onClick={() => onRequestDesign(initial)}><Palette /> Request desain ke Digital Marketing</button>}
         <button type="button" className="pap-btn" onClick={onClose}>Tutup</button>
         {canEdit && <button type="submit" form="content-form" className="pap-primary-button" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan'}</button>}
       </>}

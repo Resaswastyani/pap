@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canSupervise } from '@/lib/marketing'
-import { canAcceptDesign, canRequest, designAssignee, isDesigner, loadDesign, loadLogs, requireRequestMenu } from '@/lib/requests'
+import { canAcceptDesign, canRequest, isDesigner, loadDesign, loadLogs, requireRequestMenu } from '@/lib/requests'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -20,14 +20,13 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
     item,
     files,
     logs: await loadLogs('design_id', item.id),
-    // Pengerja otomatis saat Lead Digital Marketing menerima request
-    assignee: canAcceptDesign(user) && item.status === 'diajukan' ? await designAssignee() : null,
     roles: {
       canRequest: canRequest(user),
       designer: isDesigner(user),
       canAccept: canAcceptDesign(user),
       isRequester: item.requested_by === user.id || user.role.isAdmin || canSupervise(user),
-      isDesignerOf: item.designer_id === user.id || user.role.isAdmin,
+      // Setelah diterima, semua staff Digital Marketing bisa mengunggah & mengirim desain
+      isDesignerOf: isDesigner(user),
     },
   })
 })

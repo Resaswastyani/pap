@@ -13,7 +13,7 @@ export type ContentStatus = keyof typeof CONTENT_STATUS
 export function requireContent(user: UserProfile) {
   if (!user.menus.includes('konten')) fail(403, 'Anda tidak punya akses ke Kalender Konten.')
 }
-// Dikelola Marketing Digital, Lead marketing, GM, admin; Tim Desain & marketing lain melihat
+// Dikelola Marketing Digital, Lead marketing, GM, admin; marketing lain melihat
 export const canEditContent = (user: UserProfile) =>
   user.role.isAdmin || ['marketing_digital', 'general_manager'].includes(user.division.code) || (user.division.code === 'marketing' && user.role.code === 'lead')
 

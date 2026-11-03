@@ -14,7 +14,7 @@ const ACTIONS: { menu: string; action: string; label: string; hint: string; icon
   { menu: 'Prospek', action: 'tambah-prospek', label: 'Tambah prospek', hint: 'Calon customer baru', icon: Target, group: 'Marketing' },
   { menu: 'Jadwal Visit', action: 'jadwal-visit', label: 'Jadwalkan visit', hint: 'Kunjungan ke prospek/customer', icon: MapPinned, group: 'Marketing' },
   { menu: 'Request Sample', action: 'request-sample', label: 'Request sample', hint: 'Ke PPIC & Produksi', icon: FlaskConical, group: 'Marketing' },
-  { menu: 'Request Desain', action: 'request-desain', label: 'Request desain', hint: 'Ke Tim Desain', icon: Palette, group: 'Marketing' },
+  { menu: 'Request Desain', action: 'request-desain', label: 'Request desain', hint: 'Ke Digital Marketing', icon: Palette, group: 'Marketing' },
   { menu: 'Planning', action: 'buat-planning', label: 'Buat planning', hint: 'Rencana kerja & PIC', icon: ListChecks, group: 'Kolaborasi' },
   { menu: 'Meeting', action: 'tambah-meeting', label: 'Tambah meeting', hint: 'Jadwal & peserta', icon: Handshake, group: 'Kolaborasi' },
 ]

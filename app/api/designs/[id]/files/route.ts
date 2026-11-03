@@ -3,7 +3,7 @@ import { fail, handle, int, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canSupervise } from '@/lib/marketing'
 import { validProductFile } from '@/lib/products'
-import { loadDesign, requireRequestMenu } from '@/lib/requests'
+import { isDesigner, loadDesign, requireRequestMenu } from '@/lib/requests'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -19,7 +19,7 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   if (['disetujui', 'batal'].includes(item.status)) fail(400, 'Request ini sudah selesai.')
   let versi = 0
   if (kind === 'desain') {
-    if (item.designer_id !== user.id && !user.role.isAdmin) fail(403, 'Ambil request ini terlebih dahulu untuk mengunggah desain.')
+    if (!isDesigner(user)) fail(403, 'File desain diunggah oleh tim Digital Marketing.')
     if (!['dikerjakan', 'revisi'].includes(item.status)) fail(400, 'Desain diunggah saat status Dikerjakan atau Revisi.')
     versi = Number(item.revisi_ke) + 1
   } else if (item.requested_by !== user.id && !user.role.isAdmin && !canSupervise(user)) {

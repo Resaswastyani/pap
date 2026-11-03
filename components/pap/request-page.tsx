@@ -562,9 +562,9 @@ export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: num
     <>
       <div className="pap-page-heading">
         <div>
-          <p className="pap-eyebrow">MARKETING · TIM DESAIN</p>
+          <p className="pap-eyebrow">MARKETING · DIGITAL MARKETING</p>
           <h1>Request Desain</h1>
-          <span>Klise cetakan (desain final masuk Data Produk) dan konten digital untuk Marketing Digital (masuk Bank Konten). Tim Desain mengunggah desain per versi sampai disetujui.</span>
+          <span>Klise cetakan (desain final masuk Data Produk) dan konten digital untuk Marketing Digital (masuk Bank Konten). Tim Digital Marketing mengunggah desain per versi sampai disetujui.</span>
         </div>
         {roles.canRequest && <button className="pap-primary-button" onClick={() => setForm(true)}><Plus /> Request desain</button>}
       </div>
@@ -657,7 +657,7 @@ export function DesignForm({ prospect, preset, onClose, onSaved }: { prospect?: 
       const res = await api<{ id: number; nomor: string }>('/api/designs', { method: 'POST', json: payload })
       const failed: string[] = []
       for (const file of files) await uploadDesignFile(res.id, 'referensi', file).catch((err: Error) => failed.push(err.message))
-      onSaved(`Request desain ${res.nomor} terkirim ke Tim Desain.${failed.length ? ` Sebagian referensi gagal diunggah: ${failed.join('; ')}` : ''}`, res.id)
+      onSaved(`Request desain ${res.nomor} terkirim ke Lead Digital Marketing.${failed.length ? ` Sebagian referensi gagal diunggah: ${failed.join('; ')}` : ''}`, res.id)
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -667,10 +667,10 @@ export function DesignForm({ prospect, preset, onClose, onSaved }: { prospect?: 
   return (
     <Modal
       title={konten ? 'Request konten digital' : 'Request desain klise'}
-      subtitle={konten ? 'Gambar / video untuk sosial media, iklan, atau blasting — dikerjakan Tim Desain' : 'Brief dikirim ke Tim Desain'}
+      subtitle={konten ? 'Gambar / video untuk sosial media, iklan, atau blasting — dikerjakan tim Digital Marketing' : 'Brief dikirim ke tim Digital Marketing'}
       wide
       onClose={onClose}
-      footer={<><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="design-form" className="pap-primary-button" disabled={saving}><Send /> {saving ? 'Mengirim...' : 'Kirim ke Tim Desain'}</button></>}
+      footer={<><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="design-form" className="pap-primary-button" disabled={saving}><Send /> {saving ? 'Mengirim...' : 'Kirim ke Digital Marketing'}</button></>}
     >
       <form id="design-form" className="pap-form-grid" onSubmit={submit}>
         {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
@@ -719,17 +719,15 @@ function DesignDetail({ id, user, onClose, onChanged }: { id: number; user: User
   const [noteFiles, setNoteFiles] = useState<PendingAttachments>(emptyAttachments)
   const [finalId, setFinalId] = useState<number | null>(null)
   const designInput = useRef<HTMLInputElement>(null)
-  const [assignee, setAssignee] = useState<{ id: number; name: string } | null>(null)
   const refInput = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
     try {
-      const res = await api<{ item: Design; files: DesignFile[]; logs: Log[]; roles: DesignRoles; assignee: { id: number; name: string } | null }>(`/api/designs/${id}`)
+      const res = await api<{ item: Design; files: DesignFile[]; logs: Log[]; roles: DesignRoles }>(`/api/designs/${id}`)
       setItem(res.item)
       setFiles(res.files)
       setLogs(res.logs)
       setRoles(res.roles)
-      setAssignee(res.assignee ?? null)
       const latest = res.files.find((f) => f.kind === 'desain')
       setFinalId(latest?.id ?? null)
     } catch (e) {
@@ -817,12 +815,12 @@ function DesignDetail({ id, user, onClose, onChanged }: { id: number; user: User
       {s === 'diajukan' && roles.canAccept && (
         <div className="pap-inline-panel">
           <strong>Lead Digital Marketing: terima atau tolak request ini</strong>
-          <p className="pap-muted">Setelah diterima, request langsung dikerjakan {assignee ? <strong>{assignee.name}</strong> : 'Tim Desain'} (status menjadi Dikerjakan). Bila tidak sesuai, tolak dengan alasan.</p>
-          <textarea className="pap-input" rows={2} maxLength={5000} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Catatan untuk desainer (opsional)" />
+          <p className="pap-muted">Setelah diterima (status menjadi Dikerjakan), staff Digital Marketing langsung bisa mengunggah dan mengirim desain. Bila tidak sesuai, tolak dengan alasan.</p>
+          <textarea className="pap-input" rows={2} maxLength={5000} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Catatan untuk tim Digital Marketing (opsional)" />
           <div className="pap-inline-actions pap-wrap">
             <button className="pap-btn danger" disabled={busy} onClick={async () => { const a = await askReason({ title: 'Tolak request desain', label: 'Alasan penolakan', confirmLabel: 'Tolak request' }); if (a) act({ status: 'batal', catatan: `Ditolak: ${a}` }, 'Request desain ditolak, pengaju diberi tahu.') }}><Ban /> Tolak</button>
             <span className="pap-spacer" />
-            <button className="pap-primary-button" disabled={busy} onClick={() => act({ status: 'dikerjakan', catatan }, `Request desain diterima dan diteruskan ke ${assignee?.name ?? 'Tim Desain'}.`)}><CheckCircle2 /> Terima request</button>
+            <button className="pap-primary-button" disabled={busy} onClick={() => act({ status: 'dikerjakan', catatan }, 'Request desain diterima dan diteruskan ke tim Digital Marketing.')}><CheckCircle2 /> Terima request</button>
           </div>
         </div>
       )}
@@ -849,7 +847,7 @@ function DesignDetail({ id, user, onClose, onChanged }: { id: number; user: User
           <textarea className="pap-input" rows={3} maxLength={5000} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Tanggapan customer. Wajib diisi bila minta revisi." />
           <div className="pap-note-attach"><AttachmentInput value={noteFiles} onChange={setNoteFiles} /></div>
           <div className="pap-inline-actions pap-wrap">
-            <button className="pap-btn danger" disabled={busy || !catatan.trim()} onClick={() => act({ status: 'revisi', catatan }, 'Revisi dikirim ke Tim Desain.')}><RotateCcw /> Minta revisi</button>
+            <button className="pap-btn danger" disabled={busy || !catatan.trim()} onClick={() => act({ status: 'revisi', catatan }, 'Revisi dikirim ke tim Digital Marketing.')}><RotateCcw /> Minta revisi</button>
             <span className="pap-spacer" />
             <button className="pap-primary-button" disabled={busy || (designs.length > 0 && !finalId)} onClick={() => act({ status: 'disetujui', catatan, file_id: finalId }, item.kategori === 'konten' ? 'Konten disetujui dan masuk Bank Konten.' : 'Desain disetujui dan masuk ke Data Produk.')}><CheckCircle2 /> {item.kategori === 'konten' ? 'Setujui konten' : 'Customer setuju'}</button>
           </div>

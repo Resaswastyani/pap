@@ -14,8 +14,8 @@ export const isPPIC = (user: UserProfile) => user.role.isAdmin || user.division.
 export const canApproveSample = (user: UserProfile) => isManagement(user) || isLeadOf(user, 'produksi', 'ppic')
 export const sampleApprovers = () => leadAndGmUsers(['produksi', 'ppic'])
 export const isProduksi = (user: UserProfile) => user.role.isAdmin || user.division.code === 'produksi'
-// Tim pengerjaan desain: Marketing Digital digabung dengan Tim Desain
-export const DESIGN_TEAM = ['marketing_digital', 'tim_desain']
+// Tim pengerjaan desain: Marketing Digital (divisi Tim Desain sudah dilebur ke sini)
+export const DESIGN_TEAM = ['marketing_digital']
 export const isDesigner = (user: UserProfile) => user.role.isAdmin || DESIGN_TEAM.includes(user.division.code)
 export const canRequest = (user: UserProfile) => user.role.isAdmin || isGM(user) || isMarketing(user)
 // Request desain baru diterima (langsung dikerjakan & ditugaskan) atau ditolak oleh Lead Digital Marketing
@@ -27,20 +27,12 @@ export async function leadDmUsers() {
   )
   return rows.map((r) => r.id)
 }
-// Pengerja request desain yang diterima: anggota Tim Desain (Mas Nanang), tanpa dipilih
-export async function designAssignee() {
-  const [[row]] = await db.query<(RowDataPacket & { id: number; name: string })[]>(
-    `SELECT u.id, u.name FROM users u JOIN divisions d ON d.id = u.division_id
-     WHERE u.is_active = 1 AND d.code = 'tim_desain' ORDER BY u.id LIMIT 1`,
-  )
-  return row ? { id: Number(row.id), name: String(row.name) } : null
-}
 
 export function requireRequestMenu(user: UserProfile, menu: 'sample' | 'desain') {
   if (!user.menus.includes(menu)) fail(403, 'Anda tidak punya akses ke menu ini.')
 }
 
-// Staff marketing hanya melihat request miliknya; PPIC/Produksi/Tim Desain/Lead/GM/admin melihat semua
+// Staff marketing hanya melihat request miliknya; PPIC/Produksi/Lead/GM/admin melihat semua
 export function sampleScope(user: UserProfile) {
   if (isPPIC(user) || isProduksi(user) || canSupervise(user) || isGM(user)) return { sql: '1 = 1', params: [] as number[] }
   return { sql: 's.requested_by = ?', params: [user.id] }
@@ -259,8 +251,8 @@ export function designTodoSql(user: UserProfile) {
   const parts: string[] = []
   const params: number[] = []
   if (isDesigner(user)) {
-    parts.push("(d.designer_id = ? AND d.status IN ('dikerjakan', 'revisi'))")
-    params.push(user.id)
+    // Request yang sudah diterima bisa dikerjakan staff Digital Marketing mana pun
+    parts.push("d.status IN ('dikerjakan', 'revisi')")
   }
   if (canAcceptDesign(user)) parts.push("d.status = 'diajukan'")
   if (canRequest(user)) {

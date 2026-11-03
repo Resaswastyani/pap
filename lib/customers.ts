@@ -41,8 +41,8 @@ export const CUSTOMER_SELECT = `SELECT c.id, c.accurate_id, c.customer_no, c.nam
 
 // Edit customer (tersimpan ke Accurate): permission customer.manage, atau divisi Marketing (semua sub-divisi)
 export const canManageCustomer = (user: UserProfile) => user.role.isAdmin || can(user, PERMISSIONS.customerManage) || user.division.code.startsWith('marketing')
-// Kelola data produk & desain: permission product.manage, atau divisi Marketing / PPIC / Tim Desain
-export const canManageProduct = (user: UserProfile) => user.role.isAdmin || can(user, PERMISSIONS.productManage) || user.division.code.startsWith('marketing') || ['ppic', 'tim_desain'].includes(user.division.code)
+// Kelola data produk & desain: permission product.manage, atau divisi Marketing / PPIC
+export const canManageProduct = (user: UserProfile) => user.role.isAdmin || can(user, PERMISSIONS.productManage) || user.division.code.startsWith('marketing') || user.division.code === 'ppic'
 
 export const canViewCustomers = (user: UserProfile) => user.menus.includes('customer')
 export const canViewProducts = (user: UserProfile) => user.menus.includes('produk') || user.menus.includes('customer')

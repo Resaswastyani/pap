@@ -25,7 +25,7 @@ export const GET = handle(async (request: Request) => {
   )
   const [users] = await db.query<RowDataPacket[]>(
     `SELECT u.id, u.name, d.name AS division_name FROM users u JOIN divisions d ON d.id = u.division_id
-     WHERE u.is_active = 1 AND d.code IN ('marketing_digital', 'marketing', 'tim_desain') ORDER BY d.code = 'marketing_digital' DESC, u.name`,
+     WHERE u.is_active = 1 AND d.code IN ('marketing_digital', 'marketing') ORDER BY d.code = 'marketing_digital' DESC, u.name`,
   )
   return NextResponse.json({
     bulan,
