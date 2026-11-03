@@ -3,12 +3,13 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str, pageParams } from '@/lib/api'
 import { db } from '@/lib/db'
 import { SECTORS, sectorSql } from '@/lib/sectors'
-import { canManageCustomer, canViewCustomers, CRM_CASE, CRM_INACTIVE_DAYS, CRM_STATUS, CUSTOMER_SELECT, readCustomerInput, requireMenu, saveCustomerToAccurate, upsertLocalCustomer } from '@/lib/customers'
+import { canManageCustomer, canViewCustomers, CRM_CASE, ensureCustomerCycles, CRM_INACTIVE_DAYS, CRM_STATUS, CUSTOMER_SELECT, readCustomerInput, requireMenu, saveCustomerToAccurate, upsertLocalCustomer } from '@/lib/customers'
 
 // Daftar customer + status CRM + ringkasan per status
 export const GET = handle(async (request: Request) => {
   const user = await requireUser()
   requireMenu(user, canViewCustomers(user))
+  await ensureCustomerCycles()
   const params = new URL(request.url).searchParams
   const where: string[] = []
   const args: unknown[] = []

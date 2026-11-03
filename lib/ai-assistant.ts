@@ -1,7 +1,7 @@
 import type { RowDataPacket } from 'mysql2'
 import { ACCOUNTING_MENUS, AGING, bsSummary, bsAmounts, cashAccounts, forecast, isDate, payables, plAmounts, plSummary, plTrend, receivables, todayWib } from '@/lib/accounting'
 import { fail } from '@/lib/api'
-import { CRM_CASE, CRM_INACTIVE_DAYS, CRM_STATUS } from '@/lib/customers'
+import { CRM_CASE, CRM_INACTIVE_DAYS, CRM_STATUS, CYCLE_PASSIVE_FACTOR, CYCLE_PASSIVE_MIN_DAYS, PASSIVE_DAYS_SQL } from '@/lib/customers'
 import { db } from '@/lib/db'
 import { prospectScope } from '@/lib/marketing'
 import { SECTORS, sectorSql } from '@/lib/sectors'
@@ -78,7 +78,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'analisis_customer', label: 'Analisis customer',
-    description: `Analisis basis customer per sektor: jumlah per status CRM (pelanggan = >=2 faktur, pembeli = 1 faktur, pasif = tidak order > ${CRM_INACTIVE_DAYS} hari), sebaran per kota (peluang wilayah), customer baru per bulan, nilai faktur rata-rata, dan kandidat reaktivasi (customer pasif bernilai besar). Untuk mencari peluang customer di laundry, beras, sektor umum.`,
+    description: `Analisis basis customer per sektor: jumlah per status CRM (pelanggan = >=2 faktur, pembeli = 1 faktur, pasif = tidak order > ${CYCLE_PASSIVE_FACTOR}x cycle order customer itu, min. ${CYCLE_PASSIVE_MIN_DAYS} hari; cycle belum diketahui: ${CRM_INACTIVE_DAYS} hari), sebaran per kota (peluang wilayah), customer baru per bulan, nilai faktur rata-rata, dan kandidat reaktivasi (customer pasif bernilai besar). Untuk mencari peluang customer di laundry, beras, sektor umum.`,
     parameters: { type: 'OBJECT', properties: { sektor: sectorArg } },
     allowed: (u) => has(u, 'customer', 'repeat-order', 'order-bulanan'),
     run: async (args) => {
@@ -91,7 +91,7 @@ const TOOLS: Tool[] = [
       const [status] = await db.query<Row[]>(`SELECT ${CRM_CASE} AS status, COUNT(*) AS jumlah, SUM(COALESCE(s.omzet_12, 0)) AS omzet_12_bulan ${base} GROUP BY status`, f.params)
       const [kota] = await db.query<Row[]>(
         `SELECT COALESCE(NULLIF(TRIM(c.bill_city), ''), '(tanpa kota)') AS kota, COUNT(*) AS customer,
-           SUM(s.last_order >= CURDATE() - INTERVAL ${CRM_INACTIVE_DAYS} DAY) AS aktif, SUM(COALESCE(s.omzet_12, 0)) AS omzet_12_bulan
+           SUM(DATEDIFF(CURDATE(), s.last_order) <= ${PASSIVE_DAYS_SQL}) AS aktif, SUM(COALESCE(s.omzet_12, 0)) AS omzet_12_bulan
          ${base} GROUP BY kota ORDER BY customer DESC LIMIT 12`, f.params,
       )
       const [baru] = await db.query<Row[]>(
@@ -100,7 +100,7 @@ const TOOLS: Tool[] = [
       const [reaktivasi] = await db.query<Row[]>(
         `SELECT c.name AS nama, c.bill_city AS kota, ${sectorSql('c.category')} AS sektor, s.order_count AS faktur, s.total_amount AS total_omzet, s.last_order AS order_terakhir,
            DATEDIFF(CURDATE(), s.last_order) AS hari_tidak_order
-         ${base} AND s.last_order < CURDATE() - INTERVAL ${CRM_INACTIVE_DAYS} DAY ORDER BY s.total_amount DESC LIMIT 12`, f.params,
+         ${base} AND DATEDIFF(CURDATE(), s.last_order) > ${PASSIVE_DAYS_SQL} ORDER BY s.total_amount DESC LIMIT 12`, f.params,
       )
       const [[avg]] = await db.query<Row[]>(
         `SELECT AVG(i.total_amount) AS rata, COUNT(*) AS faktur FROM accurate_sales_invoices i LEFT JOIN customers c ON c.accurate_id = i.customer_accurate_id
@@ -270,7 +270,7 @@ Aturan:
 - Angka tentang data perusahaan WAJIB berasal dari alat (function); jangan mengarang data internal. Bila data tidak tersedia atau alat gagal, katakan terus terang.
   Untuk pertanyaan umum boleh memakai pengetahuan umum; bila informasinya bisa berubah (harga pasar, regulasi, kurs), sebutkan bahwa itu perkiraan umum dan sarankan dicek ulang.
 - Alat yang tersedia untuk pengguna ini: ${tools.map((t) => t.label).join(', ') || '(tidak ada)'}. Bila pertanyaan butuh data perusahaan di luar itu, jelaskan bahwa pengguna tidak punya akses ke menu terkait.
-- Sektor customer berasal dari kategori Accurate: (LAU) = Laundry, (BRS) = Beras, (SU) = Sektor Umum, tanpa kode = Lainnya. Pelanggan = sudah >= 2 faktur; Pembeli = 1 faktur; pasif = tidak order lebih dari ${CRM_INACTIVE_DAYS} hari.
+- Sektor customer berasal dari kategori Accurate: (LAU) = Laundry, (BRS) = Beras, (SU) = Sektor Umum, tanpa kode = Lainnya. Pelanggan = sudah >= 2 faktur; Pembeli = 1 faktur; pasif = tidak order lebih dari ${CYCLE_PASSIVE_FACTOR}x cycle order customer itu (min. ${CYCLE_PASSIVE_MIN_DAYS} hari; cycle = median jarak order atau diisi manual; belum diketahui: ${CRM_INACTIVE_DAYS} hari).
 - Tulis Rupiah ringkas: Rp 1,25 M (miliar), Rp 830 jt (juta), Rp 45 rb. Pakai koma sebagai desimal.
 - Bila tren, perbandingan, atau peringkat lebih jelas dengan grafik, panggil buat_grafik (maks 3 grafik per jawaban). Nilai grafik dalam angka penuh (bukan juta).
 - Struktur jawaban analisis data: ringkasan 1-2 kalimat, lalu poin-poin temuan penting (pakai **tebal** untuk angka kunci), lalu "Rekomendasi" berupa langkah konkret (mis. customer yang perlu dihubungi, wilayah potensial, biaya yang perlu ditekan).

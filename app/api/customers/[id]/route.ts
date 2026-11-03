@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { PRODUCT_OF_CUSTOMER } from '@/lib/products'
-import { canManageCustomer, canManageProduct, canViewCustomers, canViewProducts, loadCustomer, readCustomerInput, refreshCustomerFromAccurate, requireMenu, saveCustomerToAccurate, upsertLocalCustomer, type CustomerInput } from '@/lib/customers'
+import { canEditCycle, canManageCustomer, canManageProduct, canViewCustomers, canViewProducts, loadCustomer, readCustomerInput, refreshCustomerFromAccurate, requireMenu, saveCustomerToAccurate, upsertLocalCustomer, type CustomerInput } from '@/lib/customers'
 
 type Ctx = { params: Promise<{ id: string }> }
 const customerId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Customer tidak ditemukan.')
@@ -33,7 +33,7 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
     item: { ...customer, order_count: Number(customer.order_count), total_amount: Number(customer.total_amount) },
     invoices: invoices.map((row) => ({ ...row, total_amount: row.total_amount === null ? null : Number(row.total_amount) })),
     products: products.map((row) => ({ ...row, file_count: Number(row.file_count) })),
-    can: { edit: canManageCustomer(user), product: canManageProduct(user) },
+    can: { edit: canManageCustomer(user), product: canManageProduct(user), cycle: canEditCycle(user) },
   })
 })
 

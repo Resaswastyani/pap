@@ -6,10 +6,11 @@ import { SECTOR_LABEL, SECTORS, type SectorKey } from '@/lib/sectors'
 import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatRupiah } from './accurate'
 import { ProductDetail, ProductForm, type Product } from './product-page'
+import { CycleField, cycleText, type CycleInfo } from './customer-cycle'
 import { api, Field, formatDate, Modal, Notice, Pager, RowActions } from './ui'
 
 type CrmStatus = 'pelanggan' | 'pembeli' | 'prospek' | 'pelanggan_nonaktif' | 'pembeli_nonaktif'
-type Customer = {
+type Customer = CycleInfo & {
   id: number
   accurate_id: number | null
   customer_no: string | null
@@ -102,7 +103,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
     ['pelanggan', 'Pelanggan', summary.pelanggan, 'Repeat order (≥ 2 faktur)', Repeat, 'stat-0'],
     ['pembeli', 'Pembeli', summary.pembeli, 'Baru 1 kali order', UserPlus, 'stat-1'],
     ['prospek', 'Prospek', summary.prospek, 'Belum ada transaksi', Users, 'stat-1'],
-    ['nonaktif', 'Pelanggan pasif', summary.pelanggan_nonaktif + summary.pembeli_nonaktif, `Tidak order > ${inactiveDays} hari`, UserMinus, 'stat-2'],
+    ['nonaktif', 'Pelanggan pasif', summary.pelanggan_nonaktif + summary.pembeli_nonaktif, 'Tidak order > 3× cycle-nya', UserMinus, 'stat-2'],
   ]
 
   return (
@@ -130,7 +131,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
         ))}
       </div>
       <div className="pap-table-card">
-        <div className="pap-card-head"><div><h2>Daftar customer</h2><p>Diurutkan dari transaksi terakhir. Status pasif bila tidak ada faktur lebih dari {inactiveDays} hari.</p></div></div>
+        <div className="pap-card-head"><div><h2>Daftar customer</h2><p>Diurutkan dari transaksi terakhir. Status pasif bila tidak order lebih dari 3× cycle order customer itu (min. 30 hari; cycle belum ketahuan: {inactiveDays} hari).</p></div></div>
         <div className="pap-filters">
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama, nomor, kota, email..." /></label>
           <select className="pap-select" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter status CRM">
@@ -152,7 +153,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
                 <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
                   <td><div className="pap-cell-title">{item.name}</div><div className="pap-cell-sub">{item.customer_no ?? 'Belum ada nomor'}{item.sektor ? ` · ${SECTOR_LABEL[item.sektor]}` : ''}{item.category ? ` · ${item.category}` : ''}</div></td>
                   <td><div className="pap-cell-sub">{item.mobile_phone ?? item.work_phone ?? '—'}</div><div className="pap-cell-sub">{item.email ?? ''}</div></td>
-                  <td className="pap-nowrap">{item.order_count ? <><strong>{item.order_count}×</strong> · {formatDate(item.last_order)}</> : <span className="pap-muted">Belum ada</span>}</td>
+                  <td className="pap-nowrap">{item.order_count ? <><strong>{item.order_count}×</strong> · {formatDate(item.last_order)}<div className="pap-cell-sub">{cycleText(item) ? `Cycle ${cycleText(item)}${item.cycle_manual_days ? ' (manual)' : ''}` : 'Cycle belum ketahuan'}</div></> : <span className="pap-muted">Belum ada</span>}</td>
                   <td><CrmBadge value={item.crm_status} /></td>
                   <td className="pap-nowrap">{item.product_count ? `${item.product_count} produk` : <span className="pap-muted">—</span>}</td>
                   <td className="pap-actions-cell"><RowActions label={item.name} onView={() => setDetailId(item.id)} onEdit={canManage ? () => setForm(item) : undefined} /></td>
@@ -249,14 +250,14 @@ function CustomerDetail({ id, onClose, onEdit, onChanged }: { id: number; onClos
   const [item, setItem] = useState<Customer | null>(null)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [products, setProducts] = useState<CustomerProduct[]>([])
-  const [can, setCan] = useState({ edit: false, product: false })
+  const [can, setCan] = useState<{ edit: boolean; product: boolean; cycle?: boolean }>({ edit: false, product: false })
   const [error, setError] = useState('')
   const [productForm, setProductForm] = useState<Product | 'new' | null>(null)
   const [productId, setProductId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     try {
-      const res = await api<{ item: Customer; invoices: Invoice[]; products: CustomerProduct[]; can: { edit: boolean; product: boolean } }>(`/api/customers/${id}`)
+      const res = await api<{ item: Customer; invoices: Invoice[]; products: CustomerProduct[]; can: { edit: boolean; product: boolean; cycle?: boolean } }>(`/api/customers/${id}`)
       setItem(res.item)
       setInvoices(res.invoices)
       setProducts(res.products)
@@ -288,6 +289,7 @@ function CustomerDetail({ id, onClose, onEdit, onChanged }: { id: number; onClos
         <div><dt>NPWP</dt><dd>{item.npwp_no ?? '—'}</dd></div>
         <div><dt>Jumlah transaksi</dt><dd>{item.order_count} faktur · {formatRupiah(item.total_amount)}</dd></div>
         <div><dt>Order pertama / terakhir</dt><dd>{item.first_order ? `${formatDate(item.first_order)} – ${formatDate(item.last_order)}` : 'Belum ada transaksi'}</dd></div>
+        <div><dt>Cycle order</dt><dd><CycleField customerId={item.id} info={item} canEdit={!!can.cycle} onSaved={() => reload()} /></dd></div>
       </dl>
       {item.notes && <section className="pap-detail-section"><h3>Catatan</h3><p className="pap-prewrap">{item.notes}</p></section>}
       <section className="pap-detail-section">

@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { ACTIVITY_TYPES, canSupervise, logActivity, parseDateTime, requireMarketingUser } from '@/lib/marketing'
 import { notify } from '@/lib/notifications'
 import { pushToUsers } from '@/lib/push'
+import { canEditCycle } from '@/lib/customers'
 import { loadRepeatCustomer, requireRepeatOrder } from '@/lib/repeat-order'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -26,7 +27,7 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
     'SELECT number, trans_date, total_amount, status FROM accurate_sales_invoices WHERE customer_accurate_id = ? ORDER BY trans_date DESC LIMIT 12',
     [item.accurate_id],
   )
-  return NextResponse.json({ item, activities: notes, invoices: invoices.map((i) => ({ ...i, total_amount: Number(i.total_amount ?? 0) })), canAssign: canSupervise(user) })
+  return NextResponse.json({ item, activities: notes, invoices: invoices.map((i) => ({ ...i, total_amount: Number(i.total_amount ?? 0) })), canAssign: canSupervise(user), canEditCycle: canEditCycle(user) })
 })
 
 // Catat follow-up customer (WA/telepon/visit/...) + jadwal follow-up berikutnya, atau ganti PIC (Lead/GM)

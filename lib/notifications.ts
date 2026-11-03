@@ -142,9 +142,9 @@ async function createRepeatOrderReminders(userId?: number) {
     })))
   }
   const [reorder] = await db.query<(RowDataPacket & { id: number; name: string; maintenance_to: number; perkiraan: string; order_count: number })[]>(
-    `SELECT c.id, c.name, c.maintenance_to, s.order_count, DATE_ADD(s.last_order, INTERVAL s.interval_hari DAY) AS perkiraan FROM customers c
-     JOIN (SELECT customer_accurate_id, COUNT(*) AS order_count, MAX(trans_date) AS last_order,
-             IF(COUNT(*) > 1, GREATEST(7, ROUND(DATEDIFF(MAX(trans_date), MIN(trans_date)) / (COUNT(*) - 1))), 30) AS interval_hari
+    // Perkiraan order = order terakhir + cycle order customer (manual / otomatis; belum diketahui: 30 hari)
+    `SELECT c.id, c.name, c.maintenance_to, s.order_count, DATE_ADD(s.last_order, INTERVAL COALESCE(c.cycle_manual_days, c.cycle_auto_days, 30) DAY) AS perkiraan FROM customers c
+     JOIN (SELECT customer_accurate_id, COUNT(*) AS order_count, MAX(trans_date) AS last_order
            FROM accurate_sales_invoices WHERE trans_date IS NOT NULL GROUP BY customer_accurate_id) s ON s.customer_accurate_id = c.accurate_id
      WHERE c.maintenance_to IS NOT NULL ${userId ? 'AND c.maintenance_to = ?' : ''}
      HAVING perkiraan BETWEEN CURDATE() - INTERVAL 3 DAY AND CURDATE() + INTERVAL 3 DAY`,

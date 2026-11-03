@@ -2095,3 +2095,14 @@ ol.pap-jobdesk-list { list-style:decimal; }
 .pap-login-options .pap-forgot-link { margin:0; }
 .pap-login-card label.pap-remember { flex-direction:row; align-items:center; gap:8px; margin:0; font-weight:600; cursor:pointer; user-select:none; }
 .pap-login-card .pap-remember input { width:16px; height:16px; padding:0; margin:0; accent-color:#7c5cfc; cursor:pointer; }
+
+/* Cycle order customer */
+.pap-cycle-view { display:flex; flex-direction:column; gap:3px; }
+.pap-cycle-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+.pap-cycle-actions .pap-link-button { display:inline-flex; align-items:center; gap:4px; }
+.pap-cycle-actions svg { width:13px; height:13px; }
+.pap-cycle-edit { display:flex; flex-direction:column; gap:6px; }
+.pap-cycle-inputs { display:flex; gap:6px; }
+.pap-cycle-inputs .pap-input { width:90px; }
+.pap-cycle-inputs .pap-select { width:auto; }
+.pap-field-error { color:#d64545; }

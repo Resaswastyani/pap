@@ -4,6 +4,7 @@ import { accurate, accurateEnabled } from '@/lib/accurate'
 import { storeCustomerRow } from '@/lib/accurate-sync'
 import { db } from '@/lib/db'
 import { PERMISSIONS } from '@/lib/permissions'
+import { isMarketing } from '@/lib/marketing'
 import { can, type UserProfile } from '@/lib/users'
 import { sectorSql } from '@/lib/sectors'
 
@@ -13,7 +14,61 @@ import { sectorSql } from '@/lib/sectors'
 //   pelanggan          >= 2 faktur (repeat order), masih aktif
 //   pembeli_nonaktif   1 faktur, transaksi terakhir lebih lama dari batas aktif
 //   pelanggan_nonaktif >= 2 faktur, transaksi terakhir lebih lama dari batas aktif
+// Batas aktif mengikuti cycle order masing-masing customer (lihat CYCLE_SQL / PASSIVE_DAYS_SQL);
+// customer yang cycle-nya belum diketahui (baru 1x order, belum diisi manual) memakai CRM_INACTIVE_DAYS.
 export const CRM_INACTIVE_DAYS = Number(process.env.CRM_INACTIVE_DAYS || 90)
+
+// ---- Cycle order per customer ----
+// Otomatis: median jarak antar tanggal order (12 jarak terakhir; jarak < 3 hari = kiriman susulan, diabaikan).
+// Manual (cycle_manual_days) menggantikan hasil otomatis, mis. untuk customer yang baru 1x order.
+export const CYCLE_PASSIVE_FACTOR = 3 // pasif bila tidak order > 3x cycle-nya (melewatkan 2 cycle)
+export const CYCLE_PASSIVE_MIN_DAYS = 30 // ... tetapi tidak kurang dari 30 hari
+export const CYCLE_SQL = 'COALESCE(c.cycle_manual_days, c.cycle_auto_days)'
+export const PASSIVE_DAYS_SQL = `IF(${CYCLE_SQL} IS NULL, ${CRM_INACTIVE_DAYS}, GREATEST(${CYCLE_PASSIVE_MIN_DAYS}, ${CYCLE_SQL} * ${CYCLE_PASSIVE_FACTOR}))`
+export const CYCLE_UNIT_DAYS = { hari: 1, bulan: 30 } as const
+
+const CYCLE_ANALYSIS = `SELECT customer_accurate_id, COUNT(*) AS gaps, ROUND(MAX(med)) AS median FROM (
+    SELECT customer_accurate_id, gap, MEDIAN(gap) OVER (PARTITION BY customer_accurate_id) AS med FROM (
+      SELECT customer_accurate_id, gap, ROW_NUMBER() OVER (PARTITION BY customer_accurate_id ORDER BY d DESC) AS rn FROM (
+        SELECT customer_accurate_id, d, DATEDIFF(d, LAG(d) OVER (PARTITION BY customer_accurate_id ORDER BY d)) AS gap
+        FROM (SELECT DISTINCT customer_accurate_id, trans_date AS d FROM accurate_sales_invoices WHERE trans_date IS NOT NULL AND customer_accurate_id IS NOT NULL) a
+      ) b WHERE gap >= 3
+    ) r WHERE rn <= 12
+  ) m GROUP BY customer_accurate_id`
+
+// Hitung ulang cycle otomatis semua customer dari faktur
+export async function refreshCustomerCycles() {
+  await db.query(
+    `UPDATE customers c LEFT JOIN (${CYCLE_ANALYSIS}) x ON x.customer_accurate_id = c.accurate_id
+     SET c.cycle_auto_days = x.median, c.cycle_auto_gaps = x.gaps, c.cycle_analyzed_at = NOW()`,
+  )
+}
+
+// Dipanggil sebelum membaca daftar customer / repeat order: analisis ulang bila ada faktur yang tersinkron
+// setelah analisis terakhir (dicek paling sering tiap 5 menit per proses)
+let cycleCheckedAt = 0
+export async function ensureCustomerCycles() {
+  if (Date.now() - cycleCheckedAt < 5 * 60_000) return
+  cycleCheckedAt = Date.now()
+  const [[row]] = await db.query<(RowDataPacket & { inv: string | null; done: string | null })[]>(
+    'SELECT (SELECT MAX(synced_at) FROM accurate_sales_invoices) AS inv, (SELECT MAX(cycle_analyzed_at) FROM customers) AS done',
+  )
+  if (row.inv && (!row.done || row.inv > row.done)) await refreshCustomerCycles()
+}
+
+// Cycle order boleh diisi manual oleh tim marketing / pengelola customer
+export const canEditCycle = (user: UserProfile) => user.role.isAdmin || isMarketing(user) || canManageCustomer(user)
+
+// Isi manual: { value, unit: 'hari' | 'bulan' } atau value kosong = kembali ke otomatis
+export function readCycleInput(body: Record<string, unknown>) {
+  if (body.value === null || body.value === '' || body.value === undefined) return null
+  const unit = body.unit === 'bulan' ? 'bulan' : 'hari'
+  const value = Number(body.value)
+  if (!Number.isInteger(value) || value < 1) fail(400, 'Cycle order harus berupa angka bulat minimal 1.')
+  const days = value * CYCLE_UNIT_DAYS[unit]
+  if (days > 730) fail(400, 'Cycle order maksimal 24 bulan (730 hari).')
+  return { days, unit }
+}
 
 export const CRM_STATUS = {
   pelanggan: 'Pelanggan',
@@ -26,14 +81,15 @@ export type CrmStatus = keyof typeof CRM_STATUS
 
 export const CRM_CASE = `CASE
   WHEN COALESCE(s.order_count, 0) = 0 THEN 'prospek'
-  WHEN s.last_order < CURDATE() - INTERVAL ${CRM_INACTIVE_DAYS} DAY THEN IF(s.order_count >= 2, 'pelanggan_nonaktif', 'pembeli_nonaktif')
+  WHEN DATEDIFF(CURDATE(), s.last_order) > ${PASSIVE_DAYS_SQL} THEN IF(s.order_count >= 2, 'pelanggan_nonaktif', 'pembeli_nonaktif')
   ELSE IF(s.order_count >= 2, 'pelanggan', 'pembeli') END`
 
 export const CUSTOMER_SELECT = `SELECT c.id, c.accurate_id, c.customer_no, c.name, c.category, c.email, c.mobile_phone, c.work_phone,
   c.bill_street, c.bill_city, c.bill_province, c.bill_zip, c.npwp_no, c.notes, c.suspended, c.synced_at, c.updated_at,
   COALESCE(s.order_count, 0) AS order_count, s.first_order, s.last_order, COALESCE(s.total_amount, 0) AS total_amount,
   (SELECT COUNT(*) FROM customer_products cp WHERE cp.customer_id = c.id) AS product_count,
-  ${CRM_CASE} AS crm_status, ${sectorSql('c.category')} AS sektor
+  ${CRM_CASE} AS crm_status, ${sectorSql('c.category')} AS sektor,
+  c.cycle_auto_days, c.cycle_auto_gaps, c.cycle_manual_days, c.cycle_manual_unit, ${CYCLE_SQL} AS cycle_hari, ${PASSIVE_DAYS_SQL} AS batas_pasif
   FROM customers c
   LEFT JOIN (
     SELECT customer_accurate_id, COUNT(*) AS order_count, MIN(trans_date) AS first_order, MAX(trans_date) AS last_order, SUM(total_amount) AS total_amount

@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { MARKETING_DIVISIONS } from '@/lib/marketing'
 import { SECTORS } from '@/lib/sectors'
 import { REPEAT_BASE, REPEAT_STATUS, requireRepeatOrder, seesAllCustomers, serializeRepeat } from '@/lib/repeat-order'
-import { CRM_INACTIVE_DAYS } from '@/lib/customers'
+import { CRM_INACTIVE_DAYS, ensureCustomerCycles } from '@/lib/customers'
 
 const PAGE_SIZE = 50
 
@@ -13,6 +13,7 @@ const PAGE_SIZE = 50
 export const GET = handle(async (request: Request) => {
   const user = await requireUser()
   requireRepeatOrder(user)
+  await ensureCustomerCycles()
   const url = new URL(request.url)
   const all = seesAllCustomers(user)
   const where: string[] = []

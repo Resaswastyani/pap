@@ -7,6 +7,7 @@ import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { nowInput, toInputDateTime, VisitForm, WaButton, type MarketingUser } from './marketing'
 import { AttachmentInput, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
+import { CycleField, cycleText, type CycleInfo } from './customer-cycle'
 import { api, formatDate, Modal, Notice, Pager } from './ui'
 
 type Status = 'waktunya' | 'berisiko' | 'nonaktif' | 'aman'
@@ -19,7 +20,7 @@ type Row = {
   maintenance_to: number | null; maintenance_name: string | null; next_followup_at: string | null; last_contact_at: string | null; last_followup_at: string | null; last_followup_via: string | null; last_activity_at: string | null
   order_count: number; first_order: string; last_order: string; total_amount: number; interval_hari: number; hari_sejak: number; perkiraan_order: string
   hari_terlambat: number; status: Status
-}
+} & CycleInfo
 type Activity = { id: number; jenis: string; hasil: string | null; created_at: string; user_name: string; attachments?: NoteAttachment[] }
 type Invoice = { number: string | null; trans_date: string; total_amount: number; status: string | null }
 const JENIS: Record<string, string> = { whatsapp: 'WhatsApp', telepon: 'Telepon', email: 'Email', visit: 'Visit', meeting: 'Meeting', catatan: 'Catatan', handover: 'PIC', status: 'Status' }
@@ -85,7 +86,7 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
     ['perlu', 'Perlu dihubungi', count('waktunya') + count('berisiko'), `${count('berisiko')} berisiko berhenti order`, AlertTriangle, 'stat-2'],
     ['followup', 'Follow-up hari ini', due.today + due.overdue, due.overdue ? `${due.overdue} terlambat` : 'Jadwal follow-up', CalendarClock, 'stat-1'],
     ['aman', 'Aman', count('aman'), 'Belum waktunya order', Repeat, 'stat-0'],
-    ['nonaktif', 'Pelanggan pasif', count('nonaktif'), `Tidak order > ${inactiveDays} hari`, UserMinus, 'stat-1'],
+    ['nonaktif', 'Pelanggan pasif', count('nonaktif'), 'Tidak order > 3× cycle-nya', UserMinus, 'stat-1'],
   ]
 
   return (
@@ -138,7 +139,7 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
               {items.map((r) => (
                 <tr key={r.id} className="pap-row-link" onClick={() => setDetailId(r.id)}>
                   <td><div className="pap-cell-title">{r.name}</div><div className="pap-cell-sub">{[r.customer_no, r.sektor && SECTOR_LABEL[r.sektor], r.bill_city].filter(Boolean).join(' · ')}</div></td>
-                  <td>{r.order_count}x · tiap ±{r.interval_hari} hari<div className="pap-cell-sub">Terakhir {formatDate(r.last_order)} · {formatRupiah(r.total_amount)}</div></td>
+                  <td>{r.order_count}x · {cycleText(r) ? <>cycle {cycleText(r)}{r.cycle_manual_days ? ' (manual)' : ''}</> : <span className="pap-muted">cycle belum ketahuan</span>}<div className="pap-cell-sub">Terakhir {formatDate(r.last_order)} · {formatRupiah(r.total_amount)}</div></td>
                   <td className={r.hari_terlambat > 0 ? 'pap-followup overdue' : r.hari_terlambat >= -3 ? 'pap-followup today' : ''}>{formatDate(r.perkiraan_order)}<div className="pap-cell-sub">{lateText(r)}</div></td>
                   <td>{r.maintenance_name ?? <span className="pap-muted">Belum ada</span>}</td>
                   <td className={r.next_followup_at && r.next_followup_at.slice(0, 10) <= nowInput().slice(0, 10) ? 'pap-followup overdue' : ''}>{r.last_followup_at ? <><div className="pap-nowrap">Terakhir {formatDate(r.last_followup_at)}</div><div className="pap-cell-sub">{r.last_followup_via}{r.next_followup_at ? ` · berikutnya ${formatDate(r.next_followup_at, true)}` : ''}</div></> : <>{r.next_followup_at ? <div className="pap-nowrap">Jadwal {formatDate(r.next_followup_at, true)}</div> : '—'}<div className="pap-cell-sub">Belum pernah difollow-up</div></>}</td>
@@ -162,6 +163,7 @@ function RepeatDetail({ id, user, users, onClose, onChanged }: { id: number; use
   const [activities, setActivities] = useState<Activity[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [canAssign, setCanAssign] = useState(false)
+  const [canCycle, setCanCycle] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [visit, setVisit] = useState(false)
@@ -169,11 +171,12 @@ function RepeatDetail({ id, user, users, onClose, onChanged }: { id: number; use
   const [attachments, setAttachments] = useState<PendingAttachments>(emptyAttachments)
   const load = useCallback(async () => {
     try {
-      const res = await api<{ item: Row; activities: Activity[]; invoices: Invoice[]; canAssign: boolean }>(`/api/repeat-order/${id}`)
+      const res = await api<{ item: Row; activities: Activity[]; invoices: Invoice[]; canAssign: boolean; canEditCycle?: boolean }>(`/api/repeat-order/${id}`)
       setItem(res.item)
       setActivities(res.activities)
       setInvoices(res.invoices)
       setCanAssign(res.canAssign)
+      setCanCycle(!!res.canEditCycle)
       setValues((v) => ({ ...v, next_followup_at: toInputDateTime(res.item.next_followup_at) || nowInput(Math.max(7, Math.min(30, Math.round(res.item.interval_hari / 2))), 10) }))
     } catch (e) {
       setError((e as Error).message)
@@ -210,7 +213,7 @@ function RepeatDetail({ id, user, users, onClose, onChanged }: { id: number; use
         <dl className="pap-detail-grid">
           <div><dt>Order terakhir</dt><dd>{formatDate(item.last_order)} ({item.hari_sejak} hari lalu)</dd></div>
           <div><dt>Perkiraan order berikutnya</dt><dd>{formatDate(item.perkiraan_order)} · {lateText(item)}</dd></div>
-          <div><dt>Rata-rata jarak order</dt><dd>±{item.interval_hari} hari{item.order_count < 2 ? ' (default, baru 1x order)' : ''}</dd></div>
+          <div><dt>Cycle order</dt><dd><CycleField customerId={item.id} info={item} canEdit={canCycle} onSaved={(m) => { load(); onChanged(m) }} />{!cycleText(item) && <small className="pap-muted">Perkiraan order memakai default {item.interval_hari} hari.</small>}</dd></div>
           <div><dt>Total transaksi</dt><dd>{formatRupiah(item.total_amount)} sejak {formatDate(item.first_order)}</dd></div>
           <div>
             <dt>PIC Marketing Maintenance</dt>
