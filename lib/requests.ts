@@ -16,6 +16,15 @@ export const sampleApprovers = () => leadAndGmUsers(['produksi', 'ppic'])
 export const isProduksi = (user: UserProfile) => user.role.isAdmin || user.division.code === 'produksi'
 export const isDesigner = (user: UserProfile) => user.role.isAdmin || user.division.code === 'tim_desain'
 export const canRequest = (user: UserProfile) => user.role.isAdmin || isGM(user) || isMarketing(user)
+// Request desain baru diterima dulu oleh Lead Digital Marketing (atau admin) sebelum diambil Tim Desain
+export const canAcceptDesign = (user: UserProfile) => user.role.isAdmin || isLeadOf(user, 'marketing_digital')
+export async function leadDmUsers() {
+  const [rows] = await db.query<(RowDataPacket & { id: number })[]>(
+    `SELECT u.id FROM users u JOIN divisions d ON d.id = u.division_id JOIN roles r ON r.id = u.role_id
+     WHERE u.is_active = 1 AND d.code = 'marketing_digital' AND r.code = 'lead'`,
+  )
+  return rows.map((r) => r.id)
+}
 
 export function requireRequestMenu(user: UserProfile, menu: 'sample' | 'desain') {
   if (!user.menus.includes(menu)) fail(403, 'Anda tidak punya akses ke menu ini.')
@@ -46,6 +55,7 @@ export type SampleStatus = keyof typeof SAMPLE_STATUS
 
 export const DESIGN_STATUS = {
   diajukan: 'Diajukan',
+  diterima: 'Diterima Lead DM',
   dikerjakan: 'Dikerjakan',
   review: 'Review customer',
   revisi: 'Revisi',
@@ -239,9 +249,10 @@ export function designTodoSql(user: UserProfile) {
   const parts: string[] = []
   const params: number[] = []
   if (isDesigner(user)) {
-    parts.push("d.status = 'diajukan'", "(d.designer_id = ? AND d.status IN ('dikerjakan', 'revisi'))")
+    parts.push("d.status = 'diterima'", "(d.designer_id = ? AND d.status IN ('dikerjakan', 'revisi'))")
     params.push(user.id)
   }
+  if (canAcceptDesign(user)) parts.push("d.status = 'diajukan'")
   if (canRequest(user)) {
     parts.push("(d.requested_by = ? AND d.status = 'review')")
     params.push(user.id)

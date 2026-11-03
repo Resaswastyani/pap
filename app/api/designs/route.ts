@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { canEditContent } from '@/lib/content'
 import { logActivity } from '@/lib/marketing'
 import {
-  canRequest, DESIGN_SELECT, DESIGN_STATUS, designScope, designTodoSql, divisionUsers, isDesigner, logRequest, notifyRequest, readDesignBrief,
+  canAcceptDesign, canRequest, DESIGN_SELECT, DESIGN_STATUS, designScope, designTodoSql, divisionUsers, isDesigner, logRequest, notifyRequest, leadDmUsers, readDesignBrief,
   readTarget, requireRequestMenu, setNomor,
 } from '@/lib/requests'
 
@@ -50,7 +50,7 @@ export const GET = handle(async (request: Request) => {
   }
   const [items] = await db.query<RowDataPacket[]>(
     `${DESIGN_SELECT} WHERE ${where.join(' AND ')}
-     ORDER BY FIELD(d.status, 'diajukan', 'revisi', 'dikerjakan', 'review', 'disetujui', 'batal'), COALESCE(d.deadline, '9999-12-31'), d.id DESC LIMIT 300`,
+     ORDER BY FIELD(d.status, 'diajukan', 'diterima', 'revisi', 'dikerjakan', 'review', 'disetujui', 'batal'), COALESCE(d.deadline, '9999-12-31'), d.id DESC LIMIT 300`,
     params,
   )
   return NextResponse.json({
@@ -61,7 +61,7 @@ export const GET = handle(async (request: Request) => {
   })
 })
 
-// Brief desain -> notifikasi ke Tim Desain. File referensi diunggah setelahnya.
+// Brief desain -> diterima Lead Digital Marketing -> notifikasi ke Tim Desain. File referensi diunggah setelahnya.
 //   klise : desain cetakan untuk prospek/customer (hasil masuk Data Produk)
 //   konten: gambar/video untuk Marketing Digital (hasil masuk bank konten), bisa ditautkan ke rencana konten
 export const POST = handle(async (request: Request) => {
@@ -86,10 +86,16 @@ export const POST = handle(async (request: Request) => {
     await db.query("UPDATE content_plans SET design_request_id = ?, status = IF(status = 'ide', 'produksi', status) WHERE id = ?", [id, contentId])
   }
   await logRequest({ designId: id, userId: user.id, to: 'diajukan' })
+  // Diajukan oleh Lead Digital Marketing / admin: langsung diterima
+  const accepted = canAcceptDesign(user)
+  if (accepted) {
+    await db.query("UPDATE design_requests SET status = 'diterima' WHERE id = ?", [id])
+    await logRequest({ designId: id, userId: user.id, from: 'diajukan', to: 'diterima', catatan: `Diterima oleh ${user.name}` })
+  }
   if (target.prospectId) await logActivity(db, { prospectId: target.prospectId, userId: user.id, jenis: 'catatan', hasil: `Request desain ${nomor}: ${brief.judul}` })
-  await notifyRequest(await divisionUsers(['tim_desain']), user.id, {
+  await notifyRequest(accepted ? await divisionUsers(['tim_desain']) : await leadDmUsers(), user.id, {
     type: 'desain_update',
-    title: `Request desain baru ${nomor}`,
+    title: accepted ? `Request desain baru ${nomor}` : `Request desain baru ${nomor} menunggu diterima`,
     body: [brief.judul, brief.deadline && `deadline ${brief.deadline}`, `dari ${user.name}`].filter(Boolean).join(' · '),
     designId: id,
     refKey: `desain:${id}:diajukan:0`,

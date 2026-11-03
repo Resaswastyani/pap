@@ -17,10 +17,10 @@ const SAMPLE_LABEL: Record<SampleStatus, string> = {
 const SAMPLE_TONE: Record<SampleStatus, string> = { diajukan: 'warning', dijadwalkan: 'info', diproduksi: 'info', selesai: 'info', dikirim: 'info', disetujui: 'success', revisi: 'danger', batal: 'neutral' }
 const SAMPLE_FLOW: SampleStatus[] = ['diajukan', 'dijadwalkan', 'diproduksi', 'selesai', 'dikirim', 'disetujui']
 
-type DesignStatus = 'diajukan' | 'dikerjakan' | 'review' | 'revisi' | 'disetujui' | 'batal'
-const DESIGN_LABEL: Record<DesignStatus, string> = { diajukan: 'Diajukan', dikerjakan: 'Dikerjakan', review: 'Review customer', revisi: 'Revisi', disetujui: 'Disetujui', batal: 'Batal' }
-const DESIGN_TONE: Record<DesignStatus, string> = { diajukan: 'warning', dikerjakan: 'info', review: 'info', revisi: 'danger', disetujui: 'success', batal: 'neutral' }
-const DESIGN_FLOW: DesignStatus[] = ['diajukan', 'dikerjakan', 'review', 'disetujui']
+type DesignStatus = 'diajukan' | 'diterima' | 'dikerjakan' | 'review' | 'revisi' | 'disetujui' | 'batal'
+const DESIGN_LABEL: Record<DesignStatus, string> = { diajukan: 'Diajukan', diterima: 'Diterima Lead DM', dikerjakan: 'Dikerjakan', review: 'Review customer', revisi: 'Revisi', disetujui: 'Disetujui', batal: 'Batal' }
+const DESIGN_TONE: Record<DesignStatus, string> = { diajukan: 'warning', diterima: 'info', dikerjakan: 'info', review: 'info', revisi: 'danger', disetujui: 'success', batal: 'neutral' }
+const DESIGN_FLOW: DesignStatus[] = ['diajukan', 'diterima', 'dikerjakan', 'review', 'disetujui']
 
 const JENIS = ['HD', 'PP', 'PE', 'Mika rigid', 'Plastik laundry', 'Lainnya']
 const Badge = ({ tone, label }: { tone: string; label: string }) => <span className={`pap-status ${tone}`}>{label}</span>
@@ -511,7 +511,7 @@ type Design = {
   product_name: string | null; design_count: number; created_at: string; kategori: 'klise' | 'konten'; jenis_konten: string | null
 }
 type DesignFile = { id: number; kind: 'referensi' | 'desain'; versi: number; name: string; mime: string; size: number; created_at: string; uploaded_by_name: string }
-type DesignRoles = { canRequest: boolean; designer: boolean; isRequester?: boolean; isDesignerOf?: boolean }
+type DesignRoles = { canRequest: boolean; designer: boolean; canAccept?: boolean; isRequester?: boolean; isDesignerOf?: boolean }
 
 export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: number | null }) {
   const [items, setItems] = useState<Design[]>([])
@@ -812,7 +812,20 @@ function DesignDetail({ id, user, onClose, onChanged }: { id: number; user: User
       <div className="pap-detail-badges"><Badge tone={DESIGN_TONE[s]} label={DESIGN_LABEL[s]} />{item.revisi_ke > 0 && <span className="pap-status warning">Revisi ke-{item.revisi_ke}</span>}{item.designer_name && <span className="pap-status neutral">Desainer: {item.designer_name}</span>}</div>
       {s !== 'batal' && <Track flow={DESIGN_FLOW} labels={DESIGN_LABEL} status={s === 'revisi' ? 'dikerjakan' : s} />}
 
-      {s === 'diajukan' && roles.designer && (
+      {s === 'diajukan' && roles.canAccept && (
+        <div className="pap-inline-panel">
+          <strong>Lead Digital Marketing: terima request ini</strong>
+          <p className="pap-muted">Setelah diterima, request masuk antrean Tim Desain. Bila tidak sesuai, batalkan dengan alasan.</p>
+          <textarea className="pap-input" rows={2} maxLength={5000} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Catatan untuk Tim Desain (opsional)" />
+          <div className="pap-inline-actions pap-wrap">
+            <button className="pap-btn danger" disabled={busy} onClick={async () => { const a = await askReason({ title: 'Tolak request desain', label: 'Alasan penolakan', confirmLabel: 'Tolak request' }); if (a) act({ status: 'batal', catatan: `Ditolak: ${a}` }, 'Request desain ditolak, pengaju diberi tahu.') }}><Ban /> Tolak</button>
+            <span className="pap-spacer" />
+            <button className="pap-primary-button" disabled={busy} onClick={() => act({ status: 'diterima', catatan }, 'Request desain diterima dan diteruskan ke Tim Desain.')}><CheckCircle2 /> Terima request</button>
+          </div>
+        </div>
+      )}
+      {s === 'diajukan' && !roles.canAccept && <p className="pap-muted">Menunggu diterima Lead Digital Marketing.</p>}
+      {s === 'diterima' && roles.designer && (
         <div className="pap-inline-panel">
           <strong>Tim Desain: ambil request ini</strong>
           <div className="pap-inline-actions"><button className="pap-primary-button" disabled={busy} onClick={() => act({ status: 'dikerjakan' }, 'Request desain diambil.')}><Palette /> Ambil & kerjakan</button></div>
