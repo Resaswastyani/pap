@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { handle, int, requireUser, str, pageParams } from '@/lib/api'
 import { db } from '@/lib/db'
 import { MARKETING_DIVISIONS } from '@/lib/marketing'
+import { SECTORS } from '@/lib/sectors'
 import { REPEAT_BASE, REPEAT_STATUS, requireRepeatOrder, seesAllCustomers, serializeRepeat } from '@/lib/repeat-order'
 import { CRM_INACTIVE_DAYS } from '@/lib/customers'
 
@@ -30,6 +31,9 @@ export const GET = handle(async (request: Request) => {
     where.push('(x.name LIKE ? OR x.customer_no LIKE ? OR x.bill_city LIKE ?)')
     params.push(`%${q}%`, `%${q}%`, `%${q}%`)
   }
+  // sektor: kosong = semua, "urut" = diurutkan per sektor, atau satu sektor saja
+  const sektor = url.searchParams.get('sektor') ?? ''
+  if (SECTORS.some((s) => s.key === sektor)) { where.push('x.sektor = ?'); params.push(sektor) }
   const base = `SELECT * FROM (${REPEAT_BASE}) x ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`
   const [summaryRows] = await db.query<(RowDataPacket & { status: string; n: number })[]>(`SELECT status, COUNT(*) AS n FROM (${base}) y GROUP BY status`, params)
   const [[due]] = await db.query<(RowDataPacket & { today: number; overdue: number })[]>(
@@ -43,7 +47,8 @@ export const GET = handle(async (request: Request) => {
   else if (status === 'followup') filter.push('next_followup_at < CURDATE() + INTERVAL 1 DAY')
   else if (status in REPEAT_STATUS) filter.push(`status = ${db.escape(status)}`)
   const { page, pageSize } = pageParams(url.searchParams, PAGE_SIZE)
-  const order = `ORDER BY FIELD(status, 'waktunya', 'berisiko', 'aman', 'nonaktif'), ${status === 'followup' ? 'next_followup_at,' : ''} hari_terlambat DESC, total_amount DESC`
+  const sectorOrder = sektor === 'urut' ? `FIELD(sektor, ${SECTORS.map((s) => `'${s.key}'`).join(', ')}), ` : ''
+  const order = `ORDER BY ${sectorOrder}FIELD(status, 'waktunya', 'berisiko', 'aman', 'nonaktif'), ${status === 'followup' ? 'next_followup_at,' : ''} hari_terlambat DESC, total_amount DESC`
   const filtered = `SELECT * FROM (${base}) y ${filter.length ? `WHERE ${filter.join(' AND ')}` : ''}`
   const [[{ total }]] = await db.query<(RowDataPacket & { total: number })[]>(`SELECT COUNT(*) AS total FROM (${filtered}) z`, params)
   const [items] = await db.query<RowDataPacket[]>(`${filtered} ${order} LIMIT ? OFFSET ?`, [...params, pageSize, (page - 1) * pageSize])

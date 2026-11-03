@@ -13,3 +13,5 @@ export type SectorKey = (typeof SECTORS)[number]['key']
 // Ekspresi SQL: kolom kategori customer -> kunci sektor
 export const sectorSql = (category: string) =>
   `CASE ${SECTORS.filter((s) => s.code).map((s) => `WHEN ${category} LIKE '%(${s.code})%' THEN '${s.key}'`).join(' ')} ELSE 'lainnya' END`
+
+export const SECTOR_LABEL = Object.fromEntries(SECTORS.map((s) => [s.key, s.label])) as Record<SectorKey, string>

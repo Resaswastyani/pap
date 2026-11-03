@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Clock3, FileText, Plus, Search, Wallet, XCircle } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
+import { compressImage } from './compress'
 import { api, askReason, Field, formatDate, Modal, Notice, Pager, usePaged } from './ui'
 
 type Status = 'menunggu' | 'diterima' | 'ditolak'
@@ -167,7 +168,7 @@ export function PaymentForm({ preset, onClose, onSaved }: { preset?: PaymentPres
     try {
       const fd = new FormData()
       for (const [k, val] of Object.entries(v)) fd.append(k, val)
-      if (file) fd.append('bukti', file)
+      if (file) fd.append('bukti', await compressImage(file))
       await api('/api/payments', { method: 'POST', body: fd })
       onSaved('Konfirmasi pembayaran dikirim ke Accounting.')
     } catch (err) {
@@ -195,7 +196,7 @@ export function PaymentForm({ preset, onClose, onSaved }: { preset?: PaymentPres
         <Field label="Nominal (Rp)"><input className="pap-input" inputMode="numeric" required value={v.nominal} onChange={set('nominal')} /></Field>
         <Field label="Tanggal bayar"><input className="pap-input" type="date" required value={v.tanggal_bayar} onChange={set('tanggal_bayar')} /></Field>
         <Field label="Metode"><input className="pap-input" maxLength={100} value={v.metode} onChange={set('metode')} placeholder="Transfer BCA, tunai, ..." /></Field>
-        <Field label="Bukti transfer (gambar / PDF, maks 4 MB)" full><input className="pap-input" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></Field>
+        <Field label="Bukti transfer (gambar / PDF maks 4 MB; gambar besar dikompres otomatis)" full><input className="pap-input" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></Field>
         <Field label="Catatan" full><textarea className="pap-input" rows={2} maxLength={1000} value={v.catatan} onChange={set('catatan')} /></Field>
       </form>
     </Modal>

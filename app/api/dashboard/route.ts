@@ -131,8 +131,8 @@ export const GET = handle(async () => {
     })())
   }
 
-  // ---- Penjualan dari Accurate (manajemen, accounting, lead marketing) ----
-  if (user.role.isAdmin || ['general_manager', 'accounting'].includes(user.division.code) || canSupervise(user)) {
+  // ---- Penjualan dari Accurate (manajemen, accounting, lead marketing, semua Marketing Development) ----
+  if (user.role.isAdmin || ['general_manager', 'accounting', 'marketing_development'].includes(user.division.code) || canSupervise(user)) {
     tasks.push((async () => {
       const [months] = await db.query<Row[]>(
         `SELECT DATE_FORMAT(trans_date, '%Y-%m') AS bulan, SUM(total_amount) AS omzet, COUNT(*) AS faktur, COUNT(DISTINCT customer_accurate_id) AS customer

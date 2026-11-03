@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { ChevronRight, FileText, Mail, MapPin, Pencil, Phone, Plus, Repeat, Search, UserMinus, UserPlus, Users } from 'lucide-react'
+import { SECTOR_LABEL, SECTORS, type SectorKey } from '@/lib/sectors'
 import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatRupiah } from './accurate'
 import { ProductDetail, ProductForm, type Product } from './product-page'
@@ -14,6 +15,7 @@ type Customer = {
   customer_no: string | null
   name: string
   category: string | null
+  sektor?: SectorKey
   email: string | null
   mobile_phone: string | null
   work_phone: string | null
@@ -59,6 +61,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
   const [message, setMessage] = useState('')
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('')
+  const [sektor, setSektor] = useState('')
   const [form, setForm] = useState<Customer | 'new' | null>(null)
   const [detailId, setDetailId] = useState<number | null>(null)
 
@@ -68,6 +71,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
       const params = new URLSearchParams({ page: String(page), pageSize: String(size) })
       if (q.trim()) params.set('q', q.trim())
       if (status) params.set('status', status)
+      if (sektor) params.set('sektor', sektor)
       const res = await api<{ items: Customer[]; summary: Record<CrmStatus, number>; total: number; pageSize: number; inactiveDays: number; canManage: boolean }>(`/api/customers?${params}`)
       setItems(res.items)
       setSummary(res.summary)
@@ -81,13 +85,13 @@ export function CustomerPage({ user }: { user: UserProfile }) {
     } finally {
       setLoading(false)
     }
-  }, [q, status, page, size])
+  }, [q, status, sektor, page, size])
 
   useEffect(() => {
     const timer = setTimeout(load, q ? 300 : 0)
     return () => clearTimeout(timer)
   }, [load, q])
-  useEffect(() => setPage(1), [q, status])
+  useEffect(() => setPage(1), [q, status, sektor])
 
   const flash = (text: string) => {
     setMessage(text)
@@ -133,6 +137,11 @@ export function CustomerPage({ user }: { user: UserProfile }) {
             <option value="">Semua status</option>
             {Object.entries(CRM_LABEL).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
           </select>
+          <select className="pap-select" value={sektor} onChange={(e) => setSektor(e.target.value)} aria-label="Sektor">
+            <option value="">Semua sektor</option>
+            <option value="urut">Urutkan per sektor</option>
+            {SECTORS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+          </select>
         </div>
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
@@ -141,7 +150,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
-                  <td><div className="pap-cell-title">{item.name}</div><div className="pap-cell-sub">{item.customer_no ?? 'Belum ada nomor'}{item.category ? ` · ${item.category}` : ''}</div></td>
+                  <td><div className="pap-cell-title">{item.name}</div><div className="pap-cell-sub">{item.customer_no ?? 'Belum ada nomor'}{item.sektor ? ` · ${SECTOR_LABEL[item.sektor]}` : ''}{item.category ? ` · ${item.category}` : ''}</div></td>
                   <td><div className="pap-cell-sub">{item.mobile_phone ?? item.work_phone ?? '—'}</div><div className="pap-cell-sub">{item.email ?? ''}</div></td>
                   <td className="pap-nowrap">{item.order_count ? <><strong>{item.order_count}×</strong> · {formatDate(item.last_order)}</> : <span className="pap-muted">Belum ada</span>}</td>
                   <td><CrmBadge value={item.crm_status} /></td>

@@ -2,6 +2,7 @@ import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str, pageParams } from '@/lib/api'
 import { db } from '@/lib/db'
+import { SECTORS, sectorSql } from '@/lib/sectors'
 import { canManageCustomer, canViewCustomers, CRM_CASE, CRM_INACTIVE_DAYS, CRM_STATUS, CUSTOMER_SELECT, readCustomerInput, requireMenu, saveCustomerToAccurate, upsertLocalCustomer } from '@/lib/customers'
 
 // Daftar customer + status CRM + ringkasan per status
@@ -16,11 +17,15 @@ export const GET = handle(async (request: Request) => {
   const status = params.get('status')
   if (status && status in CRM_STATUS) where.push(`(${CRM_CASE}) = ?`), args.push(status)
   if (params.get('suspended') !== '1') where.push('c.suspended = 0')
+  // sektor: kosong = semua (urutan transaksi terakhir), "urut" = diurutkan per sektor, atau satu sektor saja
+  const sektor = params.get('sektor') ?? ''
+  if (SECTORS.some((s) => s.key === sektor)) where.push(`${sectorSql('c.category')} = ?`), args.push(sektor)
+  const sectorOrder = sektor === 'urut' ? `FIELD(${sectorSql('c.category')}, ${SECTORS.map((s) => `'${s.key}'`).join(', ')}), ` : ''
   const { page, pageSize } = pageParams(params, 50)
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
   const [items] = await db.query<RowDataPacket[]>(
-    `${CUSTOMER_SELECT} ${whereSql} ORDER BY (s.last_order IS NULL), s.last_order DESC, c.name LIMIT ? OFFSET ?`,
+    `${CUSTOMER_SELECT} ${whereSql} ORDER BY ${sectorOrder}(s.last_order IS NULL), s.last_order DESC, c.name LIMIT ? OFFSET ?`,
     [...args, pageSize, (page - 1) * pageSize],
   )
   const [[{ total }]] = await db.query<(RowDataPacket & { total: number })[]>(

@@ -27,7 +27,8 @@ export const GET = handle(async (request: Request, ctx: Ctx) => {
       'Content-Type': inline ? row.mime! : 'application/octet-stream',
       'Content-Length': String(row.size ?? row.data!.length),
       'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(row.name)}`,
-      'Cache-Control': 'private, max-age=300',
+      // Isi file per id tidak pernah berubah: simpan di cache browser agar dibuka ulang tanpa unduh lagi
+      'Cache-Control': 'private, max-age=2592000, immutable',
       'X-Content-Type-Options': 'nosniff',
     },
   })

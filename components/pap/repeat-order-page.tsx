@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, CalendarClock, CalendarPlus, Clock3, PhoneCall, Repeat, Search, UserMinus } from 'lucide-react'
+import { SECTOR_LABEL, SECTORS, type SectorKey } from '@/lib/sectors'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { nowInput, toInputDateTime, VisitForm, WaButton, type MarketingUser } from './marketing'
@@ -13,6 +14,7 @@ const STATUS_LABEL: Record<Status, string> = { waktunya: 'Waktunya order', beris
 const STATUS_TONE: Record<Status, string> = { waktunya: 'warning', berisiko: 'danger', nonaktif: 'neutral', aman: 'success' }
 
 type Row = {
+  sektor?: SectorKey
   id: number; accurate_id: number; customer_no: string | null; name: string; mobile_phone: string | null; work_phone: string | null; bill_city: string | null
   maintenance_to: number | null; maintenance_name: string | null; next_followup_at: string | null; last_contact_at: string | null; last_followup_at: string | null; last_followup_via: string | null; last_activity_at: string | null
   order_count: number; first_order: string; last_order: string; total_amount: number; interval_hari: number; hari_sejak: number; perkiraan_order: string
@@ -38,6 +40,7 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
   const [seesAll, setSeesAll] = useState(false)
   const [status, setStatus] = useState('perlu')
   const [pic, setPic] = useState('')
+  const [sektor, setSektor] = useState('')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const [size, setSize] = useState(50)
@@ -53,6 +56,7 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
     try {
       const params = new URLSearchParams({ status, page: String(page), pageSize: String(size) })
       if (pic) params.set('pic', pic)
+      if (sektor) params.set('sektor', sektor)
       if (q.trim()) params.set('q', q.trim())
       const res = await api<{ items: Row[]; summary: typeof summary; due: typeof due; users: MarketingUser[]; seesAll: boolean; total: number; pageSize: number; inactiveDays: number }>(`/api/repeat-order?${params}`)
       setItems(res.items)
@@ -69,12 +73,12 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
     } finally {
       setLoading(false)
     }
-  }, [status, pic, q, page, size])
+  }, [status, pic, sektor, q, page, size])
   useEffect(() => {
     const t = setTimeout(load, q ? 300 : 0)
     return () => clearTimeout(t)
   }, [load, q])
-  useEffect(() => setPage(1), [status, pic, q])
+  useEffect(() => setPage(1), [status, pic, sektor, q])
   const flash = (text: string) => { setMessage(text); setTimeout(() => setMessage(''), 5000); load() }
   const count = (s: Status) => summary[s] ?? 0
   const cards: [string, string, number, string, typeof Repeat, string][] = [
@@ -112,6 +116,11 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
             {Object.entries(STATUS_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             <option value="semua">Semua</option>
           </select>
+          <select className="pap-select" value={sektor} onChange={(e) => setSektor(e.target.value)} aria-label="Sektor">
+            <option value="">Semua sektor</option>
+            <option value="urut">Urutkan per sektor</option>
+            {SECTORS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+          </select>
           {seesAll && (
             <select className="pap-select" value={pic} onChange={(e) => setPic(e.target.value)} aria-label="Filter PIC">
               <option value="">Semua PIC</option>
@@ -128,7 +137,7 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
             <tbody>
               {items.map((r) => (
                 <tr key={r.id} className="pap-row-link" onClick={() => setDetailId(r.id)}>
-                  <td><div className="pap-cell-title">{r.name}</div><div className="pap-cell-sub">{[r.customer_no, r.bill_city].filter(Boolean).join(' · ')}</div></td>
+                  <td><div className="pap-cell-title">{r.name}</div><div className="pap-cell-sub">{[r.customer_no, r.sektor && SECTOR_LABEL[r.sektor], r.bill_city].filter(Boolean).join(' · ')}</div></td>
                   <td>{r.order_count}x · tiap ±{r.interval_hari} hari<div className="pap-cell-sub">Terakhir {formatDate(r.last_order)} · {formatRupiah(r.total_amount)}</div></td>
                   <td className={r.hari_terlambat > 0 ? 'pap-followup overdue' : r.hari_terlambat >= -3 ? 'pap-followup today' : ''}>{formatDate(r.perkiraan_order)}<div className="pap-cell-sub">{lateText(r)}</div></td>
                   <td>{r.maintenance_name ?? <span className="pap-muted">Belum ada</span>}</td>

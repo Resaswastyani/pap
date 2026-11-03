@@ -2082,3 +2082,10 @@ ol.pap-jobdesk-list { list-style:decimal; }
 .pap-materi-edit { position:absolute; top:8px; right:8px; background:var(--pap-surface); }
 .pap-note-files a.pap-note-download { display:grid; place-items:center; overflow:visible; color:var(--pap-muted); }
 .pap-note-files a.pap-note-download:hover { color:#0096cf; }
+
+/* Foto profil */
+.pap-avatar, .pap-top-avatar { overflow:hidden; }
+.pap-avatar img, .pap-top-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+.pap-account-photo { display:flex; flex-direction:column; align-items:center; gap:8px; flex:none; }
+.pap-account-photo .pap-account-avatar { width:88px; height:88px; font-size:24px; }
+.pap-account-photo .pap-btn { width:100%; justify-content:center; }

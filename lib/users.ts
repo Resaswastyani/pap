@@ -12,6 +12,8 @@ export type UserProfile = {
   role: { id: number; code: string; name: string; isAdmin: boolean; isSuperAdmin: boolean }
   permissions: PermissionCode[]
   menus: MenuKey[]
+  // Versi foto profil (untuk URL ?v= agar cache browser diperbarui saat foto diganti); null = belum ada foto
+  avatar: string | null
 }
 
 type UserRow = RowDataPacket & {
@@ -28,11 +30,13 @@ type UserRow = RowDataPacket & {
   division_id: number
   division_code: string
   division_name: string
+  avatar_at: number | null
 }
 
 const USER_SELECT = `SELECT u.id, u.name, u.email, u.password_hash, u.is_active, u.role_id,
   r.code AS role_code, r.name AS role_name, r.is_admin, r.is_super_admin,
-  u.division_id, d.code AS division_code, d.name AS division_name
+  u.division_id, d.code AS division_code, d.name AS division_name,
+  (SELECT UNIX_TIMESTAMP(ua.updated_at) FROM user_avatars ua WHERE ua.user_id = u.id) AS avatar_at
   FROM users u JOIN roles r ON r.id = u.role_id JOIN divisions d ON d.id = u.division_id`
 
 export async function findUserByEmail(email: string) {
@@ -79,6 +83,7 @@ export async function toProfile(user: UserRow): Promise<UserProfile> {
     role: { id: user.role_id, code: user.role_code, name: user.role_name, isAdmin: !!user.is_admin, isSuperAdmin },
     permissions,
     menus,
+    avatar: user.avatar_at ? String(user.avatar_at) : null,
   }
 }
 

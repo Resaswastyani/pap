@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { BookOpen, ChevronLeft, ChevronRight, ExternalLink, Eye, EyeOff, FileSpreadsheet, FileText, Image as ImageIcon, Link2, Maximize, Pencil, PlayCircle, Plus, Presentation, Search, Trash2, Upload } from 'lucide-react'
+import { compressImage, isCompressibleImage } from './compress'
 import { api, confirmDialog, Field, formatSize, Modal, Notice } from './ui'
 
 // Tab Materi: semua file dari folder Drive Training dengan preview di dalam SIMPAP.
@@ -120,13 +121,17 @@ export function MaterialForm({ item, moduleId, modules, onClose, onSaved }: { it
   }
   function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (file && file.size > 10 * 1024 * 1024) return setError(`${file.name}: ukuran maksimal 10 MB. Untuk file lebih besar, simpan di folder Drive Training atau tambahkan sebagai link.`)
+    if (file && file.size > 10 * 1024 * 1024 && !isCompressibleImage(file)) return setError(`${file.name}: ukuran maksimal 10 MB. Untuk file lebih besar, simpan di folder Drive Training atau tambahkan sebagai link.`)
     if (mode === 'file' && !isDrive && (file || !item)) {
       if (!file) return setError('Pilih file terlebih dahulu.')
-      const body = new FormData()
-      body.set('file', file)
-      body.set('judul', judul)
-      return run(() => api(path, { method: item ? 'PATCH' : 'POST', body }), item ? 'Materi diperbarui.' : 'Materi ditambahkan.')
+      const picked = file
+      return run(async () => {
+        const body = new FormData()
+        // Gambar > 2 MB dikompres otomatis
+        body.set('file', await compressImage(picked))
+        body.set('judul', judul)
+        return api(path, { method: item ? 'PATCH' : 'POST', body })
+      }, item ? 'Materi diperbarui.' : 'Materi ditambahkan.')
     }
     if (item?.sumber === 'upload') {
       const body = new FormData()

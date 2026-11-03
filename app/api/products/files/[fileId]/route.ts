@@ -20,7 +20,8 @@ export const GET = handle(async (request: Request, ctx: Ctx) => {
       'Content-Type': file.mime,
       'Content-Length': String(file.size),
       'Content-Disposition': `${download ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(file.name)}`,
-      'Cache-Control': 'private, max-age=300',
+      // Isi file per id tidak pernah berubah: simpan di cache browser agar dibuka ulang tanpa unduh lagi
+      'Cache-Control': 'private, max-age=2592000, immutable',
       'X-Content-Type-Options': 'nosniff',
     },
   })

@@ -5,6 +5,7 @@ import { storeCustomerRow } from '@/lib/accurate-sync'
 import { db } from '@/lib/db'
 import { PERMISSIONS } from '@/lib/permissions'
 import { can, type UserProfile } from '@/lib/users'
+import { sectorSql } from '@/lib/sectors'
 
 // Status CRM dihitung dari faktur penjualan Accurate:
 //   prospek            belum pernah ada faktur
@@ -32,7 +33,7 @@ export const CUSTOMER_SELECT = `SELECT c.id, c.accurate_id, c.customer_no, c.nam
   c.bill_street, c.bill_city, c.bill_province, c.bill_zip, c.npwp_no, c.notes, c.suspended, c.synced_at, c.updated_at,
   COALESCE(s.order_count, 0) AS order_count, s.first_order, s.last_order, COALESCE(s.total_amount, 0) AS total_amount,
   (SELECT COUNT(*) FROM customer_products cp WHERE cp.customer_id = c.id) AS product_count,
-  ${CRM_CASE} AS crm_status
+  ${CRM_CASE} AS crm_status, ${sectorSql('c.category')} AS sektor
   FROM customers c
   LEFT JOIN (
     SELECT customer_accurate_id, COUNT(*) AS order_count, MIN(trans_date) AS first_order, MAX(trans_date) AS last_order, SUM(total_amount) AS total_amount

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, Download, FileText, Link2, Paperclip, Trash2, X } from 'lucide-react'
 import { ATTACHMENT_MAX_BYTES } from '@/lib/permissions'
+import { compressImage, isCompressibleImage } from './compress'
 import { api, formatDate, formatSize, Notice, confirmDialog } from './ui'
 
 // Lampiran generik Prospek & Request Sample: semua format file (maks 2 MB), foto langsung dari kamera, atau link
@@ -17,28 +18,8 @@ const normalizeUrl = (value: string) => (/^https?:\/\//i.test(value.trim()) ? va
 // Foto dari kamera HP biasanya > 2 MB: perkecil ke JPEG sampai muat; file lain > 2 MB ditolak
 async function fitFile(file: File): Promise<File> {
   if (file.size <= ATTACHMENT_MAX_BYTES) return file
-  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) throw new Error(`${file.name}: ukuran ${formatSize(file.size)}, maksimal 2 MB.`)
-  const url = URL.createObjectURL(file)
-  try {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const el = new Image()
-      el.onload = () => resolve(el)
-      el.onerror = () => reject(new Error(`${file.name}: gambar tidak dapat dibaca.`))
-      el.src = url
-    })
-    for (const [maxSide, quality] of [[2048, 0.82], [1600, 0.78], [1280, 0.72], [1024, 0.65]] as const) {
-      const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight))
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.round(img.naturalWidth * scale)
-      canvas.height = Math.round(img.naturalHeight * scale)
-      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
-      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality))
-      if (blob && blob.size <= ATTACHMENT_MAX_BYTES) return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' })
-    }
-    throw new Error(`${file.name}: gambar terlalu besar walau sudah diperkecil.`)
-  } finally {
-    URL.revokeObjectURL(url)
-  }
+  if (!isCompressibleImage(file)) throw new Error(`${file.name}: ukuran ${formatSize(file.size)}, maksimal 2 MB.`)
+  return compressImage(file, ATTACHMENT_MAX_BYTES)
 }
 
 async function fitFiles(list: File[]) {
@@ -90,7 +71,7 @@ export function AttachmentInput({ value, onChange }: { value: PendingAttachments
     <div className="pap-attach-editor">
       <div className="pap-attach-row">
         <FileButtons onFiles={addFiles} />
-        <small className="pap-muted">Semua format file, maks 2 MB per file. Foto besar diperkecil otomatis.</small>
+        <small className="pap-muted">Semua format file, maks 2 MB per file. Gambar lebih besar dikompres otomatis ke 2 MB.</small>
       </div>
       <div className="pap-attach-row">
         <input className="pap-input" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Link (opsional): Google Drive, katalog, dll." onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLink() } }} />

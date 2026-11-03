@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, Bell, BellOff, Building2, CheckCircle2, Cloud, Database, ExternalLink, FileSpreadsheet, FolderOpen, KeyRound, Monitor, Moon, Plug, RefreshCw, Server, Sun, UserRound } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { AlertCircle, Bell, BellOff, Building2, Camera, CheckCircle2, Cloud, Database, ExternalLink, FileSpreadsheet, FolderOpen, KeyRound, Monitor, Moon, Plug, RefreshCw, Server, Sun, Trash2, UserRound } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
+import { avatarImage } from './compress'
 import { subscribePush, unsubscribePush } from './notifications'
 import { api, Field, formatDate, Notice, PasswordInput } from './ui'
 
@@ -12,7 +13,7 @@ type Tab = 'akun' | 'perusahaan' | 'integrasi' | 'sistem'
 const isManagement = (user: UserProfile) => user.role.isAdmin || user.division.code === 'general_manager'
 
 // Menu Pengaturan: Akun saya (semua pengguna); Perusahaan & dokumen, Integrasi, Info sistem (Admin / GM)
-export function SettingsPage({ user, theme, onTheme, onNavigate }: { user: UserProfile; theme: ThemeMode; onTheme: (mode: ThemeMode) => void; onNavigate: (menu: string) => void }) {
+export function SettingsPage({ user, theme, onTheme, onNavigate, onProfileChanged }: { user: UserProfile; theme: ThemeMode; onTheme: (mode: ThemeMode) => void; onNavigate: (menu: string) => void; onProfileChanged?: () => void }) {
   const admin = isManagement(user)
   const [tab, setTab] = useState<Tab>('akun')
   const tabs: [Tab, string, typeof UserRound][] = [
@@ -33,7 +34,7 @@ export function SettingsPage({ user, theme, onTheme, onNavigate }: { user: UserP
           {tabs.map(([key, label, Icon]) => <button key={key} role="tab" aria-selected={tab === key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}><Icon /> {label}</button>)}
         </div>
       )}
-      {tab === 'akun' && <AccountTab user={user} theme={theme} onTheme={onTheme} />}
+      {tab === 'akun' && <AccountTab user={user} theme={theme} onTheme={onTheme} onProfileChanged={onProfileChanged} />}
       {tab === 'perusahaan' && admin && <CompanyTab />}
       {tab === 'integrasi' && admin && <IntegrationTab onNavigate={onNavigate} />}
       {tab === 'sistem' && admin && <SystemTab />}
@@ -42,14 +43,42 @@ export function SettingsPage({ user, theme, onTheme, onNavigate }: { user: UserP
 }
 
 // ---------------- Akun saya ----------------
-function AccountTab({ user, theme, onTheme }: { user: UserProfile; theme: ThemeMode; onTheme: (mode: ThemeMode) => void }) {
+function AccountTab({ user, theme, onTheme, onProfileChanged }: { user: UserProfile; theme: ThemeMode; onTheme: (mode: ThemeMode) => void; onProfileChanged?: () => void }) {
   const initials = user.name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase()
+  const photoInput = useRef<HTMLInputElement>(null)
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const [photoError, setPhotoError] = useState('')
+  // Semua user boleh mengganti foto profilnya sendiri
+  async function changePhoto(file: File | undefined, remove = false) {
+    if (!file && !remove) return
+    setPhotoBusy(true)
+    setPhotoError('')
+    try {
+      if (remove) await api('/api/account/avatar', { method: 'DELETE' })
+      else {
+        const body = new FormData()
+        body.set('file', await avatarImage(file!))
+        await api('/api/account/avatar', { method: 'POST', body })
+      }
+      onProfileChanged?.()
+    } catch (e) {
+      setPhotoError((e as Error).message)
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
   return (
     <div className="pap-settings-grid">
       <section className="pap-table-card pap-settings-card">
         <div className="pap-card-head"><div><h2>Profil</h2><p>Perubahan nama, email, divisi, atau role dilakukan Staff IT di Manajemen User.</p></div></div>
+        {photoError && <Notice onClose={() => setPhotoError('')}>{photoError}</Notice>}
         <div className="pap-settings-body pap-account-profile">
-          <div className="pap-avatar pap-account-avatar">{initials}</div>
+          <div className="pap-account-photo">
+            <div className="pap-avatar pap-account-avatar">{user.avatar ? <img src={`/api/account/avatar/${user.id}?v=${user.avatar}`} alt={`Foto profil ${user.name}`} /> : initials}</div>
+            <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => { changePhoto(e.target.files?.[0]); e.target.value = '' }} />
+            <button type="button" className="pap-btn" disabled={photoBusy} onClick={() => photoInput.current?.click()}><Camera /> {photoBusy ? 'Menyimpan...' : user.avatar ? 'Ganti foto' : 'Unggah foto'}</button>
+            {user.avatar && <button type="button" className="pap-btn danger" disabled={photoBusy} onClick={() => changePhoto(undefined, true)}><Trash2 /> Hapus foto</button>}
+          </div>
           <dl className="pap-detail-grid">
             <div><dt>Nama</dt><dd>{user.name}</dd></div>
             <div><dt>Email</dt><dd>{user.email}</dd></div>

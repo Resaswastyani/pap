@@ -4,6 +4,7 @@ import { CRM_INACTIVE_DAYS } from '@/lib/customers'
 import { db } from '@/lib/db'
 import { canSupervise } from '@/lib/marketing'
 import type { UserProfile } from '@/lib/users'
+import { sectorSql } from '@/lib/sectors'
 
 // Pemantauan repeat order: interval order tiap customer dihitung dari faktur penjualan Accurate.
 //   interval   = rata-rata jarak antar faktur (customer 1 kali order: DEFAULT_INTERVAL hari)
@@ -21,7 +22,7 @@ export function requireRepeatOrder(user: UserProfile) {
 export const seesAllCustomers = (user: UserProfile) => canSupervise(user)
 
 export const REPEAT_BASE = `
-  SELECT c.id, c.accurate_id, c.customer_no, c.name, c.mobile_phone, c.work_phone, c.bill_city, c.maintenance_to, c.next_followup_at, c.last_contact_at,
+  SELECT c.id, c.accurate_id, c.customer_no, c.name, ${sectorSql('c.category')} AS sektor, c.mobile_phone, c.work_phone, c.bill_city, c.maintenance_to, c.next_followup_at, c.last_contact_at,
     um.name AS maintenance_name, s.order_count, s.first_order, s.last_order, s.total_amount,
     s.interval_hari, DATEDIFF(CURDATE(), s.last_order) AS hari_sejak,
     DATE_ADD(s.last_order, INTERVAL s.interval_hari DAY) AS perkiraan_order,

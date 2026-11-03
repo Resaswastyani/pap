@@ -5,6 +5,7 @@ import { Ban, CheckCircle2, Download, FileText, Hammer, Palette, Plus, RotateCcw
 import type { UserProfile } from '@/lib/users'
 import { ProspectSelect, type ProspectOption } from './marketing'
 import { CustomerSelect, type CustomerOption } from './product-page'
+import { compressImage, isCompressibleImage } from './compress'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, uploadPendingAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
 import { api, askReason, Field, formatDate, formatSize, Modal, Notice, Pager, usePaged, useQuickAction, confirmDialog } from './ui'
 
@@ -616,16 +617,17 @@ export function checkDesignFiles(files: File[]) {
   const problems = files.flatMap((f) => {
     const typeOk = DESIGN_FILE_ACCEPT.split(',').includes(f.type) || (!f.type && DESIGN_FILE_EXT.test(f.name))
     if (!typeOk) return [`${f.name} (format tidak didukung)`]
-    if (f.size > DESIGN_FILE_MAX) return [`${f.name} (${formatSize(f.size)}, maks 4 MB)`]
+    // Gambar besar dikompres otomatis ke 2 MB saat diunggah
+    if (f.size > DESIGN_FILE_MAX && !isCompressibleImage(f)) return [`${f.name} (${formatSize(f.size)}, maks 4 MB)`]
     return []
   })
-  return problems.length ? `File ditolak: ${problems.join(', ')}. Hanya PDF, JPG, PNG, atau WEBP, maks 4 MB per file.` : ''
+  return problems.length ? `File ditolak: ${problems.join(', ')}. Hanya PDF, JPG, PNG, atau WEBP; PDF maks 4 MB per file.` : ''
 }
 
 async function uploadDesignFile(designId: number, kind: 'referensi' | 'desain', file: File) {
   const form = new FormData()
   form.append('kind', kind)
-  form.append('file', file)
+  form.append('file', await compressImage(file))
   await api(`/api/designs/${designId}/files`, { method: 'POST', body: form })
 }
 
@@ -700,7 +702,7 @@ export function DesignForm({ prospect, preset, onClose, onSaved }: { prospect?: 
         {konten && <Field label="Ukuran / format"><input className="pap-input" maxLength={150} value={values.ukuran} onChange={set('ukuran')} placeholder="Contoh: 1080x1350 (4:5), video 9:16 30 detik" /></Field>}
         <Field label="Deadline"><input className="pap-input" type="date" value={values.deadline} onChange={set('deadline')} /></Field>
         <Field label={konten ? 'Brief konten' : 'Brief desain'} full><textarea className="pap-input" rows={4} required maxLength={10000} value={values.brief} onChange={set('brief')} placeholder={konten ? 'Pesan utama, teks/caption di gambar, CTA (nomor WA), gaya visual, referensi akun yang disukai...' : 'Isi teks (nama usaha, alamat, nomor WA), logo, posisi, gaya, warna dominan, contoh yang disukai customer...'} /></Field>
-        <Field label="File referensi (opsional)" full hint="Logo, foto produk, contoh, sketsa. PDF/JPG/PNG/WEBP, maks 4 MB per file.">
+        <Field label="File referensi (opsional)" full hint="Logo, foto produk, contoh, sketsa. PDF/JPG/PNG/WEBP. Gambar > 2 MB dikompres otomatis; PDF maks 4 MB.">
           <input className="pap-input" type="file" multiple accept={DESIGN_FILE_ACCEPT} onChange={(e) => { const list = [...(e.target.files ?? [])]; const invalid = checkDesignFiles(list); setError(invalid); setFiles(invalid ? [] : list); if (invalid) e.target.value = '' }} />
         </Field>
       </form>

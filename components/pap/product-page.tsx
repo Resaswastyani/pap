@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Download, ExternalLink, FileText, ImageIcon, Package, Pencil, Plus, Printer, Search, Trash2, Upload } from 'lucide-react'
 import { PRODUCT_FILE_ACCEPT, PRODUCT_FILE_MAX_BYTES } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
+import { compressImage, isCompressibleImage } from './compress'
 import { AccurateSyncBar, formatNumber, formatRupiah } from './accurate'
 import { api, Field, formatDate, formatSize, Modal, Notice, Pager, RowActions, confirmDialog } from './ui'
 
@@ -40,7 +41,7 @@ const ACCEPT = PRODUCT_FILE_ACCEPT.join(',')
 
 function validateFile(file: File) {
   if (!(PRODUCT_FILE_ACCEPT as readonly string[]).includes(file.type)) return `${file.name}: format harus PDF atau gambar (JPG/PNG/WEBP).`
-  if (file.size > PRODUCT_FILE_MAX_BYTES) return `${file.name}: ukuran maksimal 4 MB. Kompres PDF terlebih dahulu.`
+  if (file.size > PRODUCT_FILE_MAX_BYTES && !isCompressibleImage(file)) return `${file.name}: ukuran maksimal 4 MB. Kompres PDF terlebih dahulu.`
   return ''
 }
 
@@ -49,8 +50,9 @@ async function uploadFiles(productId: number, files: File[]) {
   const failed: string[] = []
   for (const file of files) {
     const form = new FormData()
-    form.append('files', file)
     try {
+      // Gambar > 2 MB dikompres otomatis
+      form.append('files', await compressImage(file))
       await api(`/api/products/${productId}/files`, { method: 'POST', body: form })
     } catch (e) {
       failed.push(`${file.name}: ${(e as Error).message}`)
