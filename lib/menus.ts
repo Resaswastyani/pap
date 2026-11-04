@@ -11,9 +11,8 @@ export const MENU_KEYS = {
   'Order Bulanan': 'order-bulanan',
   'Data Produk': 'produk',
   Stok: 'stok',
-  // Tiga menu stok (Produksi) memakai satu hak akses 'stok'
+  // Dua menu stok (Produksi) memakai satu hak akses 'stok' (Stok Bahan Pembantu disembunyikan dulu)
   'Stok Bahan Baku': 'stok',
-  'Stok Bahan Pembantu': 'stok',
   'Stok Barang Jadi': 'stok',
   Quotation: 'quotation',
   'Tabel HPP': 'hpp',
