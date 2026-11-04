@@ -18,10 +18,11 @@ function stockState(item: StockItem) {
   return { label: 'Aman', tone: 'success' }
 }
 
-// Bahan baku = barang yang tidak dicentang "Diproduksi" di Accurate (biji plastik, kalsium, box mika, ...);
-// barang jadi = barang yang diproduksi PAP (kantong, hanger, roll, mika, ...)
+// Dikelompokkan menurut kategori barang di Accurate (lihat app/api/stock/route.ts):
+// bahan baku = Biji Plastik & Roll Mika; bahan pembantu = Tinta, Solven & Box Mika; barang jadi = barang yang diproduksi PAP
 const JENIS = {
-  bahan: { title: 'Stok Bahan Baku', desc: 'Stok bahan baku dari Accurate Online (barang yang tidak dicentang "Diproduksi"): biji plastik, kalsium, box mika, dan bahan pendukung produksi.', noun: 'bahan baku' },
+  bahan: { title: 'Stok Bahan Baku', desc: 'Stok bahan baku dari Accurate Online: barang berkategori Biji Plastik dan Roll Mika.', noun: 'bahan baku' },
+  pembantu: { title: 'Stok Bahan Pembantu', desc: 'Stok bahan pembantu dari Accurate Online: barang berkategori Tinta, Solven, dan Box Mika.', noun: 'bahan pembantu' },
   jadi: { title: 'Stok Barang Jadi', desc: 'Stok barang jadi dari Accurate Online (barang yang dicentang "Diproduksi"): kantong, hanger, roll, mika, dan produk PAP lainnya.', noun: 'barang jadi' },
 } as const
 
@@ -69,7 +70,7 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
   }, [load, q])
 
   const stats: [string, number, string, typeof Boxes, string, () => void][] = [
-    [jenis === 'bahan' ? 'Jenis bahan baku' : 'Jenis barang jadi', summary.total, summary.synced_at ? `Data per ${formatDate(summary.synced_at, true)}` : 'Belum sinkron', Boxes, 'stat-1', () => setLow(false)],
+    [`Jenis ${meta.noun}`, summary.total, summary.synced_at ? `Data per ${formatDate(summary.synced_at, true)}` : 'Belum sinkron', Boxes, 'stat-1', () => setLow(false)],
     ['Stok menipis', summary.low, 'Di bawah stok minimum', AlertTriangle, 'stat-2', () => setLow(true)],
     ['Stok habis', summary.empty, 'Stok fisik 0 atau minus', PackageX, 'stat-2', () => setLow(false)],
   ]

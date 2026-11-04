@@ -4,14 +4,22 @@ import { handle, pageParams, requireUser, str } from '@/lib/api'
 import { requireMenu } from '@/lib/customers'
 import { db } from '@/lib/db'
 
-// Stok barang dari Accurate (salinan; diperbarui oleh sinkronisasi).
-// ?jenis=bahan: bahan baku (tidak dicentang "Diproduksi"), ?jenis=jadi: barang jadi (dicentang "Diproduksi")
+// Stok barang dari Accurate (salinan; diperbarui oleh sinkronisasi). Pengelompokan menurut kategori barang di Accurate:
+//   ?jenis=bahan     bahan baku     : kategori Biji Plastik, Roll Mika
+//   ?jenis=pembantu  bahan pembantu : kategori Tinta, Solven, Box Mika
+//   ?jenis=jadi      barang jadi    : barang yang dicentang "Diproduksi"
+const CATEGORY_GROUPS = {
+  bahan: ['BIJI PLASTIK', 'ROLL MIKA'],
+  pembantu: ['TINTA', 'SOLVEN', 'SOLVENT', 'BOX MIKA'],
+}
+const inCategories = (list: string[]) => `UPPER(TRIM(i.category)) IN (${list.map((c) => db.escape(c)).join(', ')})`
+
 export const GET = handle(async (request: Request) => {
   const user = await requireUser()
   requireMenu(user, user.menus.includes('stok'))
   const params = new URL(request.url).searchParams
   const jenis = params.get('jenis')
-  const jenisWhere = jenis === 'bahan' ? 'COALESCE(i.item_produced, 0) = 0' : jenis === 'jadi' ? 'i.item_produced = 1' : '1 = 1'
+  const jenisWhere = jenis === 'bahan' || jenis === 'pembantu' ? inCategories(CATEGORY_GROUPS[jenis]) : jenis === 'jadi' ? 'i.item_produced = 1' : '1 = 1'
   const where = ['i.suspended = 0', jenisWhere]
   const args: unknown[] = []
   const q = str(params.get('q'), 100)
@@ -33,7 +41,7 @@ export const GET = handle(async (request: Request) => {
   )
   const [[summary]] = await db.query<RowDataPacket[]>(
     `SELECT COUNT(*) AS total, SUM(min_quantity > 0 AND COALESCE(quantity_on_hand, quantity) <= min_quantity) AS low, SUM(COALESCE(quantity_on_hand, quantity) <= 0) AS empty, MAX(synced_at) AS synced_at
-     FROM accurate_items i WHERE suspended = 0 AND item_type = 'INVENTORY' AND ${jenisWhere}`,
+     FROM accurate_items i WHERE i.suspended = 0 AND i.item_type = 'INVENTORY' AND ${jenisWhere}`,
   )
   const n = (v: unknown) => (v === null || v === undefined ? null : Number(v))
   return NextResponse.json({

@@ -11,7 +11,7 @@ import { can, type UserProfile } from '@/lib/users'
 const canManageMenus = (user: UserProfile) => user.role.isAdmin || user.division.code === 'general_manager' || can(user, PERMISSIONS.rolesManage)
 
 // Grade & Gaji kini tab di menu Karyawan; kuncinya tetap dipakai sebagai hak akses tab tersebut
-const MENU_DISPLAY: Record<string, string> = { 'Grade & Gaji': 'Karyawan › tab Grade & gaji', Stok: 'Stok Bahan Baku & Stok Barang Jadi' }
+const MENU_DISPLAY: Record<string, string> = { 'Grade & Gaji': 'Karyawan › tab Grade & gaji', Stok: 'Stok Bahan Baku, Stok Bahan Pembantu & Stok Barang Jadi' }
 
 export const GET = handle(async () => {
   const user = await requireUser()
