@@ -2106,3 +2106,16 @@ ol.pap-jobdesk-list { list-style:decimal; }
 .pap-cycle-inputs .pap-input { width:90px; }
 .pap-cycle-inputs .pap-select { width:auto; }
 .pap-field-error { color:#d64545; }
+
+/* Inventaris (GA) */
+.pap-inv-name { display:flex; align-items:center; gap:10px; }
+.pap-inv-thumb { flex:none; width:40px; height:40px; border-radius:8px; object-fit:cover; background:var(--pap-bg); border:1px solid var(--pap-border); }
+.pap-inv-thumb.empty { display:grid; place-items:center; color:var(--pap-muted); }
+.pap-inv-thumb.empty svg { width:18px; height:18px; }
+.pap-inv-detail { display:grid; grid-template-columns:220px 1fr; gap:18px; align-items:start; }
+.pap-inv-detail .pap-detail-grid { margin:0; }
+.pap-inv-photo { display:flex; flex-direction:column; gap:8px; }
+.pap-inv-photo img { width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:12px; border:1px solid var(--pap-border); display:block; }
+.pap-inv-photo-empty { display:grid; place-items:center; gap:4px; aspect-ratio:4/3; border:1px dashed var(--pap-border); border-radius:12px; color:var(--pap-muted); font-size:12px; text-align:center; align-content:center; }
+.pap-inv-photo-empty svg { width:26px; height:26px; margin:0 auto; }
+@media (max-width:640px) { .pap-inv-detail { grid-template-columns:1fr; } }
