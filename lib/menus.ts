@@ -11,6 +11,9 @@ export const MENU_KEYS = {
   'Order Bulanan': 'order-bulanan',
   'Data Produk': 'produk',
   Stok: 'stok',
+  // Dua menu stok (Produksi) memakai satu hak akses 'stok'
+  'Stok Bahan Baku': 'stok',
+  'Stok Barang Jadi': 'stok',
   Quotation: 'quotation',
   'Tabel HPP': 'hpp',
   'Repeat Order': 'repeat-order',
@@ -53,7 +56,6 @@ export const MENU_KEYS = {
   'Data GA': 'ga-data',
   'Pengajuan GA': 'ga-pengajuan',
   Planning: 'planning',
-  'Progress Kerja': 'progress-kerja',
   Meeting: 'meeting',
   'Master Data': 'master-data',
   'Manajemen User': 'users',
@@ -85,7 +87,7 @@ export const MENU_GROUPS: { label: string; items: (keyof typeof MENU_KEYS)[] }[]
   { label: 'Accounting', items: ['Ringkasan Keuangan', 'Kas & Bank', 'Piutang Customer', 'Laporan Keuangan', 'Arus Kas', 'Pajak'] },
   { label: 'SDM', items: ['Karyawan', 'Grade & Gaji', 'Absensi', 'Training', 'Izin & Cuti', 'KPI Karyawan', 'Laporan BPJS', 'Perizinan'] },
   { label: 'General Affair', items: ['Data GA', 'Pengajuan GA'] },
-  { label: 'Kolaborasi', items: ['Planning', 'Progress Kerja', 'Meeting'] },
+  { label: 'Kolaborasi', items: ['Planning', 'Meeting'] },
   { label: 'Sistem', items: ['Master Data', 'Manajemen User', 'Manajemen Role'] },
 ]
 // Kunci menu yang bisa diatur per divisi (selain ini, isi division_menus tidak disentuh saat disimpan)

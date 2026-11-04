@@ -147,6 +147,20 @@ export async function ensureTab(sheet: Sheet, title: string) {
   sheet.tabs.push({ title, sheetId: json.replies[0]?.addSheet?.properties.sheetId ?? 0 })
 }
 
+// Baris judul tebal & dibekukan (untuk tab baru yang dibuat SIMPAP)
+export async function formatHeaderRow(sheet: Sheet, title: string, row = 1) {
+  const tab = tabOf(sheet, title)
+  await call(`${sheet.id}:batchUpdate`, {
+    method: 'POST',
+    body: JSON.stringify({
+      requests: [
+        { repeatCell: { range: { sheetId: tab.sheetId, startRowIndex: row - 1, endRowIndex: row }, cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.93, green: 0.91, blue: 1 } } }, fields: 'userEnteredFormat(textFormat,backgroundColor)' } },
+        { updateSheetProperties: { properties: { sheetId: tab.sheetId, gridProperties: { frozenRowCount: row } }, fields: 'gridProperties.frozenRowCount' } },
+      ],
+    }),
+  })
+}
+
 // Ganti isi satu rentang (mis. seluruh tabel jadwal bulan) dan kosongkan sisa baris lama di bawahnya
 export async function replaceBlock(sheet: Sheet, title: string, startRow: number, rows: (string | number)[][], clearUntilRow?: number) {
   const width = Math.max(1, ...rows.map((r) => r.length))

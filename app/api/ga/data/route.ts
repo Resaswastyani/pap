@@ -10,7 +10,7 @@ export const maxDuration = 60
 type Row = RowDataPacket & Record<string, unknown>
 const json = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v ?? {})
 
-// Data GA: nomor HP, langganan, WiFi. Sinkron otomatis dari spreadsheet bila terakhir > 10 menit
+// Data GA: nomor HP, langganan, WiFi, lainnya. Sinkron otomatis dari spreadsheet bila terakhir > 10 menit
 export const GET = handle(async () => {
   const user = await requireUser()
   requireGaView(user)
@@ -18,6 +18,7 @@ export const GET = handle(async () => {
   const [phones] = await db.query<Row[]>('SELECT * FROM ga_phones ORDER BY COALESCE(no, 9999), sheet_row')
   const [subs] = await db.query<Row[]>('SELECT * FROM ga_subscriptions ORDER BY COALESCE(no, 9999), sheet_row')
   const [wifi] = await db.query<Row[]>('SELECT * FROM ga_wifi ORDER BY COALESCE(no, 9999), sheet_row')
+  const [others] = await db.query<Row[]>("SELECT * FROM ga_others ORDER BY COALESCE(no, 9999), sheet_row")
   const [settings] = await db.query<Row[]>("SELECT `key`, value FROM app_settings WHERE `key` IN ('ga.synced_at', 'ga.meta')")
   const setting = (k: string) => settings.find((s) => s.key === k)?.value as string | undefined
   const num = (v: unknown) => (v === null || v === undefined ? null : Number(v))
@@ -25,6 +26,7 @@ export const GET = handle(async () => {
     hp: phones.map((p) => ({ ...p, pembayaran: json(p.pembayaran) })),
     langganan: subs.map((s) => ({ ...s, biaya: num(s.biaya) })),
     wifi: wifi.map((w) => ({ ...w, biaya: num(w.biaya), pembayaran: json(w.pembayaran) })),
+    lainnya: others.map((o) => ({ ...o, biaya: num(o.biaya) })),
     synced_at: setting('ga.synced_at') ?? null,
     tabs: setting('ga.meta') ? JSON.parse(setting('ga.meta')!).tabs : null,
     url: await loadGaUrl(),

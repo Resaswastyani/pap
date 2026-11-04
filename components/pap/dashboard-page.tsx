@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertTriangle, Award, CalendarClock, CalendarDays, ClipboardList, Factory, FlaskConical, Handshake, ListChecks, MapPin, Palette, Receipt, Repeat, ShoppingCart, Smartphone, Target, TrendingDown, TrendingUp, UserCheck, Users, UserX, Wallet, Wifi } from 'lucide-react'
+import { AlertTriangle, Award, Layers, CalendarClock, CalendarDays, ClipboardList, Factory, FlaskConical, Handshake, ListChecks, MapPin, Palette, Receipt, Repeat, ShoppingCart, Smartphone, Target, TrendingDown, TrendingUp, UserCheck, Users, UserX, Wallet, Wifi } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { BarList, ColumnChart, dayNumber, Gantt, todayNumber, useMediaQuery, type GanttBar, type GanttRow } from './charts'
@@ -48,7 +48,7 @@ type DashboardData = {
   } | null
   ga?: {
     bulan: string
-    tagihan: { jenis: 'langganan' | 'wifi' | 'hp'; id: number; nama: string; detail: string | null; biaya: number | null; jatuh_tempo: string | null; status: 'lunas' | 'belum' | 'lewat' }[]
+    tagihan: { jenis: 'langganan' | 'wifi' | 'hp' | 'lainnya'; id: number; nama: string; detail: string | null; biaya: number | null; jatuh_tempo: string | null; status: 'lunas' | 'belum' | 'lewat' }[]
     pembelian: { id: number; nomor: string | null; judul: string; kategori: string; prioritas: string; status: 'diajukan' | 'disetujui'; dibutuhkan: string | null; estimasi: number }[]
     ringkasan: { belum: number; lewat: number; lunas: number; nominal_belum: number; perlu_dibeli: number; perlu_disetujui: number }
   }
@@ -74,8 +74,8 @@ const ATTENDANCE_PARTS: { key: keyof AttendanceCounts; label: string; tone: stri
 ]
 const GRADE_TONE: Record<string, 's1' | 's2' | 's3' | 'muted'> = { A: 's3', B: 's1', C: 's2' }
 // General Affair: ikon & label jenis tagihan
-const GA_ICON = { langganan: Wallet, wifi: Wifi, hp: Smartphone }
-const GA_JENIS = { langganan: 'Langganan', wifi: 'WiFi', hp: 'Nomor HP' }
+const GA_ICON = { langganan: Wallet, wifi: Wifi, hp: Smartphone, lainnya: Layers }
+const GA_JENIS = { langganan: 'Langganan', wifi: 'WiFi', hp: 'Nomor HP', lainnya: 'GA lainnya' }
 const GA_STATUS = { lewat: ['danger', 'Lewat jatuh tempo'], belum: ['warning', 'Belum dibayar'], lunas: ['success', 'Sudah dibayar'] } as const
 const wajibOf = (c: AttendanceCounts) => c.hadir + c.terlambat + c.tidak_hadir
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0)

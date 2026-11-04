@@ -18,7 +18,15 @@ function stockState(item: StockItem) {
   return { label: 'Aman', tone: 'success' }
 }
 
-export function StockPage({ user }: { user: UserProfile }) {
+// Bahan baku = barang yang tidak dicentang "Diproduksi" di Accurate (biji plastik, kalsium, box mika, ...);
+// barang jadi = barang yang diproduksi PAP (kantong, hanger, roll, mika, ...)
+const JENIS = {
+  bahan: { title: 'Stok Bahan Baku', desc: 'Stok bahan baku dari Accurate Online (barang yang tidak dicentang "Diproduksi"): biji plastik, kalsium, box mika, dan bahan pendukung produksi.', noun: 'bahan baku' },
+  jadi: { title: 'Stok Barang Jadi', desc: 'Stok barang jadi dari Accurate Online (barang yang dicentang "Diproduksi"): kantong, hanger, roll, mika, dan produk PAP lainnya.', noun: 'barang jadi' },
+} as const
+
+export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typeof JENIS }) {
+  const meta = JENIS[jenis]
   const [items, setItems] = useState<StockItem[]>([])
   const [categories, setCategories] = useState<string[]>([])
   const [summary, setSummary] = useState<Summary>({ total: 0, low: 0, empty: 0, synced_at: null })
@@ -35,7 +43,7 @@ export function StockPage({ user }: { user: UserProfile }) {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ page: String(page), pageSize: String(size) })
+      const params = new URLSearchParams({ page: String(page), pageSize: String(size), jenis })
       if (q.trim()) params.set('q', q.trim())
       if (category) params.set('category', category)
       if (low) params.set('low', '1')
@@ -51,7 +59,7 @@ export function StockPage({ user }: { user: UserProfile }) {
     } finally {
       setLoading(false)
     }
-  }, [q, category, low, inventoryOnly, page, size])
+  }, [q, category, low, inventoryOnly, page, size, jenis])
   // Filter berubah -> kembali ke halaman 1
   useEffect(() => setPage(1), [q, category, low, inventoryOnly])
 
@@ -61,7 +69,7 @@ export function StockPage({ user }: { user: UserProfile }) {
   }, [load, q])
 
   const stats: [string, number, string, typeof Boxes, string, () => void][] = [
-    ['Barang persediaan', summary.total, summary.synced_at ? `Data per ${formatDate(summary.synced_at, true)}` : 'Belum sinkron', Boxes, 'stat-1', () => setLow(false)],
+    [jenis === 'bahan' ? 'Jenis bahan baku' : 'Jenis barang jadi', summary.total, summary.synced_at ? `Data per ${formatDate(summary.synced_at, true)}` : 'Belum sinkron', Boxes, 'stat-1', () => setLow(false)],
     ['Stok menipis', summary.low, 'Di bawah stok minimum', AlertTriangle, 'stat-2', () => setLow(true)],
     ['Stok habis', summary.empty, 'Stok fisik 0 atau minus', PackageX, 'stat-2', () => setLow(false)],
   ]
@@ -71,8 +79,8 @@ export function StockPage({ user }: { user: UserProfile }) {
       <div className="pap-page-heading">
         <div>
           <p className="pap-eyebrow">GUDANG</p>
-          <h1>Stok</h1>
-          <span>Stok barang dari Accurate Online untuk perencanaan bahan baku, produksi, dan pembelian.</span>
+          <h1>{meta.title}</h1>
+          <span>{meta.desc}</span>
         </div>
       </div>
       <AccurateSyncBar entities={['item', 'stock']} canSync={user.menus.includes('stok')} onSynced={load} />
@@ -85,9 +93,9 @@ export function StockPage({ user }: { user: UserProfile }) {
         ))}
       </div>
       <div className="pap-table-card">
-        <div className="pap-card-head"><div><h2>Daftar stok</h2><p>Stok fisik = jumlah di gudang. Tersedia dijual = stok fisik dikurangi pesanan yang belum dikirim. Semua gudang.</p></div></div>
+        <div className="pap-card-head"><div><h2>Daftar {meta.noun}</h2><p>Stok fisik = jumlah di gudang. Tersedia dijual = stok fisik dikurangi pesanan yang belum dikirim. Semua gudang.</p></div></div>
         <div className="pap-filters">
-          <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama atau kode barang..." /></label>
+          <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Cari nama atau kode ${meta.noun}...`} /></label>
           <select className="pap-select" value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Filter kategori">
             <option value="">Semua kategori</option>
             {categories.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -117,7 +125,7 @@ export function StockPage({ user }: { user: UserProfile }) {
           </table>
           {!loading && !items.length && <div className="pap-empty">{q || category || low ? 'Tidak ada barang yang cocok dengan filter.' : 'Belum ada data stok. Klik "Sinkron sekarang" untuk mengambil dari Accurate.'}</div>}
           {loading && !items.length && <div className="pap-empty">Memuat stok...</div>}
-          <Pager page={page} pageSize={size} total={total} onPage={setPage} onPageSize={(v) => { setSize(v); setPage(1) }} noun="barang" />
+          <Pager page={page} pageSize={size} total={total} onPage={setPage} onPageSize={(v) => { setSize(v); setPage(1) }} noun={meta.noun} />
         </div>
       </div>
     </>

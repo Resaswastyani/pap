@@ -1,12 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, ExternalLink, FileSpreadsheet, FileText, Plus, Printer, RefreshCw, Search, ShoppingBag, Smartphone, Trash2, Wallet, Wifi, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ExternalLink, FileSpreadsheet, FileText, Layers, Plus, Printer, RefreshCw, Search, ShoppingBag, Smartphone, Trash2, Wallet, Wifi, X } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { api, askReason, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged, confirmDialog } from './ui'
 
-// General Affair: Data GA (nomor HP, langganan, WiFi; dua arah dengan spreadsheet GA) & Pengajuan Pembelian GA
+// General Affair: Data GA (nomor HP, langganan, WiFi, lainnya; dua arah dengan spreadsheet GA) & Pengajuan Pembelian GA
 
 type Pay = Record<string, boolean>
 type Phone = { id: number; no: number | null; nomor: string; ket: string | null; masa_aktif: string | null; provider: string | null; pembayaran: Pay }
@@ -18,8 +18,12 @@ type Wifi = {
   id: number; no: number | null; nama: string; provider: string | null; id_pelanggan: string | null; nama_pelanggan: string | null; biaya: number | null
   jatuh_tempo: string | null; tgl_tagihan: number | null; paket: string | null; call_center: string | null; catatan: string | null; pembayaran: Pay
 }
-type GaData = { hp: Phone[]; langganan: Sub[]; wifi: Wifi[]; synced_at: string | null; url: string; sync_error: string | null; can: { manage: boolean } }
-type Jenis = 'hp' | 'langganan' | 'wifi'
+type Other = {
+  id: number; no: number | null; nama: string; kategori: string | null; vendor: string | null; no_pelanggan: string | null; biaya: number | null; siklus: string | null
+  jatuh_tempo: string | null; penanggung_jawab: string | null; status: string | null; catatan: string | null
+}
+type GaData = { hp: Phone[]; langganan: Sub[]; wifi: Wifi[]; lainnya: Other[]; synced_at: string | null; url: string; sync_error: string | null; can: { manage: boolean } }
+type Jenis = 'hp' | 'langganan' | 'wifi' | 'lainnya'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 const todayIso = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
@@ -84,7 +88,7 @@ export function GaDataPage(_props: { user: UserProfile }) {
   const [tab, setTab] = useState<Jenis>('hp')
   const [q, setQ] = useState('')
   const [year, setYear] = useState(() => Number(todayIso().slice(0, 4)))
-  const [form, setForm] = useState<{ jenis: Jenis; item: Phone | Sub | Wifi | null } | null>(null)
+  const [form, setForm] = useState<{ jenis: Jenis; item: Phone | Sub | Wifi | Other | null } | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [payBusy, setPayBusy] = useState<string | null>(null)
@@ -135,8 +139,9 @@ export function GaDataPage(_props: { user: UserProfile }) {
   const phones = (data?.hp ?? []).filter((p) => match(p.nomor, p.ket, p.provider))
   const subs = (data?.langganan ?? []).filter((s) => match(s.nama, s.kategori, s.vendor, s.penanggung_jawab, s.user_akun, s.catatan))
   const wifis = (data?.wifi ?? []).filter((w) => match(w.nama, w.provider, w.id_pelanggan, w.nama_pelanggan, w.paket, w.catatan))
-  const shown = tab === 'hp' ? phones : tab === 'langganan' ? subs : wifis
-  const paged = usePaged<Phone | Sub | Wifi>(shown, [tab, q])
+  const others = (data?.lainnya ?? []).filter((o) => match(o.nama, o.kategori, o.vendor, o.no_pelanggan, o.penanggung_jawab, o.catatan))
+  const shown = tab === 'hp' ? phones : tab === 'langganan' ? subs : tab === 'wifi' ? wifis : others
+  const paged = usePaged<Phone | Sub | Wifi | Other>(shown, [tab, q])
   const years = useMemo(() => {
     const set = new Set<number>([Number(todayIso().slice(0, 4))])
     for (const r of [...(data?.hp ?? []), ...(data?.wifi ?? [])]) Object.keys(r.pembayaran).forEach((k) => set.add(Number(k.slice(0, 4))))
@@ -149,18 +154,19 @@ export function GaDataPage(_props: { user: UserProfile }) {
   const dueSoon = [
     ...subsAktif.filter((s) => s.jatuh_tempo && daysUntil(s.jatuh_tempo) <= 30),
     ...(data?.hp ?? []).filter((p) => p.masa_aktif && daysUntil(p.masa_aktif) <= 30),
+    ...(data?.lainnya ?? []).filter((o) => !/tidak|non|berhenti|mati/i.test(o.status ?? '') && o.jatuh_tempo && daysUntil(o.jatuh_tempo) <= 30),
   ]
   const wifiBelum = (data?.wifi ?? []).filter((w) => nowKey() in w.pembayaran && !w.pembayaran[nowKey()])
   const hpBelum = (data?.hp ?? []).filter((p) => nowKey() in p.pembayaran && !p.pembayaran[nowKey()])
 
-  const label = { hp: 'nomor HP', langganan: 'langganan', wifi: 'WiFi' }[tab]
+  const label = { hp: 'nomor HP', langganan: 'langganan', wifi: 'WiFi', lainnya: 'data lainnya' }[tab]
   return (
     <>
       <div className="pap-page-heading">
         <div>
           <p className="pap-eyebrow">GENERAL AFFAIR · GOOGLE DRIVE</p>
           <h1>Data GA</h1>
-          <span>Nomor HP kantor, langganan aplikasi, dan WiFi dari spreadsheet GA. Perubahan di sini langsung ditulis ke spreadsheet; perubahan di spreadsheet ikut masuk otomatis.</span>
+          <span>Nomor HP kantor, langganan aplikasi, WiFi, dan data GA lainnya (listrik, air, sewa, asuransi, ...) dari spreadsheet GA. Perubahan di sini langsung ditulis ke spreadsheet; perubahan di spreadsheet ikut masuk otomatis.</span>
         </div>
       </div>
       <div className="pap-sync-bar">
@@ -181,21 +187,22 @@ export function GaDataPage(_props: { user: UserProfile }) {
         { label: 'Nomor HP', value: `${data?.hp.length ?? 0}`, note: hpBelum.length ? `${hpBelum.length} belum bayar bulan ini` : 'Semua sudah bayar bulan ini', icon: Smartphone, tone: hpBelum.length ? 'stat-2' : 'stat-0', active: tab === 'hp', onClick: () => setTab('hp') },
         { label: 'Langganan aktif', value: `${subsAktif.length}`, note: `±${formatRupiah(Math.round(perBulan))} / bulan`, icon: Wallet, tone: 'stat-1', active: tab === 'langganan', onClick: () => setTab('langganan') },
         { label: 'WiFi', value: `${data?.wifi.length ?? 0}`, note: wifiBelum.length ? `${wifiBelum.length} tagihan bulan ini belum dibayar` : 'Tagihan bulan ini beres', icon: Wifi, tone: wifiBelum.length ? 'stat-2' : 'stat-0', active: tab === 'wifi', onClick: () => setTab('wifi') },
-        { label: 'Jatuh tempo ≤ 30 hari', value: `${dueSoon.length}`, note: 'langganan & masa aktif nomor', icon: AlertTriangle, tone: dueSoon.length ? 'stat-2' : 'stat-3' },
+        { label: 'Jatuh tempo ≤ 30 hari', value: `${dueSoon.length}`, note: 'langganan, masa aktif nomor & lainnya', icon: AlertTriangle, tone: dueSoon.length ? 'stat-2' : 'stat-3' },
       ]} />
       <div className="pap-segmented pap-page-tabs" role="tablist" aria-label="Data GA">
         <button role="tab" aria-selected={tab === 'hp'} className={tab === 'hp' ? 'active' : ''} onClick={() => setTab('hp')}><Smartphone /> Nomor HP</button>
         <button role="tab" aria-selected={tab === 'langganan'} className={tab === 'langganan' ? 'active' : ''} onClick={() => setTab('langganan')}><Wallet /> Langganan</button>
         <button role="tab" aria-selected={tab === 'wifi'} className={tab === 'wifi' ? 'active' : ''} onClick={() => setTab('wifi')}><Wifi /> WiFi</button>
+        <button role="tab" aria-selected={tab === 'lainnya'} className={tab === 'lainnya' ? 'active' : ''} onClick={() => setTab('lainnya')}><Layers /> Lainnya</button>
       </div>
       <div className="pap-table-card">
         <div className="pap-card-head">
-          <div><h2>{tab === 'hp' ? 'Nomor HP kantor' : tab === 'langganan' ? 'Langganan aplikasi & layanan' : 'WiFi kantor'}</h2><p>{shown.length} {label}{tab !== 'langganan' ? ' · klik bulan untuk menandai sudah / belum dibayar' : ''}</p></div>
+          <div><h2>{tab === 'hp' ? 'Nomor HP kantor' : tab === 'langganan' ? 'Langganan aplikasi & layanan' : tab === 'wifi' ? 'WiFi kantor' : 'Data GA lainnya'}</h2><p>{shown.length} {label}{tab === 'hp' || tab === 'wifi' ? ' · klik bulan untuk menandai sudah / belum dibayar' : tab === 'lainnya' ? ' · tab "Lainnya" di spreadsheet GA' : ''}</p></div>
           {manage && <button className="pap-primary-button" onClick={() => setForm({ jenis: tab, item: null })}><Plus /> Tambah {label}</button>}
         </div>
         <div className="pap-filters">
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Cari ${label}...`} /></label>
-          {tab !== 'langganan' && (
+          {(tab === 'hp' || tab === 'wifi') && (
             <select className="pap-select" value={year} onChange={(e) => setYear(Number(e.target.value))} aria-label="Tahun status bayar">
               {years.map((y) => <option key={y} value={y}>Status bayar {y}</option>)}
             </select>
@@ -248,8 +255,23 @@ export function GaDataPage(_props: { user: UserProfile }) {
                 ))}
               </tbody>
             </>}
+            {tab === 'lainnya' && <>
+              <thead><tr><th>Item</th><th>Vendor / no. pelanggan</th><th className="pap-num">Biaya</th><th>Jatuh tempo</th><th>Penanggung jawab</th>{manage && <th className="pap-actions-col">Aksi</th>}</tr></thead>
+              <tbody>
+                {(paged.items as Other[]).map((o) => (
+                  <tr key={o.id}>
+                    <td><div className="pap-cell-title">{o.nama}</div><div className="pap-cell-sub">{[o.kategori, o.status].filter(Boolean).join(' · ')}{o.catatan ? ` · ${o.catatan}` : ''}</div></td>
+                    <td>{o.vendor ?? '—'}<div className="pap-cell-sub">{o.no_pelanggan ?? ''}</div></td>
+                    <td className="pap-num pap-nowrap">{rp(o.biaya)}<div className="pap-cell-sub">{o.siklus ?? ''}</div></td>
+                    <td><DueBadge date={o.jatuh_tempo} /></td>
+                    <td>{o.penanggung_jawab ?? '—'}</td>
+                    {manage && <td><RowActions label={o.nama} onEdit={() => setForm({ jenis: 'lainnya', item: o })} onDelete={() => remove('lainnya', o.id, o.nama)} /></td>}
+                  </tr>
+                ))}
+              </tbody>
+            </>}
           </table>
-          {data && !shown.length && <div className="pap-empty">{term ? `Tidak ada ${label} yang cocok.` : `Belum ada data ${label}.${manage ? ' Klik "Sinkron" untuk mengambil dari spreadsheet GA.' : ''}`}</div>}
+          {data && !shown.length && <div className="pap-empty">{term ? `Tidak ada ${label} yang cocok.` : tab === 'lainnya' ? `Belum ada data lainnya.${manage ? ' Klik "Tambah data lainnya": tab "Lainnya" dibuat otomatis di spreadsheet GA.' : ''}` : `Belum ada data ${label}.${manage ? ' Klik "Sinkron" untuk mengambil dari spreadsheet GA.' : ''}`}</div>}
           {!data && !error && <div className="pap-empty">Memuat data GA...</div>}
           <Pager {...paged.pager} noun={label} />
         </div>
@@ -261,7 +283,7 @@ export function GaDataPage(_props: { user: UserProfile }) {
   )
 }
 
-function GaForm({ jenis, item, onClose, onSaved, onDelete }: { jenis: Jenis; item: Phone | Sub | Wifi | null; onClose: () => void; onSaved: (text: string) => void; onDelete?: () => Promise<void> }) {
+function GaForm({ jenis, item, onClose, onSaved, onDelete }: { jenis: Jenis; item: Phone | Sub | Wifi | Other | null; onClose: () => void; onSaved: (text: string) => void; onDelete?: () => Promise<void> }) {
   const it = (item ?? {}) as Record<string, unknown>
   const s = (k: string) => (it[k] === null || it[k] === undefined ? '' : String(it[k]))
   const [v, setV] = useState<Record<string, string>>((): Record<string, string> => (
@@ -270,6 +292,10 @@ function GaForm({ jenis, item, onClose, onSaved, onDelete }: { jenis: Jenis; ite
         nama: s('nama'), kategori: s('kategori'), vendor: s('vendor'), biaya: s('biaya'), siklus: s('siklus') || 'Bulanan', jatuh_tempo: s('jatuh_tempo'),
         metode_bayar: s('metode_bayar'), status: s('status') || 'Aktif', penanggung_jawab: s('penanggung_jawab'), user_akun: s('user_akun'), catatan: s('catatan'),
       }
+        : jenis === 'lainnya' ? {
+          nama: s('nama'), kategori: s('kategori'), vendor: s('vendor'), no_pelanggan: s('no_pelanggan'), biaya: s('biaya'), siklus: s('siklus') || 'Bulanan', jatuh_tempo: s('jatuh_tempo'),
+          penanggung_jawab: s('penanggung_jawab'), status: s('status') || 'Aktif', catatan: s('catatan'),
+        }
         : { nama: s('nama'), provider: s('provider'), id_pelanggan: s('id_pelanggan'), nama_pelanggan: s('nama_pelanggan'), biaya: s('biaya'), tgl_tagihan: s('tgl_tagihan'), paket: s('paket'), call_center: s('call_center'), catatan: s('catatan') }
   ))
   const [busy, setBusy] = useState(false)
@@ -278,7 +304,7 @@ function GaForm({ jenis, item, onClose, onSaved, onDelete }: { jenis: Jenis; ite
   const input = (k: string, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}, full = false) => (
     <Field label={label} full={full}><input className="pap-input" value={v[k]} onChange={set(k)} {...props} /></Field>
   )
-  const noun = { hp: 'nomor HP', langganan: 'langganan', wifi: 'WiFi' }[jenis]
+  const noun = { hp: 'nomor HP', langganan: 'langganan', wifi: 'WiFi', lainnya: 'data lainnya' }[jenis]
   async function save(e: React.FormEvent) {
     e.preventDefault()
     setBusy(true)
@@ -316,6 +342,18 @@ function GaForm({ jenis, item, onClose, onSaved, onDelete }: { jenis: Jenis; ite
           {input('user_akun', 'User / akun login')}
           <Field label="Catatan" full><textarea className="pap-input" rows={2} value={v.catatan} onChange={set('catatan')} /></Field>
         </>}
+        {jenis === 'lainnya' && <>
+          {input('nama', 'Nama item', { required: true, placeholder: 'Listrik PLN Gedung A, Sewa gudang, Asuransi mobil, ...' }, true)}
+          {input('kategori', 'Kategori', { list: 'ga-kategori-lain', placeholder: 'Listrik, Air, Sewa, Asuransi, ...' })}
+          {input('vendor', 'Vendor / provider')}
+          {input('no_pelanggan', 'No. pelanggan / akun')}
+          {input('biaya', 'Biaya (Rp)', { type: 'number', min: 0, step: 'any' })}
+          <Field label="Siklus tagihan"><select className="pap-select" value={v.siklus} onChange={set('siklus')}><option>Bulanan</option><option>Tahunan</option><option>Sekali bayar</option></select></Field>
+          {input('jatuh_tempo', 'Tanggal jatuh tempo', { type: 'date' })}
+          {input('penanggung_jawab', 'Penanggung jawab')}
+          <Field label="Status"><select className="pap-select" value={v.status} onChange={set('status')}><option>Aktif</option><option>Tidak aktif</option></select></Field>
+          <Field label="Catatan" full><textarea className="pap-input" rows={2} value={v.catatan} onChange={set('catatan')} /></Field>
+        </>}
         {jenis === 'wifi' && <>
           {input('nama', 'Nama WiFi', { required: true })}
           {input('provider', 'Provider', { list: 'ga-provider', placeholder: 'Indibiz, indihome, my republic, ...' })}
@@ -328,9 +366,11 @@ function GaForm({ jenis, item, onClose, onSaved, onDelete }: { jenis: Jenis; ite
           {input('catatan', 'Catatan / lokasi')}
         </>}
         <datalist id="ga-provider">{['Tri (3)', 'Telkomsel', 'Indosat Ooredoo', 'XL', 'Smartfren', 'Indibiz', 'indihome', 'my republic', 'Biznet'].map((p) => <option key={p} value={p} />)}</datalist>
+        <datalist id="ga-kategori-lain">{['Listrik', 'Air', 'Sewa', 'Asuransi', 'Pajak kendaraan', 'Servis kendaraan', 'Keamanan', 'Kebersihan', 'Perizinan'].map((p) => <option key={p} value={p} />)}</datalist>
         <datalist id="ga-kategori">{['IT/Infrastructure', 'Design', 'Productivity', 'Marketing', 'Finance'].map((p) => <option key={p} value={p} />)}</datalist>
       </form>
       {jenis === 'wifi' && !item && <p className="pap-muted">WiFi baru juga ditambahkan ke setiap tabel status bayar bulanan di tab WIFI.</p>}
+      {jenis === 'lainnya' && !item && <p className="pap-muted">Disimpan ke tab &quot;Lainnya&quot; di spreadsheet GA (dibuat otomatis bila belum ada).</p>}
     </Modal>
   )
 }
@@ -348,8 +388,8 @@ function GaSheetDialog({ manage, onClose, onSynced }: { manage: boolean; onClose
     try { await fn() } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
   return (
-    <Modal title="Sumber data GA" subtitle="Spreadsheet PAP - GA - List No HP, Subscription, WIFI" wide onClose={onClose}
-      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Tutup</button>{manage && <button className="pap-primary-button" disabled={busy} onClick={() => run(async () => { const r = await api<{ hp: number; langganan: number; wifi: number }>('/api/ga/sheet', { method: 'POST' }); onSynced(`Sinkron selesai: ${r.hp} nomor HP, ${r.langganan} langganan, ${r.wifi} WiFi.`) })}><RefreshCw /> Sinkron sekarang</button>}</>}>
+    <Modal title="Sumber data GA" subtitle="Spreadsheet PAP - GA - List No HP, Subscription, WIFI, Lainnya" wide onClose={onClose}
+      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Tutup</button>{manage && <button className="pap-primary-button" disabled={busy} onClick={() => run(async () => { const r = await api<{ hp: number; langganan: number; wifi: number; lainnya: number }>('/api/ga/sheet', { method: 'POST' }); onSynced(`Sinkron selesai: ${r.hp} nomor HP, ${r.langganan} langganan, ${r.wifi} WiFi, ${r.lainnya} data lainnya.`) })}><RefreshCw /> Sinkron sekarang</button>}</>}>
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       {manage && (
         <Field label="Link Google Spreadsheet" hint="Akun Google yang terhubung (Master Data > Logo & Desain) harus punya akses Editor agar tambah / ubah dari PAP-MS bisa ditulis ke sheet." full>

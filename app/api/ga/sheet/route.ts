@@ -16,8 +16,8 @@ export const GET = handle(async () => {
     const r = await gaGuard(readGaSheet)
     return NextResponse.json({
       ...base, tabs: r.tabs,
-      dipakai: [r.hp?.title, r.langganan?.title, r.wifi?.title].filter(Boolean).join(', '),
-      contoh: [`${r.hp?.parsed.items.length ?? 0} nomor HP`, `${r.langganan?.parsed.items.length ?? 0} langganan`, `${r.wifi?.parsed.items.length ?? 0} WiFi`],
+      dipakai: [r.hp?.title, r.langganan?.title, r.wifi?.title, r.lainnya?.title].filter(Boolean).join(', '),
+      contoh: [`${r.hp?.parsed.items.length ?? 0} nomor HP`, `${r.langganan?.parsed.items.length ?? 0} langganan`, `${r.wifi?.parsed.items.length ?? 0} WiFi`, `${r.lainnya?.parsed.items.length ?? 0} data lainnya`],
     })
   } catch (error) {
     if (error instanceof ApiError) return NextResponse.json({ ...base, tabs: [], dipakai: null, contoh: [], error: error.message })

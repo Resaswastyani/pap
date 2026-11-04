@@ -6,18 +6,22 @@
 //   Subscription : No | Nama Layanan | Kategori | Vendor | Biaya | Siklus | Jatuh Tempo | Metode | Status | Penanggung Jawab | User | Catatan
 //   WIFI         : tabel utama (No | Nama Wifi | Provider | ID Pelanggan | Nama Pelanggan | Biaya | Jatuh Tempo | Paket | Call Center | Catatan)
 //                  + tabel status bayar per bulan di bawahnya (No | Nama Wifi | Provider | ID Pelanggan | <bulan>...), tahun di baris atasnya
+//   Lainnya      : No | Nama Item | Kategori | Vendor / Provider | No. Pelanggan / Akun | Biaya | Siklus | Jatuh Tempo | Penanggung Jawab | Status | Catatan
+//                  (listrik, air, sewa, asuransi, pajak kendaraan, ...). Tab dibuat otomatis saat data pertama ditambahkan dari SIMPAP.
 import type { RowDataPacket } from 'mysql2'
 import { fail, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { readSpreadsheet, spreadsheetId, type SheetTab } from '@/lib/drive'
 import { nameKey, parseDate, parseNumber } from '@/lib/hrd'
-import { deleteRow, insertRowAtEnd, openSheet, readTab, SheetWriteError, sheetDate, writeCells, type Sheet } from '@/lib/sheet-write'
+import { appendRow, deleteRow, ensureTab, formatHeaderRow, insertRowAtEnd, openSheet, readTab, SheetWriteError, sheetDate, writeCells, type Sheet } from '@/lib/sheet-write'
 import { isManagement, type UserProfile } from '@/lib/users'
 
 export const GA_SETTING = 'ga.sheet_url'
-export type GaJenis = 'hp' | 'langganan' | 'wifi'
-export const GA_JENIS: Record<GaJenis, string> = { hp: 'Nomor HP', langganan: 'Langganan', wifi: 'WiFi' }
-export const gaJenis = (v: unknown): GaJenis => (v === 'hp' || v === 'langganan' || v === 'wifi' ? v : fail(400, 'Jenis data GA tidak dikenal.'))
+export type GaJenis = 'hp' | 'langganan' | 'wifi' | 'lainnya'
+export const GA_JENIS: Record<GaJenis, string> = { hp: 'Nomor HP', langganan: 'Langganan', wifi: 'WiFi', lainnya: 'Data lainnya' }
+export const gaJenis = (v: unknown): GaJenis => (v === 'hp' || v === 'langganan' || v === 'wifi' || v === 'lainnya' ? v : fail(400, 'Jenis data GA tidak dikenal.'))
+const OTHER_TAB = 'Lainnya'
+const OTHER_HEADER = ['No', 'Nama Item', 'Kategori', 'Vendor / Provider', 'No. Pelanggan / Akun', 'Biaya', 'Siklus', 'Jatuh Tempo', 'Penanggung Jawab', 'Status', 'Catatan']
 
 // ---------- Hak akses ----------
 const hasMenu = (user: UserProfile, key: string) => user.menus.includes(key as never)
@@ -81,6 +85,10 @@ export type SubRow = {
 export type WifiRow = {
   no: number | null; nama: string; provider: string | null; id_pelanggan: string | null; nama_pelanggan: string | null; biaya: number | null; jatuh_tempo: string | null
   tgl_tagihan: number | null; paket: string | null; call_center: string | null; catatan: string | null; pembayaran: Record<string, boolean>; sheet_row: number
+}
+export type OtherRow = {
+  no: number | null; nama: string; kategori: string | null; vendor: string | null; no_pelanggan: string | null; biaya: number | null; siklus: string | null
+  jatuh_tempo: string | null; penanggung_jawab: string | null; status: string | null; catatan: string | null; sheet_row: number
 }
 type Layout = { cols: Record<string, number>; lastRow: number }
 
@@ -182,11 +190,38 @@ function parseWifi(rows: string[][]) {
   return { items, blocks, layout: { cols, lastRow: items.at(-1)?.sheet_row ?? index + 1 } as Layout }
 }
 
-const TAB_PARSERS = { hp: parsePhones, langganan: parseSubs, wifi: parseWifi } as const
+// Tab Lainnya: judul "Nama Item" (dibuat SIMPAP)
+function parseOthers(rows: string[][]) {
+  const index = rows.slice(0, 15).findIndex((r) => r.some((c) => norm(c) === 'nama item'))
+  if (index < 0) return null
+  const header = rows[index]
+  const cols = {
+    no: findCol(header, (h) => h === 'no'), nama: findCol(header, (h) => h === 'nama item'), kategori: findCol(header, (h) => h.startsWith('kategori')),
+    vendor: findCol(header, (h) => h.startsWith('vendor') || h.startsWith('provider')), no_pelanggan: findCol(header, (h) => h.startsWith('no. pelanggan') || h.startsWith('no pelanggan') || h.startsWith('id pelanggan')),
+    biaya: findCol(header, (h) => h.startsWith('biaya')), siklus: findCol(header, (h) => h.startsWith('siklus')), jatuh_tempo: findCol(header, (h) => h.includes('jatuh tempo')),
+    penanggung_jawab: findCol(header, (h) => h.includes('jawab')), status: findCol(header, (h) => h === 'status'), catatan: findCol(header, (h) => h.startsWith('catatan')),
+  }
+  const items: OtherRow[] = []
+  for (let r = index + 1; r < rows.length; r++) {
+    const row = rows[r]
+    const nama = clean(at(row, cols.nama))
+    if (!nama) continue
+    items.push({
+      no: parseNumber(at(row, cols.no)), nama: nama.slice(0, 200), kategori: text(at(row, cols.kategori), 80), vendor: text(at(row, cols.vendor), 150),
+      no_pelanggan: idText(at(row, cols.no_pelanggan), 100), biaya: parseNumber(at(row, cols.biaya)), siklus: text(at(row, cols.siklus), 30),
+      jatuh_tempo: parseDate(at(row, cols.jatuh_tempo)), penanggung_jawab: text(at(row, cols.penanggung_jawab), 150), status: text(at(row, cols.status), 30),
+      catatan: text(at(row, cols.catatan), 2000), sheet_row: r + 1,
+    })
+  }
+  return { items, layout: { cols, lastRow: items.at(-1)?.sheet_row ?? index + 1 } as Layout }
+}
+
+const TAB_PARSERS = { hp: parsePhones, langganan: parseSubs, wifi: parseWifi, lainnya: parseOthers } as const
+type Parsed<J extends GaJenis> = NonNullable<ReturnType<(typeof TAB_PARSERS)[J]>>
 export function findGaTabs(tabs: SheetTab[]) {
-  const out: { hp?: { title: string; parsed: NonNullable<ReturnType<typeof parsePhones>> }; langganan?: { title: string; parsed: NonNullable<ReturnType<typeof parseSubs>> }; wifi?: { title: string; parsed: NonNullable<ReturnType<typeof parseWifi>> } } = {}
+  const out: { [J in GaJenis]?: { title: string; parsed: Parsed<J> } } = {}
   for (const tab of tabs) {
-    for (const jenis of ['hp', 'langganan', 'wifi'] as const) {
+    for (const jenis of ['hp', 'langganan', 'wifi', 'lainnya'] as const) {
       if (out[jenis]) continue
       const parsed = TAB_PARSERS[jenis](tab.rows)
       if (parsed) { (out as Record<string, unknown>)[jenis] = { title: tab.title, parsed }; break }
@@ -213,7 +248,7 @@ export async function readGaSheet() {
 }
 
 export async function importGa(found: Awaited<ReturnType<typeof readGaSheet>>) {
-  if (!found.hp && !found.langganan && !found.wifi) fail(400, 'Tab No HP (kolom Nomor HP), Subscription (Nama Layanan), maupun WIFI (Nama Wifi, Biaya) tidak ditemukan.')
+  if (!found.hp && !found.langganan && !found.wifi && !found.lainnya) fail(400, 'Tab No HP (kolom Nomor HP), Subscription (Nama Layanan), maupun WIFI (Nama Wifi, Biaya) tidak ditemukan.')
   const conn = await db.getConnection()
   try {
     await conn.beginTransaction()
@@ -236,7 +271,12 @@ export async function importGa(found: Awaited<ReturnType<typeof readGaSheet>>) {
         found.wifi.parsed.items.map((w) => [...cols.map((k) => w[k]), JSON.stringify(w.pembayaran)]),
       ])
     }
-    const meta = { tabs: { hp: found.hp?.title ?? null, langganan: found.langganan?.title ?? null, wifi: found.wifi?.title ?? null } }
+    if (found.lainnya) {
+      const cols = ['no', 'nama', 'kategori', 'vendor', 'no_pelanggan', 'biaya', 'siklus', 'jatuh_tempo', 'penanggung_jawab', 'status', 'catatan', 'sheet_row'] as const
+      await conn.query('DELETE FROM ga_others')
+      if (found.lainnya.parsed.items.length) await conn.query(`INSERT INTO ga_others (${cols.join(', ')}) VALUES ?`, [found.lainnya.parsed.items.map((o) => cols.map((k) => o[k]))])
+    }
+    const meta = { tabs: { hp: found.hp?.title ?? null, langganan: found.langganan?.title ?? null, wifi: found.wifi?.title ?? null, lainnya: found.lainnya?.title ?? null } }
     await conn.query("INSERT INTO app_settings (`key`, value) VALUES ('ga.synced_at', NOW()) ON DUPLICATE KEY UPDATE value = NOW()")
     await conn.query("INSERT INTO app_settings (`key`, value) VALUES ('ga.meta', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)", [JSON.stringify(meta)])
     await conn.commit()
@@ -246,7 +286,7 @@ export async function importGa(found: Awaited<ReturnType<typeof readGaSheet>>) {
   } finally {
     conn.release()
   }
-  return { hp: found.hp?.parsed.items.length ?? 0, langganan: found.langganan?.parsed.items.length ?? 0, wifi: found.wifi?.parsed.items.length ?? 0 }
+  return { hp: found.hp?.parsed.items.length ?? 0, langganan: found.langganan?.parsed.items.length ?? 0, wifi: found.wifi?.parsed.items.length ?? 0, lainnya: found.lainnya?.parsed.items.length ?? 0 }
 }
 
 export const syncGa = async () => importGa(await readGaSheet())
@@ -293,6 +333,13 @@ function readInput(jenis: GaJenis, body: Record<string, unknown>): Record<string
       penanggung_jawab: str(body.penanggung_jawab, 150), user_akun: str(body.user_akun, 255), catatan: str(body.catatan, 2000),
     }
   }
+  if (jenis === 'lainnya') {
+    return {
+      nama: str(body.nama, 200) || fail(400, 'Nama item wajib diisi.'), kategori: str(body.kategori, 80), vendor: str(body.vendor, 150), no_pelanggan: sheetText(str(body.no_pelanggan, 100)),
+      biaya: num(body.biaya, 'Biaya') ?? '', siklus: str(body.siklus, 30), jatuh_tempo: isoDate(body.jatuh_tempo, 'Jatuh tempo'), penanggung_jawab: str(body.penanggung_jawab, 150),
+      status: str(body.status, 30) || 'Aktif', catatan: str(body.catatan, 2000),
+    }
+  }
   const tgl = num(body.tgl_tagihan, 'Tanggal jatuh tempo')
   if (tgl !== null && (tgl < 1 || tgl > 31)) fail(400, 'Tanggal jatuh tempo harus 1-31.')
   return {
@@ -304,8 +351,8 @@ function readInput(jenis: GaJenis, body: Record<string, unknown>): Record<string
 
 // ---------- Tulis ke sheet ----------
 export type GaRow = { id: number; sheet_row: number | null; key: string; label: string }
-const rowKey = (jenis: GaJenis, r: { nomor?: unknown; nama?: unknown; user_akun?: unknown }) =>
-  jenis === 'hp' ? digits(r.nomor) : jenis === 'langganan' ? `${nameKey(r.nama)}|${norm(r.user_akun)}` : wifiKey(r.nama)
+const rowKey = (jenis: GaJenis, r: { nomor?: unknown; nama?: unknown; user_akun?: unknown; no_pelanggan?: unknown }) =>
+  jenis === 'hp' ? digits(r.nomor) : jenis === 'langganan' ? `${nameKey(r.nama)}|${norm(r.user_akun)}` : jenis === 'lainnya' ? `${nameKey(r.nama)}|${norm(r.no_pelanggan)}` : wifiKey(r.nama)
 
 async function openTab(jenis: GaJenis) {
   const sheet = await openSheet(await loadGaUrl())
@@ -314,13 +361,22 @@ async function openTab(jenis: GaJenis) {
     const parsed = TAB_PARSERS[jenis](rows)
     if (parsed) return { sheet, title: t.title, rows, parsed }
   }
+  // Tab Lainnya dibuat otomatis (judul tebal & dibekukan)
+  if (jenis === 'lainnya') {
+    if (sheet.tabs.some((t) => t.title === OTHER_TAB)) throw new SheetWriteError(`Tab "${OTHER_TAB}" sudah ada tetapi tidak punya kolom "Nama Item". Ganti nama tab itu atau tambahkan judul kolomnya.`)
+    await ensureTab(sheet, OTHER_TAB)
+    await writeCells(sheet, OTHER_TAB, OTHER_HEADER.map((value, col) => ({ row: 1, col, value })))
+    await formatHeaderRow(sheet, OTHER_TAB)
+    const rows = await readTab(sheet, OTHER_TAB)
+    return { sheet, title: OTHER_TAB, rows, parsed: parseOthers(rows)! }
+  }
   throw new SheetWriteError(`Tab ${GA_JENIS[jenis]} tidak ditemukan di spreadsheet GA.`)
 }
 type OpenTab = Awaited<ReturnType<typeof openTab>>
 
 // Baris di sheet harus masih milik data yang sama (sheet bisa bergeser sejak sinkron terakhir)
 function locate(tab: OpenTab, jenis: GaJenis, old: GaRow) {
-  const items = tab.parsed.items as (PhoneRow | SubRow | WifiRow)[]
+  const items = tab.parsed.items as (PhoneRow | SubRow | WifiRow | OtherRow)[]
   const entry = items.find((e) => e.sheet_row === old.sheet_row)
   if (!entry || rowKey(jenis, entry as never) !== old.key) throw new SheetWriteError(`Baris "${old.label}" sudah berubah di spreadsheet. Klik Sinkron dulu, lalu ulangi.`)
   return entry
@@ -333,11 +389,19 @@ async function writeValues(sheet: Sheet, title: string, row: number, cols: Recor
 export async function gaCreate(jenis: GaJenis, body: Record<string, unknown>) {
   const values = readInput(jenis, body)
   const tab = await openTab(jenis)
-  const items = tab.parsed.items as (PhoneRow | SubRow | WifiRow)[]
+  const items = tab.parsed.items as (PhoneRow | SubRow | WifiRow | OtherRow)[]
   const key = rowKey(jenis, Object.fromEntries(Object.entries(values).map(([k, v]) => [k, String(v).replace(/^'/, '')])))
   if (items.some((e) => rowKey(jenis, e as never) === key)) fail(400, `${GA_JENIS[jenis]} ini sudah ada di spreadsheet.`)
   values.no = Math.max(0, ...items.map((e) => e.no ?? 0)) + 1
   const { cols, lastRow } = tab.parsed.layout
+  // Tab Lainnya yang masih kosong: baris pertama ditambahkan di bawah judul
+  if (jenis === 'lainnya' && !items.length) {
+    const width = Math.max(...Object.values(cols)) + 1
+    const row: Cell[] = Array(width).fill('')
+    for (const [k, v] of Object.entries(values)) if ((cols[k] ?? -1) >= 0) row[cols[k]] = v
+    await appendRow(tab.sheet, tab.title, row)
+    return syncGa()
+  }
   if (!items.length) throw new SheetWriteError(`Tab ${tab.title} belum punya baris data sebagai contoh format. Isi satu baris langsung di sheet.`)
   // Baris baru menyalin format baris terakhir (dropdown "Sudah", warna), lalu isinya ditimpa
   const row = await insertRowAtEnd(tab.sheet, tab.title, lastRow)
@@ -364,7 +428,7 @@ export async function gaUpdate(jenis: GaJenis, old: GaRow, body: Record<string, 
   const values = readInput(jenis, body)
   const tab = await openTab(jenis)
   const entry = locate(tab, jenis, old)
-  const items = tab.parsed.items as (PhoneRow | SubRow | WifiRow)[]
+  const items = tab.parsed.items as (PhoneRow | SubRow | WifiRow | OtherRow)[]
   const key = rowKey(jenis, Object.fromEntries(Object.entries(values).map(([k, v]) => [k, String(v).replace(/^'/, '')])))
   if (items.some((e) => e.sheet_row !== entry.sheet_row && rowKey(jenis, e as never) === key)) fail(400, `${GA_JENIS[jenis]} ini sudah ada di spreadsheet.`)
   await writeValues(tab.sheet, tab.title, entry.sheet_row, tab.parsed.layout.cols, values)
@@ -410,8 +474,8 @@ export async function gaSetPayment(jenis: 'hp' | 'wifi', old: GaRow, bulan: stri
 
 // ---------- Baca data untuk API ----------
 export async function loadGaRow(jenis: GaJenis, id: number): Promise<GaRow> {
-  const table = jenis === 'hp' ? 'ga_phones' : jenis === 'langganan' ? 'ga_subscriptions' : 'ga_wifi'
+  const table = { hp: 'ga_phones', langganan: 'ga_subscriptions', wifi: 'ga_wifi', lainnya: 'ga_others' }[jenis]
   const [[row]] = await db.query<(RowDataPacket & Record<string, unknown>)[]>(`SELECT * FROM ${table} WHERE id = ?`, [id])
   if (!row) fail(404, 'Data sudah diperbarui dari spreadsheet. Muat ulang halaman.')
-  return { id, sheet_row: row.sheet_row as number | null, key: rowKey(jenis, row as { nomor?: unknown; nama?: unknown; user_akun?: unknown }), label: String(jenis === 'hp' ? row.nomor : row.nama) }
+  return { id, sheet_row: row.sheet_row as number | null, key: rowKey(jenis, row as { nomor?: unknown; nama?: unknown; user_akun?: unknown; no_pelanggan?: unknown }), label: String(jenis === 'hp' ? row.nomor : row.nama) }
 }

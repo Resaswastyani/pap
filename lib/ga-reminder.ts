@@ -6,7 +6,7 @@ import { db } from '@/lib/db'
 
 type Row = RowDataPacket & Record<string, unknown>
 export type GaTagihan = {
-  jenis: 'langganan' | 'wifi' | 'hp'; id: number; nama: string; detail: string | null; biaya: number | null
+  jenis: 'langganan' | 'wifi' | 'hp' | 'lainnya'; id: number; nama: string; detail: string | null; biaya: number | null
   jatuh_tempo: string | null; status: 'lunas' | 'belum' | 'lewat'
 }
 export type GaPembelian = { id: number; nomor: string | null; judul: string; kategori: string; prioritas: string; status: 'diajukan' | 'disetujui'; dibutuhkan: string | null; estimasi: number }
@@ -28,7 +28,7 @@ export async function gaReminder() {
   const tanggalIni = (day: number) => `${bulan}-${pad(Math.min(Math.max(day, 1), lastDay))}`
   const status = (due: string | null, lunas: boolean): GaTagihan['status'] => (lunas ? 'lunas' : due && due < today ? 'lewat' : 'belum')
 
-  const [[subs], [wifi], [phones], [requests]] = await Promise.all([
+  const [[subs], [wifi], [phones], [requests], [others]] = await Promise.all([
     db.query<Row[]>("SELECT id, nama, kategori, vendor, biaya, siklus, DATE_FORMAT(jatuh_tempo, '%Y-%m-%d') AS jatuh_tempo, metode_bayar, status FROM ga_subscriptions"),
     db.query<Row[]>('SELECT id, nama, provider, id_pelanggan, biaya, tgl_tagihan, pembayaran FROM ga_wifi'),
     db.query<Row[]>("SELECT id, nomor, ket, provider, DATE_FORMAT(masa_aktif, '%Y-%m-%d') AS masa_aktif, pembayaran FROM ga_phones"),
@@ -38,16 +38,21 @@ export async function gaReminder() {
        FROM ga_purchase_requests r WHERE r.status IN ('diajukan', 'disetujui')
        ORDER BY r.status = 'disetujui' DESC, FIELD(r.prioritas, 'darurat', 'tinggi', 'normal'), r.dibutuhkan IS NULL, r.dibutuhkan, r.id`,
     ),
+    db.query<Row[]>("SELECT id, nama, kategori, vendor, no_pelanggan, biaya, siklus, DATE_FORMAT(jatuh_tempo, '%Y-%m-%d') AS jatuh_tempo, status FROM ga_others"),
   ])
 
   const tagihan: GaTagihan[] = []
   // Langganan aktif: bulanan jatuh tempo tiap bulan pada tanggal yang sama; tahunan / lainnya pada tanggalnya.
   // Tanggal jatuh tempo sudah lewat bulan ini berarti sudah diperpanjang (dianggap lunas bulan ini).
-  for (const s of subs) {
+  const recurring: (Row & { jenis: 'langganan' | 'lainnya'; detail: string | null })[] = [
+    ...subs.map((s) => ({ ...s, jenis: 'langganan' as const, detail: [s.vendor, s.siklus, s.metode_bayar].filter(Boolean).join(' · ') || null })),
+    ...others.map((o) => ({ ...o, jenis: 'lainnya' as const, detail: [o.kategori, o.vendor, o.siklus].filter(Boolean).join(' · ') || null })),
+  ]
+  for (const s of recurring) {
     if (!aktif(s.status) || !s.jatuh_tempo) continue
     const due = String(s.jatuh_tempo)
-    const detail = [s.vendor, s.siklus, s.metode_bayar].filter(Boolean).join(' · ') || null
-    const base = { jenis: 'langganan' as const, id: Number(s.id), nama: String(s.nama), detail, biaya: s.biaya == null ? null : Number(s.biaya) }
+    const detail = s.detail
+    const base = { jenis: s.jenis, id: Number(s.id), nama: String(s.nama), detail, biaya: s.biaya == null ? null : Number(s.biaya) }
     if (/bulan/i.test(String(s.siklus ?? '')) || !s.siklus) {
       if (due > akhirBulan) tagihan.push({ ...base, jatuh_tempo: tanggalIni(Number(due.slice(8, 10))), status: 'lunas' })
       // Tanggal di bulan lalu yang belum dimajukan = belum dibayar / belum dicatat (lewat)
