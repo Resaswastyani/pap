@@ -204,6 +204,7 @@ const RESOURCES: Record<string, Resource> = {
   'ga/sheet': { module: 'Data GA', noun: 'sinkron spreadsheet GA' },
   'ga/requests': { module: 'Pengajuan GA', noun: 'pengajuan pembelian GA', table: 'ga_purchase_requests' },
   'ga/inventaris': { module: 'Inventaris', noun: 'barang inventaris', table: 'ga_inventaris' },
+  'ga/belanja': { module: 'Belanja ATK & RTK', noun: 'catatan belanja', table: 'ga_belanja' },
   'purchase-requests': { module: 'Pengajuan Pembelian', noun: 'pengajuan pembelian', table: 'purchase_requests' },
   vendors: { module: 'Pengajuan Pembelian', noun: 'supplier' },
 }

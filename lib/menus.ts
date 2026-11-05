@@ -56,6 +56,7 @@ export const MENU_KEYS = {
   'Data GA': 'ga-data',
   'Pengajuan GA': 'ga-pengajuan',
   Inventaris: 'ga-inventaris',
+  'Belanja ATK & RTK': 'ga-belanja',
   Planning: 'planning',
   Meeting: 'meeting',
   'Master Data': 'master-data',
@@ -87,7 +88,7 @@ export const MENU_GROUPS: { label: string; items: (keyof typeof MENU_KEYS)[] }[]
   { label: 'Purchasing', items: ['Pengajuan Pembelian', 'PO Pembelian', 'Supplier', 'Harga Bahan', 'Hutang Supplier'] },
   { label: 'Accounting', items: ['Ringkasan Keuangan', 'Kas & Bank', 'Piutang Customer', 'Laporan Keuangan', 'Arus Kas', 'Pajak'] },
   { label: 'SDM', items: ['Karyawan', 'Grade & Gaji', 'Absensi', 'Training', 'Izin & Cuti', 'KPI Karyawan', 'Laporan BPJS', 'Perizinan'] },
-  { label: 'General Affair', items: ['Data GA', 'Pengajuan GA', 'Inventaris'] },
+  { label: 'General Affair', items: ['Data GA', 'Pengajuan GA', 'Inventaris', 'Belanja ATK & RTK'] },
   { label: 'Kolaborasi', items: ['Planning', 'Meeting'] },
   { label: 'Sistem', items: ['Master Data', 'Manajemen User', 'Manajemen Role'] },
 ]

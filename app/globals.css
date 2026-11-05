@@ -2121,3 +2121,16 @@ ol.pap-jobdesk-list { list-style:decimal; }
 @media (max-width:640px) { .pap-inv-detail { grid-template-columns:1fr; } }
 
 .pap-plain-list { margin:4px 0 0; padding-left:18px; display:grid; gap:3px; font-size:12px; }
+
+/* Belanja ATK & RTK (GA) */
+.pap-belanja-months { margin:0 0 14px; }
+.pap-belanja-rekap { padding:0 18px 10px; }
+.pap-belanja-ringkas { max-width:420px; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.pap-belanja-items td { padding:4px 6px; }
+.pap-belanja-items .pap-input { min-width:0; padding:6px 8px; height:34px; }
+.pap-belanja-items td:first-child .pap-input { min-width:200px; }
+.pap-belanja-items td:nth-child(2) .pap-input, .pap-belanja-items td:nth-child(3) .pap-input { width:80px; }
+.pap-belanja-items td:nth-child(4) .pap-input, .pap-belanja-items td:nth-child(5) .pap-input { width:120px; }
+.pap-belanja-add { margin-top:8px; }
+.pap-belanja-sum { font-size:14px; }
+.pap-belanja-warn { color:#b7791f; }
