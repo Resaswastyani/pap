@@ -22,8 +22,12 @@ export function requireInventarisManage(user: UserProfile) {
   if (!canManageInventaris(user)) fail(403, 'Data inventaris dikelola General Affair.')
 }
 
-export const INV_SELECT = `SELECT i.id, i.kode, i.nama, i.kategori, i.merek, i.nomor_seri, i.lokasi, i.pemegang_id, u.name AS pemegang_nama, i.pemegang_lain,
-  i.tanggal_beli, i.harga_beli, i.kondisi, i.status, i.catatan, UNIX_TIMESTAMP(i.foto_at) AS foto_versi, i.created_at, i.updated_at,
+// Pajak / uji KIR kendaraan yang jatuh tempo <= 30 hari lagi (atau sudah lewat)
+export const DUE_DAYS = 30
+export const DUE_SQL = `(LEAST(COALESCE(i.pajak_tahunan, '9999-12-31'), COALESCE(i.pajak_lima_tahunan, '9999-12-31'), COALESCE(i.uji_kir, '9999-12-31')) <= CURDATE() + INTERVAL ${DUE_DAYS} DAY)`
+
+export const INV_SELECT = `SELECT i.id, i.kode, i.nama, i.kategori, i.merek, i.nomor_seri, i.jumlah, i.lokasi, i.pemegang_id, u.name AS pemegang_nama, i.pemegang_lain,
+  i.tanggal_beli, i.tahun, i.pajak_tahunan, i.pajak_lima_tahunan, i.uji_kir, i.harga_beli, i.kondisi, i.status, i.catatan, UNIX_TIMESTAMP(i.foto_at) AS foto_versi, i.created_at, i.updated_at,
   (SELECT MAX(l.tanggal) FROM ga_inventaris_logs l WHERE l.item_id = i.id AND l.jenis = 'perbaikan') AS perbaikan_terakhir
   FROM ga_inventaris i LEFT JOIN users u ON u.id = i.pemegang_id`
 
@@ -34,7 +38,7 @@ type InvRow = RowDataPacket & {
   id: number; kode: string; nama: string; lokasi: string | null; pemegang_id: number | null; pemegang_nama: string | null; pemegang_lain: string | null
   kondisi: InvKondisi; status: 'aktif' | 'dihapuskan'
 }
-export const serializeInv = (r: RowDataPacket) => ({ ...(r as InvRow), harga_beli: r.harga_beli === null ? null : Number(r.harga_beli), foto_versi: r.foto_versi ? String(r.foto_versi) : null })
+export const serializeInv = (r: RowDataPacket) => ({ ...(r as InvRow), jumlah: Number(r.jumlah ?? 1), harga_beli: r.harga_beli === null ? null : Number(r.harga_beli), foto_versi: r.foto_versi ? String(r.foto_versi) : null })
 export const serializeLog = (r: RowDataPacket) => ({ ...r, biaya: r.biaya === null ? null : Number(r.biaya) })
 
 export async function loadInventaris(id: number) {
@@ -57,7 +61,8 @@ export function readMoney(value: unknown, label: string) {
   return Math.round(n)
 }
 
-// { kode, nama, kategori, merek, nomor_seri, lokasi, pemegang_id, pemegang_lain, tanggal_beli, harga_beli, kondisi, catatan }
+// { kode, nama, kategori, merek, nomor_seri, jumlah, lokasi, pemegang_id, pemegang_lain, tanggal_beli, harga_beli, kondisi, catatan,
+//   tahun, pajak_tahunan, pajak_lima_tahunan, uji_kir (kendaraan) }
 export async function readInventarisInput(body: Record<string, unknown>) {
   const nama = str(body.nama, 200)
   if (!nama) fail(400, 'Isi nama barang.')
@@ -69,7 +74,15 @@ export async function readInventarisInput(body: Record<string, unknown>) {
     const [[u]] = await db.query<RowDataPacket[]>('SELECT id FROM users WHERE id = ? AND is_active = 1', [pemegangId])
     if (!u) fail(400, 'Pemegang tidak ditemukan.')
   }
+  const jumlah = body.jumlah === undefined || body.jumlah === '' ? 1 : Number(body.jumlah)
+  if (!Number.isInteger(jumlah) || jumlah < 1 || jumlah > 100000) fail(400, 'Jumlah harus angka bulat minimal 1.')
+  const tahun = body.tahun === undefined || body.tahun === '' || body.tahun === null ? null : Number(body.tahun)
+  if (tahun !== null && (!Number.isInteger(tahun) || tahun < 1950 || tahun > new Date().getFullYear() + 1)) fail(400, 'Tahun tidak valid.')
   return {
+    jumlah, tahun,
+    pajakTahunan: readDate(body.pajak_tahunan, 'Pajak tahunan'),
+    pajakLimaTahunan: readDate(body.pajak_lima_tahunan, 'Pajak 5 tahunan'),
+    ujiKir: readDate(body.uji_kir, 'Uji KIR'),
     kode: str(body.kode, 40).toUpperCase() || null, // kosong = dibuat otomatis INV-0001
     nama, kondisi, pemegangId,
     kategori: str(body.kategori, 100) || null,

@@ -45,10 +45,10 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   const kode = input.kode ?? item.kode
   if (kode !== item.kode) await assertKodeFree(kode, item.id)
   await db.query(
-    `UPDATE ga_inventaris SET kode = ?, nama = ?, kategori = ?, merek = ?, nomor_seri = ?, lokasi = ?, pemegang_id = ?, pemegang_lain = ?,
-       tanggal_beli = ?, harga_beli = ?, kondisi = ?, catatan = ? WHERE id = ?`,
-    [kode, input.nama, input.kategori, input.merek, input.nomorSeri, input.lokasi, input.pemegangId, input.pemegangLain,
-      input.tanggalBeli, input.hargaBeli, input.kondisi, input.catatan, item.id],
+    `UPDATE ga_inventaris SET kode = ?, nama = ?, kategori = ?, merek = ?, nomor_seri = ?, jumlah = ?, lokasi = ?, pemegang_id = ?, pemegang_lain = ?,
+       tanggal_beli = ?, tahun = ?, pajak_tahunan = ?, pajak_lima_tahunan = ?, uji_kir = ?, harga_beli = ?, kondisi = ?, catatan = ? WHERE id = ?`,
+    [kode, input.nama, input.kategori, input.merek, input.nomorSeri, input.jumlah, input.lokasi, input.pemegangId, input.pemegangLain,
+      input.tanggalBeli, input.tahun, input.pajakTahunan, input.pajakLimaTahunan, input.ujiKir, input.hargaBeli, input.kondisi, input.catatan, item.id],
   )
   const after = await loadInventaris(item.id)
   const holder = (r: typeof item) => r.pemegang_nama ?? r.pemegang_lain ?? null
@@ -57,6 +57,7 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
     holder(item) !== holder(after) && `Pemegang: ${holder(item) ?? '—'} → ${holder(after) ?? '—'}`,
   ].filter(Boolean)
   if (moves.length) await addInventarisLog({ itemId: item.id, jenis: 'mutasi', keterangan: moves.join('; '), userId: user.id })
+  if (item.jumlah !== after.jumlah) await addInventarisLog({ itemId: item.id, jenis: 'catatan', keterangan: `Jumlah: ${item.jumlah} → ${after.jumlah} unit`, userId: user.id })
   if (item.kondisi !== after.kondisi) {
     await addInventarisLog({ itemId: item.id, jenis: 'kondisi', keterangan: `Kondisi: ${INV_KONDISI[item.kondisi as keyof typeof INV_KONDISI]} → ${INV_KONDISI[after.kondisi as keyof typeof INV_KONDISI]}`, userId: user.id })
   }

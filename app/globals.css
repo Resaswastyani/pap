@@ -2119,3 +2119,5 @@ ol.pap-jobdesk-list { list-style:decimal; }
 .pap-inv-photo-empty { display:grid; place-items:center; gap:4px; aspect-ratio:4/3; border:1px dashed var(--pap-border); border-radius:12px; color:var(--pap-muted); font-size:12px; text-align:center; align-content:center; }
 .pap-inv-photo-empty svg { width:26px; height:26px; margin:0 auto; }
 @media (max-width:640px) { .pap-inv-detail { grid-template-columns:1fr; } }
+
+.pap-plain-list { margin:4px 0 0; padding-left:18px; display:grid; gap:3px; font-size:12px; }

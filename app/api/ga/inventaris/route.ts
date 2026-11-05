@@ -3,11 +3,11 @@ import { NextResponse } from 'next/server'
 import { handle, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import {
-  addInventarisLog, assertKodeFree, canManageInventaris, INV_KATEGORI, INV_KONDISI, INV_SELECT, loadInventaris, readInventarisInput,
+  addInventarisLog, assertKodeFree, canManageInventaris, DUE_SQL, INV_KATEGORI, INV_KONDISI, INV_SELECT, loadInventaris, readInventarisInput,
   requireInventaris, requireInventarisManage, serializeInv,
 } from '@/lib/inventaris'
 
-// Daftar inventaris: ?q= &kategori= &kondisi= &lokasi= &status=aktif|dihapuskan
+// Daftar inventaris: ?q= &kategori= &kondisi= &lokasi= &pemegang=kosong &jatuh_tempo=1 &status=aktif|dihapuskan
 export const GET = handle(async (request: Request) => {
   const user = await requireUser()
   requireInventaris(user)
@@ -24,12 +24,13 @@ export const GET = handle(async (request: Request) => {
   if (kondisi === 'bermasalah') where.push("i.kondisi <> 'baik'")
   else if (kondisi && kondisi in INV_KONDISI) where.push('i.kondisi = ?'), args.push(kondisi)
   if (params.get('pemegang') === 'kosong') where.push('i.pemegang_id IS NULL AND i.pemegang_lain IS NULL')
+  if (params.get('jatuh_tempo') === '1') where.push(DUE_SQL)
 
-  const [rows] = await db.query<RowDataPacket[]>(`${INV_SELECT} WHERE ${where.join(' AND ')} ORDER BY i.kategori IS NULL, i.kategori, i.nama LIMIT 2000`, args)
+  const [rows] = await db.query<RowDataPacket[]>(`${INV_SELECT} WHERE ${where.join(' AND ')} ORDER BY i.kategori IS NULL, i.kategori, i.kode LIMIT 2000`, args)
   const [[summary]] = await db.query<RowDataPacket[]>(
-    `SELECT COUNT(*) AS total, COALESCE(SUM(harga_beli), 0) AS nilai, COALESCE(SUM(kondisi <> 'baik'), 0) AS bermasalah,
-       COALESCE(SUM(pemegang_id IS NULL AND pemegang_lain IS NULL), 0) AS tanpa_pemegang
-     FROM ga_inventaris WHERE status = 'aktif'`,
+    `SELECT COUNT(*) AS total, COALESCE(SUM(i.jumlah), 0) AS unit, COALESCE(SUM(i.harga_beli * i.jumlah), 0) AS nilai, COALESCE(SUM(i.kondisi <> 'baik'), 0) AS bermasalah,
+       COALESCE(SUM(i.pemegang_id IS NULL AND i.pemegang_lain IS NULL), 0) AS tanpa_pemegang, COALESCE(SUM(${DUE_SQL}), 0) AS jatuh_tempo
+     FROM ga_inventaris i WHERE i.status = 'aktif'`,
   )
   const [kategori_] = await db.query<RowDataPacket[]>("SELECT DISTINCT kategori FROM ga_inventaris WHERE kategori IS NOT NULL ORDER BY kategori")
   const [lokasi_] = await db.query<RowDataPacket[]>("SELECT DISTINCT lokasi FROM ga_inventaris WHERE lokasi IS NOT NULL ORDER BY lokasi")
@@ -53,10 +54,11 @@ export const POST = handle(async (request: Request) => {
   const input = await readInventarisInput(await readJson(request))
   if (input.kode) await assertKodeFree(input.kode)
   const [res] = await db.query<ResultSetHeader>(
-    `INSERT INTO ga_inventaris (kode, nama, kategori, merek, nomor_seri, lokasi, pemegang_id, pemegang_lain, tanggal_beli, harga_beli, kondisi, catatan, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [input.kode ?? `TMP-${Date.now()}`, input.nama, input.kategori, input.merek, input.nomorSeri, input.lokasi, input.pemegangId, input.pemegangLain,
-      input.tanggalBeli, input.hargaBeli, input.kondisi, input.catatan, user.id],
+    `INSERT INTO ga_inventaris (kode, nama, kategori, merek, nomor_seri, jumlah, lokasi, pemegang_id, pemegang_lain, tanggal_beli, tahun, pajak_tahunan, pajak_lima_tahunan, uji_kir,
+       harga_beli, kondisi, catatan, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [input.kode ?? `TMP-${Date.now()}`, input.nama, input.kategori, input.merek, input.nomorSeri, input.jumlah, input.lokasi, input.pemegangId, input.pemegangLain,
+      input.tanggalBeli, input.tahun, input.pajakTahunan, input.pajakLimaTahunan, input.ujiKir, input.hargaBeli, input.kondisi, input.catatan, user.id],
   )
   if (!input.kode) await db.query("UPDATE ga_inventaris SET kode = CONCAT('INV-', LPAD(id, 4, '0')) WHERE id = ?", [res.insertId])
   const item = await loadInventaris(res.insertId)

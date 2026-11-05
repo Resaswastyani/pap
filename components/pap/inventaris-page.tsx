@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Archive, Camera, ClipboardList, Package, Pencil, Plus, Search, Trash2, UserX, Wallet, Wrench } from 'lucide-react'
+import { AlertTriangle, Archive, CalendarClock, Camera, ClipboardList, FileSpreadsheet, Package, Pencil, Plus, Search, Trash2, UserX, Wallet, Wrench } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { compressImage } from './compress'
@@ -10,12 +10,13 @@ import { api, askReason, confirmDialog, Field, formatDate, Modal, Notice, Pager,
 type Kondisi = 'baik' | 'perlu_perbaikan' | 'rusak' | 'hilang'
 type LogJenis = 'tambah' | 'mutasi' | 'kondisi' | 'perbaikan' | 'catatan' | 'penghapusan'
 type Item = {
-  id: number; kode: string; nama: string; kategori: string | null; merek: string | null; nomor_seri: string | null; lokasi: string | null
+  id: number; kode: string; nama: string; kategori: string | null; merek: string | null; nomor_seri: string | null; jumlah: number; lokasi: string | null
+  tahun: number | null; pajak_tahunan: string | null; pajak_lima_tahunan: string | null; uji_kir: string | null
   pemegang_id: number | null; pemegang_nama: string | null; pemegang_lain: string | null; tanggal_beli: string | null; harga_beli: number | null
   kondisi: Kondisi; status: 'aktif' | 'dihapuskan'; catatan: string | null; foto_versi: string | null; perbaikan_terakhir: string | null
 }
 type Log = { id: number; tanggal: string; jenis: LogJenis; keterangan: string | null; biaya: number | null; created_at: string; created_name: string }
-type Summary = { total: number; nilai: number; bermasalah: number; tanpa_pemegang: number }
+type Summary = { total: number; unit: number; nilai: number; bermasalah: number; tanpa_pemegang: number; jatuh_tempo: number }
 type Person = { id: number; name: string; division_name: string }
 
 const KONDISI_LABEL: Record<Kondisi, string> = { baik: 'Baik', perlu_perbaikan: 'Perlu perbaikan', rusak: 'Rusak', hilang: 'Hilang' }
@@ -25,6 +26,16 @@ const LOG_TONE: Record<LogJenis, string> = { tambah: 'neutral', mutasi: 'info', 
 const holder = (i: Item) => i.pemegang_nama ?? i.pemegang_lain
 const fotoUrl = (i: Item) => `/api/ga/inventaris/${i.id}/foto?v=${i.foto_versi}`
 const today = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
+const isVehicle = (kategori: string | null | undefined) => (kategori ?? '').trim().toLowerCase() === 'kendaraan'
+// Sisa hari ke tanggal jatuh tempo (negatif = lewat)
+const daysTo = (d: string) => Math.round((Date.parse(d.slice(0, 10)) - Date.parse(today())) / 86400e3)
+const VEHICLE_DATES = [['pajak_tahunan', 'Pajak tahunan'], ['pajak_lima_tahunan', 'Pajak 5 tahunan'], ['uji_kir', 'Uji KIR']] as const
+function DueBadge({ date }: { date: string }) {
+  const n = daysTo(date)
+  if (n > 30) return null
+  return <span className={`pap-status ${n < 0 ? 'danger' : 'warning'}`}>{n < 0 ? `lewat ${-n} hari` : n === 0 ? 'hari ini' : `${n} hari lagi`}</span>
+}
+const nearestDue = (i: Item) => VEHICLE_DATES.flatMap(([k, l]) => (i[k] ? [{ label: l as string, date: i[k] as string }] : [])).sort((a, b) => a.date.localeCompare(b.date))[0]
 
 export function InventarisPage({ focusId }: { user: UserProfile; focusId?: number | null }) {
   const [items, setItems] = useState<Item[]>([])
@@ -42,6 +53,7 @@ export function InventarisPage({ focusId }: { user: UserProfile; focusId?: numbe
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [form, setForm] = useState<Item | 'new' | null>(null)
+  const [importing, setImporting] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
 
   const load = useCallback(async () => {
@@ -52,6 +64,7 @@ export function InventarisPage({ focusId }: { user: UserProfile; focusId?: numbe
       if (kategori) params.set('kategori', kategori)
       if (lokasi) params.set('lokasi', lokasi)
       if (kondisi === 'kosong') params.set('pemegang', 'kosong')
+      else if (kondisi === 'jatuh_tempo') params.set('jatuh_tempo', '1')
       else if (kondisi) params.set('kondisi', kondisi)
       if (status) params.set('status', status)
       const res = await api<{ items: Item[]; summary: Summary; categories: string[]; locations: string[]; users: Person[]; can: typeof can }>(`/api/ga/inventaris?${params}`)
@@ -81,8 +94,8 @@ export function InventarisPage({ focusId }: { user: UserProfile; focusId?: numbe
   const paged = usePaged(items, `${q}-${kategori}-${lokasi}-${kondisi}-${status}`)
   const toggle = (k: string) => { setStatus(''); setKondisi((v) => (v === k ? '' : k)) }
   const stats: { label: string; value: string; note: string; icon: typeof Package; tone: string; active: boolean; onClick: () => void }[] = summary ? [
-    { label: 'Barang inventaris', value: String(summary.total), note: 'aktif tercatat', icon: Package, tone: 'stat-0', active: !kondisi && !status, onClick: () => { setKondisi(''); setStatus('') } },
-    { label: 'Nilai perolehan', value: formatRupiah(summary.nilai), note: 'total harga beli', icon: Wallet, tone: 'stat-1', active: false, onClick: () => {} },
+    { label: 'Barang inventaris', value: String(summary.total), note: `${summary.unit} unit aktif tercatat`, icon: Package, tone: 'stat-0', active: !kondisi && !status, onClick: () => { setKondisi(''); setStatus('') } },
+    { label: 'Pajak / KIR kendaraan', value: String(summary.jatuh_tempo), note: `jatuh tempo ≤ 30 hari${summary.nilai ? ` · nilai aset ${formatRupiah(summary.nilai)}` : ''}`, icon: CalendarClock, tone: summary.jatuh_tempo ? 'stat-2' : 'stat-3', active: kondisi === 'jatuh_tempo', onClick: () => toggle('jatuh_tempo') },
     { label: 'Perlu perhatian', value: String(summary.bermasalah), note: 'perlu perbaikan, rusak, hilang', icon: AlertTriangle, tone: summary.bermasalah ? 'stat-2' : 'stat-3', active: kondisi === 'bermasalah', onClick: () => toggle('bermasalah') },
     { label: 'Tanpa pemegang', value: String(summary.tanpa_pemegang), note: 'belum ada penanggung jawab', icon: UserX, tone: 'stat-1', active: kondisi === 'kosong', onClick: () => toggle('kosong') },
   ] : []
@@ -95,7 +108,7 @@ export function InventarisPage({ focusId }: { user: UserProfile; focusId?: numbe
           <h1>Inventaris</h1>
           <span>Daftar aset dan barang inventaris kantor: lokasi, pemegang, kondisi, serta riwayat mutasi dan perbaikan.</span>
         </div>
-        {can.manage && <button className="pap-primary-button" onClick={() => setForm('new')}><Plus /> Tambah barang</button>}
+        {can.manage && <div className="pap-inline-actions"><button className="pap-btn" onClick={() => setImporting(true)}><FileSpreadsheet /> Impor dari Excel</button><button className="pap-primary-button" onClick={() => setForm('new')}><Plus /> Tambah barang</button></div>}
       </div>
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       {summary && (
@@ -123,27 +136,29 @@ export function InventarisPage({ focusId }: { user: UserProfile; focusId?: numbe
             <option value="">Semua kondisi</option>
             {Object.entries(KONDISI_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             <option value="kosong">Tanpa pemegang</option>
+            <option value="jatuh_tempo">Pajak / KIR jatuh tempo</option>
             <option value="status:dihapuskan">Sudah dihapuskan</option>
           </select>
         </div>
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Barang</th><th>Kategori</th><th>Lokasi</th><th>Pemegang</th><th>Kondisi</th><th className="pap-num">Harga beli</th><th className="pap-actions-col">Aksi</th></tr></thead>
+            <thead><tr><th>Barang</th><th>Kategori</th><th className="pap-num">Jumlah</th><th>Lokasi</th><th>Pemegang</th><th>Kondisi</th><th>Harga beli / pajak</th><th className="pap-actions-col">Aksi</th></tr></thead>
             <tbody>
               {paged.items.map((i) => (
                 <tr key={i.id} className="pap-row-link" onClick={() => setDetailId(i.id)}>
                   <td>
                     <div className="pap-inv-name">
                       {i.foto_versi ? <img className="pap-inv-thumb" src={fotoUrl(i)} alt="" loading="lazy" /> : <span className="pap-inv-thumb empty"><Package /></span>}
-                      <div><div className="pap-cell-title">{i.nama}</div><div className="pap-cell-sub">{[i.kode, i.merek].filter(Boolean).join(' · ')}</div></div>
+                      <div><div className="pap-cell-title">{i.nama}</div><div className="pap-cell-sub">{[i.kode, i.merek, isVehicle(i.kategori) ? i.nomor_seri : null].filter(Boolean).join(' · ')}</div></div>
                     </div>
                   </td>
                   <td>{i.kategori ?? '—'}</td>
+                  <td className="pap-num">{i.jumlah}</td>
                   <td>{i.lokasi ?? '—'}</td>
                   <td>{holder(i) ?? <span className="pap-muted">Belum ada</span>}</td>
                   <td><span className={`pap-status ${KONDISI_TONE[i.kondisi]}`}>{KONDISI_LABEL[i.kondisi]}</span>{i.status === 'dihapuskan' && <div><span className="pap-status neutral">Dihapuskan</span></div>}</td>
-                  <td className="pap-num pap-nowrap">{i.harga_beli !== null ? formatRupiah(i.harga_beli) : '—'}{i.tanggal_beli && <div className="pap-cell-sub">{formatDate(i.tanggal_beli)}</div>}</td>
+                  <td className="pap-nowrap">{(() => { const due = nearestDue(i); return due ? <><div>{due.label} {formatDate(due.date)}</div><DueBadge date={due.date} /></> : <>{i.harga_beli !== null ? formatRupiah(i.harga_beli) : '—'}{i.tanggal_beli && <div className="pap-cell-sub">{formatDate(i.tanggal_beli)}</div>}</> })()}</td>
                   <td className="pap-actions-cell"><RowActions label={i.nama} onView={() => setDetailId(i.id)} onEdit={can.manage ? () => setForm(i) : undefined} /></td>
                 </tr>
               ))}
@@ -155,14 +170,75 @@ export function InventarisPage({ focusId }: { user: UserProfile; focusId?: numbe
         <Pager {...paged.pager} noun="barang" />
       </div>
       {form && <ItemForm initial={form === 'new' ? null : form} categories={categories} locations={locations} people={people} onClose={() => setForm(null)} onSaved={(text, id) => { setForm(null); flash(text); if (id) setDetailId(id) }} />}
+      {importing && <ImportDialog onClose={() => setImporting(false)} onDone={(text) => { setImporting(false); flash(text) }} />}
       {detailId && <ItemDetail id={detailId} onClose={() => setDetailId(null)} onEdit={(i) => { setDetailId(null); setForm(i) }} onChanged={flash} />}
     </>
   )
 }
 
+type ImportPreview = { file: string; barang: number; unit: number; kategori: Record<string, number>; riwayat: number; riwayatTanpaTanggal: number; contoh: string[]; report: string[] }
+type ImportResult = { added: number; skipped: string[]; logsAdded: number; report: string[] }
+
+// Impor dari Excel format "Data Asset PAP": pratinjau dulu, lalu simpan. Kode yang sudah ada dilewati (tidak menimpa data).
+function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone: (text: string) => void }) {
+  const [file, setFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<ImportPreview | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  async function send(mode: 'preview' | 'import') {
+    if (!file) return
+    setBusy(true)
+    setError('')
+    try {
+      const body = new FormData()
+      body.set('file', file)
+      body.set('mode', mode)
+      if (mode === 'preview') setPreview(await api<ImportPreview>('/api/ga/inventaris/import', { method: 'POST', body }))
+      else {
+        const res = await api<ImportResult>('/api/ga/inventaris/import', { method: 'POST', body })
+        onDone(`Impor selesai: ${res.added} barang baru, ${res.logsAdded} riwayat servis${res.skipped.length ? `; ${res.skipped.length} barang dilewati karena kodenya sudah ada (${res.skipped.slice(0, 5).join(', ')}${res.skipped.length > 5 ? ', ...' : ''})` : ''}.`)
+      }
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal
+      title="Impor inventaris dari Excel"
+      subtitle='Format "Data Asset PAP": sheet Asset, Kendaraan, Pajak Kendaraan, Record Service Kendaraan, Record Service AC'
+      wide
+      onClose={onClose}
+      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button>
+        {preview
+          ? <button className="pap-primary-button" disabled={busy} onClick={() => send('import')}>{busy ? 'Mengimpor...' : `Impor ${preview.barang} barang`}</button>
+          : <button className="pap-primary-button" disabled={busy || !file} onClick={() => send('preview')}>{busy ? 'Membaca...' : 'Lihat pratinjau'}</button>}
+      </>}
+    >
+      {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      <Field label="File Excel (.xlsx)" full hint="Barang dengan kode yang sudah ada di Inventaris dilewati, jadi aman bila file yang sama diunggah lagi.">
+        <input className="pap-input" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreview(null); setError('') }} />
+      </Field>
+      {preview && (
+        <div className="pap-inline-panel">
+          <strong>{preview.file}</strong>
+          <p>{preview.barang} barang ({preview.unit} unit): {Object.entries(preview.kategori).map(([k, n]) => `${k} ${n}`).join(', ')} · {preview.riwayat} riwayat servis{preview.riwayatTanpaTanggal ? ` (${preview.riwayatTanpaTanggal} tanpa tanggal, dicatat dengan tanggal impor)` : ''}</p>
+          <ul className="pap-plain-list">{preview.contoh.map((c) => <li key={c}>{c}</li>)}{preview.barang > preview.contoh.length && <li className="pap-muted">... dan {preview.barang - preview.contoh.length} barang lainnya</li>}</ul>
+          {preview.report.length > 0 && <>
+            <strong>Perlu dicek di Excel</strong>
+            <ul className="pap-plain-list">{preview.report.map((r) => <li key={r}>{r}</li>)}</ul>
+          </>}
+        </div>
+      )}
+    </Modal>
+  )
+}
+
 function ItemForm({ initial, categories, locations, people, onClose, onSaved }: { initial: Item | null; categories: string[]; locations: string[]; people: Person[]; onClose: () => void; onSaved: (text: string, id?: number) => void }) {
   const [values, setValues] = useState({
-    kode: initial?.kode ?? '', nama: initial?.nama ?? '', kategori: initial?.kategori ?? '', merek: initial?.merek ?? '', nomor_seri: initial?.nomor_seri ?? '',
+    kode: initial?.kode ?? '', nama: initial?.nama ?? '', kategori: initial?.kategori ?? '', merek: initial?.merek ?? '', nomor_seri: initial?.nomor_seri ?? '', jumlah: String(initial?.jumlah ?? 1),
+    tahun: initial?.tahun ? String(initial.tahun) : '', pajak_tahunan: initial?.pajak_tahunan?.slice(0, 10) ?? '', pajak_lima_tahunan: initial?.pajak_lima_tahunan?.slice(0, 10) ?? '', uji_kir: initial?.uji_kir?.slice(0, 10) ?? '',
     lokasi: initial?.lokasi ?? '', pemegang_id: initial?.pemegang_id ? String(initial.pemegang_id) : '', pemegang_lain: initial?.pemegang_lain ?? '',
     tanggal_beli: initial?.tanggal_beli?.slice(0, 10) ?? '', harga_beli: initial?.harga_beli !== null && initial?.harga_beli !== undefined ? String(initial.harga_beli) : '',
     kondisi: initial?.kondisi ?? 'baik', catatan: initial?.catatan ?? '',
@@ -197,7 +273,14 @@ function ItemForm({ initial, categories, locations, people, onClose, onSaved }: 
         <Field label="Kategori"><input className="pap-input" maxLength={100} list="pap-inv-kategori" value={values.kategori} onChange={set('kategori')} placeholder="Pilih atau ketik" /></Field>
         <datalist id="pap-inv-kategori">{categories.map((c) => <option key={c} value={c} />)}</datalist>
         <Field label="Merek / tipe (opsional)"><input className="pap-input" maxLength={150} value={values.merek} onChange={set('merek')} /></Field>
-        <Field label="Nomor seri / plat (opsional)"><input className="pap-input" maxLength={150} value={values.nomor_seri} onChange={set('nomor_seri')} /></Field>
+        <Field label={isVehicle(values.kategori) ? 'No. polisi' : 'Nomor seri (opsional)'}><input className="pap-input" maxLength={150} value={values.nomor_seri} onChange={set('nomor_seri')} placeholder={isVehicle(values.kategori) ? 'Mis. AD 1237 VU' : undefined} /></Field>
+        <Field label="Jumlah (unit)"><input className="pap-input" type="number" min={1} step={1} required value={values.jumlah} onChange={set('jumlah')} /></Field>
+        {isVehicle(values.kategori) && <>
+          <Field label="Tahun kendaraan (opsional)"><input className="pap-input" type="number" min={1950} max={new Date().getFullYear() + 1} value={values.tahun} onChange={set('tahun')} placeholder="Mis. 2019" /></Field>
+          <Field label="Jatuh tempo pajak tahunan"><input className="pap-input" type="date" value={values.pajak_tahunan} onChange={set('pajak_tahunan')} /></Field>
+          <Field label="Jatuh tempo pajak 5 tahunan"><input className="pap-input" type="date" value={values.pajak_lima_tahunan} onChange={set('pajak_lima_tahunan')} /></Field>
+          <Field label="Jatuh tempo uji KIR (opsional)" hint="Untuk kendaraan niaga / pick up"><input className="pap-input" type="date" value={values.uji_kir} onChange={set('uji_kir')} /></Field>
+        </>}
         <Field label="Lokasi / ruangan"><input className="pap-input" maxLength={150} list="pap-inv-lokasi" value={values.lokasi} onChange={set('lokasi')} placeholder="Mis. Kantor lt. 2, Gudang, Ruang meeting" /></Field>
         <datalist id="pap-inv-lokasi">{locations.map((l) => <option key={l} value={l} />)}</datalist>
         <Field label="Pemegang / penanggung jawab">
@@ -299,7 +382,12 @@ function ItemDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose: (
         <dl className="pap-detail-grid">
           <div><dt>Lokasi</dt><dd>{item.lokasi ?? '—'}</dd></div>
           <div><dt>Pemegang</dt><dd>{holder(item) ?? '—'}</dd></div>
-          <div><dt>Nomor seri / plat</dt><dd>{item.nomor_seri ?? '—'}</dd></div>
+          <div><dt>{isVehicle(item.kategori) ? 'No. polisi' : 'Nomor seri'}</dt><dd>{item.nomor_seri ?? '—'}</dd></div>
+          <div><dt>Jumlah</dt><dd>{item.jumlah} unit</dd></div>
+          {isVehicle(item.kategori) && <div><dt>Tahun</dt><dd>{item.tahun ?? '—'}</dd></div>}
+          {VEHICLE_DATES.filter(([k]) => item[k] || (isVehicle(item.kategori) && k !== 'uji_kir')).map(([k, l]) => (
+            <div key={k}><dt>{l}</dt><dd>{item[k] ? <>{formatDate(item[k]!)} <DueBadge date={item[k]!} /></> : '—'}</dd></div>
+          ))}
           <div><dt>Tanggal beli</dt><dd>{item.tanggal_beli ? formatDate(item.tanggal_beli) : '—'}</dd></div>
           <div><dt>Harga beli</dt><dd>{item.harga_beli !== null ? formatRupiah(item.harga_beli) : '—'}</dd></div>
           <div><dt>Perbaikan terakhir</dt><dd>{item.perbaikan_terakhir ? formatDate(item.perbaikan_terakhir) : '—'}</dd></div>
