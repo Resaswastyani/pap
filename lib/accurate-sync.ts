@@ -1,6 +1,7 @@
 import type { RowDataPacket } from 'mysql2'
 import { accurate, accurateDateTime, accurateEnabled, fromAccurateDate } from '@/lib/accurate'
 import { db } from '@/lib/db'
+import { ensureInvoiceNet, netAmount } from '@/lib/invoice-net'
 import { syncProductionJobs } from '@/lib/production'
 
 // Sinkronisasi data Accurate -> database PAP-MS.
@@ -57,7 +58,7 @@ const idOf = (v: unknown) => (v && typeof v === 'object' ? num((v as Row).id) : 
 const FIELDS: Record<ListEntity, string> = {
   'sales-order': 'id,number,transDate,shipDate,customer,totalAmount,statusName,description,toAddress,lastUpdate',
   customer: 'id,customerNo,name,email,mobilePhone,workPhone,billStreet,billCity,billProvince,billZipCode,npwpNo,suspended,category,notes,lastUpdate',
-  'sales-invoice': 'id,number,transDate,dueDate,customer,totalAmount,primeOwing,statusName,invoiceDp,lastUpdate',
+  'sales-invoice': 'id,number,transDate,dueDate,customer,totalAmount,subTotal,cashDiscount,tax1Amount,inclusiveTax,primeOwing,statusName,invoiceDp,lastUpdate',
   item: 'id,no,name,itemType,itemCategory,unit1,availableToSell,balance,quantity,minimumQuantity,vendorPrice,suspended,lastUpdate',
   stock: '', // list-stock memakai field bawaan: id, no, name, quantity
   'manufacture-order': 'id,number,name,transDate,statusName,portion,lastUpdate',
@@ -100,12 +101,12 @@ export const storeCustomerRow = (row: Row) => storeCustomerRows([row])
 async function saveInvoices(rows: Row[]) {
   if (!rows.length) return
   await db.query(
-    `INSERT INTO accurate_sales_invoices (accurate_id, number, trans_date, due_date, customer_accurate_id, total_amount, owing, status, is_dp)
+    `INSERT INTO accurate_sales_invoices (accurate_id, number, trans_date, due_date, customer_accurate_id, total_amount, net_amount, owing, status, is_dp)
      VALUES ?
      ON DUPLICATE KEY UPDATE number = VALUES(number), trans_date = VALUES(trans_date), due_date = VALUES(due_date), customer_accurate_id = VALUES(customer_accurate_id),
-       total_amount = VALUES(total_amount), owing = VALUES(owing), status = VALUES(status), is_dp = COALESCE(VALUES(is_dp), is_dp), synced_at = NOW()`,
+       total_amount = VALUES(total_amount), net_amount = COALESCE(VALUES(net_amount), net_amount), owing = VALUES(owing), status = VALUES(status), is_dp = COALESCE(VALUES(is_dp), is_dp), synced_at = NOW()`,
     [rows.map((row) => [num(row.id), str(row.number, 80), fromAccurateDate(row.transDate), fromAccurateDate(row.dueDate), idOf(row.customer ?? row.customerId), num(row.totalAmount),
-      num(row.primeOwing), str(row.statusName ?? row.status, 80), typeof row.invoiceDp === 'boolean' ? (row.invoiceDp ? 1 : 0) : null])],
+      netAmount(row), num(row.primeOwing), str(row.statusName ?? row.status, 80), typeof row.invoiceDp === 'boolean' ? (row.invoiceDp ? 1 : 0) : null])],
   )
 }
 
@@ -655,6 +656,14 @@ export async function syncAll(budgetMs = 45_000, only?: SyncEntity[]) {
       results.push(entity in DETAIL_TASKS ? await runDetailTask(entity as DetailEntity, deadline) : await syncEntity(entity as ListEntity, deadline))
     } catch (error) {
       results.push({ entity, saved: 0, done: false, error: (error as Error).message })
+    }
+  }
+  // Nilai bersih faktur lama + buang faktur yang sudah dihapus di Accurate (sekali sehari)
+  if (!only || only.includes('sales-invoice')) {
+    try {
+      await ensureInvoiceNet()
+    } catch (error) {
+      console.error('[invoice net]', error)
     }
   }
   // Pesanan berisi barang "Diproduksi" -> job jadwal produksi (cepat, hanya query database)

@@ -2,6 +2,7 @@ import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { handle, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
+import { ensureInvoiceNetQuick, INVOICE_NET_SQL } from '@/lib/invoice-net'
 import { gaReminder } from '@/lib/ga-reminder'
 import { canProcessGa } from '@/lib/ga-requests'
 import { computeKpi, loadTargets, readPeriode } from '@/lib/kpi'
@@ -139,35 +140,37 @@ export const GET = handle(async () => {
   if (user.role.isAdmin || ['general_manager', 'accounting', 'marketing_development'].includes(user.division.code) || canSupervise(user)) {
     tasks.push((async () => {
       await ensureDpFlags().catch(() => {})
-      const salesOf = async (table: string, extra: string) => {
+      await ensureInvoiceNetQuick()
+      // amount: faktur = nilai penjualan bersih (= Pendapatan Laba Rugi Accurate: tanpa PPN, ongkir/biaya lain, setelah diskon); SO = total pesanan
+      const salesOf = async (table: string, extra: string, amount: string) => {
         const [months] = await db.query<Row[]>(
-          `SELECT DATE_FORMAT(trans_date, '%Y-%m') AS bulan, SUM(total_amount) AS omzet, COUNT(*) AS faktur, COUNT(DISTINCT customer_accurate_id) AS customer
+          `SELECT DATE_FORMAT(trans_date, '%Y-%m') AS bulan, SUM(${amount}) AS omzet, COUNT(*) AS faktur, COUNT(DISTINCT customer_accurate_id) AS customer
            FROM ${table} i WHERE trans_date >= DATE_FORMAT(CURDATE() - INTERVAL 11 MONTH, '%Y-%m-01') ${extra} GROUP BY bulan ORDER BY bulan`,
         )
         // Omzet per sektor customer (kategori Accurate) per bulan
         const [sectors] = await db.query<Row[]>(
-          `SELECT DATE_FORMAT(i.trans_date, '%Y-%m') AS bulan, ${sectorSql('c.category')} AS sektor, SUM(i.total_amount) AS omzet, COUNT(*) AS faktur,
+          `SELECT DATE_FORMAT(i.trans_date, '%Y-%m') AS bulan, ${sectorSql('c.category')} AS sektor, SUM(${amount}) AS omzet, COUNT(*) AS faktur,
              COUNT(DISTINCT i.customer_accurate_id) AS customer
            FROM ${table} i LEFT JOIN customers c ON c.accurate_id = i.customer_accurate_id
            WHERE i.trans_date >= DATE_FORMAT(CURDATE() - INTERVAL 11 MONTH, '%Y-%m-01') ${extra} GROUP BY bulan, sektor`,
         )
         const [top] = await db.query<Row[]>(
-          `SELECT COALESCE(c.name, i.customer_accurate_id) AS name, SUM(i.total_amount) AS omzet FROM ${table} i
+          `SELECT COALESCE(c.name, i.customer_accurate_id) AS name, SUM(${amount}) AS omzet FROM ${table} i
            LEFT JOIN customers c ON c.accurate_id = i.customer_accurate_id
            WHERE i.trans_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01') ${extra} GROUP BY i.customer_accurate_id ORDER BY omzet DESC LIMIT 5`,
         )
         // Top 5 customer bulan ini per sektor (untuk filter sektor di dashboard)
         const [topSector] = await db.query<Row[]>(
           `SELECT sektor, name, omzet FROM (
-             SELECT ${sectorSql('MAX(c.category)')} AS sektor, COALESCE(MAX(c.name), i.customer_accurate_id) AS name, SUM(i.total_amount) AS omzet,
-               ROW_NUMBER() OVER (PARTITION BY ${sectorSql('MAX(c.category)')} ORDER BY SUM(i.total_amount) DESC) AS rn
+             SELECT ${sectorSql('MAX(c.category)')} AS sektor, COALESCE(MAX(c.name), i.customer_accurate_id) AS name, SUM(${amount}) AS omzet,
+               ROW_NUMBER() OVER (PARTITION BY ${sectorSql('MAX(c.category)')} ORDER BY SUM(${amount}) DESC) AS rn
              FROM ${table} i LEFT JOIN customers c ON c.accurate_id = i.customer_accurate_id
              WHERE i.trans_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01') ${extra} GROUP BY i.customer_accurate_id
            ) x WHERE rn <= 5 ORDER BY sektor, omzet DESC`,
         )
         // Pembanding adil: bulan lalu pada rentang tanggal yang sama (1 s/d hari ini)
         const [[mtd]] = await db.query<Row[]>(
-          `SELECT COALESCE(SUM(total_amount), 0) AS omzet FROM ${table} i
+          `SELECT COALESCE(SUM(${amount}), 0) AS omzet FROM ${table} i
            WHERE trans_date >= DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01') AND trans_date <= CURDATE() - INTERVAL 1 MONTH ${extra}`,
         )
         return {
@@ -178,8 +181,8 @@ export const GET = handle(async () => {
           top_sektor: topSector.map((t) => ({ sektor: t.sektor, name: t.name, omzet: n(t.omzet) })),
         }
       }
-      const faktur = await salesOf('accurate_sales_invoices', 'AND COALESCE(i.is_dp, 0) = 0')
-      const so = await salesOf('accurate_sales_orders', '')
+      const faktur = await salesOf('accurate_sales_invoices', 'AND COALESCE(i.is_dp, 0) = 0', INVOICE_NET_SQL)
+      const so = await salesOf('accurate_sales_orders', '', 'i.total_amount')
       const [[dp]] = await db.query<Row[]>(
         `SELECT COUNT(*) AS jumlah, COALESCE(SUM(total_amount), 0) AS nilai FROM accurate_sales_invoices WHERE is_dp = 1 AND trans_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')`,
       )

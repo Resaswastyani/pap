@@ -6,6 +6,7 @@ import type { RowDataPacket } from 'mysql2'
 import { accurate, accurateList, AccurateError, fromAccurateDate } from '@/lib/accurate'
 import { fail, str } from '@/lib/api'
 import { db } from '@/lib/db'
+import { netAmount } from '@/lib/invoice-net'
 import { PERMISSIONS } from '@/lib/permissions'
 import { can, type UserProfile } from '@/lib/users'
 
@@ -166,10 +167,10 @@ function invoiceForm(v: InvoiceInput, old?: { id: number; lineIds: number[]; exp
 async function storeInvoice(d: AccInvoice, userCol?: 'created_by' | 'updated_by', userId?: number) {
   const customer = (d.customer ?? {}) as Obj
   await db.query(
-    `INSERT INTO accurate_sales_invoices (accurate_id, number, trans_date, due_date, customer_accurate_id, total_amount, owing, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO accurate_sales_invoices (accurate_id, number, trans_date, due_date, customer_accurate_id, total_amount, net_amount, owing, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE number = VALUES(number), trans_date = VALUES(trans_date), due_date = VALUES(due_date), customer_accurate_id = VALUES(customer_accurate_id),
-       total_amount = VALUES(total_amount), owing = VALUES(owing), status = VALUES(status), synced_at = NOW()`,
-    [d.id, String(d.number ?? '').slice(0, 80), fromAccurateDate(d.transDate), fromAccurateDate(d.dueDate), n(customer.id ?? d.customerId), n(d.totalAmount), n(d.primeOwing), String(d.statusName ?? d.status ?? '').slice(0, 80)],
+       total_amount = VALUES(total_amount), net_amount = COALESCE(VALUES(net_amount), net_amount), owing = VALUES(owing), status = VALUES(status), synced_at = NOW()`,
+    [d.id, String(d.number ?? '').slice(0, 80), fromAccurateDate(d.transDate), fromAccurateDate(d.dueDate), n(customer.id ?? d.customerId), n(d.totalAmount), netAmount(d as Record<string, unknown>), n(d.primeOwing), String(d.statusName ?? d.status ?? '').slice(0, 80)],
   )
   if (userCol && userId) await db.query(`UPDATE accurate_sales_invoices SET ${userCol} = ? WHERE accurate_id = ?`, [userId, d.id])
 }

@@ -3,6 +3,7 @@
 import type { RowDataPacket } from 'mysql2'
 import { fail } from '@/lib/api'
 import { db } from '@/lib/db'
+import { INVOICE_NET_SQL } from '@/lib/invoice-net'
 import { cashAccounts, monthEnd, plAmounts, plSummary, receivables, payables, shiftMonth } from '@/lib/accounting'
 import { computeEmployeeKpi } from '@/lib/employee-kpi'
 import { shipCandidates } from '@/lib/logistik'
@@ -38,7 +39,8 @@ export async function companyPerformance(periode: string) {
   const lastYear = `${Number(periode.slice(0, 4)) - 1}${periode.slice(4)}`
   const omzetOf = async (p: string) => {
     const [[r]] = await db.query<Row[]>(
-      'SELECT COALESCE(SUM(total_amount), 0) AS omzet, COUNT(*) AS faktur, COUNT(DISTINCT customer_accurate_id) AS customer FROM accurate_sales_invoices WHERE trans_date BETWEEN ? AND ?',
+      `SELECT COALESCE(SUM(${INVOICE_NET_SQL}), 0) AS omzet, COUNT(*) AS faktur, COUNT(DISTINCT customer_accurate_id) AS customer FROM accurate_sales_invoices i
+       WHERE trans_date BETWEEN ? AND ? AND COALESCE(i.is_dp, 0) = 0`,
       [`${p}-01`, `${p}-${String(Math.min(hari, Number(monthEnd(p).slice(8, 10)))).padStart(2, '0')}`],
     )
     return { omzet: n(r.omzet), faktur: n(r.faktur), customer: n(r.customer) }
@@ -56,7 +58,7 @@ export async function companyPerformance(periode: string) {
     `SELECT m.bulan, COALESCE(i.omzet, 0) AS omzet, COALESCE(o.nilai, 0) AS so FROM
        (SELECT DATE_FORMAT(? - INTERVAL k MONTH, '%Y-%m') AS bulan FROM (SELECT 0 k UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5
          UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11) ks) m
-     LEFT JOIN (SELECT DATE_FORMAT(trans_date, '%Y-%m') AS bulan, SUM(total_amount) AS omzet FROM accurate_sales_invoices WHERE trans_date >= ? - INTERVAL 12 MONTH GROUP BY 1) i ON i.bulan = m.bulan
+     LEFT JOIN (SELECT DATE_FORMAT(trans_date, '%Y-%m') AS bulan, SUM(${INVOICE_NET_SQL}) AS omzet FROM accurate_sales_invoices i WHERE trans_date >= ? - INTERVAL 12 MONTH AND COALESCE(i.is_dp, 0) = 0 GROUP BY 1) i ON i.bulan = m.bulan
      LEFT JOIN (SELECT DATE_FORMAT(trans_date, '%Y-%m') AS bulan, SUM(total_amount) AS nilai FROM accurate_sales_orders WHERE trans_date >= ? - INTERVAL 12 MONTH GROUP BY 1) o ON o.bulan = m.bulan
      ORDER BY m.bulan`,
     [dari, dari, dari],
