@@ -10,6 +10,7 @@ import { PoFormModal, PriceEditor, VendorFormModal } from './purchasing-forms'
 import { VendorPriceList } from './vendor-price-list'
 import { MaterialList } from './material-list'
 import { api, Field, formatDate, Modal, Notice, Pager, Progress, usePaged, RowActions, confirmDialog } from './ui'
+import { YearNav } from './accounting-page'
 
 // Purchasing: supplier, PO pembelian, harga bahan, hutang supplier. Data dari Accurate Online; supplier, PO, dan harga beli acuan
 // bisa ditambah / diubah / dihapus dari PAP-MS sesuai permission modul Purchasing (lihat lib/purchasing-write.ts).
@@ -38,10 +39,11 @@ function Tiles({ tiles }: { tiles: Tile[] }) {
   )
 }
 
-function Heading({ title, children }: { title: string; children: string }) {
+function Heading({ title, children, actions }: { title: string; children: string; actions?: React.ReactNode }) {
   return (
     <div className="pap-page-heading">
       <div><p className="pap-eyebrow">PURCHASING · ACCURATE</p><h1>{title}</h1><span>{children}</span></div>
+      {actions && <div className="pap-inline-actions pap-wrap">{actions}</div>}
     </div>
   )
 }
@@ -81,7 +83,9 @@ type VendorDetail = {
 const SUPPLIER_SYNC: SyncEntity[] = ['vendor', 'purchase-order', 'purchase-invoice-open']
 
 export function SupplierPage(_props: { user: UserProfile }) {
-  const { data, loading, error, setError, load } = useLoad<{ items: Vendor[]; can: { edit: boolean; manage: boolean } }>('/api/purchasing/vendors')
+  const [tahun, setTahun] = useState(() => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 4))
+  const { data, loading, error, setError, load } = useLoad<{ items: Vendor[]; tahun: string; can: { edit: boolean; manage: boolean } }>(`/api/purchasing/vendors?tahun=${tahun}`)
+  const periodLabel = tahun === 'semua' ? 'semua tahun' : tahun
   const [vendorForm, setVendorForm] = useState<number | 'baru' | null>(null)
   const [message, setMessage] = useState('')
   const flash = (text: string) => { setMessage(text); setTimeout(() => setMessage(''), 6000); load() }
@@ -113,18 +117,18 @@ export function SupplierPage(_props: { user: UserProfile }) {
 
   return (
     <>
-      <Heading title="Supplier">Database supplier dari Accurate (bahan baku, pendukung, teknik, ATK) beserta riwayat pembelian, harga barang yang dipasok, dan hutang. Purchasing dapat menambah catatan: jenis, kontak, lead time, penilaian.</Heading>
+      <Heading title="Supplier" actions={<YearNav tahun={tahun} onChange={setTahun} allowAll />}>Database supplier dari Accurate (bahan baku, pendukung, teknik, ATK) beserta riwayat pembelian, harga barang yang dipasok, dan hutang. Purchasing dapat menambah catatan: jenis, kontak, lead time, penilaian.</Heading>
       <AccurateSyncBar entities={SUPPLIER_SYNC} canSync onSynced={load} />
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       <Tiles tiles={[
-        { label: 'Supplier aktif', value: `${active.length}`, note: `${active.filter((v) => v.po_12m > 0).length} dengan PO 12 bulan terakhir`, icon: Building2, tone: 'stat-1', active: filter === 'aktif12', onClick: () => toggle('aktif12') },
-        { label: 'Pembelian 12 bulan', value: rupiahShort(sum('total_12m')), note: `${all.reduce((s, v) => s + v.po_12m, 0)} PO`, icon: ShoppingCart, tone: 'stat-1' },
+        { label: 'Supplier aktif', value: `${active.length}`, note: `${active.filter((v) => v.po_12m > 0).length} dengan PO ${periodLabel}`, icon: Building2, tone: 'stat-1', active: filter === 'aktif12', onClick: () => toggle('aktif12') },
+        { label: `Pembelian ${periodLabel}`, value: rupiahShort(sum('total_12m')), note: `${all.reduce((s, v) => s + v.po_12m, 0)} PO`, icon: ShoppingCart, tone: 'stat-1' },
         { label: 'PO menunggu barang', value: `${all.reduce((s, v) => s + v.open_po, 0)}`, note: `${all.filter((v) => v.open_po > 0).length} supplier`, icon: Truck, tone: 'stat-2', active: filter === 'po', onClick: () => toggle('po') },
-        { label: 'Hutang supplier', value: rupiahShort(sum('owing')), note: sum('overdue') ? `${rupiahShort(sum('overdue'))} lewat jatuh tempo` : 'Tidak ada yang lewat jatuh tempo', icon: CircleDollarSign, tone: sum('overdue') ? 'stat-3' : 'stat-0', active: filter === 'hutang', onClick: () => toggle('hutang') },
+        { label: `Hutang supplier ${periodLabel}`, value: rupiahShort(sum('owing')), note: sum('overdue') ? `${rupiahShort(sum('overdue'))} lewat jatuh tempo` : 'Tidak ada yang lewat jatuh tempo', icon: CircleDollarSign, tone: sum('overdue') ? 'stat-3' : 'stat-0', active: filter === 'hutang', onClick: () => toggle('hutang') },
       ]} />
       <div className="pap-table-card">
         <div className="pap-card-head">
-          <div><h2>Daftar supplier</h2><p>Urut nilai pembelian 12 bulan terakhir. Data pemasok tersimpan di Accurate; catatan Purchasing tersimpan di PAP-MS.</p></div>
+          <div><h2>Daftar supplier</h2><p>Urut nilai pembelian {periodLabel} (PO). Hutang dari faktur pembelian {periodLabel} yang belum lunas. Data pemasok tersimpan di Accurate; catatan Purchasing tersimpan di PAP-MS.</p></div>
           {data?.can.manage && <button className="pap-primary-button" onClick={() => setVendorForm('baru')}><Plus /> Tambah pemasok</button>}
         </div>
         <div className="pap-filters">
@@ -139,7 +143,7 @@ export function SupplierPage(_props: { user: UserProfile }) {
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Supplier</th><th>Jenis</th><th>Kontak</th><th className="pap-num">Pembelian 12 bln</th><th>PO terakhir</th><th className="pap-num">Hutang</th><th className="pap-actions-col">Aksi</th></tr></thead>
+            <thead><tr><th>Supplier</th><th>Jenis</th><th>Kontak</th><th className="pap-num">Pembelian {periodLabel}</th><th>PO terakhir</th><th className="pap-num">Hutang</th><th className="pap-actions-col">Aksi</th></tr></thead>
             <tbody>
               {paged.items.map((v) => (
                 <tr key={v.id} className="pap-row-link" onClick={() => setDetailId(v.id)}>
@@ -574,25 +578,27 @@ type PayableRes = {
 }
 
 export function PayablePage(_props: { user: UserProfile }) {
+  const [tahun, setTahun] = useState(() => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 4))
   const [status, setStatus] = useState('semua')
   const [vendor, setVendor] = useState('')
   const [q, setQ] = useState('')
   const query = useDebounced(q)
-  const params = new URLSearchParams({ status })
+  const params = new URLSearchParams({ status, tahun })
   if (vendor) params.set('vendor', vendor)
   if (query) params.set('q', query)
   const { data, loading, error, setError, load } = useLoad<PayableRes>(`/api/purchasing/payables?${params}`)
-  const paged = usePaged(data?.items ?? [], [status, vendor, query])
+  const paged = usePaged(data?.items ?? [], [status, vendor, query, tahun])
+  const periodLabel = tahun === 'semua' ? 'semua tahun' : `faktur ${tahun}`
   const s = data?.stats
   const toggle = (k: string) => setStatus(status === k ? 'semua' : k)
   const vendorName = data?.perVendor.find((v) => String(v.id) === vendor)?.name
 
   return (
     <>
-      <Heading title="Hutang Supplier">Faktur pembelian Accurate yang belum lunas, urut jatuh tempo, sebagai dasar permintaan pembayaran ke Accounting. Pembayaran dicatat di Accurate; sisa hutang diperbarui saat sinkron.</Heading>
+      <Heading title="Hutang Supplier" actions={<YearNav tahun={tahun} onChange={setTahun} allowAll />}>Faktur pembelian Accurate yang belum lunas per tahun faktur, urut jatuh tempo, sebagai dasar permintaan pembayaran ke Accounting. Pembayaran dicatat di Accurate; sisa hutang diperbarui saat sinkron.</Heading>
       <AccurateSyncBar entities={['purchase-invoice', 'purchase-invoice-open']} canSync onSynced={load} />
       <Tiles tiles={[
-        { label: 'Total hutang', value: rupiahShort(s?.total ?? 0), note: `${s?.faktur ?? 0} faktur · ${s?.supplier ?? 0} supplier`, icon: CircleDollarSign, tone: 'stat-1', active: status === 'semua' && !vendor, onClick: () => { setStatus('semua'); setVendor('') } },
+        { label: `Total hutang · ${periodLabel}`, value: rupiahShort(s?.total ?? 0), note: `${s?.faktur ?? 0} faktur · ${s?.supplier ?? 0} supplier`, icon: CircleDollarSign, tone: 'stat-1', active: status === 'semua' && !vendor, onClick: () => { setStatus('semua'); setVendor('') } },
         { label: 'Lewat jatuh tempo', value: rupiahShort(s?.jatuh_tempo ?? 0), note: `${s?.faktur_jatuh_tempo ?? 0} faktur`, icon: AlertTriangle, tone: s?.jatuh_tempo ? 'stat-3' : 'stat-0', active: status === 'jatuh_tempo', onClick: () => toggle('jatuh_tempo') },
         { label: 'Jatuh tempo 7 hari', value: rupiahShort(s?.minggu_ini ?? 0), note: `${s?.faktur_minggu_ini ?? 0} faktur`, icon: Clock3, tone: 'stat-2', active: status === 'minggu_ini', onClick: () => toggle('minggu_ini') },
         { label: 'Supplier terbesar', value: data?.perVendor[0] ? rupiahShort(data.perVendor[0].owing) : '—', note: data?.perVendor[0]?.name ?? 'Tidak ada hutang', icon: PackageCheck, tone: 'stat-1' },
@@ -612,7 +618,7 @@ export function PayablePage(_props: { user: UserProfile }) {
         </section>
       </div>
       <div className="pap-table-card">
-        <div className="pap-card-head"><div><h2>Faktur belum lunas{vendorName ? ` · ${vendorName}` : ''}</h2><p>Urut jatuh tempo terdekat · data hanya-baca dari Accurate</p></div></div>
+        <div className="pap-card-head"><div><h2>Faktur belum lunas · {periodLabel}{vendorName ? ` · ${vendorName}` : ''}</h2><p>Urut jatuh tempo terdekat · data hanya-baca dari Accurate</p></div></div>
         <div className="pap-filters">
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor faktur atau supplier..." /></label>
           <select className="pap-select" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter jatuh tempo">

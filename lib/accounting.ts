@@ -36,8 +36,11 @@ async function get<T>(path: string, params: Record<string, string | number> = {}
   }
 }
 
-// Cache di database: laporan bulan yang sudah lewat 6 jam, bulan berjalan / hari ini 15 menit
+// Cache di database: laporan bulan yang sudah lewat 6 jam, bulan berjalan / hari ini 15 menit.
+// Bulan yang sudah tutup buku memakai salinan beku (acc_closed_cache), tidak diambil ulang dari Accurate.
 async function cached<T>(key: string, ttlMinutes: number, load: () => Promise<T>, force = false): Promise<T> {
+  const [[closed]] = await db.query<(RowDataPacket & { data: string })[]>('SELECT data FROM acc_closed_cache WHERE cache_key = ?', [key])
+  if (closed) return JSON.parse(closed.data) as T
   if (!force) {
     const [[row]] = await db.query<(RowDataPacket & { data: string; age: number })[]>(
       'SELECT data, TIMESTAMPDIFF(SECOND, fetched_at, NOW()) AS age FROM acc_report_cache WHERE cache_key = ?', [key],
@@ -48,7 +51,8 @@ async function cached<T>(key: string, ttlMinutes: number, load: () => Promise<T>
   await db.query('INSERT INTO acc_report_cache (cache_key, data, fetched_at) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE data = VALUES(data), fetched_at = NOW()', [key, JSON.stringify(data)])
   return data
 }
-const ttlFor = (lastDate: string) => (lastDate < todayWib().slice(0, 8) + '01' ? 360 : 15)
+// Bulan berjalan 15 menit, bulan lalu 6 jam, bulan-bulan sebelumnya 24 jam (jarang berubah; tombol Ambil ulang tetap memaksa)
+const ttlFor = (lastDate: string) => (lastDate < shiftMonth(todayWib().slice(0, 7), -1) + '-01' ? 1440 : lastDate < todayWib().slice(0, 8) + '01' ? 360 : 15)
 export async function clearAccountingCache() {
   await db.query('DELETE FROM acc_report_cache')
 }
@@ -177,6 +181,19 @@ export async function cashTransactions(from: string, to: string, force = false) 
     }
     return out.sort((a, b) => b.tanggal.localeCompare(a.tanggal) || a.jenis.localeCompare(b.jenis))
   }, force)
+}
+
+// Rentang panjang (mis. setahun) diambil per bulan agar tiap bulan ter-cache sendiri (dan ikut tutup buku)
+export async function cashTransactionsRange(from: string, to: string, force = false) {
+  const months: string[] = []
+  for (let m = from.slice(0, 7); m <= to.slice(0, 7); m = shiftMonth(m, 1)) months.push(m)
+  const out: CashTx[] = []
+  // 3 bulan sekaligus (batas Accurate 8 proses paralel)
+  for (let i = 0; i < months.length; i += 3) {
+    const parts = await Promise.all(months.slice(i, i + 3).map((m) => cashTransactions(m === from.slice(0, 7) ? from : `${m}-01`, m === to.slice(0, 7) ? to : monthEnd(m), force && m === to.slice(0, 7))))
+    out.push(...parts.flat())
+  }
+  return out.sort((a, b) => b.tanggal.localeCompare(a.tanggal) || a.jenis.localeCompare(b.jenis))
 }
 
 // Saldo akun kas/bank per tanggal (dari neraca) untuk pencocokan dengan saldo real
@@ -317,4 +334,82 @@ export async function vatSummary(masa: string, force = false) {
       total: { dpp_keluaran: sum(keluaran, 'dpp'), ppn_keluaran: sum(keluaran, 'ppn'), dpp_masukan: sum(masukan, 'dpp'), ppn_masukan: sum(masukan, 'ppn'), kurang_bayar: sum(keluaran, 'ppn') - sum(masukan, 'ppn') },
     }
   }, force)
+}
+
+// ---------- PPN digunggung (input manual Accounting) ----------
+export async function digunggungTotal(masa: string) {
+  const [[r]] = await db.query<RowDataPacket[]>('SELECT COUNT(*) AS faktur, COALESCE(SUM(dpp), 0) AS dpp, COALESCE(SUM(dpp_nilai_lain), 0) AS dpp_nilai_lain, COALESCE(SUM(ppn), 0) AS ppn FROM tax_digunggung WHERE masa = ?', [masa])
+  return { faktur: Number(r.faktur), dpp: round(Number(r.dpp)), dpp_nilai_lain: round(Number(r.dpp_nilai_lain)), ppn: round(Number(r.ppn)) }
+}
+// PPN kurang bayar = PPN keluaran + PPN digunggung − PPN masukan
+export async function vatWithDigunggung(masa: string, force = false) {
+  const vat = await vatSummary(masa, force)
+  const dg = await digunggungTotal(masa)
+  return { ...vat, digunggung: dg, total: { ...vat.total, ppn_digunggung: dg.ppn, dpp_digunggung: dg.dpp, kurang_bayar: vat.total.ppn_keluaran + dg.ppn - vat.total.ppn_masukan } }
+}
+
+// ---------- Tutup buku (manual per bulan) ----------
+export type Closing = { periode: string; ringkasan: Record<string, number> | null; catatan: string | null; closed_at: string; closed_name: string | null }
+export async function closingsOf(tahun: string): Promise<Closing[]> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    'SELECT c.periode, c.ringkasan, c.catatan, c.closed_at, u.name AS closed_name FROM acc_closings c LEFT JOIN users u ON u.id = c.closed_by WHERE c.periode LIKE ? ORDER BY c.periode', [`${tahun}-%`],
+  )
+  return rows.map((r) => ({ periode: String(r.periode), ringkasan: r.ringkasan ? JSON.parse(String(r.ringkasan)) : null, catatan: (r.catatan as string) ?? null, closed_at: String(r.closed_at), closed_name: (r.closed_name as string) ?? null }))
+}
+export async function isClosed(periode: string) {
+  const [[r]] = await db.query<RowDataPacket[]>('SELECT 1 AS ok FROM acc_closings WHERE periode = ?', [periode])
+  return !!r
+}
+// Catatan masa yang sudah tutup buku tidak bisa diubah
+export async function requireOpen(periode: string, what = 'Data') {
+  if (await isClosed(periode)) fail(400, `${what} masa ${periode} sudah tutup buku. Minta management membuka kembali periode ini bila perlu diubah.`)
+}
+const closingKeys = (periode: string) => {
+  const end = monthEnd(periode)
+  return [`pl:${periode}-01:${end}`, `pl:${periode.slice(0, 4)}-01-01:${end}`, `bs:${end}`, `vat:${periode}`, `cash:tx:${periode}-01:${end}`]
+}
+// Ambil ulang angka bulan itu dari Accurate lalu bekukan
+export async function closePeriod(periode: string, userId: number, catatan: string | null) {
+  const end = monthEnd(periode)
+  if (end >= todayWib()) fail(400, 'Bulan berjalan belum bisa ditutup. Tutup buku dilakukan setelah akhir bulan.')
+  if (await isClosed(periode)) fail(400, `Periode ${periode} sudah tutup buku.`)
+  const pl = plSummary(await plAmounts(`${periode}-01`, end, true))
+  await plAmounts(`${periode.slice(0, 4)}-01-01`, end, true)
+  const bs = bsSummary(await bsAmounts(end, true))
+  const vat = await vatWithDigunggung(periode, true)
+  const cash = await cashTransactions(`${periode}-01`, end, true)
+  const ringkasan = {
+    pendapatan: pl.pendapatan, laba_bersih: pl.laba_bersih, kas_bank: bs.kas_bank, piutang: bs.piutang, hutang_usaha: bs.hutang_usaha,
+    kas_masuk: round(cash.filter((t) => t.jenis === 'masuk').reduce((a, t) => a + t.nominal, 0)), kas_keluar: round(cash.filter((t) => t.jenis === 'keluar').reduce((a, t) => a + t.nominal, 0)),
+    ppn_kurang_bayar: vat.total.kurang_bayar,
+  }
+  const conn = await db.getConnection()
+  try {
+    await conn.beginTransaction()
+    await conn.query(
+      'INSERT INTO acc_closed_cache (cache_key, periode, data) SELECT cache_key, ?, data FROM acc_report_cache WHERE cache_key IN (?) ON DUPLICATE KEY UPDATE data = VALUES(data)',
+      [periode, closingKeys(periode)],
+    )
+    await conn.query('INSERT INTO acc_closings (periode, ringkasan, catatan, closed_by) VALUES (?, ?, ?, ?)', [periode, JSON.stringify(ringkasan), catatan, userId])
+    await conn.commit()
+  } catch (error) {
+    await conn.rollback()
+    throw error
+  } finally {
+    conn.release()
+  }
+  return ringkasan
+}
+export async function reopenPeriod(periode: string) {
+  await db.query('DELETE FROM acc_closed_cache WHERE periode = ?', [periode])
+  await db.query('DELETE FROM acc_closings WHERE periode = ?', [periode])
+}
+
+// ---------- Rekap per tahun ----------
+// Rentang tahun: tahun berjalan s.d. hari ini, tahun lalu Jan-Des
+export function yearRange(tahun: string | null) {
+  const today = todayWib()
+  const y = tahun && /^\d{4}$/.test(tahun) && tahun <= today.slice(0, 4) ? tahun : today.slice(0, 4)
+  const sampai = y === today.slice(0, 4) ? today : `${y}-12-31`
+  return { tahun: y, dari: `${y}-01-01`, sampai, periode: sampai.slice(0, 7) }
 }

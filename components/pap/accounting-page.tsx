@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import {
-  AlertTriangle, ArrowDownLeft, ArrowUpRight, Banknote, CalendarClock, CheckCircle2, Landmark, Pencil, Plus, Printer, RefreshCw, Scale, Search, Target, Trash2, TrendingDown, TrendingUp, Wallet,
+  AlertTriangle, ArrowDownLeft, ArrowUpRight, Banknote, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, HandCoins, Landmark, Lock, LockOpen, Pencil, Plus, Printer, RefreshCw, Scale, Search, Target, Trash2, TrendingDown, TrendingUp, Wallet,
 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
@@ -59,59 +59,76 @@ function useLoad<T>(url: string | null) {
   return { data, loading, error, setError, load }
 }
 const Loading = ({ text = 'Memuat data dari Accurate...' }: { text?: string }) => <div className="pap-empty">{text}</div>
+const thisYear = () => thisMonth().slice(0, 4)
+// Navigasi tahun (default tahun ini); allowAll menambah pilihan "Semua tahun"
+export function YearNav({ tahun, onChange, allowAll = false }: { tahun: string; onChange: (t: string) => void; allowAll?: boolean }) {
+  const now = Number(thisYear())
+  const all = tahun === 'semua'
+  const y = all ? now : Number(tahun)
+  return (
+    <div className="pap-month-nav pap-year-nav">
+      <button className="pap-icon-button" disabled={all} onClick={() => onChange(String(y - 1))} aria-label="Tahun sebelumnya"><ChevronLeft /></button>
+      <button className="pap-icon-button" disabled={all || y >= now} onClick={() => onChange(String(y + 1))} aria-label="Tahun berikutnya"><ChevronRight /></button>
+      <strong>{all ? 'Semua tahun' : `Tahun ${y}`}</strong>
+      {allowAll && <button className="pap-btn pap-year-all" onClick={() => onChange(all ? String(now) : 'semua')}>{all ? 'Per tahun' : 'Semua tahun'}</button>}
+    </div>
+  )
+}
+const yearSpan = (tahun: string) => (tahun === thisYear() ? `Jan – ${monthLabel(thisMonth()).split(' ')[0]} ${tahun}` : `Jan – Des ${tahun}`)
 const RefreshButton = ({ onClick, loading }: { onClick: () => void; loading: boolean }) => <button className="pap-btn" disabled={loading} onClick={onClick}><RefreshCw /> {loading ? 'Memuat...' : 'Ambil ulang dari Accurate'}</button>
 
 // ---------- Ringkasan Keuangan (metrik finansial) ----------
 type Pl = { pendapatan: number; hpp: number; laba_kotor: number; biaya: number; laba_usaha: number; pendapatan_lain: number; biaya_lain: number; laba_bersih: number; margin_kotor: number | null; margin_bersih: number | null }
 type Bs = { aset: number; aset_lancar: number; kas_bank: number; piutang: number; persediaan: number; liabilitas: number; liabilitas_lancar: number; hutang_usaha: number; ekuitas: number; laba_berjalan: number; current_ratio: number | null; debt_to_equity: number | null }
 type Summary = {
-  periode: string; sampai: string; pl: Pl; ytd: Pl; bs: Bs; trend: { periode: string; pendapatan: number; hpp: number; biaya: number; laba_bersih: number }[]; prev?: { pendapatan: number; laba_bersih: number }
+  periode: string; tahun: string | null; sampai: string; pl: Pl; ytd: Pl; bs: Bs; trend: { periode: string; pendapatan: number; hpp: number; biaya: number; laba_bersih: number }[]; prev?: { pendapatan: number; laba_bersih: number }; prev_year: { pendapatan: number; laba_bersih: number } | null
   kas: { total: number; akun: number }; piutang: { total: number; faktur: number; lewat_tempo: number; aging: { key: string; label: string; nilai: number }[] }; hutang: { total: number; faktur: number; lewat_tempo: number }
   dso: number | null; dpo: number | null; targets: Record<string, number>
 }
 const change = (cur: number, prev?: number) => (prev ? `${cur >= prev ? '▲' : '▼'} ${formatNumber(Math.abs(((cur - prev) / Math.abs(prev)) * 100), 1)}% dari bulan lalu` : '')
 
 export function FinanceSummaryPage(_props: { user: UserProfile }) {
-  const [periode, setPeriode] = useState(thisMonth())
-  const { data, loading, error, setError, load } = useLoad<Summary>(`/api/accounting/summary?periode=${periode}`)
+  const [tahun, setTahun] = useState(thisYear())
+  const { data, loading, error, setError, load } = useLoad<Summary>(`/api/accounting/summary?tahun=${tahun}`)
   const d = data
+  const yoy = (cur: number, prev?: number | null) => (prev ? `${cur >= prev ? '▲' : '▼'} ${formatNumber(Math.abs(((cur - prev) / Math.abs(prev)) * 100), 1)}% dari periode sama ${Number(tahun) - 1}` : '')
   return (
     <>
-      <Heading title="Ringkasan Keuangan" actions={<><MonthNav periode={periode} onChange={setPeriode} /><RefreshButton loading={loading} onClick={() => load(true)} /></>}>
-        Metrik finansial dari Accurate: pendapatan, laba, posisi kas, piutang & hutang, serta rasio keuangan. Dipakai untuk memastikan pemasukan dan pengeluaran sesuai target management.
+      <Heading title="Ringkasan Keuangan" actions={<><YearNav tahun={tahun} onChange={setTahun} /><RefreshButton loading={loading} onClick={() => load(true)} /></>}>
+        Metrik finansial dari Accurate, diakumulasi per tahun: pendapatan, laba, posisi kas, piutang & hutang, rasio keuangan, serta uang muka customer.
       </Heading>
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       {!d ? <Loading /> : (
         <>
           <Tiles tiles={[
-            { label: `Pendapatan ${monthLabel(d.periode)}`, value: short(d.pl.pendapatan), note: d.periode === thisMonth() ? `berjalan, s.d. ${formatDate(d.sampai)}` : change(d.pl.pendapatan, d.prev?.pendapatan) || `s.d. ${formatDate(d.sampai)}`, icon: TrendingUp, tone: 'stat-1' },
-            { label: 'Laba bersih', value: short(d.pl.laba_bersih), note: `Margin ${pct(d.pl.margin_bersih)} · kotor ${pct(d.pl.margin_kotor)}`, icon: d.pl.laba_bersih >= 0 ? TrendingUp : TrendingDown, tone: d.pl.laba_bersih >= 0 ? 'stat-0' : 'stat-3' },
+            { label: `Pendapatan ${tahun}`, value: short(d.ytd.pendapatan), note: yoy(d.ytd.pendapatan, d.prev_year?.pendapatan) || yearSpan(tahun), icon: TrendingUp, tone: 'stat-1' },
+            { label: `Laba bersih ${tahun}`, value: short(d.ytd.laba_bersih), note: `Margin ${pct(d.ytd.margin_bersih)} · kotor ${pct(d.ytd.margin_kotor)}`, icon: d.ytd.laba_bersih >= 0 ? TrendingUp : TrendingDown, tone: d.ytd.laba_bersih >= 0 ? 'stat-0' : 'stat-3' },
             { label: 'Saldo kas & bank', value: short(d.kas.total), note: `${d.kas.akun} akun · saldo Accurate hari ini`, icon: Wallet, tone: d.kas.total >= 0 ? 'stat-1' : 'stat-3' },
             { label: 'Piutang customer', value: short(d.piutang.total), note: `${d.piutang.faktur} faktur · ${short(d.piutang.lewat_tempo)} lewat tempo`, icon: Banknote, tone: d.piutang.lewat_tempo ? 'stat-2' : 'stat-0' },
           ]} />
           <div className="pap-acc-grid">
             <section className="pap-table-card pap-acc-panel">
-              <h2>Pendapatan 12 bulan</h2>
-              <ColumnChart ariaLabel="Pendapatan 12 bulan" format={(v) => formatRupiah(v)} axisFormat={(v) => `${formatNumber(v / 1e6, 0)} jt`}
+              <h2>Pendapatan per bulan {tahun}</h2>
+              <ColumnChart ariaLabel={`Pendapatan per bulan ${tahun}`} format={(v) => formatRupiah(v)} axisFormat={(v) => `${formatNumber(v / 1e6, 0)} jt`}
                 data={d.trend.map((t) => ({ key: t.periode, label: monthLabel(t.periode).slice(0, 3), value: Math.max(0, t.pendapatan), partial: t.periode === thisMonth(), detail: <span>{monthLabel(t.periode)} · laba bersih {formatRupiah(t.laba_bersih)}</span> }))} />
             </section>
             <section className="pap-table-card pap-acc-panel">
-              <h2>Rasio & metrik</h2>
+              <h2>Rasio & metrik {tahun}</h2>
               <dl className="pap-acc-metrics">
-                <div><dt>Margin laba kotor</dt><dd>{pct(d.pl.margin_kotor)}</dd></div>
-                <div><dt>Margin laba bersih</dt><dd>{pct(d.pl.margin_bersih)}</dd></div>
+                <div><dt>Margin laba kotor</dt><dd>{pct(d.ytd.margin_kotor)}</dd></div>
+                <div><dt>Margin laba bersih</dt><dd>{pct(d.ytd.margin_bersih)}</dd></div>
                 <div><dt>Current ratio</dt><dd>{d.bs.current_ratio ?? '—'}</dd></div>
                 <div><dt>Hari piutang tertagih (DSO)</dt><dd>{d.dso === null ? '—' : `${d.dso} hari`}</dd></div>
                 <div><dt>Hari hutang dibayar (DPO)</dt><dd>{d.dpo === null ? '—' : `${d.dpo} hari`}</dd></div>
                 <div><dt>Hutang supplier</dt><dd>{short(d.hutang.total)}<small>{short(d.hutang.lewat_tempo)} lewat tempo</small></dd></div>
-                <div><dt>Laba s.d. {monthLabel(d.periode)}</dt><dd>{short(d.ytd.laba_bersih)}<small>pendapatan {short(d.ytd.pendapatan)}</small></dd></div>
+                <div><dt>Pendapatan {monthLabel(d.periode)}</dt><dd>{short(d.pl.pendapatan)}<small>laba bersih {short(d.pl.laba_bersih)}</small></dd></div>
               </dl>
             </section>
           </div>
           <div className="pap-acc-grid">
             <section className="pap-table-card pap-acc-panel">
-              <h2>Realisasi vs target {monthLabel(d.periode)}</h2>
-              <TargetRows pl={d.pl} targets={d.targets} />
+              <h2>Realisasi vs target {yearSpan(tahun)}</h2>
+              <TargetRows pl={d.ytd} targets={d.targets} />
             </section>
             <section className="pap-table-card pap-acc-panel">
               <h2>Umur piutang</h2>
@@ -120,7 +137,74 @@ export function FinanceSummaryPage(_props: { user: UserProfile }) {
           </div>
         </>
       )}
+      <DownPaymentPanel />
     </>
+  )
+}
+
+// Uang muka customer (faktur DP Accurate) per hari / bulan / tahun
+type Dp = { id: number; number: string; tanggal: string; customer: string; customer_no: string | null; sektor: string; total: number; sisa: number; status: string | null }
+type DpRes = { mode: 'hari' | 'bulan' | 'tahun'; nilai: string; dari: string; sampai: string; items: Dp[]; total: number; jumlah: number; customer: number; belum_dibayar: number; rincian: { key: string; total: number; jumlah: number }[] }
+const SEKTOR_LABEL: Record<string, string> = { laundry: 'Laundry', beras: 'Beras', umum: 'Sektor Umum', lainnya: 'Lainnya' }
+function DownPaymentPanel() {
+  const [mode, setMode] = useState<'hari' | 'bulan' | 'tahun'>('bulan')
+  const [nilai, setNilai] = useState({ hari: today(), bulan: thisMonth(), tahun: thisYear() })
+  const [q, setQ] = useState('')
+  const { data, loading, error, setError } = useLoad<DpRes>(`/api/accounting/uang-muka?mode=${mode}&nilai=${nilai[mode]}`)
+  const term = q.trim().toLowerCase()
+  const rows = (data?.items ?? []).filter((r) => !term || `${r.number} ${r.customer}`.toLowerCase().includes(term))
+  const paged = usePaged(rows, [mode, nilai[mode], term])
+  const label = mode === 'hari' ? formatDate(nilai.hari) : mode === 'bulan' ? monthLabel(nilai.bulan) : `Tahun ${nilai.tahun}`
+  return (
+    <div className="pap-table-card pap-acc-spaced">
+      <div className="pap-card-head">
+        <div><h2>Uang muka customer · {label}</h2><p>Faktur uang muka (DP) di Accurate. Faktur DP tidak dihitung sebagai omzet karena nilai pesanan penuh tercatat di faktur pelunasannya.</p></div>
+        <div className="pap-inline-actions pap-wrap">
+          <div className="pap-segmented" role="tablist" aria-label="Periode uang muka">
+            {(['hari', 'bulan', 'tahun'] as const).map((m) => <button key={m} role="tab" aria-selected={mode === m} className={mode === m ? 'active' : ''} onClick={() => setMode(m)}>{m === 'hari' ? 'Hari' : m === 'bulan' ? 'Bulan' : 'Tahun'}</button>)}
+          </div>
+          {mode === 'hari' && <input className="pap-input" type="date" max={today()} value={nilai.hari} onChange={(e) => e.target.value && setNilai({ ...nilai, hari: e.target.value })} aria-label="Tanggal" />}
+          {mode === 'bulan' && <MonthNav periode={nilai.bulan} onChange={(p) => setNilai({ ...nilai, bulan: p })} />}
+          {mode === 'tahun' && <YearNav tahun={nilai.tahun} onChange={(t) => setNilai({ ...nilai, tahun: t })} />}
+        </div>
+      </div>
+      {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+      {data && (
+        <div className="pap-dash-metrics pap-acc-dp-metrics">
+          <div><span>Total uang muka</span><b>{formatRupiah(data.total)}</b></div>
+          <div><span>Faktur DP</span><b>{data.jumlah} faktur · {data.customer} customer</b></div>
+          <div><span>Belum dibayar</span><b className={data.belum_dibayar ? 'pap-text-danger' : ''}>{data.belum_dibayar ? formatRupiah(data.belum_dibayar) : 'Lunas semua'}</b></div>
+        </div>
+      )}
+      {data && mode !== 'hari' && data.rincian.length > 1 && (
+        <div className="pap-acc-pad">
+          <ColumnChart ariaLabel={`Uang muka per ${mode === 'tahun' ? 'bulan' : 'hari'}`} format={(v) => formatRupiah(v)} axisFormat={(v) => `${formatNumber(v / 1e6, 0)} jt`}
+            data={data.rincian.map((r) => ({ key: r.key, label: mode === 'tahun' ? monthLabel(r.key).slice(0, 3) : String(Number(r.key.slice(8, 10))), value: r.total, detail: <span>{mode === 'tahun' ? monthLabel(r.key) : formatDate(r.key)} · {r.jumlah} faktur DP</span> }))} />
+        </div>
+      )}
+      <div className="pap-filters">
+        <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor faktur atau customer..." /></label>
+      </div>
+      <div className="pap-table-wrap">
+        <table>
+          <thead><tr><th>Faktur DP</th><th>Customer</th><th>Sektor</th><th className="pap-num">Uang muka</th><th>Status</th></tr></thead>
+          <tbody>
+            {paged.items.map((r) => (
+              <tr key={r.id}>
+                <td className="pap-nowrap"><div className="pap-cell-title">{r.number}</div><div className="pap-cell-sub">{formatDate(r.tanggal)}</div></td>
+                <td>{r.customer}<div className="pap-cell-sub">{r.customer_no}</div></td>
+                <td>{SEKTOR_LABEL[r.sektor] ?? r.sektor}</td>
+                <td className="pap-num pap-nowrap"><strong>{formatRupiah(r.total)}</strong></td>
+                <td><span className={`pap-status ${r.sisa > 0 ? 'warning' : 'success'}`}>{r.sisa > 0 ? `Belum dibayar ${short(r.sisa)}` : 'Dibayar'}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {data && !rows.length && <div className="pap-empty">Tidak ada uang muka customer pada {mode === 'hari' ? 'tanggal' : mode} ini.</div>}
+        {loading && !data && <Loading text="Memuat uang muka..." />}
+        <Pager {...paged.pager} noun="faktur" />
+      </div>
+    </div>
   )
 }
 
@@ -131,7 +215,7 @@ const TARGET_ROWS: { key: 'pendapatan' | 'hpp' | 'biaya' | 'laba_bersih'; label:
   { key: 'laba_bersih', label: 'Laba bersih', actual: (p) => p.laba_bersih, higherBetter: true },
 ]
 function TargetRows({ pl, targets }: { pl: Pl; targets: Record<string, number> }) {
-  if (!Object.keys(targets).length) return <p className="pap-muted">Belum ada target untuk bulan ini. Management dapat mengisi target di menu Laporan Keuangan.</p>
+  if (!Object.keys(targets).length) return <p className="pap-muted">Belum ada target untuk periode ini. Management dapat mengisi target bulanan di menu Laporan Keuangan.</p>
   return (
     <div className="pap-acc-targets">
       {TARGET_ROWS.filter((r) => targets[r.key] !== undefined).map((r) => {
@@ -157,8 +241,12 @@ type CashTx = { id: string; tanggal: string; jenis: 'masuk' | 'keluar'; sumber: 
 type Recon = { id: number; account_no: string; account_name: string; tanggal: string; saldo_real: number; saldo_accurate: number; selisih: number; catatan: string | null; created_name: string | null }
 type CashRes = { dari: string; sampai: string; accounts: CashAccount[]; transaksi: CashTx[]; total: { masuk: number; keluar: number }; recons: Recon[]; can: { manage: boolean } }
 
+const yearDates = (tahun: string) => ({ dari: `${tahun}-01-01`, sampai: tahun === thisYear() ? today() : `${tahun}-12-31` })
 export function CashBankPage(_props: { user: UserProfile }) {
-  const [range, setRange] = useState({ dari: addDays(today(), -6), sampai: today() })
+  const [tahun, setTahun] = useState(thisYear())
+  const [range, setRange] = useState(() => yearDates(thisYear()))
+  const pickYear = (t: string) => { setTahun(t); setRange(yearDates(t)) }
+  const limit = yearDates(tahun)
   const [akun, setAkun] = useState('')
   const [jenis, setJenis] = useState('')
   const [q, setQ] = useState('')
@@ -183,7 +271,7 @@ export function CashBankPage(_props: { user: UserProfile }) {
   }
   return (
     <>
-      <Heading title="Kas & Bank" actions={<RefreshButton loading={loading} onClick={() => load(true)} />}>
+      <Heading title="Kas & Bank" actions={<><YearNav tahun={tahun} onChange={pickYear} /><RefreshButton loading={loading} onClick={() => load(true)} /></>}>
         Pencatatan transaksi harian (pemasukan & pengeluaran) dari Accurate, saldo setiap akun kas/bank, dan pencocokan dengan saldo real kas fisik serta rekening koran.
       </Heading>
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
@@ -221,10 +309,10 @@ export function CashBankPage(_props: { user: UserProfile }) {
 
       <div className="pap-table-card pap-acc-spaced">
         <div className="pap-card-head">
-          <div><h2>Transaksi harian</h2><p>Penerimaan customer, pembayaran supplier, penerimaan & pengeluaran lain di Accurate.</p></div>
+          <div><h2>Transaksi {tahun}</h2><p>Penerimaan customer, pembayaran supplier, penerimaan & pengeluaran lain di Accurate. Persempit rentang tanggal bila perlu.</p></div>
           <div className="pap-inline-actions pap-wrap">
-            <input className="pap-input" type="date" value={range.dari} max={range.sampai} onChange={(e) => setRange({ ...range, dari: e.target.value })} aria-label="Dari tanggal" />
-            <input className="pap-input" type="date" value={range.sampai} min={range.dari} max={today()} onChange={(e) => setRange({ ...range, sampai: e.target.value })} aria-label="Sampai tanggal" />
+            <input className="pap-input" type="date" value={range.dari} min={limit.dari} max={range.sampai} onChange={(e) => e.target.value && setRange({ ...range, dari: e.target.value })} aria-label="Dari tanggal" />
+            <input className="pap-input" type="date" value={range.sampai} min={range.dari} max={limit.sampai} onChange={(e) => e.target.value && setRange({ ...range, sampai: e.target.value })} aria-label="Sampai tanggal" />
           </div>
         </div>
         <div className="pap-filters">
@@ -257,8 +345,8 @@ export function CashBankPage(_props: { user: UserProfile }) {
               ))}
             </tbody>
           </table>
-          {data && !tx.length && <div className="pap-empty">Tidak ada transaksi pada rentang ini.</div>}
-          {loading && !data && <Loading />}
+          {data && !tx.length && !loading && <div className="pap-empty">Tidak ada transaksi pada rentang ini.</div>}
+          {loading && <Loading text={`Memuat transaksi ${formatDate(range.dari)} – ${formatDate(range.sampai)} dari Accurate...`} />}
           <Pager {...paged.pager} noun="transaksi" />
         </div>
       </div>
@@ -323,27 +411,48 @@ function ReconForm({ account, onClose, onSaved }: { account: CashAccount; onClos
 
 // ---------- Piutang Customer ----------
 type Ar = { id: number; number: string; tanggal: string | null; jatuh_tempo: string | null; customer: string | null; customer_no: string | null; total: number; sisa: number; umur: number }
-type ArRes = { piutang: Ar[]; aging: { key: string; label: string; nilai: number; faktur: number }[]; per_customer: { customer: string; customer_no: string | null; faktur: number; sisa: number; lewat_tempo: number; umur_max: number }[]; hutang: { id: number; number: string; jatuh_tempo: string | null; vendor: string | null; sisa: number; umur: number }[] }
+type ArRes = { piutang: Ar[]; aging: { key: string; label: string; nilai: number; faktur: number }[]; per_customer: { customer: string; customer_no: string | null; faktur: number; sisa: number; lewat_tempo: number; umur_max: number }[]; hutang: { id: number; number: string; tanggal: string | null; jatuh_tempo: string | null; vendor: string | null; sisa: number; umur: number }[] }
+const AGING_UI = [
+  { key: 'belum', label: 'Belum jatuh tempo', test: (u: number) => u <= 0 },
+  { key: '1_30', label: '1–30 hari', test: (u: number) => u >= 1 && u <= 30 },
+  { key: '31_60', label: '31–60 hari', test: (u: number) => u >= 31 && u <= 60 },
+  { key: '61_90', label: '61–90 hari', test: (u: number) => u >= 61 && u <= 90 },
+  { key: 'lebih_90', label: '> 90 hari', test: (u: number) => u > 90 },
+]
+const inYear = (tanggal: string | null, tahun: string) => tahun === 'semua' || String(tanggal ?? '').startsWith(tahun)
 
 export function ReceivablePage(_props: { user: UserProfile }) {
   const { data, loading, error, setError, load } = useLoad<ArRes>('/api/accounting/receivables')
   const [view, setView] = useState<'faktur' | 'customer' | 'hutang'>('faktur')
+  const [tahun, setTahun] = useState(thisYear())
   const [q, setQ] = useState('')
   const term = q.trim().toLowerCase()
-  const ar = (data?.piutang ?? []).filter((r) => !term || `${r.number} ${r.customer ?? ''}`.toLowerCase().includes(term))
-  const ap = (data?.hutang ?? []).filter((r) => !term || `${r.number} ${r.vendor ?? ''}`.toLowerCase().includes(term))
-  const paged = usePaged(ar, [term])
-  const pagedAp = usePaged(ap, [term])
-  const total = (data?.piutang ?? []).reduce((s, r) => s + r.sisa, 0)
+  // Tahun faktur (default tahun ini); "Semua tahun" untuk melihat piutang lama
+  const arYear = (data?.piutang ?? []).filter((r) => inYear(r.tanggal, tahun))
+  const apYear = (data?.hutang ?? []).filter((r) => inYear(r.tanggal, tahun))
+  const ar = arYear.filter((r) => !term || `${r.number} ${r.customer ?? ''}`.toLowerCase().includes(term))
+  const ap = apYear.filter((r) => !term || `${r.number} ${r.vendor ?? ''}`.toLowerCase().includes(term))
+  const paged = usePaged(ar, [term, tahun])
+  const pagedAp = usePaged(ap, [term, tahun])
+  const total = arYear.reduce((s, r) => s + r.sisa, 0)
+  const aging = AGING_UI.map((a) => { const rows = arYear.filter((r) => a.test(r.umur)); return { key: a.key, label: a.label, nilai: rows.reduce((s, r) => s + r.sisa, 0), faktur: rows.length } })
+  const perCustomer = [...arYear.reduce((m, r) => {
+    const key = r.customer_no ?? r.customer ?? '-'
+    const cur = m.get(key) ?? { customer: r.customer ?? '—', customer_no: r.customer_no, faktur: 0, sisa: 0, lewat_tempo: 0, umur_max: 0 }
+    m.set(key, { ...cur, faktur: cur.faktur + 1, sisa: cur.sisa + r.sisa, lewat_tempo: cur.lewat_tempo + (r.umur > 0 ? r.sisa : 0), umur_max: Math.max(cur.umur_max, r.umur) })
+    return m
+  }, new Map<string, ArRes['per_customer'][number]>()).values()].sort((a, b) => b.sisa - a.sisa)
+  const otherYears = (data?.piutang ?? []).filter((r) => !inYear(r.tanggal, tahun))
   return (
     <>
-      <Heading title="Piutang Customer" actions={<RefreshButton loading={loading} onClick={() => load(true)} />}>
-        Memastikan pembayaran customer: faktur penjualan Accurate yang belum lunas, umur piutang, dan ringkasan per customer. Hutang supplier jatuh tempo ditampilkan untuk perencanaan pembayaran.
+      <Heading title="Piutang Customer" actions={<><YearNav tahun={tahun} onChange={setTahun} allowAll /><RefreshButton loading={loading} onClick={() => load(true)} /></>}>
+        Memastikan pembayaran customer: faktur penjualan Accurate yang belum lunas per tahun faktur, umur piutang, dan ringkasan per customer. Hutang supplier jatuh tempo ditampilkan untuk perencanaan pembayaran.
       </Heading>
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      {data && tahun !== 'semua' && otherYears.length > 0 && <p className="pap-hint">Ada {otherYears.length} faktur belum lunas dari tahun lain ({short(otherYears.reduce((s, r) => s + r.sisa, 0))}). Klik &quot;Semua tahun&quot; untuk melihatnya.</p>}
       {data && (
         <div className="pap-stat-grid pap-acc-aging">
-          {data.aging.map((a) => (
+          {aging.map((a) => (
             <div key={a.key} className="pap-stat-card"><div><span>{a.label}</span><strong className="pap-stat-text">{short(a.nilai)}</strong><small className={a.key === 'lebih_90' && a.nilai ? 'pap-text-danger' : 'neutral'}>{a.faktur} faktur · {total ? Math.round((a.nilai / total) * 100) : 0}%</small></div></div>
           ))}
         </div>
@@ -351,9 +460,9 @@ export function ReceivablePage(_props: { user: UserProfile }) {
       <div className="pap-table-card">
         <div className="pap-card-head">
           <div className="pap-segmented" role="tablist">
-            <button role="tab" aria-selected={view === 'faktur'} className={view === 'faktur' ? 'active' : ''} onClick={() => setView('faktur')}>Faktur belum lunas ({data?.piutang.length ?? 0})</button>
+            <button role="tab" aria-selected={view === 'faktur'} className={view === 'faktur' ? 'active' : ''} onClick={() => setView('faktur')}>Faktur belum lunas ({arYear.length})</button>
             <button role="tab" aria-selected={view === 'customer'} className={view === 'customer' ? 'active' : ''} onClick={() => setView('customer')}>Per customer</button>
-            <button role="tab" aria-selected={view === 'hutang'} className={view === 'hutang' ? 'active' : ''} onClick={() => setView('hutang')}>Hutang supplier ({data?.hutang.length ?? 0})</button>
+            <button role="tab" aria-selected={view === 'hutang'} className={view === 'hutang' ? 'active' : ''} onClick={() => setView('hutang')}>Hutang supplier ({apYear.length})</button>
           </div>
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor / nama..." /></label>
         </div>
@@ -378,7 +487,7 @@ export function ReceivablePage(_props: { user: UserProfile }) {
             <table>
               <thead><tr><th>Customer</th><th className="pap-num">Faktur</th><th className="pap-num">Sisa piutang</th><th className="pap-num">Lewat tempo</th><th className="pap-num">Umur terlama</th></tr></thead>
               <tbody>
-                {(data?.per_customer ?? []).filter((c) => !term || c.customer.toLowerCase().includes(term)).map((c) => (
+                {perCustomer.filter((c) => !term || c.customer.toLowerCase().includes(term)).map((c) => (
                   <tr key={c.customer_no ?? c.customer}>
                     <td>{c.customer}<div className="pap-cell-sub">{c.customer_no}</div></td>
                     <td className="pap-num">{c.faktur}</td>
@@ -396,7 +505,7 @@ export function ReceivablePage(_props: { user: UserProfile }) {
               <tbody>
                 {pagedAp.items.map((r) => (
                   <tr key={r.id}>
-                    <td className="pap-nowrap">{r.number}</td>
+                    <td className="pap-nowrap"><div className="pap-cell-title">{r.number}</div><div className="pap-cell-sub">{formatDate(r.tanggal)}</div></td>
                     <td>{r.vendor ?? '—'}</td>
                     <td className="pap-nowrap">{formatDate(r.jatuh_tempo)}<div className={`pap-cell-sub ${r.umur > 0 ? 'pap-text-danger' : ''}`}>{r.umur > 0 ? `lewat ${r.umur} hari` : `${-r.umur} hari lagi`}</div></td>
                     <td className="pap-num pap-nowrap"><strong>{formatRupiah(r.sisa)}</strong></td>
@@ -424,10 +533,14 @@ type ReportRes = {
 }
 
 export function FinancialReportPage(_props: { user: UserProfile }) {
-  const [periode, setPeriode] = useState(thisMonth())
-  const [jenis, setJenis] = useState<'bulan' | 'ytd'>('bulan')
-  const [tab, setTab] = useState<'lr' | 'neraca'>('lr')
-  const { data, loading, error, setError, load } = useLoad<ReportRes>(`/api/accounting/reports?periode=${periode}&jenis=${jenis}`)
+  // Default: akumulasi tahun ini (Jan s.d. bulan berjalan); bisa per bulan
+  const [mode, setMode] = useState<'tahun' | 'bulan'>('tahun')
+  const [tahun, setTahun] = useState(thisYear())
+  const [bulan, setBulan] = useState(thisMonth())
+  const periode = mode === 'tahun' ? (tahun === thisYear() ? thisMonth() : `${tahun}-12`) : bulan
+  const jenis = mode === 'tahun' ? 'ytd' : 'bulan'
+  const [tab, setTab] = useState<'lr' | 'neraca' | 'tutup'>('lr')
+  const { data, loading, error, setError, load } = useLoad<ReportRes>(tab === 'tutup' ? null : `/api/accounting/reports?periode=${periode}&jenis=${jenis}`)
   const [targetOpen, setTargetOpen] = useState(false)
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const d = data
@@ -451,30 +564,31 @@ export function FinancialReportPage(_props: { user: UserProfile }) {
   return (
     <>
       <Heading title="Laporan Keuangan" actions={<>
-        <MonthNav periode={periode} onChange={setPeriode} />
-        <a className="pap-btn" href={`/cetak/laporan-keuangan?periode=${periode}&jenis=${jenis}`} target="_blank" rel="noreferrer"><Printer /> Cetak</a>
-        {d?.can.target && <button className="pap-btn" onClick={() => setTargetOpen(true)}><Target /> Target bulan ini</button>}
-        <RefreshButton loading={loading} onClick={() => load(true)} />
+        {mode === 'tahun' ? <YearNav tahun={tahun} onChange={setTahun} /> : <MonthNav periode={bulan} onChange={setBulan} />}
+        {tab !== 'tutup' && <a className="pap-btn" href={`/cetak/laporan-keuangan?periode=${periode}&jenis=${jenis}`} target="_blank" rel="noreferrer"><Printer /> Cetak</a>}
+        {d?.can.target && mode === 'bulan' && tab !== 'tutup' && <button className="pap-btn" onClick={() => setTargetOpen(true)}><Target /> Target bulan ini</button>}
+        {tab !== 'tutup' && <RefreshButton loading={loading} onClick={() => load(true)} />}
       </>}>
-        Financial statement bulanan dari Accurate: laba rugi dan neraca, dibandingkan dengan bulan lalu dan target management.
+        Financial statement dari Accurate per tahun (akumulasi) atau per bulan: laba rugi dan neraca, dibandingkan dengan bulan lalu dan target management, serta tutup buku bulanan.
       </Heading>
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       <div className="pap-inline-actions pap-wrap pap-page-tabs">
         <div className="pap-segmented" role="tablist">
           <button role="tab" aria-selected={tab === 'lr'} className={tab === 'lr' ? 'active' : ''} onClick={() => setTab('lr')}>Laba rugi</button>
           <button role="tab" aria-selected={tab === 'neraca'} className={tab === 'neraca' ? 'active' : ''} onClick={() => setTab('neraca')}>Neraca</button>
+          <button role="tab" aria-selected={tab === 'tutup'} className={tab === 'tutup' ? 'active' : ''} onClick={() => { setTab('tutup'); setMode('tahun') }}><Lock /> Tutup buku</button>
         </div>
-        {tab === 'lr' && (
+        {tab !== 'tutup' && (
           <div className="pap-segmented" role="tablist">
-            <button role="tab" aria-selected={jenis === 'bulan'} className={jenis === 'bulan' ? 'active' : ''} onClick={() => setJenis('bulan')}>{monthLabel(periode)}</button>
-            <button role="tab" aria-selected={jenis === 'ytd'} className={jenis === 'ytd' ? 'active' : ''} onClick={() => setJenis('ytd')}>Jan – {monthLabel(periode).split(' ')[0]} {periode.slice(0, 4)}</button>
+            <button role="tab" aria-selected={mode === 'tahun'} className={mode === 'tahun' ? 'active' : ''} onClick={() => setMode('tahun')}>Per tahun</button>
+            <button role="tab" aria-selected={mode === 'bulan'} className={mode === 'bulan' ? 'active' : ''} onClick={() => { setMode('bulan'); if (!bulan.startsWith(tahun)) setBulan(tahun === thisYear() ? thisMonth() : `${tahun}-12`) }}>Per bulan</button>
           </div>
         )}
       </div>
-      {!d || !pl || !bs ? <Loading /> : tab === 'lr' ? (
+      {tab === 'tutup' ? <ClosingPanel tahun={tahun} /> : !d || !pl || !bs ? <Loading /> : tab === 'lr' ? (
         <div className="pap-acc-grid wide-left">
           <section className="pap-table-card">
-            <div className="pap-card-head"><div><h2>Laba rugi</h2><p>{formatDate(d.dari)} – {formatDate(d.sampai)}. Klik kelompok untuk melihat rincian akun.</p></div></div>
+            <div className="pap-card-head"><div><h2>Laba rugi</h2><p>{mode === 'tahun' ? `Tahun ${tahun} · ` : ''}{formatDate(d.dari)} – {formatDate(d.sampai)}. Klik kelompok untuk melihat rincian akun.</p></div></div>
             <div className="pap-table-wrap">
               <table className="pap-fin-list">
                 <GroupRows groups={d.laba_rugi.kelompok} />
@@ -498,7 +612,7 @@ export function FinancialReportPage(_props: { user: UserProfile }) {
               </dl>
             ) : <p className="pap-muted">Perbandingan tersedia untuk tampilan per bulan.</p>}
             <h2 className="pap-acc-subtitle">Target management</h2>
-            {jenis === 'bulan' ? <TargetRows pl={pl} targets={d.targets} /> : <p className="pap-muted">Target dibandingkan per bulan.</p>}
+            {mode === 'bulan' ? <TargetRows pl={pl} targets={d.targets} /> : <p className="pap-muted">Target dibandingkan per bulan (pilih &quot;Per bulan&quot;). Akumulasi target tahunan ada di Ringkasan Keuangan.</p>}
           </section>
         </div>
       ) : (
@@ -524,6 +638,70 @@ export function FinancialReportPage(_props: { user: UserProfile }) {
       )}
       {targetOpen && d && <TargetForm periode={periode} targets={d.targets} onClose={() => setTargetOpen(false)} onSaved={() => { setTargetOpen(false); load() }} />}
     </>
+  )
+}
+
+type ClosingMonth = { periode: string; status: 'ditutup' | 'terbuka' | 'berjalan'; ringkasan?: Record<string, number> | null; catatan?: string | null; closed_at?: string; closed_name?: string | null }
+function ClosingPanel({ tahun }: { tahun: string }) {
+  const { data, loading, error, setError, load } = useLoad<{ tahun: string; bulan: ClosingMonth[]; can: { close: boolean; reopen: boolean } }>(`/api/accounting/closing?tahun=${tahun}`)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [message, setMessage] = useState('')
+  async function close(m: ClosingMonth) {
+    if (!(await confirmDialog({ title: `Tutup buku ${monthLabel(m.periode)}`, message: `Angka Accurate ${monthLabel(m.periode)} (laba rugi, neraca, kas, PPN) diambil ulang lalu dibekukan. Setelah ditutup, perubahan di Accurate untuk bulan itu tidak lagi mengubah laporan di SIMPAP, dan PPN digunggung masa itu tidak bisa diubah.`, confirmLabel: 'Ya, tutup buku' }))) return
+    setBusy(m.periode)
+    setError('')
+    try {
+      await api('/api/accounting/closing', { method: 'POST', json: { periode: m.periode } })
+      setMessage(`Tutup buku ${monthLabel(m.periode)} selesai.`)
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+  async function reopen(m: ClosingMonth) {
+    if (!(await confirmDialog({ title: `Buka kembali ${monthLabel(m.periode)}`, message: 'Angka bulan ini akan kembali dibaca langsung dari Accurate dan catatannya bisa diubah lagi.', confirmLabel: 'Ya, buka kembali' }))) return
+    setBusy(m.periode)
+    try {
+      await api(`/api/accounting/closing?periode=${m.periode}`, { method: 'DELETE' })
+      setMessage(`${monthLabel(m.periode)} dibuka kembali.`)
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+  const r = (m: ClosingMonth, k: string) => (m.ringkasan && m.ringkasan[k] !== undefined ? short(m.ringkasan[k]) : '—')
+  return (
+    <div className="pap-table-card">
+      <div className="pap-card-head"><div><h2>Tutup buku {tahun}</h2><p>Cut off keuangan tiap akhir bulan. Accounting menutup bulan yang sudah selesai; angka bulan yang ditutup dibekukan. Management dapat membuka kembali bila ada koreksi.</p></div></div>
+      {message && <div className="pap-card-notice"><Notice kind="success" onClose={() => setMessage('')}>{message}</Notice></div>}
+      {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+      <div className="pap-table-wrap">
+        <table>
+          <thead><tr><th>Bulan</th><th>Status</th><th className="pap-num">Pendapatan</th><th className="pap-num">Laba bersih</th><th className="pap-num">Kas & bank</th><th className="pap-num">PPN kurang bayar</th><th className="pap-actions-col">Aksi</th></tr></thead>
+          <tbody>
+            {(data?.bulan ?? []).map((m) => (
+              <tr key={m.periode}>
+                <td className="pap-nowrap"><div className="pap-cell-title">{monthLabel(m.periode)}</div>{m.closed_at && <div className="pap-cell-sub">{formatDate(m.closed_at, true)}{m.closed_name ? ` · ${m.closed_name}` : ''}</div>}</td>
+                <td><span className={`pap-status ${m.status === 'ditutup' ? 'success' : m.status === 'berjalan' ? 'info' : 'neutral'}`}>{m.status === 'ditutup' ? 'Ditutup' : m.status === 'berjalan' ? 'Berjalan' : 'Belum ditutup'}</span></td>
+                <td className="pap-num pap-nowrap">{r(m, 'pendapatan')}</td>
+                <td className="pap-num pap-nowrap">{r(m, 'laba_bersih')}</td>
+                <td className="pap-num pap-nowrap">{r(m, 'kas_bank')}</td>
+                <td className="pap-num pap-nowrap">{r(m, 'ppn_kurang_bayar')}</td>
+                <td className="pap-actions-cell">
+                  {m.status === 'terbuka' && data?.can.close && <button className="pap-btn" disabled={!!busy} onClick={() => close(m)}><Lock /> {busy === m.periode ? 'Menutup...' : 'Tutup buku'}</button>}
+                  {m.status === 'ditutup' && data?.can.reopen && <button className="pap-btn" disabled={!!busy} onClick={() => reopen(m)}><LockOpen /> Buka kembali</button>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {loading && !data && <Loading text="Memuat status tutup buku..." />}
+      </div>
+    </div>
   )
 }
 
@@ -628,9 +806,48 @@ export function CashFlowPage(_props: { user: UserProfile }) {
           </div>
         </>
       )}
+      <CashYearPanel />
       {loading && d && <p className="pap-muted">Memperbarui...</p>}
       {form && <PlanForm item={form === 'baru' ? null : form} onClose={() => setForm(null)} onSaved={() => { setForm(null); load() }} />}
     </>
+  )
+}
+
+type CashYear = { tahun: string; bulan: { periode: string; masuk: number; keluar: number; bersih: number; rincian_masuk: { sumber: string; nominal: number }[]; rincian_keluar: { sumber: string; nominal: number }[] }[]; total: { masuk: number; keluar: number } }
+function CashYearPanel() {
+  const [tahun, setTahun] = useState(thisYear())
+  const { data, loading, error, setError, load } = useLoad<CashYear>(`/api/accounting/cashflow?tahun=${tahun}`)
+  return (
+    <div className="pap-table-card pap-acc-spaced">
+      <div className="pap-card-head">
+        <div><h2>Realisasi arus kas {tahun}</h2><p>Kas masuk & keluar per bulan dari transaksi kas & bank Accurate, diakumulasi per tahun.</p></div>
+        <div className="pap-inline-actions pap-wrap"><YearNav tahun={tahun} onChange={setTahun} /><RefreshButton loading={loading} onClick={() => load(true)} /></div>
+      </div>
+      {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+      {data && (
+        <div className="pap-dash-metrics pap-acc-dp-metrics">
+          <div><span>Kas masuk {tahun}</span><b className="pap-text-success">{formatRupiah(data.total.masuk)}</b></div>
+          <div><span>Kas keluar {tahun}</span><b className="pap-text-danger">{formatRupiah(data.total.keluar)}</b></div>
+          <div><span>Arus bersih</span><b className={data.total.masuk - data.total.keluar < 0 ? 'pap-text-danger' : ''}>{formatRupiah(data.total.masuk - data.total.keluar)}</b></div>
+        </div>
+      )}
+      <div className="pap-table-wrap">
+        <table>
+          <thead><tr><th>Bulan</th><th className="pap-num">Kas masuk</th><th className="pap-num">Kas keluar</th><th className="pap-num">Arus bersih</th></tr></thead>
+          <tbody>
+            {(data?.bulan ?? []).map((b) => (
+              <tr key={b.periode} title={[...b.rincian_masuk.map((x) => `+ ${x.sumber}: ${formatRupiah(x.nominal)}`), ...b.rincian_keluar.map((x) => `− ${x.sumber}: ${formatRupiah(x.nominal)}`)].join('\n')}>
+                <td className="pap-nowrap"><b>{monthLabel(b.periode)}</b></td>
+                <td className="pap-num pap-nowrap pap-text-success">{formatRupiah(b.masuk)}</td>
+                <td className="pap-num pap-nowrap pap-text-danger">{formatRupiah(b.keluar)}</td>
+                <td className={`pap-num pap-nowrap ${b.bersih < 0 ? 'pap-text-danger' : ''}`}><b>{formatRupiah(b.bersih)}</b></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {loading && <Loading text={`Memuat transaksi kas ${tahun} dari Accurate (bisa sampai 1 menit pertama kali)...`} />}
+      </div>
+    </div>
   )
 }
 
@@ -680,30 +897,32 @@ function PlanForm({ item, onClose, onSaved }: { item: CashPlan | null; onClose: 
 // ---------- Pajak ----------
 type VatRow = { id: number; number: string; tanggal: string | null; pihak: string | null; dpp: number; ppn: number; faktur_pajak: string | null }
 type Duty = { id: number | null; jenis: string; label: string; batas_setor: string | null; batas_lapor: string | null; status: 'belum' | 'sudah_setor' | 'selesai' | 'terlambat'; nominal: number | null; tgl_setor: string | null; ntpn: string | null; tgl_lapor: string | null; no_bukti: string | null; catatan: string | null; updated_name: string | null }
-type TaxRes = { masa: string; vat: { keluaran: VatRow[]; masukan: VatRow[]; total: { dpp_keluaran: number; ppn_keluaran: number; dpp_masukan: number; ppn_masukan: number; kurang_bayar: number } }; kewajiban: Duty[]; tanpa_faktur_pajak: number; can: { manage: boolean } }
+type TaxRes = { masa: string; ditutup: boolean; vat: { keluaran: VatRow[]; masukan: VatRow[]; digunggung: { faktur: number; dpp: number; dpp_nilai_lain: number; ppn: number }; total: { dpp_keluaran: number; ppn_keluaran: number; dpp_masukan: number; ppn_masukan: number; ppn_digunggung: number; dpp_digunggung: number; kurang_bayar: number } }; kewajiban: Duty[]; tanpa_faktur_pajak: number; can: { manage: boolean } }
+type Dg = { id: number; masa: string; nomor: string; tanggal: string; no_faktur_pajak: string | null; customer: string; jatuh_tempo: string | null; dpp: number; dpp_nilai_lain: number; ppn: number; total: number; catatan: string | null; updated_name: string | null }
 const DUTY: Record<Duty['status'], [string, string]> = { belum: ['Belum', 'neutral'], sudah_setor: ['Sudah setor', 'info'], selesai: ['Sudah lapor', 'success'], terlambat: ['Terlambat', 'danger'] }
 
 export function TaxPage(_props: { user: UserProfile }) {
   const [masa, setMasa] = useState(() => { const m = thisMonth(); const d = new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 2, 1)); return d.toISOString().slice(0, 7) })
   const { data, loading, error, setError, load } = useLoad<TaxRes>(`/api/accounting/tax?masa=${masa}`)
-  const [view, setView] = useState<'keluaran' | 'masukan'>('keluaran')
+  const [view, setView] = useState<'keluaran' | 'digunggung' | 'masukan'>('keluaran')
   const [edit, setEdit] = useState<Duty | null>(null)
-  const rows = data?.vat[view] ?? []
+  const rows = view === 'digunggung' ? [] : data?.vat[view] ?? []
   const paged = usePaged(rows, [view, masa])
   const t = data?.vat.total
   return (
     <>
       <Heading title="Pajak" actions={<><MonthNav periode={masa} onChange={setMasa} /><RefreshButton loading={loading} onClick={() => load(true)} /></>}>
-        Pelaporan perpajakan rutin: PPN keluaran (faktur penjualan) dan masukan (faktur pembelian) per masa dari Accurate, serta status setor (NTPN) dan lapor setiap jenis pajak.
+        Pelaporan perpajakan rutin: PPN keluaran (faktur penjualan) dan masukan (faktur pembelian) per masa dari Accurate, PPN digunggung yang dicatat Accounting, status setor (NTPN) dan lapor setiap jenis pajak, serta rekap per tahun.
       </Heading>
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      {data?.ditutup && <p className="pap-hint"><Lock className="pap-inline-icon" /> Masa {monthLabel(masa)} sudah tutup buku: angka dibekukan dan PPN digunggung tidak bisa diubah.</p>}
       {!data || !t ? <Loading /> : (
         <>
           <Tiles tiles={[
-            { label: `PPN keluaran ${monthLabel(masa)}`, value: short(t.ppn_keluaran), note: `DPP ${short(t.dpp_keluaran)} · ${data.vat.keluaran.length} faktur`, icon: ArrowUpRight, tone: 'stat-1' },
+            { label: `PPN keluaran ${monthLabel(masa)}`, value: short(t.ppn_keluaran), note: `DPP ${short(t.dpp_keluaran)} · ${data.vat.keluaran.length} faktur${data.tanpa_faktur_pajak ? ` · ${data.tanpa_faktur_pajak} tanpa no. faktur pajak` : ''}`, icon: ArrowUpRight, tone: 'stat-1' },
+            { label: 'PPN digunggung', value: short(t.ppn_digunggung), note: `DPP ${short(t.dpp_digunggung)} · ${data.vat.digunggung.faktur} faktur (input Accounting)`, icon: HandCoins, tone: 'stat-1' },
             { label: 'PPN masukan', value: short(t.ppn_masukan), note: `DPP ${short(t.dpp_masukan)} · ${data.vat.masukan.length} faktur`, icon: ArrowDownLeft, tone: 'stat-0' },
-            { label: t.kurang_bayar >= 0 ? 'PPN kurang bayar' : 'PPN lebih bayar', value: short(Math.abs(t.kurang_bayar)), note: 'Keluaran − masukan (perkiraan)', icon: Landmark, tone: t.kurang_bayar > 0 ? 'stat-2' : 'stat-0' },
-            { label: 'Tanpa nomor faktur pajak', value: `${data.tanpa_faktur_pajak}`, note: 'Faktur penjualan ber-PPN di Accurate', icon: AlertTriangle, tone: data.tanpa_faktur_pajak ? 'stat-3' : 'stat-0' },
+            { label: t.kurang_bayar >= 0 ? 'PPN kurang bayar' : 'PPN lebih bayar', value: short(Math.abs(t.kurang_bayar)), note: 'Keluaran + digunggung − masukan', icon: Landmark, tone: t.kurang_bayar > 0 ? 'stat-2' : 'stat-0' },
           ]} />
           <div className="pap-table-card">
             <div className="pap-card-head"><div><h2>Kewajiban masa {monthLabel(masa)}</h2><p>Batas setor & lapor pada bulan berikutnya. Catat tanggal setor, NTPN, tanggal lapor, dan nomor bukti penerimaan.</p></div></div>
@@ -730,10 +949,11 @@ export function TaxPage(_props: { user: UserProfile }) {
             <div className="pap-card-head">
               <div className="pap-segmented" role="tablist">
                 <button role="tab" aria-selected={view === 'keluaran'} className={view === 'keluaran' ? 'active' : ''} onClick={() => setView('keluaran')}>PPN keluaran ({data.vat.keluaran.length})</button>
+                <button role="tab" aria-selected={view === 'digunggung'} className={view === 'digunggung' ? 'active' : ''} onClick={() => setView('digunggung')}>PPN digunggung ({data.vat.digunggung.faktur})</button>
                 <button role="tab" aria-selected={view === 'masukan'} className={view === 'masukan' ? 'active' : ''} onClick={() => setView('masukan')}>PPN masukan ({data.vat.masukan.length})</button>
               </div>
             </div>
-            <div className="pap-table-wrap">
+            {view === 'digunggung' ? <DigunggungPanel masa={masa} locked={data.ditutup} onChanged={() => load()} /> : <div className="pap-table-wrap">
               <table>
                 <thead><tr><th>Faktur</th><th>{view === 'keluaran' ? 'Customer' : 'Supplier'}</th><th>No. faktur pajak</th><th className="pap-num">DPP</th><th className="pap-num">PPN</th></tr></thead>
                 <tbody>
@@ -750,12 +970,152 @@ export function TaxPage(_props: { user: UserProfile }) {
               </table>
               {!rows.length && <div className="pap-empty">Tidak ada faktur ber-PPN pada masa ini.</div>}
               <Pager {...paged.pager} noun="faktur" />
-            </div>
+            </div>}
           </div>
         </>
       )}
+      <TaxYearPanel initial={masa.slice(0, 4)} onPick={setMasa} />
       {edit && <FilingForm masa={masa} duty={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
     </>
+  )
+}
+
+// Faktur PPN digunggung per masa (input manual Accounting)
+function DigunggungPanel({ masa, locked, onChanged }: { masa: string; locked: boolean; onChanged: () => void }) {
+  const { data, loading, error, setError, load } = useLoad<{ items: Dg[]; nomor_berikutnya: string; can: { manage: boolean } }>(`/api/accounting/tax/digunggung?masa=${masa}`)
+  const [form, setForm] = useState<Dg | 'baru' | null>(null)
+  const manage = !!data?.can.manage && !locked
+  const items = data?.items ?? []
+  async function remove(r: Dg) {
+    if (!(await confirmDialog(`Hapus faktur digunggung ${r.nomor} (${r.customer})?`))) return
+    try {
+      await api(`/api/accounting/tax/digunggung/${r.id}`, { method: 'DELETE' })
+      load()
+      onChanged()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+  const sum = (k: 'dpp' | 'dpp_nilai_lain' | 'ppn' | 'total') => items.reduce((s, r) => s + r[k], 0)
+  return (
+    <>
+      <div className="pap-filters">
+        <span className="pap-muted">Faktur penjualan digunggung yang dicatat Accounting untuk masa {monthLabel(masa)}. Nomor dibuat otomatis; nomor faktur pajak boleh diisi belakangan.</span>
+        <span className="pap-spacer" />
+        {manage && <button className="pap-primary-button" onClick={() => setForm('baru')}><Plus /> Tambah faktur digunggung</button>}
+      </div>
+      {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+      <div className="pap-table-wrap">
+        <table>
+          <thead><tr><th>Faktur</th><th>Customer</th><th>No. faktur pajak</th><th className="pap-num">DPP</th><th className="pap-num">DPP nilai lain</th><th className="pap-num">PPN</th><th className="pap-num">Total</th>{manage && <th className="pap-actions-col">Aksi</th>}</tr></thead>
+          <tbody>
+            {items.map((r) => (
+              <tr key={r.id}>
+                <td className="pap-nowrap"><div className="pap-cell-title">{r.nomor}</div><div className="pap-cell-sub">{formatDate(r.tanggal)}{r.jatuh_tempo ? ` · tempo ${formatDate(r.jatuh_tempo)}` : ''}</div></td>
+                <td>{r.customer}{r.catatan && <div className="pap-cell-sub">{r.catatan}</div>}</td>
+                <td>{r.no_faktur_pajak ?? <span className="pap-muted">—</span>}</td>
+                <td className="pap-num pap-nowrap">{formatRupiah(r.dpp)}</td>
+                <td className="pap-num pap-nowrap">{formatRupiah(r.dpp_nilai_lain)}</td>
+                <td className="pap-num pap-nowrap"><strong>{formatRupiah(r.ppn)}</strong></td>
+                <td className="pap-num pap-nowrap">{formatRupiah(r.total)}</td>
+                {manage && <td className="pap-actions-cell"><div className="pap-row-actions"><button type="button" className="pap-row-action edit" onClick={() => setForm(r)}><Pencil /><span>Ubah</span></button><button type="button" className="pap-row-action danger" onClick={() => remove(r)}><Trash2 /><span>Hapus</span></button></div></td>}
+              </tr>
+            ))}
+          </tbody>
+          {items.length > 1 && (
+            <tbody><tr className="pap-total-row"><td colSpan={3}><b>Total {items.length} faktur</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('dpp'))}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('dpp_nilai_lain'))}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('ppn'))}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('total'))}</b></td>{manage && <td />}</tr></tbody>
+          )}
+        </table>
+        {data && !items.length && <div className="pap-empty">Belum ada PPN digunggung masa ini.{manage ? ' Klik "Tambah faktur digunggung".' : ''}</div>}
+        {loading && !data && <Loading text="Memuat PPN digunggung..." />}
+      </div>
+      {form && <DigunggungForm masa={masa} item={form === 'baru' ? null : form} nomor={data?.nomor_berikutnya ?? ''} onClose={() => setForm(null)} onSaved={() => { setForm(null); load(); onChanged() }} />}
+    </>
+  )
+}
+
+function DigunggungForm({ masa, item, nomor, onClose, onSaved }: { masa: string; item: Dg | null; nomor: string; onClose: () => void; onSaved: () => void }) {
+  const firstDay = `${masa}-01`
+  const [v, setV] = useState({
+    tanggal: item?.tanggal?.slice(0, 10) ?? (today().startsWith(masa) ? today() : firstDay), no_faktur_pajak: item?.no_faktur_pajak ?? '', customer: item?.customer ?? '',
+    jatuh_tempo: item?.jatuh_tempo?.slice(0, 10) ?? '', dpp: item ? String(item.dpp) : '', dpp_nilai_lain: item ? String(item.dpp_nilai_lain) : '', ppn: item ? String(item.ppn) : '',
+    total: item ? String(item.total) : '', catatan: item?.catatan ?? '',
+  })
+  // Hitung otomatis dari DPP: DPP nilai lain = 11/12 x DPP, PPN = 12% x DPP nilai lain, total = DPP + PPN (boleh diubah manual)
+  const auto = (dppText: string) => {
+    const dpp = Number(dppText.replace(/\./g, '').replace(',', '.'))
+    if (!Number.isFinite(dpp) || !dppText) return { dpp: dppText, dpp_nilai_lain: '', ppn: '', total: '' }
+    const lain = Math.round((dpp * 11) / 12)
+    const ppn = Math.round(lain * 0.12)
+    return { dpp: dppText, dpp_nilai_lain: String(lain), ppn: String(ppn), total: String(dpp + ppn) }
+  }
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  async function save(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      await api(item ? `/api/accounting/tax/digunggung/${item.id}` : '/api/accounting/tax/digunggung', { method: item ? 'PUT' : 'POST', json: v })
+      onSaved()
+    } catch (err) {
+      setError((err as Error).message)
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal title={item ? `Ubah faktur digunggung ${item.nomor}` : 'Tambah faktur PPN digunggung'} subtitle={item ? `Masa ${monthLabel(item.masa)}` : `Nomor otomatis: ${nomor || '—'} · masa mengikuti tanggal faktur`} wide onClose={onClose}
+      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="dg-form" disabled={busy}>{busy ? 'Menyimpan...' : 'Simpan'}</button></>}>
+      <form id="dg-form" className="pap-form-grid" onSubmit={save}>
+        {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        <Field label="No. faktur"><input className="pap-input" value={item?.nomor ?? nomor} disabled /></Field>
+        <Field label="No. faktur pajak (opsional)"><input className="pap-input" maxLength={60} value={v.no_faktur_pajak} onChange={(e) => setV({ ...v, no_faktur_pajak: e.target.value })} placeholder="Boleh diisi nanti" /></Field>
+        <Field label="Customer *" full><input className="pap-input" required maxLength={200} value={v.customer} onChange={(e) => setV({ ...v, customer: e.target.value })} /></Field>
+        <Field label="Tanggal faktur *"><input className="pap-input" type="date" required value={v.tanggal} onChange={(e) => setV({ ...v, tanggal: e.target.value })} /></Field>
+        <Field label="Jatuh tempo"><input className="pap-input" type="date" value={v.jatuh_tempo} min={v.tanggal} onChange={(e) => setV({ ...v, jatuh_tempo: e.target.value })} /></Field>
+        <Field label="DPP (Rp) *" hint="Nilai lain, PPN, dan total terisi otomatis"><input className="pap-input pap-num" inputMode="decimal" required value={v.dpp} onChange={(e) => setV({ ...v, ...auto(e.target.value) })} /></Field>
+        <Field label="DPP nilai lain (Rp)" hint="11/12 × DPP"><input className="pap-input pap-num" inputMode="decimal" value={v.dpp_nilai_lain} onChange={(e) => setV({ ...v, dpp_nilai_lain: e.target.value })} /></Field>
+        <Field label="PPN (Rp)" hint="12% × DPP nilai lain"><input className="pap-input pap-num" inputMode="decimal" value={v.ppn} onChange={(e) => setV({ ...v, ppn: e.target.value })} /></Field>
+        <Field label="Total (Rp)" hint="DPP + PPN"><input className="pap-input pap-num" inputMode="decimal" value={v.total} onChange={(e) => setV({ ...v, total: e.target.value })} /></Field>
+        <Field label="Catatan" full><input className="pap-input" maxLength={500} value={v.catatan} onChange={(e) => setV({ ...v, catatan: e.target.value })} /></Field>
+      </form>
+    </Modal>
+  )
+}
+
+// Rekap PPN per masa dalam satu tahun
+type TaxYear = { tahun: string; masa: { masa: string; ppn_keluaran: number; ppn_digunggung: number; ppn_masukan: number; kurang_bayar: number; ditutup: boolean }[]; total: { ppn_keluaran: number; ppn_digunggung: number; ppn_masukan: number; kurang_bayar: number } }
+function TaxYearPanel({ initial, onPick }: { initial: string; onPick: (masa: string) => void }) {
+  const [tahun, setTahun] = useState(initial)
+  const { data, loading, error, setError } = useLoad<TaxYear>(`/api/accounting/tax/rekap?tahun=${tahun}`)
+  return (
+    <div className="pap-table-card pap-acc-spaced">
+      <div className="pap-card-head">
+        <div><h2>Rekap PPN {tahun}</h2><p>Akumulasi per tahun: PPN keluaran + digunggung − masukan setiap masa. Klik masa untuk membuka rinciannya.</p></div>
+        <YearNav tahun={tahun} onChange={setTahun} />
+      </div>
+      {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+      <div className="pap-table-wrap">
+        <table>
+          <thead><tr><th>Masa</th><th className="pap-num">PPN keluaran</th><th className="pap-num">PPN digunggung</th><th className="pap-num">PPN masukan</th><th className="pap-num">Kurang / (lebih) bayar</th></tr></thead>
+          <tbody>
+            {(data?.masa ?? []).map((m) => (
+              <tr key={m.masa} className="pap-row-link" onClick={() => { onPick(m.masa); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>
+                <td className="pap-nowrap"><b>{monthLabel(m.masa)}</b>{m.ditutup && <span className="pap-status success pap-acc-lock"><Lock className="pap-inline-icon" /> Ditutup</span>}</td>
+                <td className="pap-num pap-nowrap">{formatRupiah(m.ppn_keluaran)}</td>
+                <td className="pap-num pap-nowrap">{formatRupiah(m.ppn_digunggung)}</td>
+                <td className="pap-num pap-nowrap">{formatRupiah(m.ppn_masukan)}</td>
+                <td className={`pap-num pap-nowrap ${m.kurang_bayar < 0 ? 'pap-text-success' : ''}`}><b>{m.kurang_bayar < 0 ? `(${formatRupiah(-m.kurang_bayar)})` : formatRupiah(m.kurang_bayar)}</b></td>
+              </tr>
+            ))}
+          </tbody>
+          {data && data.masa.length > 0 && (
+            <tbody><tr className="pap-total-row"><td><b>Total {tahun}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(data.total.ppn_keluaran)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(data.total.ppn_digunggung)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(data.total.ppn_masukan)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(data.total.kurang_bayar)}</b></td></tr></tbody>
+          )}
+        </table>
+        {loading && <Loading text={`Menghitung rekap PPN ${tahun} dari Accurate...`} />}
+      </div>
+    </div>
   )
 }
 

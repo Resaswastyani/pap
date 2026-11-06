@@ -11,6 +11,8 @@ import { canApproveQuotation, QUOTATION_APPROVAL_REQUIRED } from '@/lib/quotatio
 import { REPEAT_BASE, seesAllCustomers } from '@/lib/repeat-order'
 import { designScope, designTodoSql, sampleScope, sampleTodoSql } from '@/lib/requests'
 import { sectorSql } from '@/lib/sectors'
+import { todayWib } from '@/lib/accounting'
+import { downPayments, ensureDpFlags } from '@/lib/uang-muka'
 
 type Row = RowDataPacket & Record<string, unknown>
 const n = (v: unknown) => Number(v ?? 0)
@@ -132,49 +134,73 @@ export const GET = handle(async () => {
   }
 
   // ---- Penjualan dari Accurate (manajemen, accounting, lead marketing, semua Marketing Development) ----
+  // Dua dasar: faktur penjualan (tanpa faktur uang muka: faktur pelunasan sudah memuat nilai penuh pesanan) dan sales order
+  // (pesanan masuk; belum tentu menjadi faktur di bulan yang sama).
   if (user.role.isAdmin || ['general_manager', 'accounting', 'marketing_development'].includes(user.division.code) || canSupervise(user)) {
     tasks.push((async () => {
-      const [months] = await db.query<Row[]>(
-        `SELECT DATE_FORMAT(trans_date, '%Y-%m') AS bulan, SUM(total_amount) AS omzet, COUNT(*) AS faktur, COUNT(DISTINCT customer_accurate_id) AS customer
-         FROM accurate_sales_invoices WHERE trans_date >= DATE_FORMAT(CURDATE() - INTERVAL 11 MONTH, '%Y-%m-01') GROUP BY bulan ORDER BY bulan`,
-      )
-      // Omzet per sektor customer (kategori Accurate) per bulan
-      const [sectors] = await db.query<Row[]>(
-        `SELECT DATE_FORMAT(i.trans_date, '%Y-%m') AS bulan, ${sectorSql('c.category')} AS sektor, SUM(i.total_amount) AS omzet, COUNT(*) AS faktur,
-           COUNT(DISTINCT i.customer_accurate_id) AS customer
-         FROM accurate_sales_invoices i LEFT JOIN customers c ON c.accurate_id = i.customer_accurate_id
-         WHERE i.trans_date >= DATE_FORMAT(CURDATE() - INTERVAL 11 MONTH, '%Y-%m-01') GROUP BY bulan, sektor`,
-      )
-      const [top] = await db.query<Row[]>(
-        `SELECT COALESCE(c.name, i.customer_accurate_id) AS name, SUM(i.total_amount) AS omzet FROM accurate_sales_invoices i
-         LEFT JOIN customers c ON c.accurate_id = i.customer_accurate_id
-         WHERE i.trans_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01') GROUP BY i.customer_accurate_id ORDER BY omzet DESC LIMIT 5`,
-      )
-      // Top 5 customer bulan ini per sektor (untuk filter sektor di dashboard)
-      const [topSector] = await db.query<Row[]>(
-        `SELECT sektor, name, omzet FROM (
-           SELECT ${sectorSql('MAX(c.category)')} AS sektor, COALESCE(MAX(c.name), i.customer_accurate_id) AS name, SUM(i.total_amount) AS omzet,
-             ROW_NUMBER() OVER (PARTITION BY ${sectorSql('MAX(c.category)')} ORDER BY SUM(i.total_amount) DESC) AS rn
-           FROM accurate_sales_invoices i LEFT JOIN customers c ON c.accurate_id = i.customer_accurate_id
-           WHERE i.trans_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01') GROUP BY i.customer_accurate_id
-         ) x WHERE rn <= 5 ORDER BY sektor, omzet DESC`,
-      )
-      const [[so]] = await db.query<Row[]>(
-        `SELECT COUNT(*) AS jumlah, COALESCE(SUM(total_amount), 0) AS nilai FROM accurate_sales_orders WHERE trans_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')`,
-      )
-      // Pembanding adil: bulan lalu pada rentang tanggal yang sama (1 s/d hari ini)
-      const [[mtd]] = await db.query<Row[]>(
-        `SELECT COALESCE(SUM(total_amount), 0) AS omzet FROM accurate_sales_invoices
-         WHERE trans_date >= DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01') AND trans_date <= CURDATE() - INTERVAL 1 MONTH`,
-      )
-      out.penjualan = {
-        omzet_bulan_lalu_sd_hari_ini: n(mtd.omzet),
-        bulan: months.map((m) => ({ bulan: m.bulan, omzet: n(m.omzet), faktur: n(m.faktur), customer: n(m.customer) })),
-        sektor: sectors.map((r) => ({ bulan: r.bulan, sektor: r.sektor, omzet: n(r.omzet), faktur: n(r.faktur), customer: n(r.customer) })),
-        top: top.map((t) => ({ name: t.name, omzet: n(t.omzet) })),
-        top_sektor: topSector.map((t) => ({ sektor: t.sektor, name: t.name, omzet: n(t.omzet) })),
-        so: { jumlah: n(so.jumlah), nilai: n(so.nilai) },
+      await ensureDpFlags().catch(() => {})
+      const salesOf = async (table: string, extra: string) => {
+        const [months] = await db.query<Row[]>(
+          `SELECT DATE_FORMAT(trans_date, '%Y-%m') AS bulan, SUM(total_amount) AS omzet, COUNT(*) AS faktur, COUNT(DISTINCT customer_accurate_id) AS customer
+           FROM ${table} i WHERE trans_date >= DATE_FORMAT(CURDATE() - INTERVAL 11 MONTH, '%Y-%m-01') ${extra} GROUP BY bulan ORDER BY bulan`,
+        )
+        // Omzet per sektor customer (kategori Accurate) per bulan
+        const [sectors] = await db.query<Row[]>(
+          `SELECT DATE_FORMAT(i.trans_date, '%Y-%m') AS bulan, ${sectorSql('c.category')} AS sektor, SUM(i.total_amount) AS omzet, COUNT(*) AS faktur,
+             COUNT(DISTINCT i.customer_accurate_id) AS customer
+           FROM ${table} i LEFT JOIN customers c ON c.accurate_id = i.customer_accurate_id
+           WHERE i.trans_date >= DATE_FORMAT(CURDATE() - INTERVAL 11 MONTH, '%Y-%m-01') ${extra} GROUP BY bulan, sektor`,
+        )
+        const [top] = await db.query<Row[]>(
+          `SELECT COALESCE(c.name, i.customer_accurate_id) AS name, SUM(i.total_amount) AS omzet FROM ${table} i
+           LEFT JOIN customers c ON c.accurate_id = i.customer_accurate_id
+           WHERE i.trans_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01') ${extra} GROUP BY i.customer_accurate_id ORDER BY omzet DESC LIMIT 5`,
+        )
+        // Top 5 customer bulan ini per sektor (untuk filter sektor di dashboard)
+        const [topSector] = await db.query<Row[]>(
+          `SELECT sektor, name, omzet FROM (
+             SELECT ${sectorSql('MAX(c.category)')} AS sektor, COALESCE(MAX(c.name), i.customer_accurate_id) AS name, SUM(i.total_amount) AS omzet,
+               ROW_NUMBER() OVER (PARTITION BY ${sectorSql('MAX(c.category)')} ORDER BY SUM(i.total_amount) DESC) AS rn
+             FROM ${table} i LEFT JOIN customers c ON c.accurate_id = i.customer_accurate_id
+             WHERE i.trans_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01') ${extra} GROUP BY i.customer_accurate_id
+           ) x WHERE rn <= 5 ORDER BY sektor, omzet DESC`,
+        )
+        // Pembanding adil: bulan lalu pada rentang tanggal yang sama (1 s/d hari ini)
+        const [[mtd]] = await db.query<Row[]>(
+          `SELECT COALESCE(SUM(total_amount), 0) AS omzet FROM ${table} i
+           WHERE trans_date >= DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01') AND trans_date <= CURDATE() - INTERVAL 1 MONTH ${extra}`,
+        )
+        return {
+          omzet_bulan_lalu_sd_hari_ini: n(mtd.omzet),
+          bulan: months.map((m) => ({ bulan: m.bulan, omzet: n(m.omzet), faktur: n(m.faktur), customer: n(m.customer) })),
+          sektor: sectors.map((r) => ({ bulan: r.bulan, sektor: r.sektor, omzet: n(r.omzet), faktur: n(r.faktur), customer: n(r.customer) })),
+          top: top.map((t) => ({ name: t.name, omzet: n(t.omzet) })),
+          top_sektor: topSector.map((t) => ({ sektor: t.sektor, name: t.name, omzet: n(t.omzet) })),
+        }
       }
+      const faktur = await salesOf('accurate_sales_invoices', 'AND COALESCE(i.is_dp, 0) = 0')
+      const so = await salesOf('accurate_sales_orders', '')
+      const [[dp]] = await db.query<Row[]>(
+        `SELECT COUNT(*) AS jumlah, COALESCE(SUM(total_amount), 0) AS nilai FROM accurate_sales_invoices WHERE is_dp = 1 AND trans_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')`,
+      )
+      const now = (set: typeof faktur) => set.bulan.find((b) => b.bulan === todayWib().slice(0, 7))
+      out.penjualan = {
+        ...faktur,
+        so: { jumlah: now(so)?.faktur ?? 0, nilai: now(so)?.omzet ?? 0 },
+        faktur_bulan_ini: { jumlah: now(faktur)?.faktur ?? 0, nilai: now(faktur)?.omzet ?? 0 },
+        uang_muka_bulan_ini: { jumlah: n(dp.jumlah), nilai: n(dp.nilai) },
+        dasar_so: so,
+      }
+    })())
+  }
+
+  // ---- Uang muka customer bulan ini: Marketing (hanya di dashboard) ----
+  if (user.division.code.startsWith('marketing') || user.role.isAdmin) {
+    tasks.push((async () => {
+      await ensureDpFlags().catch(() => {})
+      const today = todayWib()
+      const data = await downPayments(`${today.slice(0, 7)}-01`, today, 500)
+      out.uang_muka = { bulan: today.slice(0, 7), total: data.total, jumlah: data.jumlah, customer: data.customer, belum_dibayar: data.belum_dibayar, items: data.items.slice(0, 8) }
     })())
   }
 

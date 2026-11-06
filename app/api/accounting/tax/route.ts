@@ -1,20 +1,20 @@
 import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser } from '@/lib/api'
-import { canManageAccounting, isPeriode, requireAccounting, shiftMonth, TAX_TYPES, taxDeadline, todayWib, vatSummary } from '@/lib/accounting'
+import { canManageAccounting, isClosed, isPeriode, requireAccounting, shiftMonth, TAX_TYPES, taxDeadline, todayWib, vatWithDigunggung } from '@/lib/accounting'
 import { readFiling } from '@/lib/accounting-input'
 import { db } from '@/lib/db'
 
 export const maxDuration = 60
 
-// Pajak per masa (?masa=YYYY-MM, default bulan lalu): PPN keluaran vs masukan dari Accurate + status setor / lapor
+// Pajak per masa (?masa=YYYY-MM, default bulan lalu): PPN keluaran + digunggung vs masukan + status setor / lapor
 export const GET = handle(async (request: Request) => {
   const user = await requireUser()
   requireAccounting(user, 'pajak')
   const p = new URL(request.url).searchParams
   const today = todayWib()
   const masa = isPeriode(p.get('masa')) ? p.get('masa')! : shiftMonth(today.slice(0, 7), -1)
-  const vat = await vatSummary(masa, p.get('refresh') === '1')
+  const vat = await vatWithDigunggung(masa, p.get('refresh') === '1')
   const [filings] = await db.query<RowDataPacket[]>(
     `SELECT f.*, u.name AS updated_name FROM tax_filings f LEFT JOIN users u ON u.id = f.updated_by WHERE f.masa = ? ORDER BY f.jenis`, [masa],
   )
@@ -38,7 +38,7 @@ export const GET = handle(async (request: Request) => {
     [shiftMonth(masa, -5)],
   )
   return NextResponse.json({
-    masa, vat, kewajiban, rekap: recent.map((r) => ({ masa: r.masa, dicatat: Number(r.dicatat), dilaporkan: Number(r.dilaporkan) })),
+    masa, vat, kewajiban, ditutup: await isClosed(masa), rekap: recent.map((r) => ({ masa: r.masa, dicatat: Number(r.dicatat), dilaporkan: Number(r.dilaporkan) })),
     tanpa_faktur_pajak: vat.keluaran.filter((r) => !r.faktur_pajak).length,
     can: { manage: canManageAccounting(user) },
   })

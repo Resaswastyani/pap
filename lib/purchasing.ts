@@ -25,3 +25,11 @@ export const PO_OPEN = "COALESCE(po.percent_shipped, 0) < 100 AND COALESCE(po.st
 export const n = (v: unknown) => (v === null || v === undefined ? null : Number(v))
 export const todayWib = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
 export type Row = RowDataPacket & Record<string, unknown>
+
+// Filter tahun (?tahun=YYYY | semua; default tahun ini) -> kondisi SQL pada kolom tanggal
+export function yearFilter(raw: string | null, column: string) {
+  const now = todayWib().slice(0, 4)
+  if (raw === 'semua') return { tahun: 'semua', sql: '1 = 1', args: [] as unknown[] }
+  const tahun = raw && /^\d{4}$/.test(raw) ? raw : now
+  return { tahun, sql: `${column} BETWEEN ? AND ?`, args: [`${tahun}-01-01`, `${tahun}-12-31`] as unknown[] }
+}

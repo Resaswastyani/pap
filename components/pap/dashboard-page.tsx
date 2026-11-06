@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertTriangle, Award, Layers, CalendarClock, CalendarDays, ClipboardList, Factory, FlaskConical, Handshake, ListChecks, MapPin, Palette, Receipt, Repeat, ShoppingCart, Smartphone, Target, TrendingDown, TrendingUp, UserCheck, Users, UserX, Wallet, Wifi } from 'lucide-react'
+import { AlertTriangle, Award, Banknote, Layers, CalendarClock, CalendarDays, ClipboardList, Factory, FlaskConical, Handshake, ListChecks, MapPin, Palette, Receipt, Repeat, ShoppingCart, Smartphone, Target, TrendingDown, TrendingUp, UserCheck, Users, UserX, Wallet, Wifi } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { BarList, ColumnChart, dayNumber, Gantt, todayNumber, useMediaQuery, type GanttBar, type GanttRow } from './charts'
@@ -13,6 +13,7 @@ type Metric = { label: string; satuan: string }
 type GanttStage = { id: number; tahap: string; plan_start: string; plan_end: string | null; status: string; progress: number }
 type GanttJob = { id: number; nomor: string | null; item_name: string; due_date: string | null; status: string; prioritas: string; customer: string | null; so_date: string | null; stages: GanttStage[] }
 type GanttPlanning = { id: number; judul: string; tanggal_mulai: string; tanggal_selesai: string; progress: number; status: string; divisi: string }
+type SalesSet = { omzet_bulan_lalu_sd_hari_ini: number; bulan: { bulan: string; omzet: number; faktur: number; customer: number }[]; sektor: { bulan: string; sektor: string; omzet: number; faktur: number; customer: number }[]; top: { name: string; omzet: number }[]; top_sektor: { sektor: string; name: string; omzet: number }[] }
 type DashboardData = {
   marketing?: {
     followup_saya: number; followup_terlambat: number; prospek_aktif: number; belum_dibagi: number; tim: boolean
@@ -29,7 +30,8 @@ type DashboardData = {
   konten?: { items: { id: number; judul: string; platform: string; jenis: string; jadwal_tayang: string; status: string }[]; tayang: number; rencana: number; leads: number }
   fokus?: 'digital' | 'development' | 'maintenance' | null
   kpi?: { periode: string; nilai?: Record<string, number>; target: Record<string, number> }
-  penjualan?: { omzet_bulan_lalu_sd_hari_ini: number; bulan: { bulan: string; omzet: number; faktur: number; customer: number }[]; sektor: { bulan: string; sektor: string; omzet: number; faktur: number; customer: number }[]; top: { name: string; omzet: number }[]; top_sektor: { sektor: string; name: string; omzet: number }[]; so: { jumlah: number; nilai: number } }
+  penjualan?: SalesSet & { so: { jumlah: number; nilai: number }; faktur_bulan_ini: { jumlah: number; nilai: number }; uang_muka_bulan_ini: { jumlah: number; nilai: number }; dasar_so: SalesSet }
+  uang_muka?: { bulan: string; total: number; jumlah: number; customer: number; belum_dibayar: number; items: { id: number; number: string; tanggal: string; customer: string; sektor: string; total: number; sisa: number }[] }
   produksi?: {
     menunggu: number; dijadwalkan: number; berjalan: number; terlambat: number; selesai_bulan_ini: number
     jatuh_tempo: { id: number; nomor: string; item_name: string; due_date: string; status: string; customer: string | null }[]
@@ -167,6 +169,8 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
   const arrange = useArrange('dashboard')
   // Filter sektor pada kartu penjualan (klik legenda / daftar per sektor); null = semua sektor
   const [sektor, setSektor] = useState<SectorKey | null>(null)
+  // Dasar grafik penjualan: faktur penjualan atau sales order (SO belum tentu menjadi faktur di bulan yang sama)
+  const [basis, setBasis] = useState<'faktur' | 'so'>('faktur')
   // Filter status pada grafik kehadiran (klik legenda / daftar per status); null = semua status
   const [absenStatus, setAbsenStatus] = useState<keyof AttendanceCounts | null>(null)
   const narrow = useMediaQuery('(max-width: 640px)')
@@ -175,7 +179,9 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
   const salam = hour < 11 ? 'Selamat pagi' : hour < 15 ? 'Selamat siang' : hour < 19 ? 'Selamat sore' : 'Selamat malam'
   const today = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   const d = data ?? {}
-  const sales = d.penjualan
+  const salesInfo = d.penjualan
+  const sales: SalesSet | undefined = basis === 'so' ? salesInfo?.dasar_so : salesInfo
+  const unit = basis === 'so' ? 'SO' : 'faktur'
   const months = lastMonths(12)
   const byMonth = new Map(sales?.bulan.map((b) => [b.bulan, b]))
   const thisMonth = byMonth.get(months[11])
@@ -333,10 +339,15 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
             ) : <div className="pap-empty">Belum ada konten terjadwal 7 hari ke depan.</div>}
           </section>
         )}
-        {sales && (
+        {sales && salesInfo && (
           <section key="penjualan" data-title="Penjualan per sektor" className="pap-table-card pap-dash-card wide">
             <div className="pap-card-head">
-              <div><h2>Penjualan {picked ? `· ${picked.label}` : 'per sektor'} (faktur Accurate)</h2><p>Omzet per bulan{picked ? '' : ' per sektor customer'}, 12 bulan terakhir · bulan ini {shownNow ? `${shownNow.faktur} faktur, ${shownNow.customer} customer` : 'belum ada faktur'}</p></div>
+              <div><h2>Penjualan {picked ? `· ${picked.label}` : 'per sektor'} ({basis === 'so' ? 'sales order' : 'faktur'} Accurate)</h2><p>{basis === 'so' ? 'Nilai sales order' : 'Omzet faktur (tanpa faktur uang muka)'} per bulan{picked ? '' : ' per sektor customer'}, 12 bulan terakhir · bulan ini {shownNow ? `${shownNow.faktur} ${unit}, ${shownNow.customer} customer` : `belum ada ${unit}`}</p>
+                <div className="pap-segmented pap-dash-basis" role="tablist" aria-label="Dasar penjualan">
+                  <button role="tab" aria-selected={basis === 'faktur'} className={basis === 'faktur' ? 'active' : ''} onClick={() => setBasis('faktur')}>Penjualan faktur</button>
+                  <button role="tab" aria-selected={basis === 'so'} className={basis === 'so' ? 'active' : ''} onClick={() => setBasis('so')}>Penjualan SO</button>
+                </div>
+              </div>
               <div className="pap-dash-total">
                 <small>Bulan ini{picked ? ` · ${picked.label}` : ''}</small>
                 <strong>{formatRupiah(shownNow?.omzet ?? 0)}</strong>
@@ -346,10 +357,13 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
             <div className="pap-dash-metrics">
               <div><span>Total 12 bulan{picked ? ` · ${picked.label}` : ''}</span><b>{formatRupiah(shownTotal12)}</b>{picked && total12 ? <small className="pap-muted"> {((shownTotal12 / total12) * 100).toFixed(0)}% dari total</small> : null}</div>
               <div><span>Rata-rata per bulan</span><b>{formatRupiah(shownAvg)}</b></div>
-              <div><span>Sales order bulan ini{picked ? ' · semua sektor' : ''}</span><b>{sales.so.jumlah} SO · {shortRp(sales.so.nilai)}</b></div>
+              {basis === 'so'
+                ? <div><span>Faktur bulan ini{picked ? ' · semua sektor' : ''}</span><b>{salesInfo.faktur_bulan_ini.jumlah} faktur · {shortRp(salesInfo.faktur_bulan_ini.nilai)}</b></div>
+                : <div><span>Sales order bulan ini{picked ? ' · semua sektor' : ''}</span><b>{salesInfo.so.jumlah} SO · {shortRp(salesInfo.so.nilai)}</b></div>}
+              <div><span>Uang muka bulan ini</span><b>{salesInfo.uang_muka_bulan_ini.jumlah} faktur DP · {shortRp(salesInfo.uang_muka_bulan_ini.nilai)}</b></div>
             </div>
             <ColumnChart
-              ariaLabel={`Grafik omzet faktur ${picked ? `sektor ${picked.label}` : 'per sektor'}, 12 bulan terakhir`}
+              ariaLabel={`Grafik ${basis === 'so' ? 'nilai sales order' : 'omzet faktur'} ${picked ? `sektor ${picked.label}` : 'per sektor'}, 12 bulan terakhir`}
               format={shortRp}
               data={months.map((m, i) => {
                 const b = rowOf(m)
@@ -358,7 +372,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
                 return {
                   key: m, label: monthLabel(m), value: b?.omzet ?? 0, partial: i === 11,
                   segments: parts.map((p) => ({ key: p.key, value: p.omzet, tone: p.tone })),
-                  detail: <>{parts.filter((p) => p.omzet > 0 || sektor).map((p) => <span key={p.key}>{p.label}: {shortRp(p.omzet)} · {p.customer} customer</span>)}<span>{b?.faktur ?? 0} faktur{sektor ? '' : ` · ${b?.customer ?? 0} customer`}</span></>,
+                  detail: <>{parts.filter((p) => p.omzet > 0 || sektor).map((p) => <span key={p.key}>{p.label}: {shortRp(p.omzet)} · {p.customer} customer</span>)}<span>{b?.faktur ?? 0} {unit}{sektor ? '' : ` · ${b?.customer ?? 0} customer`}</span></>,
                 }
               })}
             />
@@ -375,16 +389,39 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
                 <h3>Top customer bulan ini{picked ? ` · ${picked.label}` : ''}</h3>
                 {shownTop.length
                   ? <BarList max={shownTopMax} items={shownTop.map((t) => ({ key: t.name, label: t.name, value: t.omzet, tone: picked?.tone, display: formatRupiah(t.omzet) }))} />
-                  : <p className="pap-muted">Belum ada faktur{picked ? ` sektor ${picked.label}` : ''} bulan ini.</p>}
+                  : <p className="pap-muted">Belum ada {unit}{picked ? ` sektor ${picked.label}` : ''} bulan ini.</p>}
               </div>
               <div>
                 <h3>Per sektor bulan ini</h3>
                 {thisMonth?.omzet
                   ? <BarList max={thisMonth.omzet} items={sectorNow.map((s) => ({ key: s.key, label: sektor === s.key ? `${s.label} · dipilih` : s.label, value: s.row?.omzet ?? 0, tone: s.tone, onClick: () => pickToggle(s.key), display: `${shortRp(s.row?.omzet ?? 0)} · ${(((s.row?.omzet ?? 0) / thisMonth.omzet) * 100).toFixed(0)}%` }))} />
-                  : <p className="pap-muted">Belum ada faktur bulan ini.</p>}
+                  : <p className="pap-muted">Belum ada {unit} bulan ini.</p>}
                 <small className="pap-muted">Sektor dari kategori customer di Accurate (LAU, BRS, SU); kategori lain masuk Lainnya.</small>
               </div>
             </div>
+          </section>
+        )}
+
+        {d.uang_muka && (
+          <section key="uang-muka" data-title="Uang muka customer" className="pap-table-card pap-dash-card wide">
+            <div className="pap-card-head">
+              <div><h2>Uang muka customer {monthLabel(d.uang_muka.bulan)}</h2><p>Faktur uang muka (DP) di Accurate · {d.uang_muka.jumlah} faktur dari {d.uang_muka.customer} customer{d.uang_muka.belum_dibayar ? ` · ${shortRp(d.uang_muka.belum_dibayar)} belum dibayar` : ''}</p></div>
+              <div className="pap-dash-total"><small>Total uang muka</small><strong>{formatRupiah(d.uang_muka.total)}</strong></div>
+            </div>
+            {d.uang_muka.items.length ? (
+              <ul className="pap-dash-agenda">
+                {d.uang_muka.items.map((u) => (
+                  <li key={u.id}>
+                    <button type="button">
+                      <Banknote />
+                      <span><b>{formatDate(u.tanggal)}</b> {u.customer} · {u.number}</span>
+                      <span className={`pap-status ${u.sisa > 0 ? 'warning' : 'success'}`}>{formatRupiah(u.total)}{u.sisa > 0 ? ' · belum dibayar' : ''}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : <div className="pap-empty">Belum ada uang muka customer bulan ini.</div>}
+            {d.uang_muka.jumlah > d.uang_muka.items.length && <p className="pap-muted pap-dash-more">+{d.uang_muka.jumlah - d.uang_muka.items.length} faktur uang muka lainnya bulan ini</p>}
           </section>
         )}
 

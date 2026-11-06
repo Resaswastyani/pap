@@ -57,7 +57,7 @@ const idOf = (v: unknown) => (v && typeof v === 'object' ? num((v as Row).id) : 
 const FIELDS: Record<ListEntity, string> = {
   'sales-order': 'id,number,transDate,shipDate,customer,totalAmount,statusName,description,toAddress,lastUpdate',
   customer: 'id,customerNo,name,email,mobilePhone,workPhone,billStreet,billCity,billProvince,billZipCode,npwpNo,suspended,category,notes,lastUpdate',
-  'sales-invoice': 'id,number,transDate,dueDate,customer,totalAmount,primeOwing,statusName,lastUpdate',
+  'sales-invoice': 'id,number,transDate,dueDate,customer,totalAmount,primeOwing,statusName,invoiceDp,lastUpdate',
   item: 'id,no,name,itemType,itemCategory,unit1,availableToSell,balance,quantity,minimumQuantity,vendorPrice,suspended,lastUpdate',
   stock: '', // list-stock memakai field bawaan: id, no, name, quantity
   'manufacture-order': 'id,number,name,transDate,statusName,portion,lastUpdate',
@@ -100,12 +100,12 @@ export const storeCustomerRow = (row: Row) => storeCustomerRows([row])
 async function saveInvoices(rows: Row[]) {
   if (!rows.length) return
   await db.query(
-    `INSERT INTO accurate_sales_invoices (accurate_id, number, trans_date, due_date, customer_accurate_id, total_amount, owing, status)
+    `INSERT INTO accurate_sales_invoices (accurate_id, number, trans_date, due_date, customer_accurate_id, total_amount, owing, status, is_dp)
      VALUES ?
      ON DUPLICATE KEY UPDATE number = VALUES(number), trans_date = VALUES(trans_date), due_date = VALUES(due_date), customer_accurate_id = VALUES(customer_accurate_id),
-       total_amount = VALUES(total_amount), owing = VALUES(owing), status = VALUES(status), synced_at = NOW()`,
+       total_amount = VALUES(total_amount), owing = VALUES(owing), status = VALUES(status), is_dp = COALESCE(VALUES(is_dp), is_dp), synced_at = NOW()`,
     [rows.map((row) => [num(row.id), str(row.number, 80), fromAccurateDate(row.transDate), fromAccurateDate(row.dueDate), idOf(row.customer ?? row.customerId), num(row.totalAmount),
-      num(row.primeOwing), str(row.statusName ?? row.status, 80)])],
+      num(row.primeOwing), str(row.statusName ?? row.status, 80), typeof row.invoiceDp === 'boolean' ? (row.invoiceDp ? 1 : 0) : null])],
   )
 }
 

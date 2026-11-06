@@ -2134,3 +2134,22 @@ ol.pap-jobdesk-list { list-style:decimal; }
 .pap-belanja-add { margin-top:8px; }
 .pap-belanja-sum { font-size:14px; }
 .pap-belanja-warn { color:#b7791f; }
+
+/* ---------- Filter tahun, dasar penjualan, uang muka ---------- */
+.pap-year-nav { flex-wrap:wrap; }
+.pap-year-nav strong { min-width:96px; }
+.pap-year-all { min-height:34px; }
+.pap-dash-basis { margin-top:10px; }
+.pap-dash-metrics:has(> :nth-child(4)) { grid-template-columns:repeat(4, minmax(0,1fr)); }
+.pap-acc-dp-metrics { margin:0 22px 14px; }
+.pap-acc-lock { margin-left:6px; vertical-align:middle; }
+.pap-dash-more { margin:0 22px 16px; font-size:11px; }
+@media (max-width:900px) { .pap-dash-metrics:has(> :nth-child(4)) { grid-template-columns:repeat(2, minmax(0,1fr)); } }
+@media (max-width:640px) {
+  .pap-dash-metrics:has(> :nth-child(4)) { grid-template-columns:1fr; }
+  .pap-acc-dp-metrics { margin:0 16px 12px; }
+  .pap-dash-more { margin:0 16px 14px; }
+}
+/* Tombol / navigasi di judul halaman tidak boleh menyusut sampai terpotong; baris tombol membungkus */
+.pap-page-heading > .pap-inline-actions { flex-shrink:0; max-width:58%; justify-content:flex-end; }
+@media (max-width:800px) { .pap-page-heading > .pap-inline-actions { max-width:none; } }
