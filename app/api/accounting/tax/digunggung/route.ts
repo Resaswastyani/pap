@@ -1,7 +1,7 @@
 import type { ResultSetHeader } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser } from '@/lib/api'
-import { canManageAccounting, isPeriode, requireAccounting, requireOpen } from '@/lib/accounting'
+import { canManageAccounting, isPeriode, requireAccounting } from '@/lib/accounting'
 import { db } from '@/lib/db'
 import { DG_COLUMNS, dgValues, loadDigunggungMasa, loadNpwp, nextDigunggungNumber, readDigunggung } from '@/lib/digunggung'
 
@@ -25,7 +25,6 @@ export const POST = handle(async (request: Request) => {
   requireAccounting(user, 'pajak')
   if (!canManageAccounting(user)) fail(403, 'PPN digunggung dicatat oleh divisi Accounting.')
   const v = readDigunggung(await readJson(request))
-  await requireOpen(v.masa, 'PPN digunggung')
   for (let attempt = 0; ; attempt++) {
     const nomor = await nextDigunggungNumber(v.masa)
     try {

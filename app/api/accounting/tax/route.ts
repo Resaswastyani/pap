@@ -1,7 +1,7 @@
 import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser } from '@/lib/api'
-import { canManageAccounting, isClosed, isPeriode, requireAccounting, shiftMonth, TAX_TYPES, taxDeadline, todayWib, vatWithDigunggung } from '@/lib/accounting'
+import { canManageAccounting, isPeriode, requireAccounting, shiftMonth, TAX_TYPES, taxDeadline, todayWib, vatWithDigunggung } from '@/lib/accounting'
 import { readFiling } from '@/lib/accounting-input'
 import { db } from '@/lib/db'
 
@@ -38,7 +38,7 @@ export const GET = handle(async (request: Request) => {
     [shiftMonth(masa, -5)],
   )
   return NextResponse.json({
-    masa, vat, kewajiban, ditutup: await isClosed(masa), rekap: recent.map((r) => ({ masa: r.masa, dicatat: Number(r.dicatat), dilaporkan: Number(r.dilaporkan) })),
+    masa, vat, kewajiban, rekap: recent.map((r) => ({ masa: r.masa, dicatat: Number(r.dicatat), dilaporkan: Number(r.dilaporkan) })),
     tanpa_faktur_pajak: vat.keluaran.filter((r) => !r.faktur_pajak).length,
     can: { manage: canManageAccounting(user) },
   })

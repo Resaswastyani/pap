@@ -367,7 +367,7 @@ export async function requireOpen(periode: string, what = 'Data') {
 }
 const closingKeys = (periode: string) => {
   const end = monthEnd(periode)
-  return [`pl:${periode}-01:${end}`, `pl:${periode.slice(0, 4)}-01-01:${end}`, `bs:${end}`, `vat:${periode}`, `cash:tx:${periode}-01:${end}`]
+  return [`pl:${periode}-01:${end}`, `pl:${periode.slice(0, 4)}-01-01:${end}`, `bs:${end}`, `cash:tx:${periode}-01:${end}`]
 }
 // Ambil ulang angka bulan itu dari Accurate lalu bekukan
 export async function closePeriod(periode: string, userId: number, catatan: string | null) {
@@ -377,12 +377,10 @@ export async function closePeriod(periode: string, userId: number, catatan: stri
   const pl = plSummary(await plAmounts(`${periode}-01`, end, true))
   await plAmounts(`${periode.slice(0, 4)}-01-01`, end, true)
   const bs = bsSummary(await bsAmounts(end, true))
-  const vat = await vatWithDigunggung(periode, true)
   const cash = await cashTransactions(`${periode}-01`, end, true)
   const ringkasan = {
     pendapatan: pl.pendapatan, laba_bersih: pl.laba_bersih, kas_bank: bs.kas_bank, piutang: bs.piutang, hutang_usaha: bs.hutang_usaha,
     kas_masuk: round(cash.filter((t) => t.jenis === 'masuk').reduce((a, t) => a + t.nominal, 0)), kas_keluar: round(cash.filter((t) => t.jenis === 'keluar').reduce((a, t) => a + t.nominal, 0)),
-    ppn_kurang_bayar: vat.total.kurang_bayar,
   }
   const conn = await db.getConnection()
   try {
