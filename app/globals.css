@@ -2200,3 +2200,4 @@ ol.pap-jobdesk-list { list-style:decimal; }
 .pap-acc-detail dt { color:var(--pap-muted); font-size:11px; font-weight:600; }
 .pap-acc-detail dd { margin:3px 0 0; font-size:13px; font-weight:600; overflow-wrap:anywhere; }
 @media (max-width:640px) { .pap-acc-detail { grid-template-columns:1fr; } }
+.pap-acc-tag { margin-left:6px; padding:2px 7px; font-size:9px; }

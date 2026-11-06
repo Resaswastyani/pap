@@ -905,7 +905,7 @@ function PlanForm({ item, onClose, onSaved }: { item: CashPlan | null; onClose: 
 }
 
 // ---------- Pajak ----------
-type VatRow = { id: number; number: string; tanggal: string | null; pihak: string | null; dpp: number; ppn: number; faktur_pajak: string | null }
+type VatRow = { id: number; number: string; tanggal: string | null; pihak: string | null; dpp: number; ppn: number; faktur_pajak: string | null; sumber: 'accurate' | 'manual'; entry_id: number | null; diubah: boolean; dikecualikan: boolean; catatan: string | null; asli: { dpp: number; ppn: number; faktur_pajak: string | null } | null }
 type Duty = { id: number | null; jenis: string; label: string; batas_setor: string | null; batas_lapor: string | null; status: 'belum' | 'sudah_setor' | 'selesai' | 'terlambat'; nominal: number | null; tgl_setor: string | null; ntpn: string | null; tgl_lapor: string | null; no_bukti: string | null; catatan: string | null; updated_name: string | null }
 type TaxRes = { masa: string; vat: { keluaran: VatRow[]; masukan: VatRow[]; digunggung: { faktur: number; dpp: number; dpp_nilai_lain: number; ppn: number }; total: { dpp_keluaran: number; ppn_keluaran: number; dpp_masukan: number; ppn_masukan: number; ppn_digunggung: number; dpp_digunggung: number; kurang_bayar: number } }; kewajiban: Duty[]; tanpa_faktur_pajak: number; can: { manage: boolean } }
 type Dg = {
@@ -930,7 +930,6 @@ export function TaxPage(_props: { user: UserProfile }) {
     }
   }
   const rows = view === 'digunggung' ? [] : data?.vat[view] ?? []
-  const paged = usePaged(rows, [view, masa])
   const t = data?.vat.total
   return (
     <>
@@ -941,9 +940,9 @@ export function TaxPage(_props: { user: UserProfile }) {
       {!data || !t ? <Loading /> : (
         <>
           <Tiles tiles={[
-            { label: `PPN keluaran ${monthLabel(masa)}`, value: short(t.ppn_keluaran), note: `DPP ${short(t.dpp_keluaran)} · ${data.vat.keluaran.length} faktur${data.tanpa_faktur_pajak ? ` · ${data.tanpa_faktur_pajak} tanpa no. faktur pajak` : ''}`, icon: ArrowUpRight, tone: 'stat-1' },
+            { label: `PPN keluaran ${monthLabel(masa)}`, value: short(t.ppn_keluaran), note: `DPP ${short(t.dpp_keluaran)} · ${data.vat.keluaran.filter((r) => !r.dikecualikan).length} faktur${data.tanpa_faktur_pajak ? ` · ${data.tanpa_faktur_pajak} tanpa no. faktur pajak` : ''}`, icon: ArrowUpRight, tone: 'stat-1' },
             { label: 'PPN digunggung', value: short(t.ppn_digunggung), note: `DPP ${short(t.dpp_digunggung)} · ${data.vat.digunggung.faktur} faktur (input Accounting)`, icon: HandCoins, tone: 'stat-1' },
-            { label: 'PPN masukan', value: short(t.ppn_masukan), note: `DPP ${short(t.dpp_masukan)} · ${data.vat.masukan.length} faktur`, icon: ArrowDownLeft, tone: 'stat-0' },
+            { label: 'PPN masukan', value: short(t.ppn_masukan), note: `DPP ${short(t.dpp_masukan)} · ${data.vat.masukan.filter((r) => !r.dikecualikan).length} faktur`, icon: ArrowDownLeft, tone: 'stat-0' },
             { label: t.kurang_bayar >= 0 ? 'PPN kurang bayar' : 'PPN lebih bayar', value: short(Math.abs(t.kurang_bayar)), note: 'Keluaran + digunggung − masukan', icon: Landmark, tone: t.kurang_bayar > 0 ? 'stat-2' : 'stat-0' },
           ]} />
           <div className="pap-table-card">
@@ -970,29 +969,12 @@ export function TaxPage(_props: { user: UserProfile }) {
           <div className="pap-table-card pap-acc-spaced">
             <div className="pap-card-head">
               <div className="pap-segmented" role="tablist">
-                <button role="tab" aria-selected={view === 'keluaran'} className={view === 'keluaran' ? 'active' : ''} onClick={() => setView('keluaran')}>PPN keluaran ({data.vat.keluaran.length})</button>
+                <button role="tab" aria-selected={view === 'keluaran'} className={view === 'keluaran' ? 'active' : ''} onClick={() => setView('keluaran')}>PPN keluaran ({data.vat.keluaran.filter((r) => !r.dikecualikan).length})</button>
                 <button role="tab" aria-selected={view === 'digunggung'} className={view === 'digunggung' ? 'active' : ''} onClick={() => setView('digunggung')}>PPN digunggung ({data.vat.digunggung.faktur})</button>
-                <button role="tab" aria-selected={view === 'masukan'} className={view === 'masukan' ? 'active' : ''} onClick={() => setView('masukan')}>PPN masukan ({data.vat.masukan.length})</button>
+                <button role="tab" aria-selected={view === 'masukan'} className={view === 'masukan' ? 'active' : ''} onClick={() => setView('masukan')}>PPN masukan ({data.vat.masukan.filter((r) => !r.dikecualikan).length})</button>
               </div>
             </div>
-            {view === 'digunggung' ? <DigunggungPanel masa={masa} onChanged={() => load()} /> : <div className="pap-table-wrap">
-              <table>
-                <thead><tr><th>Faktur</th><th>{view === 'keluaran' ? 'Customer' : 'Supplier'}</th><th>No. faktur pajak</th><th className="pap-num">DPP</th><th className="pap-num">PPN</th></tr></thead>
-                <tbody>
-                  {paged.items.map((r) => (
-                    <tr key={r.id}>
-                      <td className="pap-nowrap"><div className="pap-cell-title">{r.number}</div><div className="pap-cell-sub">{formatDate(r.tanggal)}</div></td>
-                      <td>{r.pihak ?? '—'}</td>
-                      <td>{r.faktur_pajak ?? <span className="pap-text-warning">Belum ada</span>}</td>
-                      <td className="pap-num pap-nowrap">{formatRupiah(r.dpp)}</td>
-                      <td className="pap-num pap-nowrap"><strong>{formatRupiah(r.ppn)}</strong></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {!rows.length && <div className="pap-empty">Tidak ada faktur ber-PPN pada masa ini.</div>}
-              <Pager {...paged.pager} noun="faktur" />
-            </div>}
+            {view === 'digunggung' ? <DigunggungPanel masa={masa} onChanged={() => load()} /> : <VatPanel key={view} masa={masa} jenis={view} rows={rows} manage={data.can.manage} onChanged={() => load()} onError={setError} />}
           </div>
         </>
       )}
@@ -1292,13 +1274,13 @@ function TaxYearPanel({ initial, onPick }: { initial: string; onPick: (masa: str
   return (
     <div className="pap-table-card pap-acc-spaced">
       <div className="pap-card-head">
-        <div><h2>Rekap PPN {tahun}</h2><p>Akumulasi per tahun: PPN keluaran + digunggung − masukan setiap masa. Klik masa untuk membuka rinciannya.</p></div>
+        <div><h2>Rekap PPN {tahun}</h2><p>Akumulasi per tahun: PPN keluaran + digunggung − masukan setiap masa. Klik masa untuk membuka rinciannya; ubah / hapus faktur dilakukan di rincian masa itu.</p></div>
         <YearNav tahun={tahun} onChange={setTahun} />
       </div>
       {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
       <div className="pap-table-wrap">
         <table>
-          <thead><tr><th>Masa</th><th className="pap-num">PPN keluaran</th><th className="pap-num">PPN digunggung</th><th className="pap-num">PPN masukan</th><th className="pap-num">Kurang / (lebih) bayar</th></tr></thead>
+          <thead><tr><th>Masa</th><th className="pap-num">PPN keluaran</th><th className="pap-num">PPN digunggung</th><th className="pap-num">PPN masukan</th><th className="pap-num">Kurang / (lebih) bayar</th><th className="pap-actions-col">Aksi</th></tr></thead>
           <tbody>
             {(data?.masa ?? []).map((m) => (
               <tr key={m.masa} className="pap-row-link" onClick={() => { onPick(m.masa); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>
@@ -1307,11 +1289,11 @@ function TaxYearPanel({ initial, onPick }: { initial: string; onPick: (masa: str
                 <td className="pap-num pap-nowrap">{formatRupiah(m.ppn_digunggung)}</td>
                 <td className="pap-num pap-nowrap">{formatRupiah(m.ppn_masukan)}</td>
                 <td className={`pap-num pap-nowrap ${m.kurang_bayar < 0 ? 'pap-text-success' : ''}`}><b>{m.kurang_bayar < 0 ? `(${formatRupiah(-m.kurang_bayar)})` : formatRupiah(m.kurang_bayar)}</b></td>
-              </tr>
+              <td className="pap-actions-cell" onClick={(e) => e.stopPropagation()}><RowActions label={monthLabel(m.masa)} onView={() => { onPick(m.masa); window.scrollTo({ top: 0, behavior: 'smooth' }) }} /></td></tr>
             ))}
           </tbody>
           {data && data.masa.length > 0 && (
-            <tbody><tr className="pap-total-row"><td><b>Total {tahun}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(data.total.ppn_keluaran)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(data.total.ppn_digunggung)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(data.total.ppn_masukan)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(data.total.kurang_bayar)}</b></td></tr></tbody>
+            <tbody><tr className="pap-total-row"><td><b>Total {tahun}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(data.total.ppn_keluaran)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(data.total.ppn_digunggung)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(data.total.ppn_masukan)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(data.total.kurang_bayar)}</b></td><td /></tr></tbody>
           )}
         </table>
         {loading && <Loading text={`Menghitung rekap PPN ${tahun} dari Accurate...`} />}
@@ -1366,5 +1348,128 @@ function DetailList({ rows }: { rows: [string, string | number | null | undefine
     <dl className="pap-acc-detail">
       {rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v === null || v === undefined || v === '' ? <span className="pap-muted">—</span> : v}</dd></div>)}
     </dl>
+  )
+}
+
+// PPN keluaran / masukan: faktur Accurate + koreksi menu Pajak (Accurate tidak diubah) + faktur manual
+function VatPanel({ masa, jenis, rows, manage, onChanged, onError }: { masa: string; jenis: 'keluaran' | 'masukan'; rows: VatRow[]; manage: boolean; onChanged: () => void; onError: (m: string) => void }) {
+  const [showExcluded, setShowExcluded] = useState(false)
+  const [detail, setDetail] = useState<VatRow | null>(null)
+  const [form, setForm] = useState<VatRow | 'baru' | null>(null)
+  const excluded = rows.filter((r) => r.dikecualikan).length
+  const shown = rows.filter((r) => showExcluded || !r.dikecualikan)
+  const paged = usePaged(shown, [jenis, masa, showExcluded])
+  const pihakLabel = jenis === 'keluaran' ? 'Customer' : 'Supplier'
+  async function remove(r: VatRow) {
+    const manual = r.sumber === 'manual'
+    if (!(await confirmDialog(manual ? `Hapus faktur manual ${r.number}?` : `Hapus ${r.number} dari laporan pajak? Faktur di Accurate tidak dihapus; faktur ini hanya tidak dihitung di PPN ${jenis} masa ${monthLabel(masa)} dan bisa dipulihkan.`))) return
+    try {
+      await api(manual ? `/api/accounting/tax/faktur?id=${r.entry_id}` : `/api/accounting/tax/faktur?jenis=${jenis}&accurate_id=${r.id}&masa=${masa}&nomor=${encodeURIComponent(r.number)}`, { method: 'DELETE' })
+      onChanged()
+    } catch (e) {
+      onError((e as Error).message)
+    }
+  }
+  async function restore(r: VatRow) {
+    if (!(await confirmDialog({ title: `Kembalikan ${r.number}`, message: 'Koreksi dan pengecualian di menu Pajak dihapus; faktur kembali memakai data Accurate.', confirmLabel: 'Ya, kembalikan' }))) return
+    try {
+      await api(`/api/accounting/tax/faktur?jenis=${jenis}&accurate_id=${r.id}&pulihkan=1`, { method: 'DELETE' })
+      onChanged()
+    } catch (e) {
+      onError((e as Error).message)
+    }
+  }
+  return (
+    <>
+      <div className="pap-filters">
+        <span className="pap-muted">Faktur dari Accurate. Ubah / hapus di sini hanya berlaku untuk laporan pajak (faktur di Accurate tetap).</span>
+        <span className="pap-spacer" />
+        {excluded > 0 && <label className="pap-check"><input type="checkbox" checked={showExcluded} onChange={(e) => setShowExcluded(e.target.checked)} /><span>Tampilkan yang dihapus ({excluded})</span></label>}
+        {manage && <button className="pap-primary-button" onClick={() => setForm('baru')}><Plus /> Tambah faktur</button>}
+      </div>
+      <div className="pap-table-wrap">
+        <table>
+          <thead><tr><th>Faktur</th><th>{pihakLabel}</th><th>No. faktur pajak</th><th className="pap-num">DPP</th><th className="pap-num">PPN</th><th className="pap-actions-col">Aksi</th></tr></thead>
+          <tbody>
+            {paged.items.map((r) => (
+              <tr key={`${r.sumber}${r.id}`} className={r.dikecualikan ? 'pap-muted' : ''}>
+                <td className="pap-nowrap">
+                  <div className="pap-cell-title">{r.number}</div>
+                  <div className="pap-cell-sub">{formatDate(r.tanggal)}
+                    {r.sumber === 'manual' && <span className="pap-status info pap-acc-tag">Manual</span>}
+                    {r.diubah && <span className="pap-status warning pap-acc-tag">Diubah</span>}
+                    {r.dikecualikan && <span className="pap-status neutral pap-acc-tag">Dihapus dari pajak</span>}
+                  </div>
+                </td>
+                <td>{r.pihak ?? '—'}</td>
+                <td>{r.faktur_pajak ?? <span className="pap-text-warning">Belum ada</span>}</td>
+                <td className="pap-num pap-nowrap">{formatRupiah(r.dpp)}</td>
+                <td className="pap-num pap-nowrap"><strong>{formatRupiah(r.ppn)}</strong></td>
+                <td className="pap-actions-cell">
+                  {r.dikecualikan
+                    ? manage && <button type="button" className="pap-row-action edit" onClick={() => restore(r)}><RefreshCw /><span>Pulihkan</span></button>
+                    : <RowActions label={r.number} onView={() => setDetail(r)} onEdit={manage ? () => setForm(r) : undefined} onDelete={manage ? () => remove(r) : undefined} />}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!shown.length && <div className="pap-empty">Tidak ada faktur ber-PPN pada masa ini.</div>}
+        <Pager {...paged.pager} noun="faktur" />
+      </div>
+      {detail && <Modal title={`Faktur ${detail.number}`} subtitle={`PPN ${jenis} · masa ${monthLabel(masa)} · ${detail.sumber === 'manual' ? 'dicatat manual di menu Pajak' : 'dari Accurate'}`} onClose={() => setDetail(null)}
+        footer={<>
+          {manage && detail.diubah && <button className="pap-btn" onClick={() => { const r = detail; setDetail(null); restore(r) }}><RefreshCw /> Kembalikan ke Accurate</button>}
+          <span className="pap-spacer" /><button className="pap-btn" onClick={() => setDetail(null)}>Tutup</button>
+          {manage && <button className="pap-btn danger" onClick={() => { const r = detail; setDetail(null); remove(r) }}><Trash2 /> Hapus</button>}
+          {manage && <button className="pap-primary-button" onClick={() => { setForm(detail); setDetail(null) }}><Pencil /> Ubah</button>}
+        </>}>
+        <DetailList rows={[
+          ['Nomor faktur', detail.number], ['Tanggal', formatDate(detail.tanggal)], [pihakLabel, detail.pihak], ['No. faktur pajak', detail.faktur_pajak],
+          ['DPP', formatRupiah(detail.dpp)], ['PPN', formatRupiah(detail.ppn)], ['Catatan', detail.catatan],
+          ...(detail.asli && detail.diubah ? [['Data Accurate', `DPP ${formatRupiah(detail.asli.dpp)} · PPN ${formatRupiah(detail.asli.ppn)}${detail.asli.faktur_pajak ? ` · FP ${detail.asli.faktur_pajak}` : ''}`] as [string, string]] : []),
+        ]} />
+      </Modal>}
+      {form && <VatForm masa={masa} jenis={jenis} item={form === 'baru' ? null : form} onClose={() => setForm(null)} onSaved={() => { setForm(null); onChanged() }} />}
+    </>
+  )
+}
+
+function VatForm({ masa, jenis, item, onClose, onSaved }: { masa: string; jenis: 'keluaran' | 'masukan'; item: VatRow | null; onClose: () => void; onSaved: () => void }) {
+  const fromAccurate = item?.sumber === 'accurate'
+  const [v, setV] = useState({
+    nomor: item?.number ?? '', tanggal: item?.tanggal?.slice(0, 10) ?? (today().startsWith(masa) ? today() : `${masa}-01`), pihak: item?.pihak ?? '',
+    faktur_pajak: item?.faktur_pajak ?? '', dpp: item ? String(item.dpp) : '', ppn: item ? String(item.ppn) : '', catatan: item?.catatan ?? '',
+  })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  async function save(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      if (!item) await api('/api/accounting/tax/faktur', { method: 'POST', json: { ...v, jenis, masa } })
+      else if (item.sumber === 'manual') await api('/api/accounting/tax/faktur', { method: 'PUT', json: { ...v, id: item.entry_id } })
+      else await api('/api/accounting/tax/faktur', { method: 'PUT', json: { ...v, jenis, accurate_id: item.id, masa } })
+      onSaved()
+    } catch (err) {
+      setError((err as Error).message)
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal title={item ? `Ubah faktur ${item.number}` : `Tambah faktur PPN ${jenis}`} subtitle={fromAccurate ? 'Koreksi hanya untuk laporan pajak; faktur di Accurate tidak berubah' : `Faktur manual masa ${monthLabel(masa)}`} onClose={onClose}
+      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="vat-form" disabled={busy}>{busy ? 'Menyimpan...' : 'Simpan'}</button></>}>
+      <form id="vat-form" className="pap-form-grid" onSubmit={save}>
+        {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        <Field label="Nomor faktur *"><input className="pap-input" required maxLength={80} value={v.nomor} disabled={fromAccurate} onChange={(e) => setV({ ...v, nomor: e.target.value })} /></Field>
+        <Field label="Tanggal"><input className="pap-input" type="date" value={v.tanggal} onChange={(e) => setV({ ...v, tanggal: e.target.value })} /></Field>
+        <Field label={jenis === 'keluaran' ? 'Customer' : 'Supplier'} full><input className="pap-input" maxLength={200} value={v.pihak} onChange={(e) => setV({ ...v, pihak: e.target.value })} /></Field>
+        <Field label="No. faktur pajak"><input className="pap-input" maxLength={60} value={v.faktur_pajak} onChange={(e) => setV({ ...v, faktur_pajak: e.target.value })} placeholder="010.000-26.00000001" /></Field>
+        <Field label="DPP (Rp) *"><input className="pap-input pap-num" inputMode="decimal" required value={v.dpp} onChange={(e) => setV({ ...v, dpp: e.target.value })} /></Field>
+        <Field label="PPN (Rp) *"><input className="pap-input pap-num" inputMode="decimal" required value={v.ppn} onChange={(e) => setV({ ...v, ppn: e.target.value })} /></Field>
+        <Field label="Catatan / alasan koreksi" full><input className="pap-input" maxLength={500} value={v.catatan} onChange={(e) => setV({ ...v, catatan: e.target.value })} /></Field>
+      </form>
+    </Modal>
   )
 }

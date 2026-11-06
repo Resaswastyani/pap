@@ -39,7 +39,7 @@ export const GET = handle(async (request: Request) => {
   )
   return NextResponse.json({
     masa, vat, kewajiban, rekap: recent.map((r) => ({ masa: r.masa, dicatat: Number(r.dicatat), dilaporkan: Number(r.dilaporkan) })),
-    tanpa_faktur_pajak: vat.keluaran.filter((r) => !r.faktur_pajak).length,
+    tanpa_faktur_pajak: vat.keluaran.filter((r) => !r.faktur_pajak && !r.dikecualikan).length,
     can: { manage: canManageAccounting(user) },
   })
 })

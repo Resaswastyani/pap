@@ -343,10 +343,38 @@ export async function digunggungTotal(masa: string) {
   return { faktur: Number(r.faktur), dpp: round(Number(r.dpp)), dpp_nilai_lain: round(Number(r.dpp_nilai_lain)), ppn: round(Number(r.ppn)) }
 }
 // PPN kurang bayar = PPN keluaran + PPN digunggung − PPN masukan
+// Faktur PPN setelah koreksi menu Pajak: nilai koreksi menimpa data Accurate, faktur dikecualikan tidak dihitung, faktur manual ditambahkan
+export type VatLine = { id: number; number: string; tanggal: string | null; pihak: string | null; dpp: number; ppn: number; faktur_pajak: string | null; sumber: 'accurate' | 'manual'; entry_id: number | null; diubah: boolean; dikecualikan: boolean; catatan: string | null; asli: { dpp: number; ppn: number; faktur_pajak: string | null } | null }
+async function applyVatEntries(masa: string, jenis: 'keluaran' | 'masukan', rows: { id: number; number: string; tanggal: string | null; pihak: string | null; dpp: number; ppn: number; faktur_pajak: string | null }[]) {
+  const [entries] = await db.query<RowDataPacket[]>(
+    `SELECT id, sumber, accurate_id, nomor, DATE_FORMAT(tanggal, '%Y-%m-%d') AS tanggal, pihak, faktur_pajak, dpp, ppn, dikecualikan, catatan FROM tax_vat_entries WHERE jenis = ? AND (masa = ? OR (sumber = 'accurate' AND accurate_id IN (?)))`,
+    [jenis, masa, rows.length ? rows.map((r) => r.id) : [0]],
+  )
+  const num = (v: unknown) => (v === null || v === undefined ? null : Number(v))
+  const byId = new Map(entries.filter((e) => e.sumber === 'accurate').map((e) => [Number(e.accurate_id), e]))
+  const out: VatLine[] = rows.map((r) => {
+    const e = byId.get(r.id)
+    if (!e) return { ...r, sumber: 'accurate', entry_id: null, diubah: false, dikecualikan: false, catatan: null, asli: null }
+    return {
+      ...r, tanggal: (e.tanggal as string) ?? r.tanggal, pihak: (e.pihak as string) ?? r.pihak, faktur_pajak: (e.faktur_pajak as string) ?? r.faktur_pajak,
+      dpp: num(e.dpp) ?? r.dpp, ppn: num(e.ppn) ?? r.ppn, sumber: 'accurate', entry_id: Number(e.id),
+      diubah: e.dpp !== null || e.ppn !== null || e.faktur_pajak !== null || e.tanggal !== null || e.pihak !== null, dikecualikan: !!e.dikecualikan, catatan: (e.catatan as string) ?? null,
+      asli: { dpp: r.dpp, ppn: r.ppn, faktur_pajak: r.faktur_pajak },
+    }
+  })
+  for (const e of entries.filter((x) => x.sumber === 'manual' && x.dikecualikan === 0)) {
+    out.push({ id: -Number(e.id), number: String(e.nomor ?? ''), tanggal: (e.tanggal as string) ?? null, pihak: (e.pihak as string) ?? null, dpp: num(e.dpp) ?? 0, ppn: num(e.ppn) ?? 0, faktur_pajak: (e.faktur_pajak as string) ?? null, sumber: 'manual', entry_id: Number(e.id), diubah: false, dikecualikan: false, catatan: (e.catatan as string) ?? null, asli: null })
+  }
+  return out.sort((a, b) => String(b.tanggal ?? '').localeCompare(String(a.tanggal ?? '')))
+}
 export async function vatWithDigunggung(masa: string, force = false) {
   const vat = await vatSummary(masa, force)
+  const keluaran = await applyVatEntries(masa, 'keluaran', vat.keluaran)
+  const masukan = await applyVatEntries(masa, 'masukan', vat.masukan)
   const dg = await digunggungTotal(masa)
-  return { ...vat, digunggung: dg, total: { ...vat.total, ppn_digunggung: dg.ppn, dpp_digunggung: dg.dpp, kurang_bayar: vat.total.ppn_keluaran + dg.ppn - vat.total.ppn_masukan } }
+  const sum = (rows: VatLine[], k: 'dpp' | 'ppn') => round(rows.filter((r) => !r.dikecualikan).reduce((s, r) => s + r[k], 0))
+  const total = { dpp_keluaran: sum(keluaran, 'dpp'), ppn_keluaran: sum(keluaran, 'ppn'), dpp_masukan: sum(masukan, 'dpp'), ppn_masukan: sum(masukan, 'ppn') }
+  return { keluaran, masukan, digunggung: dg, total: { ...total, ppn_digunggung: dg.ppn, dpp_digunggung: dg.dpp, kurang_bayar: total.ppn_keluaran + dg.ppn - total.ppn_masukan } }
 }
 
 // ---------- Tutup buku (manual per bulan) ----------
