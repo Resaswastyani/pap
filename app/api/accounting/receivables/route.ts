@@ -18,7 +18,7 @@ export const GET = handle(async (request: Request) => {
     const key = r.customer_no ?? r.customer ?? '-'
     const cur = per.get(key) ?? { customer: r.customer ?? '—', customer_no: r.customer_no, faktur: 0, uang_muka: 0, sisa: 0, lewat_tempo: 0, umur_max: 0 }
     cur.faktur++
-    cur.uang_muka += r.uang_muka
+    cur.uang_muka += r.is_dp ? r.total : r.uang_muka
     cur.sisa += r.sisa
     if (r.umur > 0) cur.lewat_tempo += r.sisa
     cur.umur_max = Math.max(cur.umur_max, r.umur)

@@ -441,7 +441,7 @@ export function ReceivablePage(_props: { user: UserProfile }) {
   const perCustomer = [...arYear.reduce((m, r) => {
     const key = r.customer_no ?? r.customer ?? '-'
     const cur = m.get(key) ?? { customer: r.customer ?? '—', customer_no: r.customer_no, faktur: 0, uang_muka: 0, sisa: 0, lewat_tempo: 0, umur_max: 0 }
-    m.set(key, { ...cur, faktur: cur.faktur + 1, uang_muka: cur.uang_muka + (r.uang_muka ?? 0), sisa: cur.sisa + r.sisa, lewat_tempo: cur.lewat_tempo + (r.umur > 0 ? r.sisa : 0), umur_max: Math.max(cur.umur_max, r.umur) })
+    m.set(key, { ...cur, faktur: cur.faktur + 1, uang_muka: cur.uang_muka + (r.is_dp ? r.total : r.uang_muka ?? 0), sisa: cur.sisa + r.sisa, lewat_tempo: cur.lewat_tempo + (r.umur > 0 ? r.sisa : 0), umur_max: Math.max(cur.umur_max, r.umur) })
     return m
   }, new Map<string, ArRes['per_customer'][number]>()).values()].sort((a, b) => b.sisa - a.sisa)
   const otherYears = (data?.piutang ?? []).filter((r) => !inYear(r.tanggal, tahun))
@@ -483,7 +483,9 @@ export function ReceivablePage(_props: { user: UserProfile }) {
                     <td>{r.customer ?? '—'}<div className="pap-cell-sub">{r.customer_no}</div></td>
                     <td className="pap-nowrap">{formatDate(r.jatuh_tempo)}<div className={`pap-cell-sub ${r.umur > 0 ? 'pap-text-danger' : ''}`}>{r.umur > 0 ? `lewat ${r.umur} hari` : r.umur === 0 ? 'hari ini' : `${-r.umur} hari lagi`}</div></td>
                     <td className="pap-num pap-nowrap">{formatRupiah(r.total)}</td>
-                    <td className="pap-num pap-nowrap">{r.is_dp ? <span className="pap-status warning">Faktur DP</span> : r.uang_muka ? <>−{formatRupiah(r.uang_muka)}<div className="pap-cell-sub">dipotong DP</div></> : <span className="pap-muted">—</span>}</td>
+                    <td className="pap-num pap-nowrap">{r.is_dp
+                      ? <><span className="pap-status warning">Faktur DP</span> {formatRupiah(r.total)}<div className="pap-cell-sub">{r.total - r.sisa > 0 ? `dibayar ${formatRupiah(r.total - r.sisa)}` : 'belum dibayar'}</div></>
+                      : r.uang_muka ? <>−{formatRupiah(r.uang_muka)}<div className="pap-cell-sub">dipotong DP</div></> : <span className="pap-muted">—</span>}</td>
                     <td className="pap-num pap-nowrap"><strong>{formatRupiah(r.sisa)}</strong></td>
                   </tr>
                 ))}
