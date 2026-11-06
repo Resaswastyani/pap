@@ -2153,3 +2153,22 @@ ol.pap-jobdesk-list { list-style:decimal; }
 /* Tombol / navigasi di judul halaman tidak boleh menyusut sampai terpotong; baris tombol membungkus */
 .pap-page-heading > .pap-inline-actions { flex-shrink:0; max-width:58%; justify-content:flex-end; }
 @media (max-width:800px) { .pap-page-heading > .pap-inline-actions { max-width:none; } }
+
+/* Laporan PPN digunggung (cetak, A4 landscape) */
+.pap-print .pap-sheet.pap-dg-sheet { width:1123px; max-width:none; }
+.pap-dg-table { width:100%; border-collapse:collapse; margin:12px 0; font-size:10.5px; }
+.pap-dg-table th, .pap-dg-table td { padding:4px 5px; border:1px solid #c8c9d1; text-align:left; vertical-align:top; }
+.pap-dg-table th { background:#f1f2f6; font-weight:700; }
+.pap-dg-table .r { text-align:right; white-space:nowrap; }
+.pap-dg-table .nw { white-space:nowrap; }
+.pap-dg-summary { width:auto; min-width:480px; }
+@media print { .pap-print .pap-sheet.pap-dg-sheet { width:auto; } }
+
+/* Pajak > PPN digunggung */
+.pap-dg-toolbar { flex-wrap:wrap; }
+.pap-dg-downloads { display:inline-flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.pap-dg-downloads .pap-btn svg { width:14px; height:14px; }
+.pap-dg-npwp { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:0 18px 12px; font-size:12px; }
+.pap-dg-npwp .pap-input { width:200px; height:32px; }
+.pap-dg-npwp .pap-link-button { display:inline-flex; align-items:center; gap:4px; }
+.pap-dg-npwp .pap-link-button svg { width:12px; height:12px; }

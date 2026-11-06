@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import {
-  AlertTriangle, ArrowDownLeft, ArrowUpRight, Banknote, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, HandCoins, Landmark, Lock, LockOpen, Pencil, Plus, Printer, RefreshCw, Scale, Search, Target, Trash2, TrendingDown, TrendingUp, Wallet,
+  AlertTriangle, ArrowDownLeft, ArrowUpRight, Banknote, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, HandCoins, Landmark, Lock, LockOpen, Pencil, Plus, Printer, Download, FileSpreadsheet, Upload, RefreshCw, Scale, Search, Target, Trash2, TrendingDown, TrendingUp, Wallet,
 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
@@ -908,7 +908,10 @@ function PlanForm({ item, onClose, onSaved }: { item: CashPlan | null; onClose: 
 type VatRow = { id: number; number: string; tanggal: string | null; pihak: string | null; dpp: number; ppn: number; faktur_pajak: string | null }
 type Duty = { id: number | null; jenis: string; label: string; batas_setor: string | null; batas_lapor: string | null; status: 'belum' | 'sudah_setor' | 'selesai' | 'terlambat'; nominal: number | null; tgl_setor: string | null; ntpn: string | null; tgl_lapor: string | null; no_bukti: string | null; catatan: string | null; updated_name: string | null }
 type TaxRes = { masa: string; ditutup: boolean; vat: { keluaran: VatRow[]; masukan: VatRow[]; digunggung: { faktur: number; dpp: number; dpp_nilai_lain: number; ppn: number }; total: { dpp_keluaran: number; ppn_keluaran: number; dpp_masukan: number; ppn_masukan: number; ppn_digunggung: number; dpp_digunggung: number; kurang_bayar: number } }; kewajiban: Duty[]; tanpa_faktur_pajak: number; can: { manage: boolean } }
-type Dg = { id: number; masa: string; nomor: string; tanggal: string; no_faktur_pajak: string | null; customer: string; jatuh_tempo: string | null; dpp: number; dpp_nilai_lain: number; ppn: number; total: number; catatan: string | null; updated_name: string | null }
+type Dg = {
+  id: number; masa: string; nomor: string; tanggal: string; no_faktur_pajak: string | null; customer: string; jatuh_tempo: string | null; dpp: number; dpp_nilai_lain: number; ppn: number; total: number; catatan: string | null; updated_name: string | null
+  trx_code: string; buyer_id_opt: string; buyer_id_number: string; good_service_opt: string; serial_no: string | null; stlg: number; info: string | null
+}
 const DUTY: Record<Duty['status'], [string, string]> = { belum: ['Belum', 'neutral'], sudah_setor: ['Sudah setor', 'info'], selesai: ['Sudah lapor', 'success'], terlambat: ['Terlambat', 'danger'] }
 
 export function TaxPage(_props: { user: UserProfile }) {
@@ -990,11 +993,19 @@ export function TaxPage(_props: { user: UserProfile }) {
   )
 }
 
-// Faktur PPN digunggung per masa (input manual Accounting)
+// Faktur PPN digunggung per masa (input manual Accounting), kolom mengikuti template Coretax "Retail XML"
+const TRX_LABEL: Record<string, string> = { Normal: 'Normal · I.A.5', '07': '07 · I.A.9 tidak dipungut', '08': '08 · I.A.9 dibebaskan', NoVAT: 'NoVAT · I.B bukan objek PPN' }
+const GS_LABEL: Record<string, string> = { A: 'Barang', B: 'Jasa' }
+const NIK_KOSONG = '0000000000000000'
+
 function DigunggungPanel({ masa, locked, onChanged }: { masa: string; locked: boolean; onChanged: () => void }) {
-  const { data, loading, error, setError, load } = useLoad<{ items: Dg[]; nomor_berikutnya: string; can: { manage: boolean } }>(`/api/accounting/tax/digunggung?masa=${masa}`)
+  const { data, loading, error, setError, load } = useLoad<{ items: Dg[]; nomor_berikutnya: string; npwp: string; can: { manage: boolean } }>(`/api/accounting/tax/digunggung?masa=${masa}`)
   const [form, setForm] = useState<Dg | 'baru' | null>(null)
-  const manage = !!data?.can.manage && !locked
+  const [importing, setImporting] = useState(false)
+  const [npwpEdit, setNpwpEdit] = useState<string | null>(null)
+  const [message, setMessage] = useState('')
+  const canManage = !!data?.can.manage
+  const manage = canManage && !locked
   const items = data?.items ?? []
   async function remove(r: Dg) {
     if (!(await confirmDialog(`Hapus faktur digunggung ${r.nomor} (${r.customer})?`))) return
@@ -1006,40 +1017,74 @@ function DigunggungPanel({ masa, locked, onChanged }: { masa: string; locked: bo
       setError((e as Error).message)
     }
   }
-  const sum = (k: 'dpp' | 'dpp_nilai_lain' | 'ppn' | 'total') => items.reduce((s, r) => s + r[k], 0)
+  async function saveNpwp() {
+    try {
+      await api('/api/accounting/tax/digunggung/npwp', { method: 'PUT', json: { npwp: npwpEdit } })
+      setNpwpEdit(null)
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+  const sum = (k: 'dpp' | 'dpp_nilai_lain' | 'ppn' | 'stlg' | 'total') => items.reduce((s, r) => s + (r[k] ?? 0), 0)
+  const xmlUrl = `/api/accounting/tax/digunggung/export?masa=${masa}&format=xml`
   return (
     <>
-      <div className="pap-filters">
-        <span className="pap-muted">Faktur penjualan digunggung yang dicatat Accounting untuk masa {monthLabel(masa)}. Nomor dibuat otomatis; nomor faktur pajak boleh diisi belakangan.</span>
+      <div className="pap-filters pap-dg-toolbar">
+        <span className="pap-muted">Faktur penjualan digunggung masa {monthLabel(masa)}, kolom mengikuti template Coretax <b>Retail XML</b> (lampiran I.A.5 / I.A.9 / I.B).</span>
         <span className="pap-spacer" />
+        {items.length > 0 && (
+          <span className="pap-dg-downloads">
+            <span className="pap-muted">Unduh laporan:</span>
+            {data?.npwp ? <a className="pap-btn" href={xmlUrl}><Download /> XML</a> : <button type="button" className="pap-btn" title="Isi NPWP penjual dulu" onClick={() => setError('Isi NPWP penjual (TIN) terlebih dahulu untuk membuat XML Coretax.')}><Download /> XML</button>}
+            <a className="pap-btn" href={`/api/accounting/tax/digunggung/export?masa=${masa}&format=xlsx`}><FileSpreadsheet /> Excel</a>
+            <a className="pap-btn" href={`/cetak/ppn-digunggung?masa=${masa}`} target="_blank" rel="noreferrer"><Printer /> PDF</a>
+          </span>
+        )}
+        {manage && <button className="pap-btn" onClick={() => setImporting(true)}><Upload /> Unggah laporan</button>}
         {manage && <button className="pap-primary-button" onClick={() => setForm('baru')}><Plus /> Tambah faktur digunggung</button>}
       </div>
+      <div className="pap-dg-npwp">
+        <span>NPWP penjual (TIN):</span>
+        {npwpEdit === null
+          ? <><b>{data?.npwp || <span className="pap-muted">belum diisi</span>}</b>{canManage && <button type="button" className="pap-link-button" onClick={() => setNpwpEdit(data?.npwp ?? '')}><Pencil /> {data?.npwp ? 'Ubah' : 'Isi'}</button>}</>
+          : <><input className="pap-input" inputMode="numeric" maxLength={20} value={npwpEdit} onChange={(e) => setNpwpEdit(e.target.value)} placeholder="16 digit" autoFocus /><button type="button" className="pap-primary-button" onClick={saveNpwp}>Simpan</button><button type="button" className="pap-btn" onClick={() => setNpwpEdit(null)}>Batal</button></>}
+      </div>
+      {message && <div className="pap-card-notice"><Notice kind="success" onClose={() => setMessage('')}>{message}</Notice></div>}
       {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
       <div className="pap-table-wrap">
         <table>
-          <thead><tr><th>Faktur</th><th>Customer</th><th>No. faktur pajak</th><th className="pap-num">DPP</th><th className="pap-num">DPP nilai lain</th><th className="pap-num">PPN</th><th className="pap-num">Total</th>{manage && <th className="pap-actions-col">Aksi</th>}</tr></thead>
+          <thead><tr>
+            <th>TrxCode</th><th>BuyerName</th><th>BuyerId</th><th>Brg/Jasa</th><th>SerialNo</th><th>TransactionDate</th>
+            <th className="pap-num">DPP</th><th className="pap-num">DPP nilai lain</th><th className="pap-num">PPN</th><th className="pap-num">PPnBM</th><th>Info</th>{manage && <th className="pap-actions-col">Aksi</th>}
+          </tr></thead>
           <tbody>
             {items.map((r) => (
               <tr key={r.id}>
-                <td className="pap-nowrap"><div className="pap-cell-title">{r.nomor}</div><div className="pap-cell-sub">{formatDate(r.tanggal)}{r.jatuh_tempo ? ` · tempo ${formatDate(r.jatuh_tempo)}` : ''}</div></td>
-                <td>{r.customer}{r.catatan && <div className="pap-cell-sub">{r.catatan}</div>}</td>
-                <td>{r.no_faktur_pajak ?? <span className="pap-muted">—</span>}</td>
+                <td><span className="pap-status neutral" title={TRX_LABEL[r.trx_code]}>{r.trx_code}</span></td>
+                <td><div className="pap-cell-title">{r.customer}</div><div className="pap-cell-sub">{r.nomor}{r.no_faktur_pajak ? ` · FP ${r.no_faktur_pajak}` : ''}{r.catatan ? ` · ${r.catatan}` : ''}</div></td>
+                <td className="pap-nowrap">{r.buyer_id_opt === 'TIN' ? 'NPWP' : r.buyer_id_opt}<div className="pap-cell-sub">{r.buyer_id_number === NIK_KOSONG ? 'tanpa ID' : r.buyer_id_number}</div></td>
+                <td>{GS_LABEL[r.good_service_opt] ?? r.good_service_opt}</td>
+                <td>{r.serial_no ?? <span className="pap-muted">—</span>}</td>
+                <td className="pap-nowrap">{formatDate(r.tanggal)}</td>
                 <td className="pap-num pap-nowrap">{formatRupiah(r.dpp)}</td>
                 <td className="pap-num pap-nowrap">{formatRupiah(r.dpp_nilai_lain)}</td>
                 <td className="pap-num pap-nowrap"><strong>{formatRupiah(r.ppn)}</strong></td>
-                <td className="pap-num pap-nowrap">{formatRupiah(r.total)}</td>
+                <td className="pap-num pap-nowrap">{formatRupiah(r.stlg)}</td>
+                <td>{r.info ?? ''}</td>
                 {manage && <td className="pap-actions-cell"><div className="pap-row-actions"><button type="button" className="pap-row-action edit" onClick={() => setForm(r)}><Pencil /><span>Ubah</span></button><button type="button" className="pap-row-action danger" onClick={() => remove(r)}><Trash2 /><span>Hapus</span></button></div></td>}
               </tr>
             ))}
           </tbody>
           {items.length > 1 && (
-            <tbody><tr className="pap-total-row"><td colSpan={3}><b>Total {items.length} faktur</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('dpp'))}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('dpp_nilai_lain'))}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('ppn'))}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('total'))}</b></td>{manage && <td />}</tr></tbody>
+            <tbody><tr className="pap-total-row"><td colSpan={6}><b>Total {items.length} transaksi</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('dpp'))}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('dpp_nilai_lain'))}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('ppn'))}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('stlg'))}</b></td><td />{manage && <td />}</tr></tbody>
           )}
         </table>
-        {data && !items.length && <div className="pap-empty">Belum ada PPN digunggung masa ini.{manage ? ' Klik "Tambah faktur digunggung".' : ''}</div>}
+        {data && !items.length && <div className="pap-empty">Belum ada PPN digunggung masa ini.{manage ? ' Klik "Tambah faktur digunggung" atau "Unggah laporan" (Excel template Retail XML).' : ''}</div>}
         {loading && !data && <Loading text="Memuat PPN digunggung..." />}
       </div>
       {form && <DigunggungForm masa={masa} item={form === 'baru' ? null : form} nomor={data?.nomor_berikutnya ?? ''} onClose={() => setForm(null)} onSaved={() => { setForm(null); load(); onChanged() }} />}
+      {importing && <DigunggungImport onClose={() => setImporting(false)} onDone={(text) => { setImporting(false); setMessage(text); load(); onChanged() }} />}
     </>
   )
 }
@@ -1047,16 +1092,18 @@ function DigunggungPanel({ masa, locked, onChanged }: { masa: string; locked: bo
 function DigunggungForm({ masa, item, nomor, onClose, onSaved }: { masa: string; item: Dg | null; nomor: string; onClose: () => void; onSaved: () => void }) {
   const firstDay = `${masa}-01`
   const [v, setV] = useState({
-    tanggal: item?.tanggal?.slice(0, 10) ?? (today().startsWith(masa) ? today() : firstDay), no_faktur_pajak: item?.no_faktur_pajak ?? '', customer: item?.customer ?? '',
-    jatuh_tempo: item?.jatuh_tempo?.slice(0, 10) ?? '', dpp: item ? String(item.dpp) : '', dpp_nilai_lain: item ? String(item.dpp_nilai_lain) : '', ppn: item ? String(item.ppn) : '',
-    total: item ? String(item.total) : '', catatan: item?.catatan ?? '',
+    trx_code: item?.trx_code ?? 'Normal', customer: item?.customer ?? '', buyer_id_opt: item?.buyer_id_opt ?? 'NIK', buyer_id_number: item?.buyer_id_number ?? NIK_KOSONG,
+    good_service_opt: item?.good_service_opt ?? 'A', serial_no: item?.serial_no ?? '',
+    tanggal: item?.tanggal?.slice(0, 10) ?? (today().startsWith(masa) ? today() : firstDay), dpp: item ? String(item.dpp) : '', dpp_nilai_lain: item ? String(item.dpp_nilai_lain) : '',
+    ppn: item ? String(item.ppn) : '', stlg: item ? String(item.stlg ?? 0) : '0', info: item?.info ?? '',
+    no_faktur_pajak: item?.no_faktur_pajak ?? '', jatuh_tempo: item?.jatuh_tempo?.slice(0, 10) ?? '', total: item ? String(item.total) : '', catatan: item?.catatan ?? '',
   })
-  // Hitung otomatis dari DPP: DPP nilai lain = 11/12 x DPP, PPN = 12% x DPP nilai lain, total = DPP + PPN (boleh diubah manual)
-  const auto = (dppText: string) => {
+  // Hitung otomatis dari DPP: DPP nilai lain = 11/12 x DPP, PPN = 12% x DPP nilai lain (NoVAT: 0), total = DPP + PPN (boleh diubah manual)
+  const auto = (dppText: string, trx = v.trx_code) => {
     const dpp = Number(dppText.replace(/\./g, '').replace(',', '.'))
     if (!Number.isFinite(dpp) || !dppText) return { dpp: dppText, dpp_nilai_lain: '', ppn: '', total: '' }
     const lain = Math.round((dpp * 11) / 12)
-    const ppn = Math.round(lain * 0.12)
+    const ppn = trx === 'NoVAT' ? 0 : Math.round(lain * 0.12)
     return { dpp: dppText, dpp_nilai_lain: String(lain), ppn: String(ppn), total: String(dpp + ppn) }
   }
   const [busy, setBusy] = useState(false)
@@ -1073,22 +1120,110 @@ function DigunggungForm({ masa, item, nomor, onClose, onSaved }: { masa: string;
       setBusy(false)
     }
   }
+  const set = (k: keyof typeof v) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value })
   return (
-    <Modal title={item ? `Ubah faktur digunggung ${item.nomor}` : 'Tambah faktur PPN digunggung'} subtitle={item ? `Masa ${monthLabel(item.masa)}` : `Nomor otomatis: ${nomor || '—'} · masa mengikuti tanggal faktur`} wide onClose={onClose}
+    <Modal title={item ? `Ubah faktur digunggung ${item.nomor}` : 'Tambah faktur PPN digunggung'} subtitle={item ? `Masa ${monthLabel(item.masa)}` : `Nomor otomatis: ${nomor || '—'} · masa mengikuti tanggal transaksi`} wide onClose={onClose}
       footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="dg-form" disabled={busy}>{busy ? 'Menyimpan...' : 'Simpan'}</button></>}>
       <form id="dg-form" className="pap-form-grid" onSubmit={save}>
         {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
-        <Field label="No. faktur"><input className="pap-input" value={item?.nomor ?? nomor} disabled /></Field>
-        <Field label="No. faktur pajak (opsional)"><input className="pap-input" maxLength={60} value={v.no_faktur_pajak} onChange={(e) => setV({ ...v, no_faktur_pajak: e.target.value })} placeholder="Boleh diisi nanti" /></Field>
-        <Field label="Customer *" full><input className="pap-input" required maxLength={200} value={v.customer} onChange={(e) => setV({ ...v, customer: e.target.value })} /></Field>
-        <Field label="Tanggal faktur *"><input className="pap-input" type="date" required value={v.tanggal} onChange={(e) => setV({ ...v, tanggal: e.target.value })} /></Field>
-        <Field label="Jatuh tempo"><input className="pap-input" type="date" value={v.jatuh_tempo} min={v.tanggal} onChange={(e) => setV({ ...v, jatuh_tempo: e.target.value })} /></Field>
-        <Field label="DPP (Rp) *" hint="Nilai lain, PPN, dan total terisi otomatis"><input className="pap-input pap-num" inputMode="decimal" required value={v.dpp} onChange={(e) => setV({ ...v, ...auto(e.target.value) })} /></Field>
-        <Field label="DPP nilai lain (Rp)" hint="11/12 × DPP"><input className="pap-input pap-num" inputMode="decimal" value={v.dpp_nilai_lain} onChange={(e) => setV({ ...v, dpp_nilai_lain: e.target.value })} /></Field>
-        <Field label="PPN (Rp)" hint="12% × DPP nilai lain"><input className="pap-input pap-num" inputMode="decimal" value={v.ppn} onChange={(e) => setV({ ...v, ppn: e.target.value })} /></Field>
-        <Field label="Total (Rp)" hint="DPP + PPN"><input className="pap-input pap-num" inputMode="decimal" value={v.total} onChange={(e) => setV({ ...v, total: e.target.value })} /></Field>
-        <Field label="Catatan" full><input className="pap-input" maxLength={500} value={v.catatan} onChange={(e) => setV({ ...v, catatan: e.target.value })} /></Field>
+        <Field label="Kode transaksi (TrxCode) *">
+          <select className="pap-select" value={v.trx_code} onChange={(e) => setV({ ...v, trx_code: e.target.value, ...(v.dpp ? auto(v.dpp, e.target.value) : {}) })}>
+            {Object.entries(TRX_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+        </Field>
+        <Field label="Barang / Jasa (GoodServiceOpt)">
+          <select className="pap-select" value={v.good_service_opt} onChange={set('good_service_opt')}><option value="A">A · Barang</option><option value="B">B · Jasa</option></select>
+        </Field>
+        <Field label="Nama pembeli (BuyerName) *" full><input className="pap-input" required maxLength={200} value={v.customer} onChange={set('customer')} placeholder="Mis. Penjualan September / nama pembeli" /></Field>
+        <Field label="Jenis ID pembeli (BuyerIdOpt)">
+          <select className="pap-select" value={v.buyer_id_opt} onChange={set('buyer_id_opt')}><option value="NIK">NIK</option><option value="TIN">NPWP (TIN)</option></select>
+        </Field>
+        <Field label="Nomor ID pembeli (BuyerIdNumber)" hint="16 digit; 0000000000000000 bila tidak ada"><input className="pap-input" inputMode="numeric" maxLength={20} value={v.buyer_id_number} onChange={set('buyer_id_number')} /></Field>
+        <Field label="Nomor transaksi (SerialNo)"><input className="pap-input" maxLength={60} value={v.serial_no} onChange={set('serial_no')} placeholder={`Kosong = ${item?.nomor ?? nomor ?? 'nomor DG'}`} /></Field>
+        <Field label="Tanggal transaksi (TransactionDate) *"><input className="pap-input" type="date" required value={v.tanggal} onChange={set('tanggal')} /></Field>
+        <Field label="DPP / Harga jual (TaxBaseSellingPrice) *" hint="Nilai lain, PPN, dan total terisi otomatis"><input className="pap-input pap-num" inputMode="decimal" required value={v.dpp} onChange={(e) => setV({ ...v, ...auto(e.target.value) })} /></Field>
+        <Field label="DPP nilai lain (OtherTaxBaseSellingPrice)" hint="11/12 × DPP"><input className="pap-input pap-num" inputMode="decimal" value={v.dpp_nilai_lain} onChange={set('dpp_nilai_lain')} /></Field>
+        <Field label="PPN (VAT)" hint={v.trx_code === 'NoVAT' ? 'NoVAT: 0' : '12% × DPP nilai lain'}><input className="pap-input pap-num" inputMode="decimal" value={v.ppn} onChange={set('ppn')} /></Field>
+        <Field label="PPnBM (STLG)"><input className="pap-input pap-num" inputMode="decimal" value={v.stlg} onChange={set('stlg')} /></Field>
+        <Field label="Info"><input className="pap-input" maxLength={255} value={v.info} onChange={set('info')} placeholder="Opsional" /></Field>
+        <Field label="Total (Rp)" hint="DPP + PPN (catatan internal)"><input className="pap-input pap-num" inputMode="decimal" value={v.total} onChange={set('total')} /></Field>
+        <Field label="No. faktur pajak (opsional)"><input className="pap-input" maxLength={60} value={v.no_faktur_pajak} onChange={set('no_faktur_pajak')} placeholder="Catatan internal" /></Field>
+        <Field label="Jatuh tempo (opsional)"><input className="pap-input" type="date" value={v.jatuh_tempo} min={v.tanggal} onChange={set('jatuh_tempo')} /></Field>
+        <Field label="Catatan" full><input className="pap-input" maxLength={500} value={v.catatan} onChange={set('catatan')} /></Field>
       </form>
+    </Modal>
+  )
+}
+
+type DgPreview = {
+  file: string; npwp: string | null; masaFile: string | null; masa: string[]; closed: string[]; beda_masa: number
+  total: { baris: number; baru: number; duplikat: number; error: number; dpp: number; dpp_nilai_lain: number; ppn: number }
+  rows: { baris: number; error: string | null; duplikat: boolean; ditutup: boolean; trx_code?: string; customer?: string; serial_no?: string | null; tanggal?: string; dpp?: number; dpp_nilai_lain?: number; ppn?: number }[]
+}
+
+// Unggah laporan PPN digunggung dari Excel template "Retail_XML" (sheet DATA): pratinjau dulu, lalu simpan
+function DigunggungImport({ onClose, onDone }: { onClose: () => void; onDone: (text: string) => void }) {
+  const [file, setFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<DgPreview | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  async function send(mode: 'preview' | 'import') {
+    if (!file) return
+    setBusy(true)
+    setError('')
+    try {
+      const body = new FormData()
+      body.set('file', file)
+      body.set('mode', mode)
+      if (mode === 'preview') setPreview(await api<DgPreview>('/api/accounting/tax/digunggung/import', { method: 'POST', body }))
+      else {
+        const res = await api<{ added: number; skipped: number; masa: string[]; ppn: number }>('/api/accounting/tax/digunggung/import', { method: 'POST', body })
+        onDone(`Unggah laporan selesai: ${res.added} transaksi PPN digunggung (PPN ${formatRupiah(res.ppn)}) masa ${res.masa.map(monthLabel).join(', ')}${res.skipped ? `; ${res.skipped} dilewati (sudah ada / masa ditutup)` : ''}.`)
+      }
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const t = preview?.total
+  return (
+    <Modal title="Unggah laporan PPN digunggung" subtitle='Excel format template Coretax "Retail_XML": sheet DATA (NPWP, Masa Pajak, Tahun Pajak, lalu kolom TrxCode ... Info)' wide onClose={onClose}
+      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button>
+        {preview
+          ? <button className="pap-primary-button" disabled={busy || !t?.baru || !!t?.error} onClick={() => send('import')}>{busy ? 'Menyimpan...' : `Simpan ${t?.baru ?? 0} transaksi`}</button>
+          : <button className="pap-primary-button" disabled={busy || !file} onClick={() => send('preview')}>{busy ? 'Membaca...' : 'Lihat pratinjau'}</button>}
+      </>}>
+      {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      <Field label="File Excel (.xlsx)" full hint="Transaksi yang sudah ada (masa, SerialNo, dan DPP sama) dilewati, jadi aman bila file yang sama diunggah lagi.">
+        <input className="pap-input" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreview(null); setError('') }} />
+      </Field>
+      {preview && t && (
+        <>
+          <div className="pap-inline-panel">
+            <strong>{preview.file}</strong>
+            <p>NPWP {preview.npwp ?? '—'} · masa di file {preview.masaFile ? monthLabel(preview.masaFile) : '—'} · {t.baris} baris: <b>{t.baru} baru</b>{t.duplikat ? `, ${t.duplikat} sudah ada` : ''}{t.error ? `, ${t.error} tidak valid` : ''}</p>
+            <p>Akan disimpan: DPP {formatRupiah(t.dpp)} · DPP nilai lain {formatRupiah(t.dpp_nilai_lain)} · PPN <b>{formatRupiah(t.ppn)}</b></p>
+            {preview.beda_masa > 0 && <p className="pap-belanja-warn">{preview.beda_masa} transaksi bertanggal di luar masa {monthLabel(preview.masaFile!)}; masa mengikuti tanggal transaksi.</p>}
+            {preview.closed.length > 0 && <p className="pap-belanja-warn">Masa {preview.closed.map(monthLabel).join(', ')} sudah tutup buku; transaksinya dilewati.</p>}
+            {preview.npwp && <p className="pap-muted">NPWP dari file disimpan sebagai NPWP penjual untuk XML Coretax.</p>}
+          </div>
+          <div className="pap-table-wrap bordered">
+            <table>
+              <thead><tr><th>Baris</th><th>TrxCode</th><th>BuyerName</th><th>SerialNo</th><th>Tanggal</th><th className="pap-num">DPP</th><th className="pap-num">PPN</th><th>Status</th></tr></thead>
+              <tbody>
+                {preview.rows.map((r) => (
+                  <tr key={r.baris} className={r.duplikat || r.ditutup ? 'pap-muted' : ''}>
+                    <td>{r.baris}</td><td>{r.trx_code ?? ''}</td><td>{r.customer ?? ''}</td><td>{r.serial_no ?? ''}</td><td className="pap-nowrap">{r.tanggal ? formatDate(r.tanggal) : ''}</td>
+                    <td className="pap-num pap-nowrap">{r.dpp !== undefined ? formatRupiah(r.dpp) : ''}</td><td className="pap-num pap-nowrap">{r.ppn !== undefined ? formatRupiah(r.ppn) : ''}</td>
+                    <td>{r.error ? <span className="pap-status danger">{r.error}</span> : r.duplikat ? <span className="pap-status neutral">Sudah ada</span> : r.ditutup ? <span className="pap-status neutral">Masa ditutup</span> : <span className="pap-status success">Baru</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </Modal>
   )
 }

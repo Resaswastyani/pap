@@ -29,8 +29,10 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
   await requireOpen(row.masa, 'PPN digunggung')
   await requireOpen(v.masa, 'PPN digunggung')
   await db.query(
-    `UPDATE tax_digunggung SET masa = ?, tanggal = ?, no_faktur_pajak = ?, customer = ?, jatuh_tempo = ?, dpp = ?, dpp_nilai_lain = ?, ppn = ?, total = ?, catatan = ?, updated_by = ? WHERE id = ?`,
-    [v.masa, v.tanggal, v.no_faktur_pajak, v.customer, v.jatuh_tempo, v.dpp, v.dpp_nilai_lain, v.ppn, v.total, v.catatan, user.id, row.id],
+    `UPDATE tax_digunggung SET masa = ?, trx_code = ?, tanggal = ?, no_faktur_pajak = ?, customer = ?, buyer_id_opt = ?, buyer_id_number = ?, good_service_opt = ?, serial_no = ?,
+       jatuh_tempo = ?, dpp = ?, dpp_nilai_lain = ?, ppn = ?, stlg = ?, info = ?, total = ?, catatan = ?, updated_by = ? WHERE id = ?`,
+    [v.masa, v.trx_code, v.tanggal, v.no_faktur_pajak, v.customer, v.buyer_id_opt, v.buyer_id_number, v.good_service_opt, v.serial_no,
+      v.jatuh_tempo, v.dpp, v.dpp_nilai_lain, v.ppn, v.stlg, v.info, v.total, v.catatan, user.id, row.id],
   )
   return NextResponse.json({ ok: true })
 })
