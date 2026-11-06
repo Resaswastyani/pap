@@ -924,7 +924,7 @@ export function TaxPage(_props: { user: UserProfile }) {
   const t = data?.vat.total
   return (
     <>
-      <Heading title="Pajak" actions={<><MonthNav periode={masa} onChange={setMasa} /><RefreshButton loading={loading} onClick={() => load(true)} /></>}>
+      <Heading title="Pajak" actions={<><TaxDownloads masa={masa} count={data?.vat.digunggung.faktur ?? null} onError={setError} /><MonthNav periode={masa} onChange={setMasa} /><RefreshButton loading={loading} onClick={() => load(true)} /></>}>
         Pelaporan perpajakan rutin: PPN keluaran (faktur penjualan) dan masukan (faktur pembelian) per masa dari Accurate, PPN digunggung yang dicatat Accounting, status setor (NTPN) dan lapor setiap jenis pajak, serta rekap per tahun.
       </Heading>
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
@@ -1027,20 +1027,12 @@ function DigunggungPanel({ masa, locked, onChanged }: { masa: string; locked: bo
     }
   }
   const sum = (k: 'dpp' | 'dpp_nilai_lain' | 'ppn' | 'stlg' | 'total') => items.reduce((s, r) => s + (r[k] ?? 0), 0)
-  const xmlUrl = `/api/accounting/tax/digunggung/export?masa=${masa}&format=xml`
   return (
     <>
       <div className="pap-filters pap-dg-toolbar">
         <span className="pap-muted">Faktur penjualan digunggung masa {monthLabel(masa)}, kolom mengikuti template Coretax <b>Retail XML</b> (lampiran I.A.5 / I.A.9 / I.B).</span>
         <span className="pap-spacer" />
-        {items.length > 0 && (
-          <span className="pap-dg-downloads">
-            <span className="pap-muted">Unduh laporan:</span>
-            {data?.npwp ? <a className="pap-btn" href={xmlUrl}><Download /> XML</a> : <button type="button" className="pap-btn" title="Isi NPWP penjual dulu" onClick={() => setError('Isi NPWP penjual (TIN) terlebih dahulu untuk membuat XML Coretax.')}><Download /> XML</button>}
-            <a className="pap-btn" href={`/api/accounting/tax/digunggung/export?masa=${masa}&format=xlsx`}><FileSpreadsheet /> Excel</a>
-            <a className="pap-btn" href={`/cetak/ppn-digunggung?masa=${masa}`} target="_blank" rel="noreferrer"><Printer /> PDF</a>
-          </span>
-        )}
+        <TaxDownloads masa={masa} count={data ? items.length : null} onError={setError} />
         {manage && <button className="pap-btn" onClick={() => setImporting(true)}><Upload /> Unggah laporan</button>}
         {manage && <button className="pap-primary-button" onClick={() => setForm('baru')}><Plus /> Tambah faktur digunggung</button>}
       </div>
@@ -1086,6 +1078,42 @@ function DigunggungPanel({ masa, locked, onChanged }: { masa: string; locked: bo
       {form && <DigunggungForm masa={masa} item={form === 'baru' ? null : form} nomor={data?.nomor_berikutnya ?? ''} onClose={() => setForm(null)} onSaved={() => { setForm(null); load(); onChanged() }} />}
       {importing && <DigunggungImport onClose={() => setImporting(false)} onDone={(text) => { setImporting(false); setMessage(text); load(); onChanged() }} />}
     </>
+  )
+}
+
+// Unduh laporan PPN digunggung satu masa: XML Coretax (RetailInvoiceBulk), Excel (format template Retail_XML), PDF (halaman cetak)
+function TaxDownloads({ masa, count, onError }: { masa: string; count: number | null; onError: (message: string) => void }) {
+  const [busy, setBusy] = useState('')
+  const empty = () => onError(`Belum ada PPN digunggung masa ${monthLabel(masa)}. Buka tab "PPN digunggung", lalu klik "Unggah laporan" (Excel template Retail XML) atau "Tambah faktur digunggung".`)
+  async function download(format: 'xml' | 'xlsx') {
+    if (count === 0) return empty()
+    setBusy(format)
+    try {
+      const res = await fetch(`/api/accounting/tax/digunggung/export?masa=${masa}&format=${format}`)
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error ?? 'Laporan tidak bisa diunduh.')
+      }
+      const name = decodeURIComponent(res.headers.get('content-disposition')?.match(/filename\*=UTF-8''([^;]+)/)?.[1] ?? `PPN Digunggung ${masa}.${format}`)
+      const url = URL.createObjectURL(await res.blob())
+      const a = document.createElement('a')
+      a.href = url
+      a.download = name
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (e) {
+      onError((e as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
+  return (
+    <span className="pap-dg-downloads" role="group" aria-label="Unduh laporan PPN digunggung">
+      <span className="pap-muted">Unduh laporan:</span>
+      <button type="button" className="pap-btn" disabled={!!busy} onClick={() => download('xml')} title="XML Coretax (RetailInvoiceBulk)"><Download /> {busy === 'xml' ? 'Menyiapkan...' : 'XML'}</button>
+      <button type="button" className="pap-btn" disabled={!!busy} onClick={() => download('xlsx')} title="Excel format template Retail_XML"><FileSpreadsheet /> {busy === 'xlsx' ? 'Menyiapkan...' : 'Excel'}</button>
+      <button type="button" className="pap-btn" disabled={!!busy} onClick={() => (count === 0 ? empty() : window.open(`/cetak/ppn-digunggung?masa=${masa}`, '_blank', 'noopener'))} title="Halaman cetak, pilih Simpan sebagai PDF"><Printer /> PDF</button>
+    </span>
   )
 }
 
