@@ -1,7 +1,7 @@
 import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { ApiError, fail, handle, requireUser } from '@/lib/api'
-import { canManageAccounting, isClosed, requireAccounting } from '@/lib/accounting'
+import { canManageAccounting, requireAccounting } from '@/lib/accounting'
 import { db } from '@/lib/db'
 import { DG_COLUMNS, dgValues, nextDigunggungNumber, readDigunggung, readNpwp, saveNpwp, type DigunggungInput } from '@/lib/digunggung'
 import { readXlsx } from '@/lib/xlsx-lite'
@@ -94,8 +94,8 @@ export const POST = handle(async (request: Request) => {
     for (const it of valid) if (have.has(key(it.v!.masa, it.v!.serial_no, it.v!.dpp))) it.duplikat = true
   }
   const masas = [...new Set(valid.map((it) => it.v!.masa))].sort()
+  // Pajak berdiri sendiri: tidak dikunci tutup buku Laporan Keuangan
   const closed: string[] = []
-  for (const m of masas) if (await isClosed(m)) closed.push(m)
   const baru = valid.filter((it) => !it.duplikat && !closed.includes(it.v!.masa))
   const sum = (list: typeof items, k: 'dpp' | 'dpp_nilai_lain' | 'ppn') => list.reduce((s, it) => s + (it.v?.[k] ?? 0), 0)
 

@@ -8,7 +8,7 @@ import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
 import { MonthNav, monthLabel, useDebounced } from './accurate-production'
 import { BarList, ColumnChart } from './charts'
-import { api, Field, formatDate, Modal, Notice, Pager, usePaged, confirmDialog } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged, confirmDialog } from './ui'
 
 // Accounting, Pajak & Finance (Guidance): angka dari Accurate, catatan Accounting di PAP-MS.
 
@@ -657,7 +657,7 @@ function ClosingPanel({ tahun }: { tahun: string }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   async function close(m: ClosingMonth) {
-    if (!(await confirmDialog({ title: `Tutup buku ${monthLabel(m.periode)}`, message: `Angka Accurate ${monthLabel(m.periode)} (laba rugi, neraca, kas, PPN) diambil ulang lalu dibekukan. Setelah ditutup, perubahan di Accurate untuk bulan itu tidak lagi mengubah laporan di SIMPAP, dan PPN digunggung masa itu tidak bisa diubah.`, confirmLabel: 'Ya, tutup buku' }))) return
+    if (!(await confirmDialog({ title: `Tutup buku ${monthLabel(m.periode)}`, message: `Angka Accurate ${monthLabel(m.periode)} (laba rugi, neraca, kas) diambil ulang lalu dibekukan. Setelah ditutup, perubahan di Accurate untuk bulan itu tidak lagi mengubah laporan keuangan di SIMPAP. Menu Pajak tidak terpengaruh.`, confirmLabel: 'Ya, tutup buku' }))) return
     setBusy(m.periode)
     setError('')
     try {
@@ -691,7 +691,7 @@ function ClosingPanel({ tahun }: { tahun: string }) {
       {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
       <div className="pap-table-wrap">
         <table>
-          <thead><tr><th>Bulan</th><th>Status</th><th className="pap-num">Pendapatan</th><th className="pap-num">Laba bersih</th><th className="pap-num">Kas & bank</th><th className="pap-num">PPN kurang bayar</th><th className="pap-actions-col">Aksi</th></tr></thead>
+          <thead><tr><th>Bulan</th><th>Status</th><th className="pap-num">Pendapatan</th><th className="pap-num">Laba bersih</th><th className="pap-num">Kas & bank</th><th className="pap-num">Piutang</th><th className="pap-actions-col">Aksi</th></tr></thead>
           <tbody>
             {(data?.bulan ?? []).map((m) => (
               <tr key={m.periode}>
@@ -700,7 +700,7 @@ function ClosingPanel({ tahun }: { tahun: string }) {
                 <td className="pap-num pap-nowrap">{r(m, 'pendapatan')}</td>
                 <td className="pap-num pap-nowrap">{r(m, 'laba_bersih')}</td>
                 <td className="pap-num pap-nowrap">{r(m, 'kas_bank')}</td>
-                <td className="pap-num pap-nowrap">{r(m, 'ppn_kurang_bayar')}</td>
+                <td className="pap-num pap-nowrap">{r(m, 'piutang')}</td>
                 <td className="pap-actions-cell">
                   {m.status === 'terbuka' && data?.can.close && <button className="pap-btn" disabled={!!busy} onClick={() => close(m)}><Lock /> {busy === m.periode ? 'Menutup...' : 'Tutup buku'}</button>}
                   {m.status === 'ditutup' && data?.can.reopen && <button className="pap-btn" disabled={!!busy} onClick={() => reopen(m)}><LockOpen /> Buka kembali</button>}
@@ -907,7 +907,7 @@ function PlanForm({ item, onClose, onSaved }: { item: CashPlan | null; onClose: 
 // ---------- Pajak ----------
 type VatRow = { id: number; number: string; tanggal: string | null; pihak: string | null; dpp: number; ppn: number; faktur_pajak: string | null }
 type Duty = { id: number | null; jenis: string; label: string; batas_setor: string | null; batas_lapor: string | null; status: 'belum' | 'sudah_setor' | 'selesai' | 'terlambat'; nominal: number | null; tgl_setor: string | null; ntpn: string | null; tgl_lapor: string | null; no_bukti: string | null; catatan: string | null; updated_name: string | null }
-type TaxRes = { masa: string; ditutup: boolean; vat: { keluaran: VatRow[]; masukan: VatRow[]; digunggung: { faktur: number; dpp: number; dpp_nilai_lain: number; ppn: number }; total: { dpp_keluaran: number; ppn_keluaran: number; dpp_masukan: number; ppn_masukan: number; ppn_digunggung: number; dpp_digunggung: number; kurang_bayar: number } }; kewajiban: Duty[]; tanpa_faktur_pajak: number; can: { manage: boolean } }
+type TaxRes = { masa: string; vat: { keluaran: VatRow[]; masukan: VatRow[]; digunggung: { faktur: number; dpp: number; dpp_nilai_lain: number; ppn: number }; total: { dpp_keluaran: number; ppn_keluaran: number; dpp_masukan: number; ppn_masukan: number; ppn_digunggung: number; dpp_digunggung: number; kurang_bayar: number } }; kewajiban: Duty[]; tanpa_faktur_pajak: number; can: { manage: boolean } }
 type Dg = {
   id: number; masa: string; nomor: string; tanggal: string; no_faktur_pajak: string | null; customer: string; jatuh_tempo: string | null; dpp: number; dpp_nilai_lain: number; ppn: number; total: number; catatan: string | null; updated_name: string | null
   trx_code: string; buyer_id_opt: string; buyer_id_number: string; good_service_opt: string; serial_no: string | null; stlg: number; info: string | null
@@ -919,6 +919,16 @@ export function TaxPage(_props: { user: UserProfile }) {
   const { data, loading, error, setError, load } = useLoad<TaxRes>(`/api/accounting/tax?masa=${masa}`)
   const [view, setView] = useState<'keluaran' | 'digunggung' | 'masukan'>('keluaran')
   const [edit, setEdit] = useState<Duty | null>(null)
+  const [dutyDetail, setDutyDetail] = useState<Duty | null>(null)
+  async function removeDuty(k: Duty) {
+    if (!k.id || !(await confirmDialog(`Hapus catatan ${k.label} masa ${monthLabel(masa)}? Status kembali ke Belum.`))) return
+    try {
+      await api(`/api/accounting/tax/${k.id}`, { method: 'DELETE' })
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
   const rows = view === 'digunggung' ? [] : data?.vat[view] ?? []
   const paged = usePaged(rows, [view, masa])
   const t = data?.vat.total
@@ -928,7 +938,6 @@ export function TaxPage(_props: { user: UserProfile }) {
         Pelaporan perpajakan rutin: PPN keluaran (faktur penjualan) dan masukan (faktur pembelian) per masa dari Accurate, PPN digunggung yang dicatat Accounting, status setor (NTPN) dan lapor setiap jenis pajak, serta rekap per tahun.
       </Heading>
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
-      {data?.ditutup && <p className="pap-hint"><Lock className="pap-inline-icon" /> Masa {monthLabel(masa)} sudah tutup buku: angka dibekukan dan PPN digunggung tidak bisa diubah.</p>}
       {!data || !t ? <Loading /> : (
         <>
           <Tiles tiles={[
@@ -941,7 +950,7 @@ export function TaxPage(_props: { user: UserProfile }) {
             <div className="pap-card-head"><div><h2>Kewajiban masa {monthLabel(masa)}</h2><p>Batas setor & lapor pada bulan berikutnya. Catat tanggal setor, NTPN, tanggal lapor, dan nomor bukti penerimaan.</p></div></div>
             <div className="pap-table-wrap">
               <table>
-                <thead><tr><th>Jenis</th><th>Batas setor / lapor</th><th className="pap-num">Nominal</th><th>Setor</th><th>Lapor</th><th>Status</th>{data.can.manage && <th />}</tr></thead>
+                <thead><tr><th>Jenis</th><th>Batas setor / lapor</th><th className="pap-num">Nominal</th><th>Setor</th><th>Lapor</th><th>Status</th><th className="pap-actions-col">Aksi</th></tr></thead>
                 <tbody>
                   {data.kewajiban.map((k) => (
                     <tr key={k.jenis}>
@@ -951,7 +960,7 @@ export function TaxPage(_props: { user: UserProfile }) {
                       <td className="pap-nowrap">{k.tgl_setor ? <>{formatDate(k.tgl_setor)}<div className="pap-cell-sub">NTPN {k.ntpn ?? '—'}</div></> : '—'}</td>
                       <td className="pap-nowrap">{k.tgl_lapor ? <>{formatDate(k.tgl_lapor)}<div className="pap-cell-sub">{k.no_bukti ?? ''}</div></> : '—'}</td>
                       <td><span className={`pap-status ${DUTY[k.status][1]}`}>{DUTY[k.status][0]}</span>{k.updated_name && <div className="pap-cell-sub">{k.updated_name}</div>}</td>
-                      {data.can.manage && <td><button className="pap-btn" onClick={() => setEdit(k)}><CalendarClock /> Catat</button></td>}
+                      <td className="pap-actions-cell"><RowActions label={k.label} onView={() => setDutyDetail(k)} onEdit={data.can.manage ? () => setEdit(k) : undefined} onDelete={data.can.manage && k.id ? () => removeDuty(k) : undefined} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -966,7 +975,7 @@ export function TaxPage(_props: { user: UserProfile }) {
                 <button role="tab" aria-selected={view === 'masukan'} className={view === 'masukan' ? 'active' : ''} onClick={() => setView('masukan')}>PPN masukan ({data.vat.masukan.length})</button>
               </div>
             </div>
-            {view === 'digunggung' ? <DigunggungPanel masa={masa} locked={data.ditutup} onChanged={() => load()} /> : <div className="pap-table-wrap">
+            {view === 'digunggung' ? <DigunggungPanel masa={masa} onChanged={() => load()} /> : <div className="pap-table-wrap">
               <table>
                 <thead><tr><th>Faktur</th><th>{view === 'keluaran' ? 'Customer' : 'Supplier'}</th><th>No. faktur pajak</th><th className="pap-num">DPP</th><th className="pap-num">PPN</th></tr></thead>
                 <tbody>
@@ -988,6 +997,14 @@ export function TaxPage(_props: { user: UserProfile }) {
         </>
       )}
       <TaxYearPanel initial={masa.slice(0, 4)} onPick={setMasa} />
+      {dutyDetail && <Modal title={`${dutyDetail.label} · masa ${monthLabel(masa)}`} subtitle={DUTY[dutyDetail.status][0]} onClose={() => setDutyDetail(null)}
+        footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={() => setDutyDetail(null)}>Tutup</button>{data?.can.manage && dutyDetail.id && <button className="pap-btn danger" onClick={() => { const k = dutyDetail; setDutyDetail(null); removeDuty(k) }}><Trash2 /> Hapus</button>}{data?.can.manage && <button className="pap-primary-button" onClick={() => { setEdit(dutyDetail); setDutyDetail(null) }}><Pencil /> Ubah</button>}</>}>
+        <DetailList rows={[
+          ['Jenis pajak', dutyDetail.label], ['Batas setor', dutyDetail.batas_setor ? formatDate(dutyDetail.batas_setor) : null], ['Batas lapor', dutyDetail.batas_lapor ? formatDate(dutyDetail.batas_lapor) : null],
+          ['Nominal', dutyDetail.nominal === null ? null : formatRupiah(dutyDetail.nominal)], ['Tanggal setor', dutyDetail.tgl_setor ? formatDate(dutyDetail.tgl_setor) : null], ['NTPN', dutyDetail.ntpn],
+          ['Tanggal lapor', dutyDetail.tgl_lapor ? formatDate(dutyDetail.tgl_lapor) : null], ['No. bukti penerimaan (BPE)', dutyDetail.no_bukti], ['Catatan', dutyDetail.catatan], ['Dicatat oleh', dutyDetail.updated_name],
+        ]} />
+      </Modal>}
       {edit && <FilingForm masa={masa} duty={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
     </>
   )
@@ -998,14 +1015,15 @@ const TRX_LABEL: Record<string, string> = { Normal: 'Normal · I.A.5', '07': '07
 const GS_LABEL: Record<string, string> = { A: 'Barang', B: 'Jasa' }
 const NIK_KOSONG = '0000000000000000'
 
-function DigunggungPanel({ masa, locked, onChanged }: { masa: string; locked: boolean; onChanged: () => void }) {
+function DigunggungPanel({ masa, onChanged }: { masa: string; onChanged: () => void }) {
   const { data, loading, error, setError, load } = useLoad<{ items: Dg[]; nomor_berikutnya: string; npwp: string; can: { manage: boolean } }>(`/api/accounting/tax/digunggung?masa=${masa}`)
   const [form, setForm] = useState<Dg | 'baru' | null>(null)
   const [importing, setImporting] = useState(false)
   const [npwpEdit, setNpwpEdit] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const canManage = !!data?.can.manage
-  const manage = canManage && !locked
+  const manage = canManage
+  const [detail, setDetail] = useState<Dg | null>(null)
   const items = data?.items ?? []
   async function remove(r: Dg) {
     if (!(await confirmDialog(`Hapus faktur digunggung ${r.nomor} (${r.customer})?`))) return
@@ -1048,7 +1066,7 @@ function DigunggungPanel({ masa, locked, onChanged }: { masa: string; locked: bo
         <table>
           <thead><tr>
             <th>TrxCode</th><th>BuyerName</th><th>BuyerId</th><th>Brg/Jasa</th><th>SerialNo</th><th>TransactionDate</th>
-            <th className="pap-num">DPP</th><th className="pap-num">DPP nilai lain</th><th className="pap-num">PPN</th><th className="pap-num">PPnBM</th><th>Info</th>{manage && <th className="pap-actions-col">Aksi</th>}
+            <th className="pap-num">DPP</th><th className="pap-num">DPP nilai lain</th><th className="pap-num">PPN</th><th className="pap-num">PPnBM</th><th>Info</th><th className="pap-actions-col">Aksi</th>
           </tr></thead>
           <tbody>
             {items.map((r) => (
@@ -1064,18 +1082,28 @@ function DigunggungPanel({ masa, locked, onChanged }: { masa: string; locked: bo
                 <td className="pap-num pap-nowrap"><strong>{formatRupiah(r.ppn)}</strong></td>
                 <td className="pap-num pap-nowrap">{formatRupiah(r.stlg)}</td>
                 <td>{r.info ?? ''}</td>
-                {manage && <td className="pap-actions-cell"><div className="pap-row-actions"><button type="button" className="pap-row-action edit" onClick={() => setForm(r)}><Pencil /><span>Ubah</span></button><button type="button" className="pap-row-action danger" onClick={() => remove(r)}><Trash2 /><span>Hapus</span></button></div></td>}
+                <td className="pap-actions-cell"><RowActions label={r.nomor} onView={() => setDetail(r)} onEdit={manage ? () => setForm(r) : undefined} onDelete={manage ? () => remove(r) : undefined} /></td>
               </tr>
             ))}
           </tbody>
           {items.length > 1 && (
-            <tbody><tr className="pap-total-row"><td colSpan={6}><b>Total {items.length} transaksi</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('dpp'))}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('dpp_nilai_lain'))}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('ppn'))}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('stlg'))}</b></td><td />{manage && <td />}</tr></tbody>
+            <tbody><tr className="pap-total-row"><td colSpan={6}><b>Total {items.length} transaksi</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('dpp'))}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('dpp_nilai_lain'))}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('ppn'))}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(sum('stlg'))}</b></td><td /><td /></tr></tbody>
           )}
         </table>
         {data && !items.length && <div className="pap-empty">Belum ada PPN digunggung masa ini.{manage ? ' Klik "Tambah faktur digunggung" atau "Unggah laporan" (Excel template Retail XML).' : ''}</div>}
         {loading && !data && <Loading text="Memuat PPN digunggung..." />}
       </div>
       {form && <DigunggungForm masa={masa} item={form === 'baru' ? null : form} nomor={data?.nomor_berikutnya ?? ''} onClose={() => setForm(null)} onSaved={() => { setForm(null); load(); onChanged() }} />}
+      {detail && <Modal title={`Faktur digunggung ${detail.nomor}`} subtitle={`Masa ${monthLabel(detail.masa)}`} onClose={() => setDetail(null)}
+        footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={() => setDetail(null)}>Tutup</button>{manage && <button className="pap-btn danger" onClick={() => { const r = detail; setDetail(null); remove(r) }}><Trash2 /> Hapus</button>}{manage && <button className="pap-primary-button" onClick={() => { setForm(detail); setDetail(null) }}><Pencil /> Ubah</button>}</>}>
+        <DetailList rows={[
+          ['Nomor', detail.nomor], ['No. faktur pajak', detail.no_faktur_pajak], ['TrxCode', TRX_LABEL[detail.trx_code] ?? detail.trx_code], ['Pembeli', detail.customer],
+          ['ID pembeli', `${detail.buyer_id_opt === 'TIN' ? 'NPWP' : detail.buyer_id_opt} ${detail.buyer_id_number === NIK_KOSONG ? '(tanpa ID)' : detail.buyer_id_number}`], ['Barang / jasa', GS_LABEL[detail.good_service_opt] ?? detail.good_service_opt],
+          ['SerialNo', detail.serial_no], ['Tanggal transaksi', formatDate(detail.tanggal)], ['Jatuh tempo', detail.jatuh_tempo ? formatDate(detail.jatuh_tempo) : null],
+          ['DPP', formatRupiah(detail.dpp)], ['DPP nilai lain', formatRupiah(detail.dpp_nilai_lain)], ['PPN', formatRupiah(detail.ppn)], ['PPnBM', formatRupiah(detail.stlg)], ['Total', formatRupiah(detail.total)],
+          ['Info', detail.info], ['Catatan', detail.catatan], ['Terakhir diubah', detail.updated_name],
+        ]} />
+      </Modal>}
       {importing && <DigunggungImport onClose={() => setImporting(false)} onDone={(text) => { setImporting(false); setMessage(text); load(); onChanged() }} />}
     </>
   )
@@ -1257,7 +1285,7 @@ function DigunggungImport({ onClose, onDone }: { onClose: () => void; onDone: (t
 }
 
 // Rekap PPN per masa dalam satu tahun
-type TaxYear = { tahun: string; masa: { masa: string; ppn_keluaran: number; ppn_digunggung: number; ppn_masukan: number; kurang_bayar: number; ditutup: boolean }[]; total: { ppn_keluaran: number; ppn_digunggung: number; ppn_masukan: number; kurang_bayar: number } }
+type TaxYear = { tahun: string; masa: { masa: string; ppn_keluaran: number; ppn_digunggung: number; ppn_masukan: number; kurang_bayar: number }[]; total: { ppn_keluaran: number; ppn_digunggung: number; ppn_masukan: number; kurang_bayar: number } }
 function TaxYearPanel({ initial, onPick }: { initial: string; onPick: (masa: string) => void }) {
   const [tahun, setTahun] = useState(initial)
   const { data, loading, error, setError } = useLoad<TaxYear>(`/api/accounting/tax/rekap?tahun=${tahun}`)
@@ -1274,7 +1302,7 @@ function TaxYearPanel({ initial, onPick }: { initial: string; onPick: (masa: str
           <tbody>
             {(data?.masa ?? []).map((m) => (
               <tr key={m.masa} className="pap-row-link" onClick={() => { onPick(m.masa); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>
-                <td className="pap-nowrap"><b>{monthLabel(m.masa)}</b>{m.ditutup && <span className="pap-status success pap-acc-lock"><Lock className="pap-inline-icon" /> Ditutup</span>}</td>
+                <td className="pap-nowrap"><b>{monthLabel(m.masa)}</b></td>
                 <td className="pap-num pap-nowrap">{formatRupiah(m.ppn_keluaran)}</td>
                 <td className="pap-num pap-nowrap">{formatRupiah(m.ppn_digunggung)}</td>
                 <td className="pap-num pap-nowrap">{formatRupiah(m.ppn_masukan)}</td>
@@ -1329,5 +1357,14 @@ function FilingForm({ masa, duty, onClose, onSaved }: { masa: string; duty: Duty
         <Field label="Catatan" full><input className="pap-input" maxLength={1000} value={v.catatan} onChange={(e) => setV({ ...v, catatan: e.target.value })} /></Field>
       </form>
     </Modal>
+  )
+}
+
+// Daftar label: nilai untuk modal detail
+function DetailList({ rows }: { rows: [string, string | number | null | undefined][] }) {
+  return (
+    <dl className="pap-acc-detail">
+      {rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v === null || v === undefined || v === '' ? <span className="pap-muted">—</span> : v}</dd></div>)}
+    </dl>
   )
 }

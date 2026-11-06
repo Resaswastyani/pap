@@ -1,7 +1,7 @@
 import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
-import { canManageAccounting, requireAccounting, requireOpen } from '@/lib/accounting'
+import { canManageAccounting, requireAccounting } from '@/lib/accounting'
 import { db } from '@/lib/db'
 import { readDigunggung } from '@/lib/digunggung'
 import { softDelete } from '@/lib/recycle-bin'
@@ -26,8 +26,6 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
   const user = await guard()
   const row = await load(ctx)
   const v = readDigunggung(await readJson(request))
-  await requireOpen(row.masa, 'PPN digunggung')
-  await requireOpen(v.masa, 'PPN digunggung')
   await db.query(
     `UPDATE tax_digunggung SET masa = ?, trx_code = ?, tanggal = ?, no_faktur_pajak = ?, customer = ?, buyer_id_opt = ?, buyer_id_number = ?, good_service_opt = ?, serial_no = ?,
        jatuh_tempo = ?, dpp = ?, dpp_nilai_lain = ?, ppn = ?, stlg = ?, info = ?, total = ?, catatan = ?, updated_by = ? WHERE id = ?`,
@@ -40,7 +38,6 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
 export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const user = await guard()
   const row = await load(ctx)
-  await requireOpen(row.masa, 'PPN digunggung')
   await softDelete({ table: 'tax_digunggung', id: row.id, modul: 'Pajak', label: `PPN digunggung ${row.nomor}`, user })
   return NextResponse.json({ ok: true })
 })
