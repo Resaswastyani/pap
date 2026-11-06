@@ -30,7 +30,7 @@ type DashboardData = {
   konten?: { items: { id: number; judul: string; platform: string; jenis: string; jadwal_tayang: string; status: string }[]; tayang: number; rencana: number; leads: number }
   fokus?: 'digital' | 'development' | 'maintenance' | null
   kpi?: { periode: string; nilai?: Record<string, number>; target: Record<string, number> }
-  penjualan?: SalesSet & { so: { jumlah: number; nilai: number }; faktur_bulan_ini: { jumlah: number; nilai: number }; uang_muka_bulan_ini: { jumlah: number; nilai: number }; dasar_so: SalesSet }
+  penjualan?: SalesSet & { so: { jumlah: number; nilai: number }; faktur_bulan_ini: { jumlah: number; nilai: number }; uang_muka_bulan_ini: { jumlah: number; nilai: number }; dasar_so: SalesSet; faktur_per?: string | null }
   uang_muka?: { bulan: string; total: number; jumlah: number; customer: number; belum_dibayar: number; items: { id: number; number: string; tanggal: string; customer: string; sektor: string; total: number; sisa: number }[] }
   produksi?: {
     menunggu: number; dijadwalkan: number; berjalan: number; terlambat: number; selesai_bulan_ini: number
@@ -342,7 +342,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         {sales && salesInfo && (
           <section key="penjualan" data-title="Penjualan per sektor" className="pap-table-card pap-dash-card wide">
             <div className="pap-card-head">
-              <div><h2>Penjualan {picked ? `· ${picked.label}` : 'per sektor'} ({basis === 'so' ? 'sales order' : 'faktur'} Accurate)</h2><p>{basis === 'so' ? 'Nilai sales order' : 'Omzet faktur (tanpa faktur uang muka)'} per bulan{picked ? '' : ' per sektor customer'}, 12 bulan terakhir · bulan ini {shownNow ? `${shownNow.faktur} ${unit}, ${shownNow.customer} customer` : `belum ada ${unit}`}</p>
+              <div><h2>Penjualan {picked ? `· ${picked.label}` : 'per sektor'} ({basis === 'so' ? 'sales order' : 'faktur'} Accurate)</h2><p>{basis === 'so' ? 'Nilai sales order' : 'Omzet faktur (tanpa faktur uang muka)'} per bulan{picked ? '' : ' per sektor customer'}, 12 bulan terakhir · bulan ini {shownNow ? `${shownNow.faktur} ${unit}, ${shownNow.customer} customer` : `belum ada ${unit}`}{basis !== 'so' && salesInfo.faktur_per ? ` · data faktur Accurate per ${formatDate(salesInfo.faktur_per, true)}` : ''}</p>
                 <div className="pap-segmented pap-dash-basis" role="tablist" aria-label="Dasar penjualan">
                   <button role="tab" aria-selected={basis === 'faktur'} className={basis === 'faktur' ? 'active' : ''} onClick={() => setBasis('faktur')}>Penjualan faktur</button>
                   <button role="tab" aria-selected={basis === 'so'} className={basis === 'so' ? 'active' : ''} onClick={() => setBasis('so')}>Penjualan SO</button>

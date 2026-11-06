@@ -645,6 +645,24 @@ export async function syncEntity(entity: ListEntity, deadline: number) {
   }
 }
 
+// Faktur penjualan dipakai dasbor & Monitoring (salinan lokal), sedangkan Laba Rugi membaca Accurate langsung.
+// Agar angkanya tidak tertinggal saat jadwal sinkron terlambat: sinkron inkremental faktur bila sinkron terakhir > maxAgeMin menit
+// (dibatasi budgetMs; sisanya dilanjutkan putaran berikutnya). Mengembalikan waktu sinkron faktur terakhir.
+let invoiceRefresh: Promise<unknown> | null = null
+export async function refreshSalesInvoicesIfStale(maxAgeMin = 10, budgetMs = 8000) {
+  const lastSync = async () => {
+    const [[s]] = await db.query<RowDataPacket[]>("SELECT last_success, TIMESTAMPDIFF(MINUTE, last_success, NOW()) AS umur FROM accurate_sync_state WHERE entity = 'sales-invoice'")
+    return s as { last_success: string | null; umur: number | null } | undefined
+  }
+  const s = await lastSync()
+  if (accurateEnabled() && (!s?.last_success || Number(s.umur) >= maxAgeMin)) {
+    invoiceRefresh ??= syncEntity('sales-invoice', Date.now() + budgetMs).catch((error) => console.error('[refresh sales-invoice]', error)).finally(() => { invoiceRefresh = null })
+    await Promise.race([invoiceRefresh, new Promise((r) => setTimeout(r, budgetMs + 2000))])
+    return (await lastSync())?.last_success ?? null
+  }
+  return s?.last_success ?? null
+}
+
 // Sinkron semua entity dalam batas waktu (default 45 detik agar aman untuk fungsi Vercel 60 detik)
 export async function syncAll(budgetMs = 45_000, only?: SyncEntity[]) {
   if (!accurateEnabled()) throw new Error('Integrasi Accurate belum dikonfigurasi.')

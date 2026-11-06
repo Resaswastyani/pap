@@ -3,6 +3,7 @@
 import type { RowDataPacket } from 'mysql2'
 import { fail } from '@/lib/api'
 import { db } from '@/lib/db'
+import { refreshSalesInvoicesIfStale } from '@/lib/accurate-sync'
 import { INVOICE_NET_SQL } from '@/lib/invoice-net'
 import { cashAccounts, monthEnd, plAmounts, plSummary, receivables, payables, shiftMonth } from '@/lib/accounting'
 import { computeEmployeeKpi } from '@/lib/employee-kpi'
@@ -37,6 +38,8 @@ export async function companyPerformance(periode: string) {
   const hari = berjalan ? Number(today.slice(8, 10)) : 31
   const prev = shiftMonth(periode, -1)
   const lastYear = `${Number(periode.slice(0, 4)) - 1}${periode.slice(4)}`
+  // Faktur terbaru dari Accurate dulu bila salinan lokal tertinggal (> 10 menit)
+  await refreshSalesInvoicesIfStale().catch(() => null)
   const omzetOf = async (p: string) => {
     const [[r]] = await db.query<Row[]>(
       `SELECT COALESCE(SUM(${INVOICE_NET_SQL}), 0) AS omzet, COUNT(*) AS faktur, COUNT(DISTINCT customer_accurate_id) AS customer FROM accurate_sales_invoices i

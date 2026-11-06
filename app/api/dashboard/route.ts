@@ -2,6 +2,7 @@ import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { handle, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
+import { refreshSalesInvoicesIfStale } from '@/lib/accurate-sync'
 import { ensureInvoiceNetQuick, INVOICE_NET_SQL } from '@/lib/invoice-net'
 import { gaReminder } from '@/lib/ga-reminder'
 import { canProcessGa } from '@/lib/ga-requests'
@@ -139,6 +140,8 @@ export const GET = handle(async () => {
   // (pesanan masuk; belum tentu menjadi faktur di bulan yang sama).
   if (user.role.isAdmin || ['general_manager', 'accounting', 'marketing_development'].includes(user.division.code) || canSupervise(user)) {
     tasks.push((async () => {
+      // Faktur terbaru dari Accurate dulu (Laba Rugi membaca Accurate langsung; dasbor dari salinan lokal)
+      const fakturPer = await refreshSalesInvoicesIfStale().catch(() => null)
       await ensureDpFlags().catch(() => {})
       await ensureInvoiceNetQuick()
       // amount: faktur = nilai penjualan bersih (= Pendapatan Laba Rugi Accurate: tanpa PPN, ongkir/biaya lain, setelah diskon); SO = total pesanan
@@ -193,6 +196,7 @@ export const GET = handle(async () => {
         faktur_bulan_ini: { jumlah: now(faktur)?.faktur ?? 0, nilai: now(faktur)?.omzet ?? 0 },
         uang_muka_bulan_ini: { jumlah: n(dp.jumlah), nilai: n(dp.nilai) },
         dasar_so: so,
+        faktur_per: fakturPer,
       }
     })())
   }
