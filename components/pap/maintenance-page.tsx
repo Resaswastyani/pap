@@ -175,7 +175,10 @@ export function MaintenancePage({ user, focusId }: { user: UserProfile; focusId?
                       <td className="pap-actions-cell" onClick={(e) => e.stopPropagation()}>
                         <div className="pap-row-actions">
                           {can.manage && p.aktif && <button className="pap-row-action" onClick={() => setCheckup({ plan: p })}><ClipboardCheck /><span>Checkup</span></button>}
-                          <RowActions label={p.judul} onView={() => setDetailId(p.id)} onEdit={can.manage ? () => setPlanForm(p) : undefined} />
+                          <RowActions label={p.judul} onView={() => setDetailId(p.id)} onEdit={can.manage ? () => setPlanForm(p) : undefined} onDelete={can.manage ? async () => {
+                            if (!(await confirmDialog(`Hapus jadwal "${p.judul}"? Riwayat checkup tetap tersimpan, dan jadwal bisa dipulihkan dari Data Terhapus.`))) return
+                            try { await api(`/api/maintenance/${p.id}`, { method: 'DELETE' }); setMessage('Jadwal perawatan dihapus.'); load() } catch (e) { setError((e as Error).message) }
+                          } : undefined} />
                         </div>
                       </td>
                     </tr>

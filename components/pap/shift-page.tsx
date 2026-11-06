@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CalendarDays, CalendarX, ChevronLeft, ChevronRight, Clock, Download, ExternalLink, FileSpreadsheet, Moon, RefreshCw, Search, Sun, Sunrise, Truck, Upload, Users } from 'lucide-react'
+import { CalendarDays, CalendarPlus, CalendarX, ChevronLeft, ChevronRight, Clock, Download, ExternalLink, FileSpreadsheet, Moon, Pencil, Plus, RefreshCw, Search, Sun, Sunrise, Trash2, Truck, Upload, UserPlus, Users } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
-import { api, Field, formatDate, Modal, Notice } from './ui'
+import { api, Field, formatDate, Modal, Notice, confirmDialog } from './ui'
 
 // kode: "1" / "2" / "3" (shift), "" (OFF / libur), "normal1", "driver1", ...; "_" = tanggal tanpa data
 type Code = { kode: string; label: string; jam: string | null }
@@ -43,6 +43,9 @@ export function ShiftPage(_props: { user: UserProfile }) {
   const [day, setDay] = useState(0)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
+  // Ubah / tambah karyawan di jadwal bulan ini
+  const [rowForm, setRowForm] = useState<Row | 'baru' | null>(null)
+  const [busy, setBusy] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
@@ -91,6 +94,35 @@ export function ShiftPage(_props: { user: UserProfile }) {
     return count
   }), [dates, rows])
   const focus = totals[selectedDay - 1] ?? {}
+  const manage = !!data?.canSync
+  const hasSchedule = !!data?.schedule
+  async function createMonth() {
+    if (!data) return
+    if (!(await confirmDialog({ title: `Buat jadwal ${monthLabel(data.periode)}`, message: 'Daftar karyawan disalin dari jadwal bulan sebelumnya dengan tanggal masih kosong. Setelah itu isi shift tiap karyawan.', confirmLabel: 'Ya, buat jadwal' }))) return
+    setBusy(true)
+    try {
+      const r = await api<{ karyawan: number; dari: string | null }>('/api/shift-schedule', { method: 'POST', json: { periode: data.periode } })
+      setMessage(`Jadwal ${monthLabel(data.periode)} dibuat${r.karyawan ? ` dengan ${r.karyawan} karyawan dari ${monthLabel(r.dari!)}` : ''}. Klik nama karyawan untuk mengisi shift.`)
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  async function deleteMonth() {
+    if (!data || !(await confirmDialog(`Hapus seluruh jadwal ${monthLabel(data.periode)} (${data.rows.length} karyawan)? Jadwal bisa dipulihkan dari Data Terhapus. Tab di Google Sheet tidak ikut dihapus.`))) return
+    setBusy(true)
+    try {
+      await api(`/api/shift-schedule?periode=${data.periode}`, { method: 'DELETE' })
+      setMessage(`Jadwal ${monthLabel(data.periode)} dihapus.`)
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
   const when = today === selectedDay ? 'hari ini' : `tgl ${selectedDay}`
 
   return (
@@ -102,6 +134,7 @@ export function ShiftPage(_props: { user: UserProfile }) {
           <span>{data?.schedule?.judul ?? 'Jadwal karyawan produksi per bulan'}: shift, jam kerja, dan libur per karyawan, disinkron dari spreadsheet di Google Drive.</span>
         </div>
         <div className="pap-inline-actions pap-wrap">
+          {hasSchedule && !!data?.rows.length && <a className="pap-primary-button" href={`/api/shift-schedule/export?periode=${data!.periode}`} title="Unduh jadwal bulan ini sebagai Excel"><Download /> Unduh jadwal</a>}
           <a className="pap-btn" href={`/api/shift-schedule/template?periode=${shiftMonth(thisMonth, 1)}`} title="Template Excel jadwal bulan depan beserta contoh pengisian"><Download /> Unduh template</a>
           {data?.canSync && <button className="pap-btn" onClick={() => setUploadOpen(true)}><Upload /> Unggah file</button>}
           <button className="pap-btn" onClick={() => setSheetOpen(true)}><FileSpreadsheet /> Google Sheet</button>
@@ -135,7 +168,9 @@ export function ShiftPage(_props: { user: UserProfile }) {
             <button className="pap-icon-button" aria-label="Bulan berikutnya" onClick={() => { setDay(0); setPeriode(shiftMonth(periode, 1)) }} disabled={!periode}><ChevronRight /></button>
             <h3>{periode ? monthLabel(periode) : '...'}</h3>
           </div>
-          <div className="pap-inline-actions">
+          <div className="pap-inline-actions pap-wrap">
+            {manage && hasSchedule && <button className="pap-btn" onClick={() => setRowForm('baru')}><UserPlus /> Tambah karyawan</button>}
+            {manage && hasSchedule && <button className="pap-btn danger" disabled={busy} onClick={deleteMonth} title="Hapus jadwal bulan ini"><Trash2 /></button>}
             <label className="pap-table-search pap-shift-search"><Search /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama / kode karyawan..." /></label>
             <div className="pap-segmented" role="tablist">
               <button className={view === 'bulan' ? 'active' : ''} onClick={() => setView('bulan')}><CalendarDays /> Bulanan</button>
@@ -148,7 +183,9 @@ export function ShiftPage(_props: { user: UserProfile }) {
           <div className="pap-empty">
             Belum ada jadwal shift untuk {monthLabel(data.periode)}.
             {data.periods.length > 0 && <> Jadwal tersedia: {data.periods.map((p) => <button key={p} className="pap-link-button" onClick={() => setPeriode(p)}>{monthLabel(p)}</button>)}.</>}
-            {data.canSync && <> Klik <b>Google Sheet</b> untuk sinkron dari spreadsheet.</>}
+            {data.canSync && <> Klik <b>Google Sheet</b> untuk sinkron dari spreadsheet, atau buat langsung di sini.</>}
+            {manage && !hasSchedule && <div className="pap-shift-create"><button className="pap-primary-button" disabled={busy} onClick={createMonth}><CalendarPlus /> Buat jadwal {monthLabel(data.periode)}</button></div>}
+            {manage && hasSchedule && <div className="pap-shift-create"><button className="pap-primary-button" onClick={() => setRowForm('baru')}><UserPlus /> Tambah karyawan</button></div>}
           </div>
         ) : (
           <>
@@ -179,7 +216,7 @@ export function ShiftPage(_props: { user: UserProfile }) {
                     {rows.map((r, n) => (
                       <tr key={r.id}>
                         <td className="sticky no">{n + 1}</td>
-                        <td className="sticky nama"><span className="pap-shift-name">{r.nama}</span>{r.bagian && <span className={`pap-shift-tag ${/kashift|kepala/i.test(r.bagian) ? 'lead' : ''}`}>{r.bagian}</span>}</td>
+                        <td className="sticky nama">{manage ? <button type="button" className="pap-shift-name pap-link-plain" title={`Ubah jadwal ${r.nama}`} onClick={() => setRowForm(r)}>{r.nama} <Pencil className="pap-inline-icon" /></button> : <span className="pap-shift-name">{r.nama}</span>}{r.bagian && <span className={`pap-shift-tag ${/kashift|kepala/i.test(r.bagian) ? 'lead' : ''}`}>{r.bagian}</span>}</td>
                         {showInduk && <td className="induk">{r.nomor_induk ?? '-'}</td>}
                         {showPilihan && <td className="pilihan">{r.pilihan_shift ?? '-'}</td>}
                         {r.jadwal.map((k, i) => <td key={i} className={`pap-shift-cell ${codeClass(k)} ${i + 1 === today ? 'today' : ''}`} title={`${r.nama} · ${DAY_NAME[dates[i].dow]} ${i + 1}: ${describe(k)}`}>{cellText(k, labelOf.get(k)?.label ?? k)}</td>)}
@@ -217,7 +254,7 @@ export function ShiftPage(_props: { user: UserProfile }) {
                         <header><Icon /><div><strong>{c.label}</strong>{c.jam && <small>{c.jam}</small>}</div><span>{people.length} orang</span></header>
                         {people.length ? people.map((r) => (
                           <div key={r.id} className="pap-shift-person">
-                            <span>{r.nama}</span>
+                            {manage ? <button type="button" className="pap-link-plain" onClick={() => setRowForm(r)}>{r.nama}</button> : <span>{r.nama}</span>}
                             {r.bagian ? <span className={`pap-shift-tag ${/kashift|kepala/i.test(r.bagian) ? 'lead' : ''}`}>{r.bagian}</span> : r.nomor_induk && <small className="pap-muted">{r.nomor_induk}</small>}
                           </div>
                         )) : <p className="pap-muted">Tidak ada.</p>}
@@ -230,8 +267,87 @@ export function ShiftPage(_props: { user: UserProfile }) {
           </>
         )}
       </div>
+      {rowForm && data && <ShiftRowForm periode={data.periode} days={data.days} codes={codes} row={rowForm === 'baru' ? null : rowForm} onClose={() => setRowForm(null)} onSaved={(t, w) => { setRowForm(null); setMessage(t); setWarning(w ?? ''); load() }} />}
+      {data && manage && hasSchedule && <p className="pap-muted pap-shift-footnote">Klik nama karyawan untuk mengubah shift per tanggal. Perubahan ikut ditulis ke spreadsheet Jadwal Shift di Google Drive dan menyesuaikan absensi.</p>}
       {data && !data.canSync && <p className="pap-muted pap-shift-footnote">Jadwal dikelola PPIC, HRD, dan kepala Produksi. Hubungi mereka bila ada perubahan.</p>}
     </>
+  )
+}
+
+// ---------------- Tambah / ubah karyawan & shift per tanggal ----------------
+function ShiftRowForm({ periode, days, codes, row, onClose, onSaved }: { periode: string; days: number; codes: Code[]; row: Row | null; onClose: () => void; onSaved: (message: string, warning?: string | null) => void }) {
+  const [v, setV] = useState({ nama: row?.nama ?? '', bagian: row?.bagian ?? '', nomor_induk: row?.nomor_induk ?? '', pilihan_shift: row?.pilihan_shift ?? '' })
+  const [jadwal, setJadwal] = useState<string[]>(() => Array.from({ length: days }, (_, i) => row?.jadwal[i] ?? ''))
+  const [fill, setFill] = useState({ dari: '1', sampai: String(days), kode: codes[0]?.kode ?? '1', minggu: true })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const dow = (d: number) => new Date(Number(periode.slice(0, 4)), Number(periode.slice(5, 7)) - 1, d).getDay()
+  const options = [...codes, ...(codes.some((c) => c.kode === '') ? [] : [{ kode: '', label: 'OFF', jam: null }])]
+  // Isi cepat rentang tanggal dengan satu kode (opsional: Minggu tetap libur)
+  function applyFill() {
+    const a = Math.max(1, Math.min(days, Number(fill.dari) || 1))
+    const b = Math.max(a, Math.min(days, Number(fill.sampai) || days))
+    setJadwal(jadwal.map((k, i) => (i + 1 >= a && i + 1 <= b ? (fill.minggu && dow(i + 1) === 0 ? '' : fill.kode) : k)))
+  }
+  async function save(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      const res = await api<{ warning: string | null }>(row ? `/api/shift-schedule/rows/${row.id}` : '/api/shift-schedule/rows', { method: row ? 'PATCH' : 'POST', json: { ...v, jadwal, periode } })
+      onSaved(row ? `Jadwal ${v.nama} diperbarui.` : `${v.nama} ditambahkan ke jadwal ${monthLabel(periode)}.`, res.warning)
+    } catch (err) {
+      setError((err as Error).message)
+      setBusy(false)
+    }
+  }
+  async function remove() {
+    if (!row || !(await confirmDialog(`Hapus ${row.nama} dari jadwal ${monthLabel(periode)}? Bisa dipulihkan dari Data Terhapus.`))) return
+    setBusy(true)
+    try {
+      const res = await api<{ warning: string | null }>(`/api/shift-schedule/rows/${row.id}`, { method: 'DELETE' })
+      onSaved(`${row.nama} dihapus dari jadwal ${monthLabel(periode)}.`, res.warning)
+    } catch (err) {
+      setError((err as Error).message)
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal title={row ? `Ubah jadwal ${row.nama}` : 'Tambah karyawan'} subtitle={`Jadwal shift ${monthLabel(periode)} · ditulis juga ke Google Sheet`} wide onClose={onClose}
+      footer={<>{row && <button type="button" className="pap-btn danger" disabled={busy} onClick={remove}><Trash2 /> Hapus</button>}<span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="shift-row-form" disabled={busy}>{busy ? 'Menyimpan...' : 'Simpan'}</button></>}>
+      <form id="shift-row-form" className="pap-form-grid" onSubmit={save}>
+        {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        <Field label="Nama *"><input className="pap-input" required maxLength={150} value={v.nama} onChange={(e) => setV({ ...v, nama: e.target.value })} /></Field>
+        <Field label="Bagian"><input className="pap-input" maxLength={100} value={v.bagian} onChange={(e) => setV({ ...v, bagian: e.target.value })} placeholder="Operator Blow, Kashift, ..." /></Field>
+        <Field label="Kode karyawan"><input className="pap-input" maxLength={30} value={v.nomor_induk} onChange={(e) => setV({ ...v, nomor_induk: e.target.value })} /></Field>
+        <Field label="Pilihan shift"><input className="pap-input" maxLength={30} value={v.pilihan_shift} onChange={(e) => setV({ ...v, pilihan_shift: e.target.value })} placeholder="2 Shift, 3 Shift, Pagi, ..." /></Field>
+        <div className="pap-field full">
+          <span>Isi cepat</span>
+          <div className="pap-inline-actions pap-wrap pap-shift-fill">
+            <span>Tgl</span><input className="pap-input" type="number" min={1} max={days} value={fill.dari} onChange={(e) => setFill({ ...fill, dari: e.target.value })} aria-label="Dari tanggal" />
+            <span>s/d</span><input className="pap-input" type="number" min={1} max={days} value={fill.sampai} onChange={(e) => setFill({ ...fill, sampai: e.target.value })} aria-label="Sampai tanggal" />
+            <select className="pap-select" value={fill.kode} onChange={(e) => setFill({ ...fill, kode: e.target.value })} aria-label="Kode shift">{options.map((c) => <option key={c.kode} value={c.kode}>{c.label}</option>)}</select>
+            <label className="pap-check"><input type="checkbox" checked={fill.minggu} onChange={(e) => setFill({ ...fill, minggu: e.target.checked })} /><span>Minggu libur</span></label>
+            <button type="button" className="pap-btn" onClick={applyFill}>Terapkan</button>
+          </div>
+        </div>
+        <div className="pap-field full">
+          <span>Shift per tanggal</span>
+          <div className="pap-shift-edit-grid">
+            {jadwal.map((k, i) => (
+              <label key={i} className={`pap-shift-edit-day ${dow(i + 1) === 0 ? 'sunday' : ''}`}>
+                <small>{DAY_NAME[dow(i + 1)].slice(0, 3)} {i + 1}</small>
+                <select className={`pap-select pap-shift-cell ${codeClass(k)}`} value={k} onChange={(e) => setJadwal(jadwal.map((x, j) => (j === i ? e.target.value : x)))}>
+                  {k === NO_DATA && <option value={NO_DATA}>—</option>}
+                  {options.map((c) => <option key={c.kode} value={c.kode}>{c.label}</option>)}
+                  {k !== NO_DATA && !options.some((c) => c.kode === k) && <option value={k}>{k}</option>}
+                </select>
+              </label>
+            ))}
+          </div>
+        </div>
+      </form>
+    </Modal>
   )
 }
 

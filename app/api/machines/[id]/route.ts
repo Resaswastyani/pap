@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
+import { softDelete } from '@/lib/recycle-bin'
 import { loadMachineDetail } from '@/lib/machine-sheet'
 import { canManageMachines, readMachineInput } from '@/lib/production'
 
@@ -30,6 +31,6 @@ export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   const user = await requireUser()
   if (!canManageMachines(user)) fail(403, 'Hanya PPIC / Teknik yang dapat menghapus mesin.')
   const id = int((await ctx.params).id) ?? fail(404, 'Mesin tidak ditemukan.')
-  await db.query('DELETE FROM machines WHERE id = ?', [id])
+  await softDelete({ table: 'machines', id, modul: 'Data Mesin', user })
   return NextResponse.json({ ok: true })
 })
