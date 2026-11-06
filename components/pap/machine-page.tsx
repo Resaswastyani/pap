@@ -41,6 +41,16 @@ export function MachinePage({ user }: { user: UserProfile }) {
     setMessage(text)
     setTimeout(() => setMessage(''), 5000)
   }
+  async function removeMachine(m: Machine) {
+    if (!(await confirmDialog(`Hapus mesin ${m.nama}? Tahap yang memakai mesin ini perlu dijadwalkan ulang. Data bisa dipulihkan dari menu Data Terhapus.`))) return
+    try {
+      await api(`/api/machines/${m.id}`, { method: 'DELETE' })
+      flash(`Mesin ${m.nama} dihapus.`)
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
   const count = (status: Machine['status']) => items.filter((m) => m.status === status).length
   const busyCount = items.filter((m) => m.sedang_dikerjakan).length
   // Dikelompokkan per lini produksi (dari sheet mapping teknis); mesin tanpa lini di akhir
@@ -84,7 +94,7 @@ export function MachinePage({ user }: { user: UserProfile }) {
                     <td>{m.sedang_dikerjakan ?? <span className="pap-muted">—</span>}</td>
                     <td className="pap-num">{m.antrian}</td>
                     <td><span className={`pap-status ${STATUS_TONE[m.status]}`}>{STATUS_LABEL[m.status]}</span>{m.perbaikan_terbuka > 0 && <div className="pap-cell-sub pap-text-danger">{m.perbaikan_terbuka} kerusakan terbuka</div>}</td>
-                    <td className="pap-actions-cell"><RowActions label={m.nama} onView={() => setDetailId(m.id)} onEdit={canManage ? () => setForm(m) : undefined} /></td>
+                    <td className="pap-actions-cell"><RowActions label={m.nama} onView={() => setDetailId(m.id)} onEdit={canManage ? () => setForm(m) : undefined} onDelete={canManage ? () => removeMachine(m) : undefined} /></td>
                   </tr>
                 ))}
               </tbody>

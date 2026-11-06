@@ -2153,3 +2153,15 @@ ol.pap-jobdesk-list { list-style:decimal; }
 /* Tombol / navigasi di judul halaman tidak boleh menyusut sampai terpotong; baris tombol membungkus */
 .pap-page-heading > .pap-inline-actions { flex-shrink:0; max-width:58%; justify-content:flex-end; }
 @media (max-width:800px) { .pap-page-heading > .pap-inline-actions { max-width:none; } }
+
+/* ---------- Jadwal Shift: ubah langsung ---------- */
+.pap-shift-create { margin-top:14px; display:flex; justify-content:center; }
+.pap-shift-fill .pap-input[type=number] { width:70px; }
+.pap-shift-fill .pap-select { width:auto; min-width:120px; }
+.pap-shift-edit-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(78px, 1fr)); gap:6px; }
+.pap-shift-edit-day { display:flex; flex-direction:column; gap:3px; }
+.pap-shift-edit-day small { color:var(--pap-muted); font-size:10px; font-weight:600; }
+.pap-shift-edit-day.sunday small { color:#d93036; }
+.pap-shift-edit-day .pap-select { min-height:34px; padding:0 6px; font-size:12px; font-weight:700; text-align:center; }
+.pap-shift-table .pap-shift-name.pap-link-plain { display:inline; font-weight:inherit; }
+@media (max-width:640px) { .pap-shift-edit-grid { grid-template-columns:repeat(4, minmax(0, 1fr)); } }

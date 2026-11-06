@@ -415,3 +415,89 @@ export async function shiftSheetWrite(schedules: ParsedSchedule[]) {
     await replaceBlock(sheet, title, 1, rows, Math.max(old, rows.length))
   }
 }
+
+// ---------- Ubah jadwal langsung di SIMPAP ----------
+// Jadwal satu bulan dari database dalam bentuk yang sama dengan hasil baca sheet (untuk tulis balik & unduh)
+export async function scheduleFromDb(periode: string): Promise<ParsedSchedule | null> {
+  const s = await getShiftSchedule(periode)
+  if (!s.schedule || s.periode !== periode) return null
+  return { periode, judul: s.schedule.judul, tab: s.schedule.sheet_tab ?? '', keterangan: s.keterangan, rows: s.rows.map((r, i) => ({ urut: i + 1, nama: r.nama, bagian: r.bagian, nomor_induk: r.nomor_induk, pilihan_shift: r.pilihan_shift, jadwal: r.jadwal })) }
+}
+
+// Setelah jadwal diubah: absensi bulan itu disesuaikan, lalu jadwal ditulis ke spreadsheet (gagal = peringatan)
+export async function afterShiftChange(periode: string) {
+  const { applyShiftSchedule } = await import('@/lib/attendance')
+  await applyShiftSchedule([periode])
+  const { trySheet } = await import('@/lib/sheet-write')
+  const s = await scheduleFromDb(periode)
+  return s && s.rows.length ? trySheet('jadwal shift', () => shiftSheetWrite([s])) : null
+}
+
+export const isShiftPeriode = (p: unknown): p is string => typeof p === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(p)
+
+// Isian satu baris karyawan: { nama, bagian, nomor_induk, pilihan_shift, jadwal: string[] }
+export function readShiftRowInput(body: Record<string, unknown>, days: number) {
+  const text = (v: unknown, max: number) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max) || null
+  const nama = text(body.nama, 150) ?? fail(400, 'Nama karyawan wajib diisi.')
+  const raw = Array.isArray(body.jadwal) ? body.jadwal : []
+  const jadwal = Array.from({ length: days }, (_, i) => {
+    const v = raw[i]
+    return v === undefined || v === null ? NO_DATA : String(v).trim().slice(0, 30)
+  })
+  return { nama: nama!, bagian: text(body.bagian, 100), nomor_induk: text(body.nomor_induk, 30), pilihan_shift: text(body.pilihan_shift, 30), jadwal }
+}
+
+// Buat jadwal bulan baru: karyawan disalin dari jadwal bulan sebelumnya (tanggal dikosongkan) bila ada
+export async function createShiftSchedule(periode: string, userId: number, copyPeople: boolean) {
+  const [[exists]] = await db.query<RowDataPacket[]>('SELECT id FROM shift_schedules WHERE periode = ?', [periode])
+  if (exists) fail(400, 'Jadwal bulan ini sudah ada.')
+  const [[last]] = await db.query<(RowDataPacket & { periode: string })[]>('SELECT periode FROM shift_schedules WHERE periode < ? ORDER BY periode DESC LIMIT 1', [periode])
+  const source = last ? await getShiftSchedule(last.periode) : null
+  const month = Number(periode.slice(5, 7))
+  const keterangan = source?.keterangan?.length ? source.keterangan : (['1', '2', '3', ''] as const).map((kode) => ({ kode, label: DEFAULT_LABEL[kode], jam: null }))
+  const [res] = await db.query<ResultSetHeader>(
+    'INSERT INTO shift_schedules (periode, judul, sheet_tab, keterangan, synced_by, synced_at) VALUES (?, ?, NULL, ?, ?, NOW())',
+    [periode, `JADWAL SHIFT KARYAWAN PRODUKSI BULAN ${MONTH_NAMES[month - 1]} ${periode.slice(0, 4)}`, JSON.stringify(keterangan), userId],
+  )
+  const people = copyPeople ? source?.rows ?? [] : []
+  const days = daysIn(periode)
+  if (people.length) {
+    await db.query('INSERT INTO shift_schedule_rows (schedule_id, urut, nama, bagian, nomor_induk, pilihan_shift, jadwal) VALUES ?', [
+      people.map((p, i) => [res.insertId, i + 1, p.nama, p.bagian, p.nomor_induk, p.pilihan_shift, JSON.stringify(Array(days).fill(''))]),
+    ])
+  }
+  return { id: res.insertId, karyawan: people.length, dari: last?.periode ?? null }
+}
+
+// Unduh jadwal yang sudah dibuat (Excel): susunan sama dengan template, tanggal terisi, rekap jumlah per kode
+export async function shiftExport(periode: string) {
+  const s = await scheduleFromDb(periode)
+  if (!s) fail(404, 'Jadwal bulan ini belum ada.')
+  const sched = s!
+  const total = daysIn(periode)
+  const year = Number(periode.slice(0, 4))
+  const month = Number(periode.slice(5, 7))
+  const dow = (day: number) => new Date(Date.UTC(year, month - 1, day)).getUTCDay()
+  const INITIAL = ['M', 'S', 'S', 'R', 'K', 'J', 'S']
+  const left = ['NO', 'NAMA', 'BAGIAN', 'KD KARYAWAN', 'PILIHAN SHIFT']
+  const lastCol = colName(left.length + total - 1)
+  const label = new Map(sched.keterangan.map((k) => [k.kode, k.label]))
+  const cellOf = (kode: string): XlsxCell => (kode === NO_DATA ? { v: null, s: 'center' } : kode === '' ? { v: 'OFF', s: 'off' } : { v: ['1', '2', '3'].includes(kode) ? kode : label.get(kode) ?? kode, s: 'center' })
+  const rows: XlsxCell[][] = [
+    [{ v: sched.judul ?? `JADWAL SHIFT KARYAWAN PRODUKSI BULAN ${MONTH_NAMES[month - 1]} ${year}`, s: 'title' }],
+    [{ v: `Diunduh dari SIMPAP. 1 / 2 / 3 = Shift 1-3, OFF = libur.`, s: 'note' }],
+    [...left.map((v) => ({ v, s: 'head' as const })), ...Array.from({ length: total }, (_, i) => ({ v: i + 1, s: dow(i + 1) === 0 ? 'sunday' as const : 'head' as const }))],
+    [...left.map(() => ({ v: null, s: 'head' as const })), ...Array.from({ length: total }, (_, i) => ({ v: INITIAL[dow(i + 1)], s: dow(i + 1) === 0 ? 'sunday' as const : 'head' as const }))],
+    ...sched.rows.map((r, i): XlsxCell[] => [{ v: i + 1, s: 'cell' }, { v: r.nama, s: 'cell' }, { v: r.bagian, s: 'cell' }, { v: r.nomor_induk, s: 'cell' }, { v: r.pilihan_shift, s: 'cell' }, ...r.jadwal.slice(0, total).map(cellOf)]),
+    // Rekap per tanggal seperti baris "Jumlah" di sheet
+    ...sched.keterangan.map((k): XlsxCell[] => [null, { v: `Jumlah ${k.label}`, s: 'total' }, null, null, null, ...Array.from({ length: total }, (_, i) => ({ v: sched.rows.filter((r) => r.jadwal[i] === k.kode).length, s: 'total' as const }))]),
+    [],
+    [null, { v: 'Keterangan :', s: 'head' }, { v: 'Jam kerja', s: 'head' }],
+    ...sched.keterangan.map((k): XlsxCell[] => [null, k.label, k.jam ?? (k.kode === '' ? 'Libur' : '')]),
+  ]
+  const name = `${MONTH_NAMES[month - 1].charAt(0)}${MONTH_NAMES[month - 1].slice(1).toLowerCase()} ${year}`
+  return {
+    filename: `Jadwal Shift ${name}.xlsx`,
+    buffer: writeXlsx([{ title: `${MONTH_NAMES[month - 1]} ${year}`, rows, widths: [5, 26, 16, 13, 12, ...Array(total).fill(5)], merges: [`A1:${lastCol}1`, `A2:${lastCol}2`], freeze: { row: 4, col: 2 } }]),
+  }
+}
