@@ -205,19 +205,20 @@ export async function cashBalanceAt(accountNo: string, tanggal: string) {
 }
 
 // ---------- Piutang & hutang ----------
-export type Receivable = { id: number; number: string; tanggal: string | null; jatuh_tempo: string | null; customer: string | null; customer_no: string | null; total: number; sisa: number; umur: number }
+// uang_muka = uang muka yang dipotongkan ke faktur ini; is_dp = faktur ini sendiri faktur uang muka (DP belum dibayar customer)
+export type Receivable = { id: number; number: string; tanggal: string | null; jatuh_tempo: string | null; customer: string | null; customer_no: string | null; total: number; uang_muka: number; is_dp: boolean; sisa: number; umur: number }
 export async function receivables(force = false) {
-  return cached('ar:outstanding', 10, async () => {
+  return cached('ar:outstanding:v2', 10, async () => {
     const out: Receivable[] = []
     const today = todayWib()
     for (let page = 1; page <= 20; page++) {
-      const res = await get<Obj[]>('/api/sales-invoice/list.do', { fields: 'id,number,transDate,dueDate,customer,totalAmount,primeOwing', 'filter.outstanding': 'true', 'sp.page': page, 'sp.pageSize': 100 })
+      const res = await get<Obj[]>('/api/sales-invoice/list.do', { fields: 'id,number,transDate,dueDate,customer,totalAmount,primeOwing,invoiceDp,totalDownPayment', 'filter.outstanding': 'true', 'sp.page': page, 'sp.pageSize': 100 })
       for (const r of res.d ?? []) {
         const c = (r.customer ?? {}) as Obj
         const due = fromAccurateDate(r.dueDate)
         out.push({
           id: Number(r.id), number: String(r.number), tanggal: fromAccurateDate(r.transDate), jatuh_tempo: due, customer: (c.name as string) ?? null, customer_no: (c.customerNo as string) ?? null,
-          total: Number(r.totalAmount ?? 0), sisa: Number(r.primeOwing ?? 0), umur: due ? Math.round((Date.parse(today) - Date.parse(due)) / 86400e3) : 0,
+          total: Number(r.totalAmount ?? 0), uang_muka: Number(r.totalDownPayment ?? 0), is_dp: r.invoiceDp === true, sisa: Number(r.primeOwing ?? 0), umur: due ? Math.round((Date.parse(today) - Date.parse(due)) / 86400e3) : 0,
         })
       }
       if (!res.sp || page >= res.sp.pageCount) break

@@ -410,8 +410,8 @@ function ReconForm({ account, onClose, onSaved }: { account: CashAccount; onClos
 }
 
 // ---------- Piutang Customer ----------
-type Ar = { id: number; number: string; tanggal: string | null; jatuh_tempo: string | null; customer: string | null; customer_no: string | null; total: number; sisa: number; umur: number }
-type ArRes = { piutang: Ar[]; aging: { key: string; label: string; nilai: number; faktur: number }[]; per_customer: { customer: string; customer_no: string | null; faktur: number; sisa: number; lewat_tempo: number; umur_max: number }[]; hutang: { id: number; number: string; tanggal: string | null; jatuh_tempo: string | null; vendor: string | null; sisa: number; umur: number }[] }
+type Ar = { id: number; number: string; tanggal: string | null; jatuh_tempo: string | null; customer: string | null; customer_no: string | null; total: number; uang_muka: number; is_dp: boolean; sisa: number; umur: number }
+type ArRes = { piutang: Ar[]; aging: { key: string; label: string; nilai: number; faktur: number }[]; per_customer: { customer: string; customer_no: string | null; faktur: number; uang_muka: number; sisa: number; lewat_tempo: number; umur_max: number }[]; hutang: { id: number; number: string; tanggal: string | null; jatuh_tempo: string | null; vendor: string | null; sisa: number; umur: number }[] }
 const AGING_UI = [
   { key: 'belum', label: 'Belum jatuh tempo', test: (u: number) => u <= 0 },
   { key: '1_30', label: '1–30 hari', test: (u: number) => u >= 1 && u <= 30 },
@@ -425,21 +425,23 @@ export function ReceivablePage(_props: { user: UserProfile }) {
   const { data, loading, error, setError, load } = useLoad<ArRes>('/api/accounting/receivables')
   const [view, setView] = useState<'faktur' | 'customer' | 'hutang'>('faktur')
   const [tahun, setTahun] = useState(thisYear())
+  const [jenisAr, setJenisAr] = useState<'' | 'dp' | 'biasa'>('')
   const [q, setQ] = useState('')
   const term = q.trim().toLowerCase()
   // Tahun faktur (default tahun ini); "Semua tahun" untuk melihat piutang lama
   const arYear = (data?.piutang ?? []).filter((r) => inYear(r.tanggal, tahun))
   const apYear = (data?.hutang ?? []).filter((r) => inYear(r.tanggal, tahun))
-  const ar = arYear.filter((r) => !term || `${r.number} ${r.customer ?? ''}`.toLowerCase().includes(term))
+  const ar = arYear.filter((r) => (!jenisAr || (jenisAr === 'dp') === r.is_dp) && (!term || `${r.number} ${r.customer ?? ''}`.toLowerCase().includes(term)))
+  const dpBelum = arYear.filter((r) => r.is_dp)
   const ap = apYear.filter((r) => !term || `${r.number} ${r.vendor ?? ''}`.toLowerCase().includes(term))
-  const paged = usePaged(ar, [term, tahun])
+  const paged = usePaged(ar, [term, tahun, jenisAr])
   const pagedAp = usePaged(ap, [term, tahun])
   const total = arYear.reduce((s, r) => s + r.sisa, 0)
   const aging = AGING_UI.map((a) => { const rows = arYear.filter((r) => a.test(r.umur)); return { key: a.key, label: a.label, nilai: rows.reduce((s, r) => s + r.sisa, 0), faktur: rows.length } })
   const perCustomer = [...arYear.reduce((m, r) => {
     const key = r.customer_no ?? r.customer ?? '-'
-    const cur = m.get(key) ?? { customer: r.customer ?? '—', customer_no: r.customer_no, faktur: 0, sisa: 0, lewat_tempo: 0, umur_max: 0 }
-    m.set(key, { ...cur, faktur: cur.faktur + 1, sisa: cur.sisa + r.sisa, lewat_tempo: cur.lewat_tempo + (r.umur > 0 ? r.sisa : 0), umur_max: Math.max(cur.umur_max, r.umur) })
+    const cur = m.get(key) ?? { customer: r.customer ?? '—', customer_no: r.customer_no, faktur: 0, uang_muka: 0, sisa: 0, lewat_tempo: 0, umur_max: 0 }
+    m.set(key, { ...cur, faktur: cur.faktur + 1, uang_muka: cur.uang_muka + (r.uang_muka ?? 0), sisa: cur.sisa + r.sisa, lewat_tempo: cur.lewat_tempo + (r.umur > 0 ? r.sisa : 0), umur_max: Math.max(cur.umur_max, r.umur) })
     return m
   }, new Map<string, ArRes['per_customer'][number]>()).values()].sort((a, b) => b.sisa - a.sisa)
   const otherYears = (data?.piutang ?? []).filter((r) => !inYear(r.tanggal, tahun))
@@ -450,6 +452,7 @@ export function ReceivablePage(_props: { user: UserProfile }) {
       </Heading>
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       {data && tahun !== 'semua' && otherYears.length > 0 && <p className="pap-hint">Ada {otherYears.length} faktur belum lunas dari tahun lain ({short(otherYears.reduce((s, r) => s + r.sisa, 0))}). Klik &quot;Semua tahun&quot; untuk melihatnya.</p>}
+      {data && dpBelum.length > 0 && <p className="pap-hint">{dpBelum.length} piutang adalah faktur uang muka (DP) yang belum dibayar customer: {short(dpBelum.reduce((s, r) => s + r.sisa, 0))}.</p>}
       {data && (
         <div className="pap-stat-grid pap-acc-aging">
           {aging.map((a) => (
@@ -464,12 +467,15 @@ export function ReceivablePage(_props: { user: UserProfile }) {
             <button role="tab" aria-selected={view === 'customer'} className={view === 'customer' ? 'active' : ''} onClick={() => setView('customer')}>Per customer</button>
             <button role="tab" aria-selected={view === 'hutang'} className={view === 'hutang' ? 'active' : ''} onClick={() => setView('hutang')}>Hutang supplier ({apYear.length})</button>
           </div>
-          <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor / nama..." /></label>
+          <div className="pap-inline-actions pap-wrap">
+            {view === 'faktur' && <select className="pap-select" value={jenisAr} onChange={(e) => setJenisAr(e.target.value as typeof jenisAr)} aria-label="Jenis faktur"><option value="">Semua faktur</option><option value="dp">Faktur uang muka (DP)</option><option value="biasa">Faktur penjualan</option></select>}
+            <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor / nama..." /></label>
+          </div>
         </div>
         <div className="pap-table-wrap">
           {view === 'faktur' && (
             <table>
-              <thead><tr><th>Faktur</th><th>Customer</th><th>Jatuh tempo</th><th className="pap-num">Total</th><th className="pap-num">Sisa</th></tr></thead>
+              <thead><tr><th>Faktur</th><th>Customer</th><th>Jatuh tempo</th><th className="pap-num">Total</th><th className="pap-num">DP / uang muka</th><th className="pap-num">Sisa</th></tr></thead>
               <tbody>
                 {paged.items.map((r) => (
                   <tr key={r.id}>
@@ -477,6 +483,7 @@ export function ReceivablePage(_props: { user: UserProfile }) {
                     <td>{r.customer ?? '—'}<div className="pap-cell-sub">{r.customer_no}</div></td>
                     <td className="pap-nowrap">{formatDate(r.jatuh_tempo)}<div className={`pap-cell-sub ${r.umur > 0 ? 'pap-text-danger' : ''}`}>{r.umur > 0 ? `lewat ${r.umur} hari` : r.umur === 0 ? 'hari ini' : `${-r.umur} hari lagi`}</div></td>
                     <td className="pap-num pap-nowrap">{formatRupiah(r.total)}</td>
+                    <td className="pap-num pap-nowrap">{r.is_dp ? <span className="pap-status warning">Faktur DP</span> : r.uang_muka ? <>−{formatRupiah(r.uang_muka)}<div className="pap-cell-sub">dipotong DP</div></> : <span className="pap-muted">—</span>}</td>
                     <td className="pap-num pap-nowrap"><strong>{formatRupiah(r.sisa)}</strong></td>
                   </tr>
                 ))}
@@ -485,12 +492,13 @@ export function ReceivablePage(_props: { user: UserProfile }) {
           )}
           {view === 'customer' && (
             <table>
-              <thead><tr><th>Customer</th><th className="pap-num">Faktur</th><th className="pap-num">Sisa piutang</th><th className="pap-num">Lewat tempo</th><th className="pap-num">Umur terlama</th></tr></thead>
+              <thead><tr><th>Customer</th><th className="pap-num">Faktur</th><th className="pap-num">DP / uang muka</th><th className="pap-num">Sisa piutang</th><th className="pap-num">Lewat tempo</th><th className="pap-num">Umur terlama</th></tr></thead>
               <tbody>
                 {perCustomer.filter((c) => !term || c.customer.toLowerCase().includes(term)).map((c) => (
                   <tr key={c.customer_no ?? c.customer}>
                     <td>{c.customer}<div className="pap-cell-sub">{c.customer_no}</div></td>
                     <td className="pap-num">{c.faktur}</td>
+                    <td className="pap-num pap-nowrap">{c.uang_muka ? formatRupiah(c.uang_muka) : '—'}</td>
                     <td className="pap-num pap-nowrap"><strong>{formatRupiah(c.sisa)}</strong></td>
                     <td className="pap-num pap-nowrap pap-text-danger">{c.lewat_tempo ? formatRupiah(c.lewat_tempo) : '—'}</td>
                     <td className="pap-num pap-nowrap">{c.umur_max > 0 ? `${c.umur_max} hari` : '—'}</td>
