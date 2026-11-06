@@ -282,7 +282,20 @@ export async function checkpointSheetCreate(machineId: number, komponen: string,
   const [refs] = await db.query<(RowDataPacket & { komponen: string; urut: number; jenis: string; sheet_ref: string | null })[]>(
     'SELECT komponen, urut, jenis, sheet_ref FROM machine_checkpoints WHERE machine_id = ? AND sheet_ref IS NOT NULL ORDER BY komponen_urut, id', [machineId],
   )
-  if (!refs.length) throw new SheetWriteError('Mesin ini belum punya critical point dari spreadsheet. Tambahkan blok mesinnya di spreadsheet Mapping Teknis Mesin dulu, lalu sinkron.')
+  if (!refs.length) {
+    // Mesin dari sheet yang belum punya critical point: komponen pertama disisipkan di bawah baris judul mesin
+    const [[m]] = await db.query<(RowDataPacket & { sheet_key: string | null })[]>('SELECT sheet_key FROM machines WHERE id = ?', [machineId])
+    const head = m?.sheet_key ? await findMachineHeader(m.sheet_key) : null
+    if (!head) throw new SheetWriteError('Mesin ini belum ada di spreadsheet Mapping Teknis Mesin. Ubah mesin dan centang "Tulis ke spreadsheet", atau tambahkan blok mesinnya di spreadsheet lalu sinkron.')
+    const { sheet, rows } = await machineSheetTab(head.tab)
+    const after = await insertRowAfter(sheet, head.tab, head.row, ['', `- ${komponen.toUpperCase()}`])
+    const out: string[] = ['', '1', v.teks]
+    if (v.link) out[linkColumn(rows)] = v.link
+    const row = await insertRowAfter(sheet, head.tab, after, out.map((x) => x ?? ''))
+    if (v.keterangan) await insertRowAfter(sheet, head.tab, row, ['', '', `-> ${v.keterangan.replace(/\s*\n\s*/g, ' / ')}`])
+    await reimportMachines()
+    return
+  }
   const tab = splitRef(refs[0].sheet_ref!).tab
   const { sheet, rows } = await machineSheetTab(tab)
   const same = refs.filter((r) => r.komponen.toLowerCase() === komponen.toLowerCase())
@@ -311,4 +324,94 @@ export async function checkpointSheetDelete(old: CheckpointRow) {
   const all = [row, ...(old.jenis === 'langkah' ? explainRows(rows, row) : [])]
   for (const r of all.sort((a, b) => b - a)) await deleteRow(sheet, tab, r)
   await reimportMachines()
+}
+
+// ---------- Mesin baru dari SIMPAP -> blok mesin di spreadsheet ----------
+const isLineTitle = (filled: { c: string; j: number }[]) => !!filled.find((x) => /^inline\b/i.test(x.c) && x.j <= 2) && filled.length <= 2 && !/^data pembantu/i.test(filled[1]?.c ?? '')
+const filledOf = (raw: string[]) => raw.map((c, j) => ({ c: clean(c), j })).filter((x) => x.c)
+export const machineSheetKey = (lini: string | null, title: string, tab: string) => `${(lini ?? tab).toLowerCase()}|${title.toLowerCase()}`.slice(0, 80)
+
+// Baris judul mesin ("A." | "MC BLOW") untuk sheet_key
+async function findMachineHeader(sheetKey: string) {
+  const sheet = await openSheet(await loadMachineSheetUrl())
+  for (const t of sheet.tabs) {
+    const rows = await readTab(sheet, t.title)
+    let lini: string | null = null
+    for (let r = 0; r < rows.length; r++) {
+      const filled = filledOf(rows[r])
+      if (!filled.length) continue
+      if (isLineTitle(filled)) { lini = filled[0].c.toUpperCase(); continue }
+      const a = clean(rows[r][0])
+      const b = clean(rows[r][1])
+      if (/^mc\b/i.test(b) && (/^[a-z]\.?$/i.test(a) || !a) && machineSheetKey(lini, b, t.title) === sheetKey) return { tab: t.title, row: r + 1 }
+    }
+  }
+  return null
+}
+
+// Daftar lini di spreadsheet (judul "INLINE ...")
+export async function machineSheetLines() {
+  const sheet = await openSheet(await loadMachineSheetUrl())
+  const out: { tab: string; lini: string }[] = []
+  for (const t of sheet.tabs) for (const row of await readTab(sheet, t.title)) {
+    const filled = filledOf(row)
+    if (filled.length && isLineTitle(filled)) out.push({ tab: t.title, lini: filled[0].c.toUpperCase() })
+  }
+  return out
+}
+
+export type NewMachineSheet = { lini: string; nama: string; komponen: { nama: string; langkah: string[] }[] }
+// Tulis blok mesin baru di akhir lini-nya (lini baru: judul lini dibuat di akhir tab pertama), lalu sinkron ulang.
+// Hasil = sheet_key mesin agar data SIMPAP (tahap, status, kapasitas) bisa dipasang ke mesin hasil sinkron.
+export async function machineSheetCreate(v: NewMachineSheet) {
+  const sheet = await openSheet(await loadMachineSheetUrl())
+  const lini = v.lini.toUpperCase().replace(/^(?!INLINE\b)/, 'INLINE ').replace(/\s+/g, ' ').trim()
+  const title = `MC ${v.nama.replace(/^mc\s+/i, '').toUpperCase()}`
+  // Cari blok lini: dari judul lini sampai sebelum judul lini berikutnya
+  let target: { tab: string; last: number; letters: string[] } | null = null
+  for (const t of sheet.tabs) {
+    const rows = await readTab(sheet, t.title)
+    let inLine = false
+    for (let r = 0; r < rows.length; r++) {
+      const filled = filledOf(rows[r])
+      if (!filled.length) continue
+      if (isLineTitle(filled)) {
+        if (inLine) break
+        inLine = filled[0].c.toUpperCase() === lini
+        if (inLine) target = { tab: t.title, last: r + 1, letters: [] }
+        continue
+      }
+      if (!inLine || !target) continue
+      target.last = r + 1
+      const a = clean(rows[r][0])
+      const b = clean(rows[r][1])
+      if (/^mc\b/i.test(b)) {
+        if (b.toUpperCase() === title) throw new SheetWriteError(`${title} sudah ada di lini ${lini} pada spreadsheet.`)
+        if (/^[a-z]\.?$/i.test(a)) target.letters.push(a[0].toUpperCase())
+      }
+    }
+    if (target) break
+  }
+  const block: string[][] = []
+  let tab: string
+  let after: number
+  if (target) {
+    tab = target.tab
+    after = target.last
+  } else {
+    // Lini baru di akhir tab pertama
+    tab = sheet.tabs[0]?.title ?? fail(400, 'Spreadsheet Mapping Teknis Mesin tidak punya tab.')
+    after = (await readTab(sheet, tab)).length
+    block.push([''], ['', lini])
+  }
+  const next = target?.letters.length ? String.fromCharCode(Math.max(...target.letters.map((l) => l.charCodeAt(0))) + 1) : 'A'
+  block.push([''], [`${next}.`, title])
+  for (const k of v.komponen) {
+    if (!k.nama.trim()) continue
+    block.push(['', `- ${k.nama.trim().toUpperCase()}`])
+    k.langkah.map((x) => x.trim()).filter(Boolean).forEach((teks, i) => block.push(['', String(i + 1), teks]))
+  }
+  for (const row of block) after = await insertRowAfter(sheet, tab, after, row)
+  await reimportMachines()
+  return machineSheetKey(lini, title, tab)
 }

@@ -105,7 +105,7 @@ export function MachinePage({ user }: { user: UserProfile }) {
           <Pager {...paged.pager} noun="mesin" />
         </div>
       </div>
-      {form && <MachineForm initial={form === 'new' ? null : form} tahapList={tahapList} onClose={() => setForm(null)} onSaved={(text) => { setForm(null); flash(text); load() }} />}
+      {form && <MachineForm initial={form === 'new' ? null : form} tahapList={tahapList} lines={[...new Set(items.map((x) => x.lini).filter((x): x is string => !!x))].sort()} onClose={() => setForm(null)} onSaved={(text) => { setForm(null); flash(text); load() }} />}
       {detailId && <MachineDetail id={detailId} onClose={() => setDetailId(null)} onEdit={(m) => { setDetailId(null); setForm(m) }} />}
       {sheetOpen && <MachineSheetSync onClose={() => setSheetOpen(false)} onImported={(t) => { setSheetOpen(false); flash(t); load() }} />}
     </>
@@ -302,7 +302,8 @@ function MachineSheetSync({ onClose, onImported }: { onClose: () => void; onImpo
   )
 }
 
-function MachineForm({ initial, tahapList, onClose, onSaved }: { initial: Machine | null; tahapList: string[]; onClose: () => void; onSaved: (message: string) => void }) {
+type KomponenInput = { nama: string; langkah: string[] }
+function MachineForm({ initial, tahapList, lines, onClose, onSaved }: { initial: Machine | null; tahapList: string[]; lines: string[]; onClose: () => void; onSaved: (message: string) => void }) {
   const [values, setValues] = useState({
     kode: initial?.kode ?? '',
     nama: initial?.nama ?? '',
@@ -311,6 +312,12 @@ function MachineForm({ initial, tahapList, onClose, onSaved }: { initial: Machin
     status: initial?.status ?? 'aktif',
     keterangan: initial?.keterangan ?? '',
   })
+  // Mesin baru: ditulis ke spreadsheet Mapping Teknis Mesin (lini, komponen, langkah perawatan)
+  const [keSheet, setKeSheet] = useState(true)
+  const [lini, setLini] = useState(lines[0] ?? '')
+  const [liniBaru, setLiniBaru] = useState('')
+  const [komponen, setKomponen] = useState<KomponenInput[]>([{ nama: '', langkah: [''] }])
+  const setK = (i: number, k: KomponenInput) => setKomponen(komponen.map((x, j) => (j === i ? k : x)))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const set = (key: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [key]: e.target.value }))
@@ -321,8 +328,11 @@ function MachineForm({ initial, tahapList, onClose, onSaved }: { initial: Machin
     setError('')
     try {
       if (initial) await api(`/api/machines/${initial.id}`, { method: 'PATCH', json: values })
-      else await api('/api/machines', { method: 'POST', json: values })
-      onSaved(initial ? 'Mesin diperbarui.' : 'Mesin ditambahkan.')
+      else if (keSheet) {
+        const useLini = lini === '__baru' ? liniBaru : lini
+        await api('/api/machines', { method: 'POST', json: { ...values, ke_sheet: true, lini: useLini, komponen: komponen.map((k) => ({ nama: k.nama, langkah: k.langkah.filter((x) => x.trim()) })).filter((k) => k.nama.trim()) } })
+      } else await api('/api/machines', { method: 'POST', json: values })
+      onSaved(initial ? 'Mesin diperbarui.' : keSheet ? 'Mesin ditambahkan dan ditulis ke spreadsheet Mapping Teknis Mesin.' : 'Mesin ditambahkan.')
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -344,14 +354,25 @@ function MachineForm({ initial, tahapList, onClose, onSaved }: { initial: Machin
   return (
     <Modal
       title={initial ? 'Edit mesin' : 'Tambah mesin'}
-      subtitle={initial?.kode}
+      subtitle={initial ? initial.kode : keSheet ? 'Mesin, komponen, dan langkah perawatan ditulis ke spreadsheet Mapping Teknis Mesin' : undefined}
+      wide={!initial}
       onClose={onClose}
       footer={<>{initial && <button type="button" className="pap-btn danger" disabled={saving} onClick={remove}><Trash2 /> Hapus</button>}<span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="machine-form" className="pap-primary-button" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan'}</button></>}
     >
       <form id="machine-form" className="pap-form-grid" onSubmit={submit}>
         {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
-        <Field label="Kode mesin"><input className="pap-input" required maxLength={30} value={values.kode} onChange={set('kode')} placeholder="Contoh: BLW-01" /></Field>
-        <Field label="Nama mesin"><input className="pap-input" required maxLength={150} value={values.nama} onChange={set('nama')} placeholder="Contoh: Mesin Blow 1" /></Field>
+        {!initial && <label className="pap-check full"><input type="checkbox" checked={keSheet} onChange={(e) => setKeSheet(e.target.checked)} /><span>Tulis ke spreadsheet Mapping Teknis Mesin (disarankan, agar critical point bisa dikelola)</span></label>}
+        {!initial && keSheet && (
+          <Field label="Lini">
+            <select className="pap-select" value={lini} onChange={(e) => setLini(e.target.value)}>
+              {lines.map((l) => <option key={l} value={l}>{l}</option>)}
+              <option value="__baru">+ Lini baru...</option>
+            </select>
+          </Field>
+        )}
+        {!initial && keSheet && lini === '__baru' && <Field label="Nama lini baru" hint="Ditulis sebagai INLINE ..."><input className="pap-input" required maxLength={50} value={liniBaru} onChange={(e) => setLiniBaru(e.target.value)} placeholder="Contoh: INLINE PE" /></Field>}
+        <Field label="Kode mesin" hint={!initial && keSheet ? 'Kosongkan untuk kode otomatis dari nama' : undefined}><input className="pap-input" required={initial ? true : !keSheet} maxLength={30} value={values.kode} onChange={set('kode')} placeholder="Contoh: BLW-01" /></Field>
+        <Field label="Nama mesin" hint={!initial && keSheet ? 'Ditulis di sheet sebagai "MC <nama>"' : undefined}><input className="pap-input" required maxLength={150} value={values.nama} onChange={set('nama')} placeholder={!initial && keSheet ? 'Contoh: Blow PP' : 'Contoh: Mesin Blow 1'} /></Field>
         <Field label="Tahap">
           <select className="pap-select" value={values.tahap} onChange={set('tahap')}>{tahapList.map((t) => <option key={t} value={t}>{t}</option>)}</select>
         </Field>
@@ -360,6 +381,32 @@ function MachineForm({ initial, tahapList, onClose, onSaved }: { initial: Machin
         </Field>
         <Field label="Kapasitas (opsional)" full><input className="pap-input" maxLength={150} value={values.kapasitas} onChange={set('kapasitas')} placeholder="Contoh: 500 kg/hari" /></Field>
         <Field label="Keterangan (opsional)" full><textarea className="pap-input" rows={2} maxLength={5000} value={values.keterangan} onChange={set('keterangan')} /></Field>
+        {!initial && keSheet && (
+          <div className="pap-field full">
+            <span>Komponen & langkah perawatan (critical point)</span>
+            <div className="pap-mesin-komponen">
+              {komponen.map((k, i) => (
+                <div key={i} className="pap-mesin-komp">
+                  <div className="pap-inline-actions">
+                    <input className="pap-input" maxLength={150} value={k.nama} onChange={(e) => setK(i, { ...k, nama: e.target.value })} placeholder="Nama komponen, mis. Dies / Blower & ring angin" aria-label={`Komponen ${i + 1}`} />
+                    {komponen.length > 1 && <button type="button" className="pap-icon-button" aria-label="Hapus komponen" onClick={() => setKomponen(komponen.filter((_, j) => j !== i))}><Trash2 /></button>}
+                  </div>
+                  <ol>
+                    {k.langkah.map((l, j) => (
+                      <li key={j}>
+                        <input className="pap-input" maxLength={2000} value={l} onChange={(e) => setK(i, { ...k, langkah: k.langkah.map((x, n) => (n === j ? e.target.value : x)) })} placeholder={`Langkah ${j + 1}`} aria-label={`Langkah ${j + 1}`} />
+                        {k.langkah.length > 1 && <button type="button" className="pap-icon-button" aria-label="Hapus langkah" onClick={() => setK(i, { ...k, langkah: k.langkah.filter((_, n) => n !== j) })}><Trash2 /></button>}
+                      </li>
+                    ))}
+                  </ol>
+                  <button type="button" className="pap-btn" onClick={() => setK(i, { ...k, langkah: [...k.langkah, ''] })}><Plus /> Langkah</button>
+                </div>
+              ))}
+              <button type="button" className="pap-btn" onClick={() => setKomponen([...komponen, { nama: '', langkah: [''] }])}><Plus /> Komponen</button>
+            </div>
+            <small className="pap-muted">Foto / video dan penjelas langkah bisa ditambahkan setelah mesin tersimpan, lewat Detail mesin.</small>
+          </div>
+        )}
       </form>
     </Modal>
   )

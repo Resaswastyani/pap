@@ -3,7 +3,9 @@ import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser, str } from '@/lib/api'
 import { requireMenu } from '@/lib/customers'
 import { db } from '@/lib/db'
+import { machineSheetCreate } from '@/lib/machine-sheet'
 import { canManageMachines, PRODUCTION_STAGES, readMachineInput } from '@/lib/production'
+import { sheetStrict } from '@/lib/sheet-write'
 
 const canViewMachines = (menus: string[]) => menus.includes('data-mesin') || menus.includes('jadwal-produksi')
 
@@ -26,7 +28,28 @@ export const GET = handle(async () => {
 export const POST = handle(async (request: Request) => {
   const user = await requireUser()
   if (!canManageMachines(user)) fail(403, 'Hanya PPIC / Teknik yang dapat menambah mesin.')
-  const input = readMachineInput(await readJson(request))
+  const body = await readJson(request)
+  // Tulis ke spreadsheet Mapping Teknis Mesin: blok mesin (lini, komponen, langkah) dibuat di sheet lalu disinkron
+  if (body.ke_sheet) {
+    const nama = str(body.nama, 150) || fail(400, 'Nama mesin wajib diisi.')
+    const lini = str(body.lini, 60) || fail(400, 'Pilih lini mesin (mis. INLINE PP).')
+    const komponen = (Array.isArray(body.komponen) ? body.komponen : []).slice(0, 40).map((k: Record<string, unknown>) => ({
+      nama: str(k?.nama, 150), langkah: (Array.isArray(k?.langkah) ? k.langkah : []).slice(0, 60).map((x: unknown) => str(x, 2000)),
+    })).filter((k: { nama: string }) => k.nama)
+    const key = await sheetStrict(() => machineSheetCreate({ lini, nama, komponen }))
+    const [[m]] = await db.query<(RowDataPacket & { id: number })[]>('SELECT id FROM machines WHERE sheet_key = ?', [key])
+    if (!m) fail(502, 'Mesin sudah ditulis ke spreadsheet tetapi belum terbaca saat sinkron. Klik Google Sheet lalu Sinkron.')
+    const kode = str(body.kode, 30)
+    const tahap = str(body.tahap, 40)
+    const status = ['aktif', 'maintenance', 'nonaktif'].includes(String(body.status)) ? String(body.status) : 'aktif'
+    await db.query('UPDATE machines SET kode = COALESCE(?, kode), tahap = COALESCE(?, tahap), status = ?, kapasitas = ?, keterangan = ? WHERE id = ?',
+      [kode || null, tahap || null, status, str(body.kapasitas, 150) || null, str(body.keterangan, 5000) || null, m!.id]).catch((e) => {
+      if ((e as { code?: string }).code === 'ER_DUP_ENTRY') fail(409, `Kode mesin ${kode} sudah dipakai mesin lain.`)
+      throw e
+    })
+    return NextResponse.json({ id: m!.id, sheet: true }, { status: 201 })
+  }
+  const input = readMachineInput(body)
   const [result] = await db.query<ResultSetHeader>(
     'INSERT INTO machines (kode, nama, tahap, kapasitas, status, keterangan) VALUES (?, ?, ?, ?, ?, ?)',
     [input.kode, input.nama, input.tahap, input.kapasitas, input.status, input.keterangan],

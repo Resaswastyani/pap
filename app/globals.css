@@ -2165,3 +2165,12 @@ ol.pap-jobdesk-list { list-style:decimal; }
 .pap-shift-edit-day .pap-select { min-height:34px; padding:0 6px; font-size:12px; font-weight:700; text-align:center; }
 .pap-shift-table .pap-shift-name.pap-link-plain { display:inline; font-weight:inherit; }
 @media (max-width:640px) { .pap-shift-edit-grid { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
+
+/* ---------- Tambah mesin: komponen & langkah ---------- */
+.pap-mesin-komponen { display:flex; flex-direction:column; gap:10px; }
+.pap-mesin-komp { display:flex; flex-direction:column; gap:8px; padding:12px; border:1px solid var(--pap-border); border-radius:12px; }
+.pap-mesin-komp .pap-inline-actions .pap-input { flex:1; font-weight:600; }
+.pap-mesin-komp ol { display:flex; flex-direction:column; gap:6px; margin:0; padding-left:22px; }
+.pap-mesin-komp li { display:flex; align-items:center; gap:6px; }
+.pap-mesin-komp li .pap-input { flex:1; }
+.pap-mesin-komp > .pap-btn, .pap-mesin-komponen > .pap-btn { align-self:flex-start; }
