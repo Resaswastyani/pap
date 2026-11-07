@@ -9,8 +9,8 @@ import type { UserProfile } from '@/lib/users'
 export function requireCapacity(user: UserProfile) {
   if (!user.menus.includes('kapasitas-produksi' as never)) fail(403, 'Anda tidak punya akses ke menu Kapasitas Produksi.')
 }
-// Diubah PPIC (kelola produksi), kepala Produksi, atau GM
-export const canManageCapacity = (user: UserProfile) => canManageProduction(user) || (user.division.code === 'produksi' && user.role.code === 'lead')
+// Diubah PPIC (kelola produksi), kepala Produksi, divisi Teknik (mesin & kapasitasnya), atau GM
+export const canManageCapacity = (user: UserProfile) => canManageProduction(user) || (user.division.code === 'produksi' && user.role.code === 'lead') || user.division.code === 'teknik'
 
 export type CapacityRow = {
   id: number; jenis_plastik: string; lebar_maks_cm: number | null; kapasitas_maks_ton: number; efisiensi_pct: number; kapasitas_eff_ton: number

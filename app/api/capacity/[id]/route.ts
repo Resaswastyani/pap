@@ -10,7 +10,7 @@ type Ctx = { params: Promise<{ id: string }> }
 async function guard(ctx: Ctx) {
   const user = await requireUser()
   requireCapacity(user)
-  if (!canManageCapacity(user)) fail(403, 'Kapasitas produksi diatur PPIC, kepala Produksi, atau GM.')
+  if (!canManageCapacity(user)) fail(403, 'Kapasitas produksi diatur PPIC, kepala Produksi, Teknik, atau GM.')
   const id = int((await ctx.params).id) ?? fail(404, 'Data kapasitas tidak ditemukan.')
   return { user, id }
 }

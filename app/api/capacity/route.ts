@@ -16,7 +16,7 @@ export const GET = handle(async () => {
 export const POST = handle(async (request: Request) => {
   const user = await requireUser()
   requireCapacity(user)
-  if (!canManageCapacity(user)) fail(403, 'Kapasitas produksi diatur PPIC, kepala Produksi, atau GM.')
+  if (!canManageCapacity(user)) fail(403, 'Kapasitas produksi diatur PPIC, kepala Produksi, Teknik, atau GM.')
   const v = readCapacityInput(await readJson(request))
   const [[last]] = await db.query<(RowDataPacket & { urut: number | null })[]>('SELECT MAX(urut) AS urut FROM production_capacities')
   const [res] = await db.query<ResultSetHeader>(
@@ -31,6 +31,6 @@ export const POST = handle(async (request: Request) => {
 export const PUT = handle(async (request: Request) => {
   const user = await requireUser()
   requireCapacity(user)
-  if (!canManageCapacity(user)) fail(403, 'Kapasitas produksi diatur PPIC, kepala Produksi, atau GM.')
+  if (!canManageCapacity(user)) fail(403, 'Kapasitas produksi diatur PPIC, kepala Produksi, Teknik, atau GM.')
   return NextResponse.json({ info: await saveCapacityInfo(await readJson(request), user.id) })
 })
