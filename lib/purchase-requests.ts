@@ -2,7 +2,7 @@
 // (Guidance Tehnik & Purchasing: "Request pembelian barang tehnik oleh divisi tehnik", "PPIC request pembelian bahan").
 // Purchasing mencatat nomor PO Accurate yang memenuhi pengajuan (po_number).
 // Alur: diajukan -> disetujui -> dipesan -> diterima (stok sparepart bertambah otomatis); bisa ditolak / dibatalkan.
-import type { RowDataPacket } from 'mysql2'
+import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { fail, int, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { notify } from '@/lib/notifications'
@@ -78,6 +78,33 @@ export async function readPrInput(body: Record<string, unknown>) {
     return { itemId: master ? itemId : null, nama, spesifikasi: str(r?.spesifikasi, 500) || null, jumlah, satuan: str(r?.satuan, 40) || master?.satuan || 'pcs' }
   })
   return { keperluan, prioritas, dibutuhkan, repairId, items }
+}
+
+// Simpan pengajuan + barangnya (nomor PP-YYYYMM-00001), lalu kabari Purchasing
+export async function createPr(input: Awaited<ReturnType<typeof readPrInput>>, user: UserProfile) {
+  const conn = await db.getConnection()
+  let id: number
+  try {
+    await conn.beginTransaction()
+    const [res] = await conn.query<ResultSetHeader>(
+      'INSERT INTO purchase_requests (keperluan, prioritas, dibutuhkan, repair_id, requested_by) VALUES (?, ?, ?, ?, ?)',
+      [input.keperluan, input.prioritas, input.dibutuhkan, input.repairId, user.id],
+    )
+    id = res.insertId
+    await conn.query("UPDATE purchase_requests SET nomor = CONCAT('PP-', DATE_FORMAT(created_at, '%Y%m'), '-', LPAD(id, 5, '0')) WHERE id = ?", [id])
+    await conn.query(
+      'INSERT INTO purchase_request_items (request_id, item_id, nama, spesifikasi, jumlah, satuan, urut) VALUES ?',
+      [input.items.map((it, i) => [id, it.itemId, it.nama, it.spesifikasi, it.jumlah, it.satuan, i + 1])],
+    )
+    await conn.commit()
+  } catch (error) {
+    await conn.rollback()
+    throw error
+  } finally {
+    conn.release()
+  }
+  await notifyPr(id!, user, true)
+  return id!
 }
 
 // Transisi status yang boleh

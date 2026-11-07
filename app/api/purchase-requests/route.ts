@@ -1,8 +1,8 @@
-import type { ResultSetHeader, RowDataPacket } from 'mysql2'
+import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
-import { notifyPr, PR_SELECT, readPrInput, serializePr } from '@/lib/purchase-requests'
+import { createPr, PR_SELECT, readPrInput, serializePr } from '@/lib/purchase-requests'
 import { OPEN_STATUSES } from '@/lib/repairs'
 import { canProcessPurchase, canRequestPurchase, PR_STATUS, requireTeknikMenu } from '@/lib/teknik'
 
@@ -46,28 +46,6 @@ export const POST = handle(async (request: Request) => {
   const user = await requireUser()
   requireTeknikMenu(user, 'pengajuan-pembelian', 'Pengajuan Pembelian')
   if (!canRequestPurchase(user)) fail(403, 'Pengajuan pembelian dibuat oleh divisi Teknik, PPIC, atau Purchasing.')
-  const input = await readPrInput(await readJson(request))
-  const conn = await db.getConnection()
-  let id: number
-  try {
-    await conn.beginTransaction()
-    const [res] = await conn.query<ResultSetHeader>(
-      'INSERT INTO purchase_requests (keperluan, prioritas, dibutuhkan, repair_id, requested_by) VALUES (?, ?, ?, ?, ?)',
-      [input.keperluan, input.prioritas, input.dibutuhkan, input.repairId, user.id],
-    )
-    id = res.insertId
-    await conn.query("UPDATE purchase_requests SET nomor = CONCAT('PP-', DATE_FORMAT(created_at, '%Y%m'), '-', LPAD(id, 5, '0')) WHERE id = ?", [id])
-    await conn.query(
-      'INSERT INTO purchase_request_items (request_id, item_id, nama, spesifikasi, jumlah, satuan, urut) VALUES ?',
-      [input.items.map((it, i) => [id, it.itemId, it.nama, it.spesifikasi, it.jumlah, it.satuan, i + 1])],
-    )
-    await conn.commit()
-  } catch (error) {
-    await conn.rollback()
-    throw error
-  } finally {
-    conn.release()
-  }
-  await notifyPr(id!, user, true)
-  return NextResponse.json({ id: id! }, { status: 201 })
+  const id = await createPr(await readPrInput(await readJson(request)), user)
+  return NextResponse.json({ id }, { status: 201 })
 })

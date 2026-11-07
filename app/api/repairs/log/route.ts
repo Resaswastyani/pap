@@ -1,7 +1,9 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
-import { handle, readJson, requireUser } from '@/lib/api'
+import { fail, handle, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
+import { createPr, loadPr, readPrInput } from '@/lib/purchase-requests'
+import { canRequestPurchase } from '@/lib/teknik'
 import { canSyncDamageLog, DAMAGE_SELECT, damageFilter, machineLabel, readDamageInput, requireDamageLog, damageSheetCreate, syncDamageSheet } from '@/lib/damage-log'
 import { canHandleRepair } from '@/lib/repairs'
 import { trySheet } from '@/lib/sheet-write'
@@ -46,6 +48,7 @@ export const GET = handle(async (request: Request) => {
     'SELECT mesin, part FROM maintenance_sheet_items GROUP BY mesin, part ORDER BY MIN(mesin_urut), MIN(part_no), part',
   )
   const [years] = await db.query<Row[]>('SELECT DISTINCT YEAR(tanggal) AS tahun FROM machine_damage_logs WHERE tanggal IS NOT NULL ORDER BY tahun DESC')
+  const [spareparts] = await db.query<Row[]>('SELECT id, nama, satuan, stok FROM tech_items WHERE aktif = 1 ORDER BY nama LIMIT 2000')
   const [[synced]] = await db.query<Row[]>("SELECT value FROM app_settings WHERE `key` = 'kerusakan_mesin.synced_at'")
 
   return NextResponse.json({
@@ -63,7 +66,9 @@ export const GET = handle(async (request: Request) => {
       years: years.map((y) => Number(y.tahun)),
     },
     synced_at: synced?.value ?? null,
-    can: { create: true, sync: canSyncDamageLog(user) },
+    // Barang yang perlu dibeli di form laporan -> Pengajuan Pembelian (Teknik, PPIC, Purchasing, manajemen)
+    spareparts: canRequestPurchase(user) ? spareparts.map((s) => ({ id: Number(s.id), nama: String(s.nama), satuan: String(s.satuan), stok: Number(s.stok) })) : [],
+    can: { create: true, sync: canSyncDamageLog(user), purchase: canRequestPurchase(user) },
   })
 })
 
@@ -71,7 +76,23 @@ export const GET = handle(async (request: Request) => {
 export const POST = handle(async (request: Request) => {
   const user = await requireUser()
   requireDamageLog(user)
-  const v = readDamageInput(await readJson(request))
+  const body = await readJson(request)
+  const v = readDamageInput(body)
+  // Barang yang perlu dibeli untuk perbaikan: diperiksa dulu agar laporan tidak tersimpan setengah bila isian barang salah
+  const beli = (body.beli ?? null) as Record<string, unknown> | null
+  const beliItems = (Array.isArray(beli?.items) ? (beli!.items as Record<string, unknown>[]) : []).filter((it) => String(it?.nama ?? '').trim() || it?.item_id)
+  let pr: Awaited<ReturnType<typeof readPrInput>> | null = null
+  if (beliItems.length) {
+    if (!canRequestPurchase(user)) fail(403, 'Pengajuan pembelian dibuat oleh divisi Teknik, PPIC, atau Purchasing.')
+    pr = await readPrInput({
+      keperluan: [
+        `Perbaikan mesin ${v.mesin}${v.komponen ? ` · komponen ${v.komponen}` : ''}`,
+        `Laporan kerusakan ${v.tanggal}: ${v.kerusakan}`,
+        beli?.catatan ? String(beli.catatan).slice(0, 1000) : null,
+      ].filter(Boolean).join('\n'),
+      prioritas: beli?.prioritas, dibutuhkan: beli?.dibutuhkan, items: beliItems,
+    })
+  }
   const [res] = await db.query<ResultSetHeader>(
     `INSERT INTO machine_damage_logs (source, tanggal, mesin, mesin_key, komponen, kerusakan, tindakan, keterangan, created_by) VALUES ('app', ?, ?, ?, ?, ?, ?, ?, ?)`,
     [v.tanggal, v.mesin, v.mesin_key, v.komponen, v.kerusakan, v.tindakan, v.keterangan, user.id],
@@ -82,5 +103,7 @@ export const POST = handle(async (request: Request) => {
     await db.query('DELETE FROM machine_damage_logs WHERE id = ?', [res.insertId])
     await syncDamageSheet()
   })
-  return NextResponse.json({ id: res.insertId, warning }, { status: 201 })
+  const prId = pr ? await createPr(pr, user) : null
+  const prNomor = prId ? (await loadPr(prId)).nomor : null
+  return NextResponse.json({ id: res.insertId, warning, pengajuan: prId ? { id: prId, nomor: prNomor } : null }, { status: 201 })
 })

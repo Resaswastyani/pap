@@ -2201,3 +2201,7 @@ ol.pap-jobdesk-list { list-style:decimal; }
 .pap-acc-detail dd { margin:3px 0 0; font-size:13px; font-weight:600; overflow-wrap:anywhere; }
 @media (max-width:640px) { .pap-acc-detail { grid-template-columns:1fr; } }
 .pap-acc-tag { margin-left:6px; padding:2px 7px; font-size:9px; }
+
+/* Laporan kerusakan: barang yang perlu dibeli */
+.pap-damage-buy .pap-section-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.pap-damage-buy .pap-form-grid { margin-top:10px; }

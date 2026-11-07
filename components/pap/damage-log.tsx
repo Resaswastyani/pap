@@ -37,8 +37,10 @@ type Data = {
   }
   options: { machines: { key: string; label: string; jumlah: number }[]; components: string[]; parts: SheetPart[]; years: number[] }
   synced_at: string | null
-  can: { create: boolean; sync: boolean }
+  spareparts?: Sparepart[]
+  can: { create: boolean; sync: boolean; purchase?: boolean }
 }
+type Sparepart = { id: number; nama: string; satuan: string; stok: number }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 function lastMonths(count: number) {
@@ -226,6 +228,9 @@ export function DamageLogView({ user: _user }: { user: UserProfile }) {
           item={form === 'new' ? null : form}
           machines={data?.options.machines.map((m) => m.label) ?? []}
           parts={data?.options.parts ?? []}
+          used={data?.options.components ?? []}
+          spareparts={data?.spareparts ?? []}
+          canPurchase={!!data?.can.purchase}
           onClose={() => setForm(null)}
           onSaved={(text, warning) => { setForm(null); setMessage(text); if (warning) setError(warning); load() }}
         />
@@ -246,7 +251,13 @@ function matchSheetMachines(mesin: string, names: string[]) {
   return names.filter((n) => { const have = new Set(machineTokens(n)); return want.every((t) => have.has(t)) })
 }
 
-function DamageForm({ item, machines, parts, onClose, onSaved }: { item: Damage | null; machines: string[]; parts: SheetPart[]; onClose: () => void; onSaved: (text: string, warning?: string | null) => void }) {
+type BuyRow = { item_id: string; nama: string; jumlah: string; satuan: string; spesifikasi: string }
+const emptyBuy = (): BuyRow => ({ item_id: '', nama: '', jumlah: '', satuan: 'pcs', spesifikasi: '' })
+
+function DamageForm({ item, machines, parts, used, spareparts, canPurchase, onClose, onSaved }: {
+  item: Damage | null; machines: string[]; parts: SheetPart[]; used: string[]; spareparts: Sparepart[]; canPurchase: boolean
+  onClose: () => void; onSaved: (text: string, warning?: string | null) => void
+}) {
   const today = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
   const [v, setV] = useState({
     tanggal: item?.tanggal?.slice(0, 10) ?? today, mesin: item?.mesin ?? '', komponen: item?.komponen ?? '',
@@ -259,15 +270,28 @@ function DamageForm({ item, machines, parts, onClose, onSaved }: { item: Damage 
   const sheetMachines = [...new Set(parts.map((p) => p.mesin))]
   const matched = matchSheetMachines(v.mesin, sheetMachines)
   const groups = [...matched, ...sheetMachines.filter((m) => !matched.includes(m))]
-  const known = parts.some((p) => p.part === v.komponen)
-  const [manual, setManual] = useState(!parts.length || (!!item?.komponen && !known))
+  // Komponen yang pernah diketik manual (tidak ada di Lembar Perawatan) bisa dipilih lagi
+  const usedOther = used.filter((c) => c && !parts.some((p) => p.part === c))
+  const known = parts.some((p) => p.part === v.komponen) || usedOther.includes(v.komponen)
+  const [manual, setManual] = useState((!parts.length && !usedOther.length) || (!!item?.komponen && !known))
+  // Barang yang perlu dibeli untuk perbaikan -> Pengajuan Pembelian ke Purchasing (hanya saat laporan baru)
+  const [buy, setBuy] = useState<BuyRow[]>([])
+  const [buyMeta, setBuyMeta] = useState({ prioritas: 'normal', dibutuhkan: '', catatan: '' })
+  const setBuyRow = (i: number, patch: Partial<BuyRow>) => setBuy((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+  // Nama yang cocok dengan data Sparepart & Peralatan -> tertaut (stok bertambah saat pengajuan diterima)
+  const pickName = (i: number, nama: string) => {
+    const sp = spareparts.find((p) => p.nama.toLowerCase() === nama.trim().toLowerCase())
+    setBuyRow(i, sp ? { nama, item_id: String(sp.id), satuan: sp.satuan } : { nama, item_id: '' })
+  }
+  const buyFilled = buy.filter((r) => r.nama.trim())
 
   async function save() {
     setBusy(true)
     setError('')
     try {
-      const res = await api<{ warning?: string | null }>(item ? `/api/repairs/log/${item.id}` : '/api/repairs/log', { method: item ? 'PUT' : 'POST', json: v })
-      onSaved(item ? 'Laporan kerusakan diperbarui (juga di spreadsheet).' : 'Laporan kerusakan disimpan (juga di spreadsheet).', res.warning)
+      const json = item || !buyFilled.length ? v : { ...v, beli: { ...buyMeta, items: buyFilled.map((r) => ({ item_id: r.item_id || null, nama: r.nama, jumlah: r.jumlah, satuan: r.satuan, spesifikasi: r.spesifikasi })) } }
+      const res = await api<{ warning?: string | null; pengajuan?: { id: number; nomor: string } | null }>(item ? `/api/repairs/log/${item.id}` : '/api/repairs/log', { method: item ? 'PUT' : 'POST', json })
+      onSaved(item ? 'Laporan kerusakan diperbarui (juga di spreadsheet).' : `Laporan kerusakan disimpan (juga di spreadsheet).${res.pengajuan ? ` Pengajuan pembelian ${res.pengajuan.nomor} otomatis dikirim ke Purchasing.` : ''}`, res.warning)
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -280,7 +304,8 @@ function DamageForm({ item, machines, parts, onClose, onSaved }: { item: Damage 
       title={item ? 'Ubah laporan kerusakan' : 'Laporan Kerusakan Mesin'}
       subtitle="Isi sesuai form laporan kerusakan: tanggal, nama mesin, kerusakan, tindakan, dan keterangan."
       onClose={onClose}
-      footer={<><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" disabled={busy} onClick={save}>{busy ? 'Menyimpan...' : 'Simpan'}</button></>}
+      wide={!item && canPurchase}
+      footer={<><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" disabled={busy} onClick={save}>{busy ? 'Menyimpan...' : buyFilled.length && !item ? 'Simpan & ajukan pembelian' : 'Simpan'}</button></>}
     >
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       <div className="pap-form-grid">
@@ -289,28 +314,75 @@ function DamageForm({ item, machines, parts, onClose, onSaved }: { item: Damage 
           <input className="pap-input" list="pap-damage-machines" value={v.mesin} onChange={set('mesin')} placeholder="Mis. Cutseal HD" />
           <datalist id="pap-damage-machines">{machines.map((m) => <option key={m} value={m} />)}</datalist>
         </Field>
-        <Field label="Komponen" hint={matched.length ? `Dari Lembar Perawatan · ${matched.join(', ')} di atas` : 'Opsional · daftar dari Lembar Perawatan Mesin'} full>
+        <Field label="Komponen (opsional)" hint={manual ? 'Komponen baru tersimpan di laporan dan bisa dipilih lagi di grup "Pernah dicatat".' : matched.length ? `Dari Lembar Perawatan · ${matched.join(', ')} di atas. Tidak ada di daftar? Klik "Komponen lain".` : 'Daftar dari Lembar Perawatan Mesin. Tidak ada di daftar? Klik "Komponen lain".'} full>
           {manual ? (
             <div className="pap-inline-actions">
-              <input className="pap-input" value={v.komponen} onChange={set('komponen')} placeholder="Ketik nama komponen" autoFocus />
-              {parts.length > 0 && <button type="button" className="pap-btn" onClick={() => { setManual(false); setV({ ...v, komponen: '' }) }}>Pilih dari daftar</button>}
+              <input className="pap-input" maxLength={150} value={v.komponen} onChange={set('komponen')} placeholder="Ketik nama komponen yang tidak ada di daftar" autoFocus />
+              {(parts.length > 0 || usedOther.length > 0) && <button type="button" className="pap-btn" onClick={() => { setManual(false); setV({ ...v, komponen: '' }) }}>Pilih dari daftar</button>}
             </div>
           ) : (
-            <select className="pap-select" value={known ? v.komponen : ''} onChange={(e) => (e.target.value === '__lain' ? (setManual(true), setV({ ...v, komponen: '' })) : set('komponen')(e))}>
-              <option value="">— Pilih komponen —</option>
-              {groups.map((m) => (
-                <optgroup key={m} label={m}>
-                  {parts.filter((p) => p.mesin === m).map((p) => <option key={`${m}|${p.part}`} value={p.part}>{p.part}</option>)}
-                </optgroup>
-              ))}
-              <option value="__lain">Lainnya (ketik manual)...</option>
-            </select>
+            <div className="pap-inline-actions">
+              <select className="pap-select" value={known ? v.komponen : ''} onChange={(e) => (e.target.value === '__lain' ? (setManual(true), setV({ ...v, komponen: '' })) : set('komponen')(e))}>
+                <option value="">— Pilih komponen (opsional) —</option>
+                {groups.map((m) => (
+                  <optgroup key={m} label={m}>
+                    {parts.filter((p) => p.mesin === m).map((p) => <option key={`${m}|${p.part}`} value={p.part}>{p.part}</option>)}
+                  </optgroup>
+                ))}
+                {usedOther.length > 0 && <optgroup label="Pernah dicatat (di luar Lembar Perawatan)">{usedOther.map((c) => <option key={`u|${c}`} value={c}>{c}</option>)}</optgroup>}
+                <option value="__lain">Lainnya (ketik manual)...</option>
+              </select>
+              <button type="button" className="pap-btn pap-nowrap" onClick={() => { setManual(true); setV({ ...v, komponen: '' }) }}><Plus /> Komponen lain</button>
+            </div>
           )}
         </Field>
         <Field label="Kerusakan" full><textarea className="pap-input" rows={3} value={v.kerusakan} onChange={set('kerusakan')} placeholder="Gejala / kerusakan yang terjadi" /></Field>
         <Field label="Tindakan" full><textarea className="pap-input" rows={3} value={v.tindakan} onChange={set('tindakan')} placeholder="Perbaikan yang dilakukan" /></Field>
         <Field label="Keterangan" full><textarea className="pap-input" rows={2} value={v.keterangan} onChange={set('keterangan')} placeholder="Sparepart, catatan lain" /></Field>
       </div>
+      {!item && canPurchase && (
+        <section className="pap-detail-section pap-damage-buy">
+          <div className="pap-section-head">
+            <h3>Barang yang perlu dibeli (opsional)</h3>
+            <button type="button" className="pap-btn" onClick={() => setBuy((rows) => [...rows, emptyBuy()])}><Plus /> Tambah barang</button>
+          </div>
+          <p className="pap-muted">Diisi bila perbaikan butuh sparepart / barang baru. Saat disimpan, <b>Pengajuan Pembelian</b> otomatis dibuat dan dikirim ke Purchasing, tanpa mengisi form pengajuan lagi. Pilih nama dari data Sparepart agar stok bertambah saat barang diterima.</p>
+          {buy.length > 0 && (
+            <>
+              <div className="pap-table-wrap bordered">
+                <table className="pap-belanja-items">
+                  <thead><tr><th>Nama barang</th><th className="pap-num">Jumlah</th><th>Satuan</th><th>Spesifikasi / merek</th><th /></tr></thead>
+                  <tbody>
+                    {buy.map((r, i) => (
+                      <tr key={i}>
+                        <td>
+                          <input className="pap-input" list="pap-damage-spareparts" maxLength={200} value={r.nama} onChange={(e) => pickName(i, e.target.value)} placeholder="Mis. Bearing 6204" aria-label={`Nama barang ${i + 1}`} />
+                          {r.item_id && <div className="pap-cell-sub">Tertaut ke data sparepart · stok {spareparts.find((p) => String(p.id) === r.item_id)?.stok ?? 0}</div>}
+                        </td>
+                        <td><input className="pap-input pap-num" type="number" min={0} step="any" value={r.jumlah} onChange={(e) => setBuyRow(i, { jumlah: e.target.value })} aria-label={`Jumlah ${i + 1}`} /></td>
+                        <td><input className="pap-input" list="pap-damage-satuan" maxLength={40} value={r.satuan} onChange={(e) => setBuyRow(i, { satuan: e.target.value })} aria-label={`Satuan ${i + 1}`} /></td>
+                        <td><input className="pap-input" maxLength={500} value={r.spesifikasi} onChange={(e) => setBuyRow(i, { spesifikasi: e.target.value })} aria-label={`Spesifikasi ${i + 1}`} /></td>
+                        <td><button type="button" className="pap-icon-button" aria-label={`Hapus barang ${i + 1}`} onClick={() => setBuy((rows) => rows.filter((_, j) => j !== i))}><Trash2 /></button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <datalist id="pap-damage-spareparts">{spareparts.map((p) => <option key={p.id} value={p.nama}>{`stok ${p.stok} ${p.satuan}`}</option>)}</datalist>
+              <datalist id="pap-damage-satuan">{['pcs', 'set', 'unit', 'meter', 'liter', 'kg', 'roll', 'box'].map((x) => <option key={x} value={x} />)}</datalist>
+              <div className="pap-form-grid">
+                <Field label="Prioritas pembelian">
+                  <select className="pap-select" value={buyMeta.prioritas} onChange={(e) => setBuyMeta({ ...buyMeta, prioritas: e.target.value })}>
+                    <option value="normal">Normal</option><option value="tinggi">Tinggi</option><option value="darurat">Darurat (mesin berhenti)</option>
+                  </select>
+                </Field>
+                <Field label="Dibutuhkan tanggal (opsional)"><input className="pap-input" type="date" value={buyMeta.dibutuhkan} onChange={(e) => setBuyMeta({ ...buyMeta, dibutuhkan: e.target.value })} /></Field>
+                <Field label="Catatan untuk Purchasing (opsional)" full><input className="pap-input" maxLength={1000} value={buyMeta.catatan} onChange={(e) => setBuyMeta({ ...buyMeta, catatan: e.target.value })} placeholder="Mis. beli di toko langganan, bisa merek setara" /></Field>
+              </div>
+            </>
+          )}
+        </section>
+      )}
     </Modal>
   )
 }
