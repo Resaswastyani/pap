@@ -2,14 +2,14 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
-import { canManageHr, canViewPayroll } from '@/lib/hrd'
+import { canManageHr, canViewOvertime } from '@/lib/hrd'
 import { loadSettings, periodRange } from '@/lib/payroll'
 import { readOvertime } from '@/lib/payroll-overtime'
 
 // Lembur variabel input manual per periode cut off: ?periode=YYYY-MM
 export const GET = handle(async (request: Request) => {
   const user = await requireUser()
-  if (!canViewPayroll(user)) fail(403, 'Anda tidak punya akses ke Grade & gaji (menu Karyawan).')
+  if (!canViewOvertime(user)) fail(403, 'Anda tidak punya akses ke menu Lembur.')
   const periode = new URL(request.url).searchParams.get('periode') ?? ''
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(periode)) fail(400, 'Periode tidak valid.')
   const range = periodRange(periode, (await loadSettings()).cutoff_tanggal)
@@ -30,7 +30,7 @@ export const GET = handle(async (request: Request) => {
 // Tambah lembur variabel manual: { nip, tanggal, jam, hari: kerja|libur, mode: tambah|ganti, keterangan }
 export const POST = handle(async (request: Request) => {
   const user = await requireUser()
-  if (!canViewPayroll(user) || !canManageHr(user)) fail(403, 'Lembur manual diisi oleh HRD.')
+  if (!canViewOvertime(user) || !canManageHr(user)) fail(403, 'Lembur manual diisi oleh HRD.')
   const v = await readOvertime(await readJson(request))
   const [res] = await db.query<ResultSetHeader>(
     'INSERT INTO overtime_entries (nip, tanggal, jam, hari, mode, keterangan, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',

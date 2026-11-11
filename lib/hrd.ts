@@ -17,6 +17,8 @@ export const GRADE_SETTING = 'hrd.grade_sheet_url'
 const hasMenu = (user: UserProfile, key: string) => user.menus.includes(key as never)
 export const canViewEmployees = (user: UserProfile) => hasMenu(user, 'karyawan')
 export const canViewPayroll = (user: UserProfile) => hasMenu(user, 'grade-gaji')
+// Menu Lembur (sidebar SDM); pemegang Grade & gaji tetap bisa membuka data lembur
+export const canViewOvertime = (user: UserProfile) => hasMenu(user, 'lembur') || canViewPayroll(user)
 // Data pribadi (KTP, alamat, BPJS, NPWP, rekening) & sinkron: HRD, GM, admin
 export const canManageHr = (user: UserProfile) => isManagement(user) || user.division.code === 'hrd'
 

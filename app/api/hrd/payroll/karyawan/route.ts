@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser } from '@/lib/api'
-import { canManageHr, canViewPayroll } from '@/lib/hrd'
+import { canManageHr, canViewPayroll, nameKey } from '@/lib/hrd'
 import { createPayroll, listPayrolls, PRIVATE_PAYROLL, seedPayrolls } from '@/lib/payroll'
 import { db } from '@/lib/db'
 import type { RowDataPacket } from 'mysql2'
@@ -18,8 +18,12 @@ export const GET = handle(async () => {
       `SELECT e.nip, e.nama, e.jabatan FROM employees e LEFT JOIN employee_payrolls p ON p.nip = e.nip
        WHERE p.id IS NULL AND e.tgl_berhenti IS NULL ORDER BY e.nama`)
     : [[]]
+  // Grade dari tab Grade operator (spreadsheet Data Grade), dicocokkan lewat nama
+  const [grades] = await db.query<(RowDataPacket & { nama_key: string; grade: string | null })[]>('SELECT nama_key, grade FROM employee_grades WHERE grade IS NOT NULL')
+  const gradeOf = new Map(grades.map((g) => [g.nama_key, g.grade]))
+  const withGrade = items.map((p) => ({ ...p, grade: gradeOf.get(nameKey(p.nama)) ?? null }))
   return NextResponse.json({
-    items: manage ? items : items.map((p) => Object.fromEntries(Object.entries(p).filter(([k]) => !PRIVATE_PAYROLL.includes(k)))),
+    items: manage ? withGrade : withGrade.map((p) => Object.fromEntries(Object.entries(p).filter(([k]) => !PRIVATE_PAYROLL.includes(k)))),
     tanpa_pengaturan: tanpa,
     can: { manage },
   })

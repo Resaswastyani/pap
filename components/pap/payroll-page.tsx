@@ -27,6 +27,7 @@ type Payroll = {
   no_bpjs_tk?: string | null; nilai_bpjs_tk: number | null; bpjs_tk_ditanggung: keyof typeof DITANGGUNG; no_bpjs_kes?: string | null; nilai_bpjs_kes: number | null
   bpjs_kes_ditanggung: keyof typeof DITANGGUNG; npwp?: string | null; status_ptkp: string | null; metode_pajak: string | null
   bank?: string | null; no_rekening?: string | null; nama_pemilik?: string | null
+  grade?: string | null
 }
 type PayrollList = { items: Payroll[]; tanpa_pengaturan: { nip: string; nama: string; jabatan: string | null }[]; can: { manage: boolean } }
 
@@ -88,7 +89,7 @@ export function PayrollEmployees() {
       ]} />
       <div className="pap-table-card">
         <div className="pap-card-head">
-          <div><h2>Pengaturan gaji per karyawan</h2><p>Seperti isian Payroll pada data Pegawai di Altius. Dipakai di tab Hitung gaji.</p></div>
+          <div><h2>Gaji karyawan</h2><p>Grade (dari Grade operator), gaji pokok, dan tunjangan per karyawan. Klik Ubah untuk pengaturan lengkap (lembur, BPJS, pajak, rekening) yang dipakai di Hitung gaji.</p></div>
           {manage && <div className="pap-inline-actions">
             {!!data?.tanpa_pengaturan.length && <button className="pap-btn" onClick={seed}><UserPlus /> Lengkapi dari Data Karyawan</button>}
             <button className="pap-primary-button" onClick={() => setForm({ item: null })} disabled={!data?.tanpa_pengaturan.length}><Plus /> Tambah</button>
@@ -97,26 +98,18 @@ export function PayrollEmployees() {
         <div className="pap-filters"><label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama / NIP..." /></label></div>
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Karyawan</th><th>Tipe kalkulasi</th><th className="pap-num">Gaji</th><th className="pap-num">Lembur / jam</th><th className="pap-num">Tunjangan & lain</th><th>BPJS</th><th>Pajak</th>{manage && <th>Rekening</th>}{manage && <th aria-label="Aksi" />}</tr></thead>
+            <thead><tr><th>Karyawan</th><th>Grade</th><th className="pap-num">Gaji pokok</th><th className="pap-num">Tunjangan</th>{manage && <th aria-label="Aksi" />}</tr></thead>
             <tbody>
               {paged.items.map((p) => (
                 <tr key={p.id}>
                   <td><div className="pap-cell-title">{p.nama}</div><div className="pap-cell-sub">{p.nip}{p.jabatan ? ` · ${p.jabatan}` : ''}{p.tgl_berhenti ? ' · berhenti' : ''}</div></td>
-                  <td>{TIPE_KALKULASI[p.tipe_kalkulasi] ?? p.tipe_kalkulasi}<div className="pap-cell-sub">{p.tanggal_berlaku ? `Berlaku ${formatDate(p.tanggal_berlaku)}` : ''}</div></td>
+                  <td>{p.grade ? <span className={`pap-status ${({ A: 'success', B: 'info', C: 'warning' } as Record<string, string>)[p.grade] ?? 'neutral'}`}>{p.grade}</span> : <span className="pap-muted">—</span>}</td>
                   <td className="pap-num pap-nowrap">
                     {p.gaji_pokok ? <div>{rp(p.gaji_pokok)} <small className="pap-muted">/ bln</small></div> : null}
                     {p.gaji_harian ? <div>{rp(p.gaji_harian)} <small className="pap-muted">/ hari</small></div> : null}
-                    {p.gaji_per_jam_aktif && p.gaji_per_jam ? <div>{rp(p.gaji_per_jam)} <small className="pap-muted">/ jam</small></div> : null}
-                    {!p.gaji_pokok && !p.gaji_harian && !(p.gaji_per_jam_aktif && p.gaji_per_jam) && <span className="pap-status warning">Belum diisi</span>}
+                    {!p.gaji_pokok && !p.gaji_harian && <span className="pap-status warning">Belum diisi</span>}
                   </td>
-                  <td className="pap-num pap-nowrap">{rp(p.lembur_per_jam)}<div className="pap-cell-sub">libur {rp(p.lembur_per_jam_libur)}</div></td>
-                  <td className="pap-num pap-nowrap">{rp((p.tunjangan_lain ?? 0) + (p.pendapatan_lain ?? 0))}<div className="pap-cell-sub">{p.pendapatan_harian ? `+${formatRupiah(p.pendapatan_harian)}/hari` : ''}{p.potongan_lain ? ` −${formatRupiah(p.potongan_lain)}` : ''}</div></td>
-                  <td className="pap-nowrap">
-                    <div>TK {manage ? (p.no_bpjs_tk ? '✓' : '—') : ''} · {p.bpjs_tk_ditanggung === 'perusahaan' ? 'perusahaan' : 'pegawai'}</div>
-                    <div className="pap-cell-sub">Kes {manage ? (p.no_bpjs_kes ? '✓' : '—') : ''} · {p.bpjs_kes_ditanggung === 'perusahaan' ? 'perusahaan' : 'pegawai'}</div>
-                  </td>
-                  <td>{p.status_ptkp ?? '—'}<div className="pap-cell-sub">{p.metode_pajak ? METODE_PAJAK[p.metode_pajak as keyof typeof METODE_PAJAK] : 'ikut pengaturan'}</div></td>
-                  {manage && <td>{p.bank ?? '—'}<div className="pap-cell-sub">{p.no_rekening ?? ''}</div></td>}
+                  <td className="pap-num pap-nowrap">{p.tunjangan_lain ? rp(p.tunjangan_lain) : <span className="pap-muted">—</span>}</td>
                   {manage && <td><div className="pap-row-actions">
                     <button className="pap-icon-button" title="Ubah" aria-label={`Ubah gaji ${p.nama}`} onClick={() => setForm({ item: p })}><Pencil /></button>
                     <button className="pap-icon-button" title="Hapus" aria-label={`Hapus gaji ${p.nama}`} onClick={() => remove(p)}><Trash2 /></button>
@@ -462,6 +455,22 @@ export function PayrollCalc() {
 // ---------- Lembur variabel manual ----------
 type Overtime = { id: number; nip: string; nama: string; jabatan: string | null; tanggal: string; jam: number; hari: 'kerja' | 'libur'; mode: 'tambah' | 'ganti'; keterangan: string | null; created_name: string | null }
 type OvertimeRes = { periode: string; dari: string; sampai: string; items: Overtime[]; employees: { nip: string; nama: string; jabatan: string | null }[]; can: { manage: boolean } }
+
+// Menu Lembur (sidebar SDM)
+export function LemburPage() {
+  return (
+    <>
+      <div className="pap-page-heading">
+        <div>
+          <p className="pap-eyebrow">SDM</p>
+          <h1>Lembur</h1>
+          <span>Lembur variabel per periode cut off: otomatis dari Absensi (jam di luar shift & kerja di hari libur) ditambah lembur yang diinput manual. Dipakai di Grade &amp; Gaji › Hitung gaji.</span>
+        </div>
+      </div>
+      <PayrollOvertime />
+    </>
+  )
+}
 
 export function PayrollOvertime() {
   const [periode, setPeriode] = useState(() => {
