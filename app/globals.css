@@ -2228,3 +2228,7 @@ ol.pap-jobdesk-list { list-style:decimal; }
   .pap-ticket-reply { flex-direction:column; align-items:stretch; }
   .pap-ticket-prio { width:100%; }
 }
+
+/* Pesan kosong dengan ikon di atas teks */
+.pap-empty-stack { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; }
+.pap-empty-stack > svg { width:26px; height:26px; opacity:.45; }

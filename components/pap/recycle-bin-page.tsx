@@ -167,7 +167,7 @@ export function RecycleBinPage({ user }: { user: UserProfile }) {
             </tbody>
           </table>
           {!loading && !items.length && (
-            <div className="pap-empty"><ArchiveRestore style={{ width: 22, height: 22, opacity: 0.5 }} /><div>{open ? 'Tidak ada data terhapus.' : 'Belum ada data yang dipulihkan.'}</div></div>
+            <div className="pap-empty pap-empty-stack"><ArchiveRestore /><div>{open ? 'Tidak ada data terhapus.' : 'Belum ada data yang dipulihkan.'}</div></div>
           )}
           {loading && !items.length && <div className="pap-empty">Memuat...</div>}
         </div>

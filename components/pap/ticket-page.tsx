@@ -89,6 +89,7 @@ export function TicketPage({ user, menus, focusId }: { user: UserProfile; menus:
         {tile('Selesai bulan ini', s?.selesai_bulan_ini ?? 0, `${s?.total ?? 0} tiket total`, CheckCircle2, 'stat-0', 'selesai')}
       </div>
       <div className="pap-table-card">
+        <div className="pap-card-head"><div><h2>{handler ? 'Daftar tiket' : 'Tiket saya'}</h2><p>{data ? `${items.length} tiket${status === 'aktif' ? ' aktif' : ''}` : 'Memuat...'} · klik tiket untuk melihat detail & percakapan</p></div></div>
         <div className="pap-filters">
           <div className="pap-segmented" role="tablist" aria-label="Status tiket">
             {([['aktif', 'Aktif'], ['', 'Semua'], ['selesai', 'Selesai'], ['ditolak', 'Ditolak']] as const).map(([k, l]) => <button key={l} role="tab" aria-selected={status === k} className={status === k ? 'active' : ''} onClick={() => setStatus(k)}>{l}</button>)}
@@ -124,7 +125,7 @@ export function TicketPage({ user, menus, focusId }: { user: UserProfile; menus:
             </tbody>
           </table>
           {data && !items.length && (
-            <div className="pap-empty"><LifeBuoy style={{ width: 22, height: 22, opacity: 0.5 }} /><div>{q || status !== 'aktif' ? 'Tidak ada tiket yang cocok.' : handler ? 'Tidak ada tiket aktif. Semua kendala sudah ditangani.' : 'Belum ada tiket aktif. Klik "Ajukan tiket" bila menemukan kendala di SIMPAP.'}</div></div>
+            <div className="pap-empty pap-empty-stack"><LifeBuoy /><div>{q || status !== 'aktif' ? 'Tidak ada tiket yang cocok.' : handler ? 'Tidak ada tiket aktif. Semua kendala sudah ditangani.' : 'Belum ada tiket aktif. Klik "Ajukan tiket" bila menemukan kendala di SIMPAP.'}</div></div>
           )}
           {!data && !error && <div className="pap-empty">Memuat tiket...</div>}
           <Pager {...paged.pager} noun="tiket" />
