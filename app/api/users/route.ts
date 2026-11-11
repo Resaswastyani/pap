@@ -2,21 +2,24 @@ import bcrypt from 'bcryptjs'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { logUserActivity, userSnapshot } from '@/lib/activity'
-import { assertCanTouchSuperAdmin, loadRole, validEmail, validPassword } from '@/lib/admin'
+import { assertCanTouchSuperAdmin, employeeNipOf, loadRole, validEmail, validPassword } from '@/lib/admin'
 import { fail, handle, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { PERMISSIONS } from '@/lib/permissions'
 import { assertDivision } from '@/lib/planning'
 
 const USER_LIST_SELECT = `SELECT u.id, u.name, u.email, u.is_active, u.last_login_at, u.created_at,
-  u.division_id, d.name AS division_name, u.role_id, r.code AS role_code, r.name AS role_name, r.is_super_admin,
+  u.division_id, d.name AS division_name, u.role_id, r.code AS role_code, r.name AS role_name, r.is_super_admin, u.employee_nip,
+  (SELECT e.nama FROM employees e WHERE e.nip = u.employee_nip) AS employee_nama,
   (SELECT COUNT(*) FROM user_permissions up WHERE up.user_id = u.id) AS override_count
   FROM users u JOIN divisions d ON d.id = u.division_id JOIN roles r ON r.id = u.role_id`
 
 export const GET = handle(async () => {
   await requireUser(PERMISSIONS.usersManage)
   const [rows] = await db.query<RowDataPacket[]>(`${USER_LIST_SELECT} ORDER BY d.sort_order, r.is_super_admin DESC, r.is_admin DESC, r.id, u.name`)
-  return NextResponse.json({ items: rows.map((row) => ({ ...row, is_active: !!row.is_active, is_super_admin: !!row.is_super_admin, override_count: Number(row.override_count) })) })
+  // Karyawan aktif untuk menghubungkan akun ke data karyawan (Izin & Cuti)
+  const [employees] = await db.query<RowDataPacket[]>("SELECT nip, nama, divisi, jabatan FROM employees WHERE tgl_berhenti IS NULL AND COALESCE(status_karyawan, '') NOT LIKE '%resign%' ORDER BY nama")
+  return NextResponse.json({ items: rows.map((row) => ({ ...row, is_active: !!row.is_active, is_super_admin: !!row.is_super_admin, override_count: Number(row.override_count) })), employees })
 })
 
 export const POST = handle(async (request: Request) => {
@@ -31,8 +34,8 @@ export const POST = handle(async (request: Request) => {
   assertCanTouchSuperAdmin(actor, role)
 
   const [result] = await db.query<ResultSetHeader>(
-    'INSERT INTO users (name, email, password_hash, role_id, division_id, is_active) VALUES (?, ?, ?, ?, ?, ?)',
-    [name, email, await bcrypt.hash(password, 10), role.id, divisionId, body.is_active === false ? 0 : 1],
+    'INSERT INTO users (name, email, password_hash, role_id, division_id, is_active, employee_nip) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [name, email, await bcrypt.hash(password, 10), role.id, divisionId, body.is_active === false ? 0 : 1, await employeeNipOf(body.employee_nip)],
   )
   const created = await userSnapshot(result.insertId)
   if (created) await logUserActivity(request, actor, { action: 'create', target: created, description: `Menambah user ${created.name} (${created.role} · ${created.division}, ${created.is_active ? 'aktif' : 'nonaktif'})` })

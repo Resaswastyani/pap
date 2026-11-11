@@ -134,10 +134,11 @@ const workDays = (a: string, b: string) => {
 
 function LeaveForm({ item, employees, approver, onClose, onSaved }: { item: Leave | null; employees: Emp[]; approver: boolean; onClose: () => void; onSaved: (t: string) => void }) {
   const [v, setV] = useState({ nip: s(item?.nip), jenis: (item?.jenis ?? 'izin') as Jenis, tanggal_mulai: item?.tanggal_mulai ?? today(), tanggal_selesai: item?.tanggal_selesai ?? today(), hari: s(item?.hari), alasan: s(item?.alasan), lampiran_url: s(item?.lampiran_url) })
+  const own = !approver ? employees[0] ?? null : null
   const [cari, setCari] = useState(item ? `${item.nama} (${item.nip})` : '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const emp = employees.find((e) => e.nip === v.nip)
+  const emp = own ?? employees.find((e) => e.nip === v.nip)
   const auto = workDays(v.tanggal_mulai, v.tanggal_selesai || v.tanggal_mulai)
   const set = (k: keyof typeof v) => (e: { target: { value: string } }) => setV((cur) => ({ ...cur, [k]: e.target.value }))
   const pick = (text: string) => {
@@ -147,7 +148,8 @@ function LeaveForm({ item, employees, approver, onClose, onSaved }: { item: Leav
   }
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!v.nip) return setError('Pilih karyawan dari daftar.')
+    if (!approver && !own) return setError('Akun Anda belum terhubung ke data karyawan. Minta Admin menghubungkannya di Manajemen User.')
+    if (approver && !v.nip) return setError('Pilih karyawan dari daftar.')
     setBusy(true)
     try {
       if (item) await api(`/api/hrd/leaves/${item.id}`, { method: 'PUT', json: v })
@@ -168,8 +170,10 @@ function LeaveForm({ item, employees, approver, onClose, onSaved }: { item: Leav
       <form id="leave-form" className="pap-form-grid" onSubmit={submit}>
         {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <Field label="Karyawan *" full hint={emp ? [emp.divisi, emp.jabatan, emp.cuti?.jatah ? `sisa cuti ${emp.cuti.sisa} hari${emp.cuti.menunggu ? ` (${emp.cuti.menunggu} menunggu)` : ''}` : 'belum berhak cuti tahunan'].filter(Boolean).join(' · ') : 'Ketik nama lalu pilih dari daftar'}>
-          <input className="pap-input" list="pap-emps" value={cari} onChange={(e) => pick(e.target.value)} placeholder="Nama / NIP karyawan" required />
-          <datalist id="pap-emps">{employees.map((e) => <option key={e.nip} value={`${e.nama} (${e.nip})`}>{e.divisi ?? ''}</option>)}</datalist>
+          {approver ? <>
+            <input className="pap-input" list="pap-emps" value={cari} onChange={(e) => pick(e.target.value)} placeholder="Nama / NIP karyawan" required />
+            <datalist id="pap-emps">{employees.map((e) => <option key={e.nip} value={`${e.nama} (${e.nip})`}>{e.divisi ?? ''}</option>)}</datalist>
+          </> : <input className="pap-input" value={own ? `${own.nama} (${own.nip})` : 'Akun belum terhubung ke data karyawan'} disabled />}
         </Field>
         <Field label="Jenis *"><select className="pap-select" value={v.jenis} onChange={set('jenis')}>{Object.entries(JENIS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
         <Field label="Jumlah hari" hint={`Otomatis ${auto} hari (tanpa Minggu) bila dikosongkan; bisa 0,5`}><input className="pap-input pap-num" inputMode="decimal" value={v.hari} onChange={set('hari')} placeholder={String(auto)} /></Field>

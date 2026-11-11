@@ -20,8 +20,10 @@ export const GET = handle(async (request: Request) => {
   const lingkup = p.get('lingkup')
   if (handler && lingkup === 'saya') where.push('t.ditangani_oleh = ?'), args.push(user.id)
   if (handler && lingkup === 'belum') where.push('t.ditangani_oleh IS NULL')
+  const jenis = p.get('jenis')
+  if (jenis === 'sistem' || jenis === 'umum') where.push('t.jenis = ?'), args.push(jenis)
   const q = str(p.get('q'), 100)
-  if (q) where.push('(t.nomor LIKE ? OR t.judul LIKE ? OR t.modul LIKE ? OR ur.name LIKE ?)'), args.push(...Array(4).fill(`%${q}%`))
+  if (q) where.push('(t.nomor LIKE ? OR t.judul LIKE ? OR t.modul LIKE ? OR t.lokasi LIKE ? OR ur.name LIKE ?)'), args.push(...Array(5).fill(`%${q}%`))
   const [items] = await db.query<(TicketRow & { pesan: number })[]>(
     `${ticketSelect.replace('SELECT t.*,', 'SELECT t.*, (SELECT COUNT(*) FROM ticket_messages m WHERE m.ticket_id = t.id AND m.jenis = \'komentar\') AS pesan,')}
      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
@@ -53,8 +55,8 @@ export const POST = handle(async (request: Request) => {
     nomor = await nextTicketNumber()
     try {
       const [res] = await db.query<ResultSetHeader>(
-        'INSERT INTO tickets (nomor, judul, kategori, modul, prioritas, deskripsi, dilaporkan_oleh) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [nomor, v.judul, v.kategori, v.modul, v.prioritas, v.deskripsi, user.id],
+        'INSERT INTO tickets (nomor, judul, jenis, kategori, modul, lokasi, prioritas, deskripsi, dilaporkan_oleh) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [nomor, v.judul, v.jenis, v.kategori, v.modul, v.lokasi, v.prioritas, v.deskripsi, user.id],
       )
       id = res.insertId
     } catch (error) {
@@ -64,6 +66,6 @@ export const POST = handle(async (request: Request) => {
   await logActivity(request, user, { module: 'Tiket Kendala', action: 'create', entity: null, description: `Tiket ${nomor}: ${v.judul}` })
   // Semua penangan diberi tahu (kecuali pelapor sendiri)
   const handlers = (await ticketHandlers()).map((h) => h.id).filter((h) => h !== user.id)
-  await notifyTicket(handlers, { id, nomor, judul: v.judul }, `Tiket kendala baru dari ${user.name}`, v.prioritas === 'darurat' ? 'prioritas DARURAT' : v.modul, 'baru')
+  await notifyTicket(handlers, { id, nomor, judul: v.judul }, `Tiket ${v.jenis === 'umum' ? 'kendala IT' : 'kendala SIMPAP'} baru dari ${user.name}`, v.prioritas === 'darurat' ? 'prioritas DARURAT' : v.modul ?? v.lokasi, 'baru')
   return NextResponse.json({ id, nomor }, { status: 201 })
 })

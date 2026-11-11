@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs'
 import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { diffSnapshots, logUserActivity, userSnapshot } from '@/lib/activity'
-import { assertCanTouchSuperAdmin, loadRole, validEmail, validPassword } from '@/lib/admin'
+import { assertCanTouchSuperAdmin, employeeNipOf, loadRole, validEmail, validPassword } from '@/lib/admin'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { PERMISSIONS } from '@/lib/permissions'
@@ -34,6 +34,7 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   if ('email' in body) sets.push('email = ?'), args.push(validEmail(body.email))
   if (typeof body.password === 'string' && body.password) sets.push('password_hash = ?'), args.push(await bcrypt.hash(validPassword(body.password), 10)), (passwordChanged = true)
   if ('division_id' in body) sets.push('division_id = ?'), args.push(await assertDivision(body.division_id))
+  if ('employee_nip' in body) sets.push('employee_nip = ?'), args.push(await employeeNipOf(body.employee_nip))
   if ('role_id' in body) {
     const role = await loadRole(body.role_id)
     assertCanTouchSuperAdmin(actor, role)

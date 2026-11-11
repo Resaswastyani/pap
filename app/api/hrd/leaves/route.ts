@@ -2,7 +2,7 @@ import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { handle, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
-import { canApproveLeave, createLeave, LEAVE_SELECT, leaveBalances, readLeave, requireLeave, serializeLeave, todayWib } from '@/lib/leave'
+import { canApproveLeave, createLeave, LEAVE_SELECT, leaveBalances, ownLeave, readLeave, requireLeave, serializeLeave, todayWib } from '@/lib/leave'
 
 type Row = RowDataPacket & Record<string, unknown>
 
@@ -27,7 +27,11 @@ export const GET = handle(async (request: Request) => {
     args.push(`%${q}%`, `%${q}%`, `%${q}%`)
   }
   const [rows] = await db.query<Row[]>(`${LEAVE_SELECT} WHERE ${where.join(' AND ')} ORDER BY l.status = 'diajukan' DESC, l.tanggal_mulai DESC, l.id DESC LIMIT 1000`, args)
-  const [emps] = await db.query<Row[]>("SELECT nip, nama, divisi, jabatan, DATE_FORMAT(tgl_masuk, '%Y-%m-%d') AS tgl_masuk FROM employees WHERE tgl_berhenti IS NULL ORDER BY nama")
+  // HRD / GM memilih karyawan mana pun; pengguna lain hanya dirinya sendiri (akun terhubung ke data karyawan)
+  const [emps] = await db.query<Row[]>(
+    `SELECT nip, nama, divisi, jabatan, DATE_FORMAT(tgl_masuk, '%Y-%m-%d') AS tgl_masuk FROM employees WHERE tgl_berhenti IS NULL ${hr ? '' : 'AND nip = ?'} ORDER BY nama`,
+    hr ? [] : [user.employeeNip ?? ''],
+  )
   const bal = await leaveBalances(tahun)
   const [[stat]] = await db.query<Row[]>(
     `SELECT SUM(status = 'diajukan') AS menunggu, SUM(status = 'disetujui' AND ? BETWEEN tanggal_mulai AND tanggal_selesai) AS hari_ini,
@@ -40,12 +44,12 @@ export const GET = handle(async (request: Request) => {
     items: rows.map(serializeLeave),
     employees: emps.map((e) => ({ nip: String(e.nip), nama: String(e.nama), divisi: (e.divisi as string) ?? null, jabatan: (e.jabatan as string) ?? null, tgl_masuk: (e.tgl_masuk as string) ?? null, cuti: bal.get(String(e.nip)) ?? null })),
     stats: { menunggu: Number(stat?.menunggu ?? 0), hari_ini: Number(stat?.hari_ini ?? 0), minggu_ini: Number(stat?.minggu_ini ?? 0), cuti_tahun: Number(stat?.cuti_tahun ?? 0) },
-    tahun, can: { approve: hr },
+    tahun, can: { approve: hr }, akun_karyawan: user.employeeNip,
   })
 })
 
 export const POST = handle(async (request: Request) => {
   const user = await requireUser()
   requireLeave(user)
-  return NextResponse.json(await createLeave(readLeave(await readJson(request)), user))
+  return NextResponse.json(await createLeave(ownLeave(readLeave(await readJson(request)), user), user))
 })

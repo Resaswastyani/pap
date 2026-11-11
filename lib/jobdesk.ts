@@ -9,17 +9,20 @@ type Row = RowDataPacket & Record<string, unknown>
 const lines = (v: unknown) => (typeof v === 'string' ? v.split(/\r?\n/).map((l) => l.trim()).filter(Boolean) : [])
 const text = (v: unknown, max: number) => str(v, max).split(/\r?\n/).map((l) => l.trim()).filter(Boolean).join('\n') || null
 
+// Kategori jabatan (bebas diisi; daftar ini hanya pilihan cepat di form)
+export const JOBDESK_KATEGORI = ['Operator', 'Helper', 'Staff', 'Kepala Shift', 'Supervisor', 'Kepala Bagian', 'Manajer', 'Direksi'] as const
+
 export function readJobdesk(body: Record<string, unknown>) {
   const jabatan = str(body.jabatan, 150)
   if (!jabatan) fail(400, 'Nama jabatan wajib diisi.')
   return {
-    jabatan, atasan_langsung: str(body.atasan_langsung, 150) || null, atasan_tak_langsung: str(body.atasan_tak_langsung, 150) || null, bawahan: str(body.bawahan, 255) || null,
+    jabatan, kategori: str(body.kategori, 40) || null, bagian: str(body.bagian, 100) || null, atasan_langsung: str(body.atasan_langsung, 150) || null, atasan_tak_langsung: str(body.atasan_tak_langsung, 150) || null, bawahan: str(body.bawahan, 255) || null,
     fungsi: text(body.fungsi, 5000), tugas: text(body.tugas, 20000), koordinasi: text(body.koordinasi, 5000),
   }
 }
 
 export const serializeJobdesk = (r: Row) => ({
-  id: Number(r.id), jabatan: String(r.jabatan), atasan_langsung: (r.atasan_langsung as string) ?? null, atasan_tak_langsung: (r.atasan_tak_langsung as string) ?? null,
+  id: Number(r.id), jabatan: String(r.jabatan), kategori: (r.kategori as string) ?? null, bagian: (r.bagian as string) ?? null, atasan_langsung: (r.atasan_langsung as string) ?? null, atasan_tak_langsung: (r.atasan_tak_langsung as string) ?? null,
   bawahan: (r.bawahan as string) ?? null, fungsi: lines(r.fungsi), tugas: lines(r.tugas), koordinasi: lines(r.koordinasi), sumber: (r.sumber as string) ?? null,
 })
 
@@ -30,7 +33,7 @@ export async function jobdeskOfNip(nip: string) {
 
 // Semua jobdesk + karyawan aktif (dengan jobdesk yang terpasang)
 export async function listJobdesks() {
-  const [rows] = await db.query<Row[]>('SELECT * FROM job_descriptions ORDER BY jabatan')
+  const [rows] = await db.query<Row[]>('SELECT * FROM job_descriptions ORDER BY COALESCE(bagian, \'~\'), jabatan')
   const [emps] = await db.query<Row[]>(
     `SELECT e.id, e.nip, e.nama, e.jabatan, e.divisi, x.job_description_id FROM employees e LEFT JOIN employee_jobdesks x ON x.nip = e.nip
      WHERE e.tgl_berhenti IS NULL AND COALESCE(e.status_karyawan, '') NOT LIKE '%resign%' ORDER BY e.nama`,

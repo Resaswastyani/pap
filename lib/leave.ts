@@ -38,8 +38,15 @@ export function datesBetween(a: string, b: string) {
 // Hari kerja default: tanpa hari Minggu (bisa diubah di form bila jadwal karyawan berbeda)
 export const countDays = (a: string, b: string) => datesBetween(a, b).filter((d) => new Date(`${d}T00:00:00Z`).getUTCDay() !== 0).length
 
+// Pengguna selain HRD / GM hanya boleh mengajukan untuk dirinya sendiri: NIP diambil dari akun yang login
+export function ownLeave<T extends { nip: string }>(v: T, user: UserProfile): T {
+  if (canApproveLeave(user)) return v.nip === 'self' ? fail(400, 'Pilih karyawan.') : v
+  if (!user.employeeNip) fail(400, 'Akun Anda belum terhubung ke data karyawan. Minta Admin menghubungkannya di Manajemen User, lalu ajukan lagi.')
+  return { ...v, nip: user.employeeNip! }
+}
+
 export function readLeave(body: Obj) {
-  const nip = str(body.nip, 30) || fail(400, 'Pilih karyawan.')
+  const nip = str(body.nip, 30) || 'self'
   const jenis = String(body.jenis ?? '') as LeaveJenis
   if (!(jenis in LEAVE_JENIS)) fail(400, 'Jenis izin tidak valid.')
   const mulai = str(body.tanggal_mulai, 10)

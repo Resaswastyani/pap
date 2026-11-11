@@ -21,6 +21,8 @@ type ManagedUser = {
   role_name: string
   is_super_admin: boolean
   override_count: number
+  employee_nip: string | null
+  employee_nama: string | null
 }
 type PermissionState = { id: number; code: string; name: string; module: string; from_role: boolean; override: 'inherit' | 'allow' | 'deny'; effective: boolean }
 
@@ -31,6 +33,7 @@ export function UsersPage({ user }: { user: UserProfile }) {
   const [items, setItems] = useState<ManagedUser[]>([])
   const [divisions, setDivisions] = useState<Division[]>([])
   const [roles, setRoles] = useState<Role[]>([])
+  const [employees, setEmployees] = useState<EmployeeOption[]>([])
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [q, setQ] = useState('')
@@ -43,11 +46,12 @@ export function UsersPage({ user }: { user: UserProfile }) {
   const load = useCallback(async () => {
     try {
       const [u, d, r] = await Promise.all([
-        api<{ items: ManagedUser[] }>('/api/users'),
+        api<{ items: ManagedUser[]; employees: EmployeeOption[] }>('/api/users'),
         api<{ items: Division[] }>('/api/divisions'),
         api<{ items: Role[] }>('/api/roles'),
       ])
       setItems(u.items)
+      setEmployees(u.employees ?? [])
       setDivisions(d.items)
       setRoles(r.items)
     } catch (e) {
@@ -112,7 +116,7 @@ export function UsersPage({ user }: { user: UserProfile }) {
             <tbody>
               {paged.items.map((item) => (
                 <tr key={item.id}>
-                  <td><div className="pap-cell-title">{item.name}{item.id === user.id && <span className="pap-chip">Anda</span>}</div><div className="pap-cell-sub">{item.email}</div></td>
+                  <td><div className="pap-cell-title">{item.name}{item.id === user.id && <span className="pap-chip">Anda</span>}</div><div className="pap-cell-sub">{item.email}</div>{item.employee_nama ? <div className="pap-cell-sub">Karyawan: {item.employee_nama}</div> : <div className="pap-cell-sub pap-text-warning">Belum terhubung ke data karyawan</div>}</td>
                   <td>{item.division_name}</td>
                   <td>
                     <span className={`pap-status ${item.is_super_admin ? 'danger' : item.role_code === 'admin' ? 'info' : item.role_code === 'lead' ? 'success' : 'neutral'}`}>{item.role_name}</span>
@@ -142,6 +146,7 @@ export function UsersPage({ user }: { user: UserProfile }) {
           initial={form === 'new' ? null : form}
           divisions={divisions}
           roles={user.role.isSuperAdmin ? roles : roles.filter((r) => !r.is_super_admin)}
+          employees={employees}
           onClose={() => setForm(null)}
           onSaved={(text) => { setForm(null); flash(text); load() }}
         />
@@ -151,7 +156,8 @@ export function UsersPage({ user }: { user: UserProfile }) {
   )
 }
 
-function UserForm({ actor, initial, divisions, roles, onClose, onSaved }: { actor: UserProfile; initial: ManagedUser | null; divisions: Division[]; roles: Role[]; onClose: () => void; onSaved: (message: string) => void }) {
+type EmployeeOption = { nip: string; nama: string; divisi: string | null; jabatan: string | null }
+function UserForm({ actor, initial, divisions, roles, employees, onClose, onSaved }: { actor: UserProfile; initial: ManagedUser | null; divisions: Division[]; roles: Role[]; employees: EmployeeOption[]; onClose: () => void; onSaved: (message: string) => void }) {
   const [values, setValues] = useState({
     name: initial?.name ?? '',
     email: initial?.email ?? '',
@@ -159,6 +165,7 @@ function UserForm({ actor, initial, divisions, roles, onClose, onSaved }: { acto
     division_id: String(initial?.division_id ?? divisions.find((d) => d.code === 'marketing')?.id ?? divisions[0]?.id ?? ''),
     role_id: String(initial?.role_id ?? roles.find((r) => r.code === 'staff')?.id ?? ''),
     is_active: initial?.is_active ?? true,
+    employee_nip: initial?.employee_nip ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -177,7 +184,7 @@ function UserForm({ actor, initial, divisions, roles, onClose, onSaved }: { acto
     setSaving(true)
     setError('')
     try {
-      const payload: Record<string, unknown> = { name: values.name, email: values.email, division_id: Number(values.division_id), role_id: Number(values.role_id), is_active: values.is_active }
+      const payload: Record<string, unknown> = { name: values.name, email: values.email, division_id: Number(values.division_id), role_id: Number(values.role_id), is_active: values.is_active, employee_nip: values.employee_nip || null }
       if (values.password) payload.password = values.password
       if (initial) await api(`/api/users/${initial.id}`, { method: 'PATCH', json: payload })
       else await api('/api/users', { method: 'POST', json: payload })
@@ -211,6 +218,12 @@ function UserForm({ actor, initial, divisions, roles, onClose, onSaved }: { acto
         <Field label="Role" hint={selectedDivision && !selectedDivision.has_levels ? 'Divisi ini tidak memiliki level Lead/Staff.' : roles.find((r) => String(r.id) === values.role_id)?.description ?? undefined}>
           <select className="pap-select" value={values.role_id} onChange={(e) => setValues((v) => ({ ...v, role_id: e.target.value }))} disabled={self}>
             {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Data karyawan (HRD)" hint="Untuk Izin & Cuti: pengguna hanya bisa mengajukan atas namanya sendiri." full>
+          <select className="pap-select" value={values.employee_nip} onChange={(e) => setValues((v) => ({ ...v, employee_nip: e.target.value }))}>
+            <option value="">— Belum dihubungkan —</option>
+            {employees.map((e) => <option key={e.nip} value={e.nip}>{e.nama} · {e.nip}{e.jabatan ? ` · ${e.jabatan}` : ''}</option>)}
           </select>
         </Field>
         <label className="pap-check full">

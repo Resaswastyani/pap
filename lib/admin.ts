@@ -33,3 +33,11 @@ export function validPassword(value: unknown) {
   if (password.length < 8) fail(400, 'Password minimal 8 karakter.')
   return password
 }
+
+// NIP karyawan (data HRD) yang dihubungkan ke akun; kosong = tidak dihubungkan
+export async function employeeNipOf(raw: unknown) {
+  const nip = str(raw, 30)
+  if (!nip) return null
+  const [[e]] = await db.query<RowDataPacket[]>('SELECT nip FROM employees WHERE nip = ?', [nip])
+  return e ? String(e.nip) : fail(400, 'Data karyawan tidak ditemukan.')
+}

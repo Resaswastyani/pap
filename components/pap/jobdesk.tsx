@@ -5,14 +5,18 @@ import { ClipboardList, Pencil, Plus, Search, Trash2, UserMinus } from 'lucide-r
 import { api, confirmDialog, Field, Modal, Notice, Pager, usePaged } from './ui'
 
 // Jobdesk per jabatan: tab Jobdesk di menu Karyawan dan bagian Jobdesk di detail karyawan
-export type Jobdesk = { id: number; jabatan: string; atasan_langsung: string | null; atasan_tak_langsung: string | null; bawahan: string | null; fungsi: string[]; tugas: string[]; koordinasi: string[]; sumber: string | null }
+export type Jobdesk = { id: number; jabatan: string; kategori: string | null; bagian: string | null; atasan_langsung: string | null; atasan_tak_langsung: string | null; bawahan: string | null; fungsi: string[]; tugas: string[]; koordinasi: string[]; sumber: string | null }
 type Emp = { id: number; nip: string; nama: string; jabatan: string | null; divisi: string | null; job_description_id: number | null }
 type Res = { items: Jobdesk[]; employees: Emp[]; can: { manage: boolean } }
+const KATEGORI = ['Operator', 'Helper', 'Staff', 'Kepala Shift', 'Supervisor', 'Kepala Bagian', 'Manajer', 'Direksi']
+const KATEGORI_TONE: Record<string, string> = { Operator: 'info', Helper: 'neutral', Staff: 'neutral', 'Kepala Shift': 'warning', Supervisor: 'warning', 'Kepala Bagian': 'success', Manajer: 'success', Direksi: 'danger' }
 
 function JobdeskBody({ j }: { j: Jobdesk }) {
   return (
     <>
       <dl className="pap-detail-grid">
+        <div><dt>Kategori jabatan</dt><dd>{j.kategori ?? '—'}</dd></div>
+        <div><dt>Bagian / divisi</dt><dd>{j.bagian ?? '—'}</dd></div>
         <div><dt>Atasan langsung</dt><dd>{j.atasan_langsung ?? '—'}</dd></div>
         <div><dt>Atasan tak langsung</dt><dd>{j.atasan_tak_langsung ?? '—'}</dd></div>
         {j.bawahan && <div><dt>Bawahan</dt><dd>{j.bawahan}</dd></div>}
@@ -63,15 +67,17 @@ export function JobdeskPage() {
   const [message, setMessage] = useState('')
   const [q, setQ] = useState('')
   const [tab, setTab] = useState<'jabatan' | 'belum'>('jabatan')
+  const [kategori, setKategori] = useState('')
   const [detail, setDetail] = useState<number | null>(null)
   const [form, setForm] = useState<Jobdesk | 'baru' | null>(null)
   const load = useCallback(() => api<Res>('/api/hrd/jobdesks').then((r) => { setData(r); setError('') }).catch((e) => setError(e.message)), [])
   useEffect(() => { load() }, [load])
   const term = q.trim().toLowerCase()
   const holders = (id: number) => (data?.employees ?? []).filter((e) => e.job_description_id === id)
-  const rows = (data?.items ?? []).filter((j) => !term || [j.jabatan, j.atasan_langsung, ...holders(j.id).map((e) => e.nama)].some((x) => x?.toLowerCase().includes(term)))
+  const rows = (data?.items ?? []).filter((j) => (!kategori || (kategori === '-' ? !j.kategori : j.kategori === kategori)) && (!term || [j.jabatan, j.kategori, j.bagian, j.atasan_langsung, ...holders(j.id).map((e) => e.nama)].some((x) => x?.toLowerCase().includes(term))))
+  const kategoriList = [...new Set([...KATEGORI, ...(data?.items ?? []).map((j) => j.kategori).filter((k): k is string => !!k)])]
   const belum = (data?.employees ?? []).filter((e) => e.job_description_id === null && (!term || [e.nama, e.jabatan, e.divisi].some((x) => x?.toLowerCase().includes(term))))
-  const pagedJ = usePaged(rows, `j-${q}`, 25)
+  const pagedJ = usePaged(rows, `j-${q}-${kategori}`, 25)
   const pagedB = usePaged(belum, `b-${q}`, 25)
   const manage = !!data?.can.manage
   const current = data?.items.find((j) => j.id === detail) ?? null
@@ -112,18 +118,29 @@ export function JobdeskPage() {
             <button role="tab" aria-selected={tab === 'jabatan'} className={tab === 'jabatan' ? 'active' : ''} onClick={() => setTab('jabatan')}><ClipboardList /> Per jabatan ({data?.items.length ?? 0})</button>
             <button role="tab" aria-selected={tab === 'belum'} className={tab === 'belum' ? 'active' : ''} onClick={() => setTab('belum')}><UserMinus /> Belum punya jobdesk ({data?.employees.filter((e) => e.job_description_id === null).length ?? 0})</button>
           </div>
-          <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari jabatan atau karyawan..." /></label>
+          <div className="pap-inline-actions pap-wrap">
+            {tab === 'jabatan' && (
+              <select className="pap-select" value={kategori} onChange={(e) => setKategori(e.target.value)} aria-label="Kategori jabatan">
+                <option value="">Semua kategori</option>
+                {kategoriList.map((k) => <option key={k} value={k}>{k} ({(data?.items ?? []).filter((j) => j.kategori === k).length})</option>)}
+                <option value="-">Belum dikategorikan</option>
+              </select>
+            )}
+            <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari jabatan, kategori, bagian, karyawan..." /></label>
+          </div>
         </div>
         <div className="pap-table-wrap">
           {tab === 'jabatan' ? (
             <table>
-              <thead><tr><th>Jabatan</th><th>Atasan langsung</th><th>Pemegang saat ini</th><th className="pap-num">Tugas</th></tr></thead>
+              <thead><tr><th>Jabatan</th><th>Kategori</th><th>Bagian</th><th>Atasan langsung</th><th>Pemegang saat ini</th><th className="pap-num">Tugas</th></tr></thead>
               <tbody>
                 {pagedJ.items.map((j) => {
                   const h = holders(j.id)
                   return (
                     <tr key={j.id} className="pap-row-link" onClick={() => setDetail(j.id)}>
                       <td><div className="pap-cell-title">{j.jabatan}</div></td>
+                      <td>{j.kategori ? <span className={`pap-status ${KATEGORI_TONE[j.kategori] ?? 'neutral'}`}>{j.kategori}</span> : <span className="pap-muted">—</span>}</td>
+                      <td>{j.bagian ?? <span className="pap-muted">—</span>}</td>
                       <td>{j.atasan_langsung ?? '—'}</td>
                       <td>{h.length ? h.map((e) => e.nama).join(', ') : <span className="pap-muted">Belum ada</span>}</td>
                       <td className="pap-num">{j.tugas.length}</td>
@@ -158,7 +175,7 @@ export function JobdeskPage() {
         </div>
       </div>
       {current && (
-        <Modal title={current.jabatan} subtitle={current.sumber ?? undefined} wide onClose={() => setDetail(null)}
+        <Modal title={current.jabatan} subtitle={[current.kategori, current.bagian, current.sumber].filter(Boolean).join(' · ') || undefined} wide onClose={() => setDetail(null)}
           footer={<>
             {manage && <button className="pap-btn danger" onClick={() => remove(current)}><Trash2 /> Hapus</button>}
             <span className="pap-spacer" />
@@ -186,14 +203,14 @@ export function JobdeskPage() {
           )}
         </Modal>
       )}
-      {form && <JobdeskForm item={form === 'baru' ? null : form} onClose={() => setForm(null)} onSaved={(t) => { setForm(null); setMessage(t); load() }} />}
+      {form && <JobdeskForm item={form === 'baru' ? null : form} bagianList={[...new Set([...(data?.items ?? []).map((j) => j.bagian), ...(data?.employees ?? []).map((e) => e.divisi)].filter((x): x is string => !!x))].sort()} onClose={() => setForm(null)} onSaved={(t) => { setForm(null); setMessage(t); load() }} />}
     </>
   )
 }
 
-function JobdeskForm({ item, onClose, onSaved }: { item: Jobdesk | null; onClose: () => void; onSaved: (text: string) => void }) {
+function JobdeskForm({ item, bagianList, onClose, onSaved }: { item: Jobdesk | null; bagianList: string[]; onClose: () => void; onSaved: (text: string) => void }) {
   const [v, setV] = useState({
-    jabatan: item?.jabatan ?? '', atasan_langsung: item?.atasan_langsung ?? '', atasan_tak_langsung: item?.atasan_tak_langsung ?? '', bawahan: item?.bawahan ?? '',
+    jabatan: item?.jabatan ?? '', kategori: item?.kategori ?? '', bagian: item?.bagian ?? '', atasan_langsung: item?.atasan_langsung ?? '', atasan_tak_langsung: item?.atasan_tak_langsung ?? '', bawahan: item?.bawahan ?? '',
     fungsi: item?.fungsi.join('\n') ?? '', tugas: item?.tugas.join('\n') ?? '', koordinasi: item?.koordinasi.join('\n') ?? '',
   })
   const [error, setError] = useState('')
@@ -215,7 +232,15 @@ function JobdeskForm({ item, onClose, onSaved }: { item: Jobdesk | null; onClose
       footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="jobdesk-form" disabled={busy}>{busy ? 'Menyimpan...' : 'Simpan'}</button></>}>
       <form id="jobdesk-form" className="pap-form-grid" onSubmit={save}>
         {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
-        <Field label="Nama jabatan *" full><input className="pap-input" required maxLength={150} value={v.jabatan} onChange={set('jabatan')} /></Field>
+        <Field label="Nama jabatan *" full><input className="pap-input" required maxLength={150} value={v.jabatan} onChange={set('jabatan')} placeholder="Mis. Operator Mesin Blow, Staff Accounting" /></Field>
+        <Field label="Kategori jabatan" hint="Pilih atau ketik sendiri">
+          <input className="pap-input" list="pap-jd-kategori" maxLength={40} value={v.kategori} onChange={set('kategori')} placeholder="Operator, Staff, Kepala Shift, ..." />
+          <datalist id="pap-jd-kategori">{KATEGORI.map((k) => <option key={k} value={k} />)}</datalist>
+        </Field>
+        <Field label="Bagian / divisi">
+          <input className="pap-input" list="pap-jd-bagian" maxLength={100} value={v.bagian} onChange={set('bagian')} placeholder="Produksi, Accounting, ..." />
+          <datalist id="pap-jd-bagian">{bagianList.map((b) => <option key={b} value={b} />)}</datalist>
+        </Field>
         <Field label="Atasan langsung"><input className="pap-input" maxLength={150} value={v.atasan_langsung} onChange={set('atasan_langsung')} /></Field>
         <Field label="Atasan tak langsung"><input className="pap-input" maxLength={150} value={v.atasan_tak_langsung} onChange={set('atasan_tak_langsung')} /></Field>
         <Field label="Bawahan" full><input className="pap-input" maxLength={255} value={v.bawahan} onChange={set('bawahan')} /></Field>

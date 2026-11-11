@@ -2232,3 +2232,28 @@ ol.pap-jobdesk-list { list-style:decimal; }
 /* Pesan kosong dengan ikon di atas teks */
 .pap-empty-stack { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; }
 .pap-empty-stack > svg { width:26px; height:26px; opacity:.45; }
+
+.pap-ticket-jenis { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; }
+.pap-ticket-jenis button { display:flex; flex-direction:column; gap:3px; padding:12px 14px; border:1px solid var(--pap-border); border-radius:12px; background:var(--pap-surface); color:var(--pap-text); text-align:left; cursor:pointer; }
+.pap-ticket-jenis button small { color:var(--pap-muted); font-size:11px; }
+.pap-ticket-jenis button.active { border-color:#7c5cfc; background:rgb(124 92 252 / .07); box-shadow:0 0 0 2px rgb(124 92 252 / .15); }
+@media (max-width:640px) { .pap-ticket-jenis { grid-template-columns:1fr; } }
+
+/* ---------- Sesi training (SIMPAP) ---------- */
+.pap-ts-card { margin-bottom:22px; }
+.pap-ts-list { display:flex; flex-direction:column; gap:10px; padding:0 22px 18px; }
+.pap-ts-item { display:flex; align-items:center; gap:14px; padding:12px 14px; border:1px solid var(--pap-border); border-radius:14px; background:var(--pap-surface); cursor:pointer; transition:border-color .15s; }
+.pap-ts-item:hover { border-color:#7c5cfc; }
+.pap-ts-body { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
+.pap-ts-actions { flex:none; }
+.pap-ts-sheet-title { margin:6px 0 12px; color:var(--pap-muted); font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+.pap-ts-jam { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; }
+.pap-ts-peserta { display:flex; flex-direction:column; gap:6px; margin:10px 0 0; padding:0; list-style:none; }
+.pap-ts-peserta li { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border:1px solid var(--pap-border); border-radius:10px; font-size:13px; }
+.pap-ts-peserta.editable li span { flex:1; min-width:0; }
+.pap-ts-peserta.editable .pap-select { width:auto; min-width:120px; min-height:32px; }
+@media (max-width:640px) {
+  .pap-ts-list { padding:0 14px 14px; }
+  .pap-ts-item { flex-wrap:wrap; gap:10px; }
+  .pap-ts-actions { width:100%; }
+}

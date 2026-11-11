@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CalendarDays, CheckCircle2, Clock, ExternalLink, FileSpreadsheet, RefreshCw, Search, Users } from 'lucide-react'
 import type { Schedule } from '@/lib/training-schedule'
+import { TrainingSessions } from './training-sessions'
 import { api, formatDate, Notice } from './ui'
 
 // Tab Jadwal Training: cermin spreadsheet jadwal (hanya baca, perubahan dilakukan di Google Sheet)
@@ -46,6 +47,8 @@ export function JadwalTab() {
 
   return (
     <>
+      <TrainingSessions canImport={!!s?.batches.length} />
+      <h3 className="pap-ts-sheet-title">Dari spreadsheet jadwal</h3>
       <div className="pap-sync-bar">
         <div className="pap-sync-items">
           <span className="pap-sync-title">Google Sheet</span>

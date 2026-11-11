@@ -43,6 +43,7 @@ export function ShiftPage(_props: { user: UserProfile }) {
   const [day, setDay] = useState(0)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [tplOpen, setTplOpen] = useState(false)
   // Ubah / tambah karyawan di jadwal bulan ini
   const [rowForm, setRowForm] = useState<Row | 'baru' | null>(null)
   const [busy, setBusy] = useState(false)
@@ -135,11 +136,12 @@ export function ShiftPage(_props: { user: UserProfile }) {
         </div>
         <div className="pap-inline-actions pap-wrap">
           {hasSchedule && !!data?.rows.length && <a className="pap-primary-button" href={`/api/shift-schedule/export?periode=${data!.periode}`} title="Unduh jadwal bulan ini sebagai Excel"><Download /> Unduh jadwal</a>}
-          <a className="pap-btn" href={`/api/shift-schedule/template?periode=${shiftMonth(thisMonth, 1)}`} title="Template Excel jadwal bulan depan beserta contoh pengisian"><Download /> Unduh template</a>
+          <button type="button" className="pap-btn" onClick={() => setTplOpen(true)} title="Template Excel jadwal per bulan beserta contoh pengisian"><Download /> Unduh template</button>
           {data?.canSync && <button className="pap-btn" onClick={() => setUploadOpen(true)}><Upload /> Unggah file</button>}
           <button className="pap-btn" onClick={() => setSheetOpen(true)}><FileSpreadsheet /> Google Sheet</button>
         </div>
       </div>
+      {tplOpen && <TemplateDialog initial={shiftMonth(thisMonth, 1)} onClose={() => setTplOpen(false)} />}
       {uploadOpen && <UploadShift nextMonth={shiftMonth(thisMonth, 1)} onClose={() => setUploadOpen(false)} onImported={(t, p, w) => { setUploadOpen(false); setMessage(t); setWarning(w ?? ''); if (p === periode) load(); else setPeriode(p) }} />}
       {sheetOpen && <SheetSync onClose={() => setSheetOpen(false)} onImported={(t) => { setSheetOpen(false); setMessage(t); load() }} />}
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
@@ -347,6 +349,22 @@ function ShiftRowForm({ periode, days, codes, row, onClose, onSaved }: { periode
           </div>
         </div>
       </form>
+    </Modal>
+  )
+}
+
+// Unduh template jadwal untuk bulan yang dipilih; jumlah kolom tanggal mengikuti kalender (Feb 28/29, Jan 31, ...)
+function TemplateDialog({ initial, onClose }: { initial: string; onClose: () => void }) {
+  const [periode, setPeriode] = useState(initial)
+  const valid = /^d{4}-d{2}$/.test(periode)
+  const days = valid ? new Date(Number(periode.slice(0, 4)), Number(periode.slice(5, 7)), 0).getDate() : 0
+  return (
+    <Modal title="Unduh template jadwal shift" subtitle="Pilih bulan jadwal yang akan diisi" onClose={onClose}
+      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button>{valid && <a className="pap-primary-button" href={`/api/shift-schedule/template?periode=${periode}`} onClick={() => setTimeout(onClose, 300)}><Download /> Unduh template {monthLabel(periode)}</a>}</>}>
+      <Field label="Bulan jadwal" hint={valid ? `${monthLabel(periode)}: tanggal 1 sampai ${days} (${days} kolom tanggal)` : undefined}>
+        <input className="pap-input" type="month" value={periode} onChange={(e) => setPeriode(e.target.value)} />
+      </Field>
+      <p className="pap-muted">Kolom tanggal di template mengikuti kalender bulan itu, dan kolom hari Minggu ditandai merah. Daftar karyawan diambil dari jadwal bulan terakhir.</p>
     </Modal>
   )
 }

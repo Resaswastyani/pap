@@ -14,6 +14,8 @@ export type UserProfile = {
   menus: MenuKey[]
   // Versi foto profil (untuk URL ?v= agar cache browser diperbarui saat foto diganti); null = belum ada foto
   avatar: string | null
+  // NIP data karyawan (HRD) yang terhubung ke akun ini; dipakai Izin & Cuti agar pengguna hanya mengajukan untuk dirinya
+  employeeNip: string | null
 }
 
 type UserRow = RowDataPacket & {
@@ -31,11 +33,12 @@ type UserRow = RowDataPacket & {
   division_code: string
   division_name: string
   avatar_at: number | null
+  employee_nip: string | null
 }
 
 const USER_SELECT = `SELECT u.id, u.name, u.email, u.password_hash, u.is_active, u.role_id,
   r.code AS role_code, r.name AS role_name, r.is_admin, r.is_super_admin,
-  u.division_id, d.code AS division_code, d.name AS division_name,
+  u.division_id, d.code AS division_code, d.name AS division_name, u.employee_nip,
   (SELECT UNIX_TIMESTAMP(ua.updated_at) FROM user_avatars ua WHERE ua.user_id = u.id) AS avatar_at
   FROM users u JOIN roles r ON r.id = u.role_id JOIN divisions d ON d.id = u.division_id`
 
@@ -85,6 +88,7 @@ export async function toProfile(user: UserRow): Promise<UserProfile> {
     permissions,
     menus,
     avatar: user.avatar_at ? String(user.avatar_at) : null,
+    employeeNip: user.employee_nip ?? null,
   }
 }
 

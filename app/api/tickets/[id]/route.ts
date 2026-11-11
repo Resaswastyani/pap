@@ -73,7 +73,7 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
 
   if (!handler && !(own && ticket.status === 'baru')) fail(403, 'Tiket hanya bisa diubah selama masih berstatus Baru.')
   const v = readTicketInput(body)
-  await db.query('UPDATE tickets SET judul = ?, kategori = ?, modul = ?, prioritas = ?, deskripsi = ? WHERE id = ?', [v.judul, v.kategori, v.modul, v.prioritas, v.deskripsi, ticket.id])
+  await db.query('UPDATE tickets SET judul = ?, jenis = ?, kategori = ?, modul = ?, lokasi = ?, prioritas = ?, deskripsi = ? WHERE id = ?', [v.judul, v.jenis, v.kategori, v.modul, v.lokasi, v.prioritas, v.deskripsi, ticket.id])
   await logActivity(request, user, { module: 'Tiket Kendala', action: 'update', entity: null, description: `Ubah tiket ${ticket.nomor}` })
   return NextResponse.json({ ok: true })
 })

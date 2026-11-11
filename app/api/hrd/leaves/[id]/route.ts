@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
-import { deleteLeave, loadLeave, readLeave, requireLeave, setLeaveStatus, updateLeave } from '@/lib/leave'
+import { deleteLeave, loadLeave, ownLeave, readLeave, requireLeave, setLeaveStatus, updateLeave } from '@/lib/leave'
 
 type Ctx = { params: Promise<{ id: string }> }
 const leaveId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Pengajuan tidak ditemukan.')
@@ -14,7 +14,7 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
 export const PUT = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
   requireLeave(user)
-  await updateLeave(await leaveId(ctx), readLeave(await readJson(request)), user)
+  await updateLeave(await leaveId(ctx), ownLeave(readLeave(await readJson(request)), user), user)
   return NextResponse.json({ ok: true })
 })
 
