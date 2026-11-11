@@ -2205,3 +2205,26 @@ ol.pap-jobdesk-list { list-style:decimal; }
 /* Laporan kerusakan: barang yang perlu dibeli */
 .pap-damage-buy .pap-section-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .pap-damage-buy .pap-form-grid { margin-top:10px; }
+
+/* ---------- Tiket Kendala ---------- */
+.pap-stat-button.active { border-color:#7c5cfc; box-shadow:0 0 0 2px rgb(124 92 252 / .15); }
+.pap-ticket-prio { width:fit-content; }
+.pap-ticket-handle { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px; margin:14px 0 4px; padding:12px 14px; border:1px dashed rgb(124 92 252 / .4); border-radius:12px; background:rgb(124 92 252 / .04); }
+.pap-ticket-handle .pap-field { flex:1 1 180px; margin:0; }
+.pap-ticket-thread { display:flex; flex-direction:column; gap:10px; max-height:380px; overflow-y:auto; padding:4px 2px 8px; }
+.pap-ticket-msg { max-width:82%; padding:10px 12px; border:1px solid var(--pap-border); border-radius:12px 12px 12px 4px; background:var(--pap-surface); }
+.pap-ticket-msg.it { border-color:rgb(124 92 252 / .35); background:rgb(124 92 252 / .06); }
+.pap-ticket-msg.mine { align-self:flex-end; border-radius:12px 12px 4px 12px; }
+.pap-ticket-msg p { margin:6px 0 0; font-size:13px; line-height:1.5; }
+.pap-ticket-msg-head { display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:12px; }
+.pap-ticket-msg-head small { color:var(--pap-muted); font-size:10px; }
+.pap-ticket-event { display:flex; flex-direction:column; align-items:center; gap:2px; color:var(--pap-muted); font-size:11px; text-align:center; }
+.pap-ticket-event span { padding:3px 10px; border-radius:999px; background:var(--pap-border); color:var(--pap-text); font-weight:600; }
+.pap-ticket-event small { font-size:10px; }
+.pap-ticket-reply { display:flex; align-items:flex-end; gap:8px; margin-top:10px; }
+.pap-ticket-reply .pap-input { flex:1; }
+@media (max-width:640px) {
+  .pap-ticket-msg { max-width:94%; }
+  .pap-ticket-reply { flex-direction:column; align-items:stretch; }
+  .pap-ticket-prio { width:100%; }
+}

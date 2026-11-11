@@ -57,6 +57,13 @@ export async function noteAccess(owner: NoteOwner, id: number, user: UserProfile
     if (!row) fail(404, 'Pengajuan pembelian tidak ditemukan.')
     return { canAdd: row.requested_by === user.id || canManageTeknik(user) || canProcessPurchase(user) }
   }
+  if (owner === 'ticket') {
+    // Screenshot kendala: pelapor & penangan tiket (Super Admin / Staff IT)
+    const { canHandleTickets, loadTicket, requireTickets } = await import('@/lib/tickets')
+    requireTickets(user)
+    const t = await loadTicket(id, user)
+    return { canAdd: t.dilaporkan_oleh === user.id || canHandleTickets(user) }
+  }
   const table = owner === 'stage' ? 'production_stages' : 'production_jobs'
   const [[row]] = await db.query<RowDataPacket[]>(`SELECT id FROM ${table} WHERE id = ?`, [id])
   if (!row) fail(404, owner === 'stage' ? 'Tahap produksi tidak ditemukan.' : 'Job produksi tidak ditemukan.')

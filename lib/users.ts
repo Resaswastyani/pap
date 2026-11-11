@@ -73,6 +73,7 @@ export async function toProfile(user: UserRow): Promise<UserProfile> {
     const allowed = new Set<string>(rows.map((row) => row.menu_key))
     for (const [menu, permission] of Object.entries(PERMISSION_MENUS)) if (permissions.includes(permission as PermissionCode)) allowed.add(menu)
     allowed.add('data-terhapus')
+    allowed.add('tiket')
     menus = ALL_MENU_KEYS.filter((key) => allowed.has(key))
   }
   return {

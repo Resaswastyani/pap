@@ -18,9 +18,10 @@ const OWNERS = {
   maintenance_log: { table: 'note_attachments', fk: 'owner_id', type: 'maintenance_log' },
   purchase_request: { table: 'note_attachments', fk: 'owner_id', type: 'purchase_request' },
   repair: { table: 'note_attachments', fk: 'owner_id', type: 'repair' },
+  ticket: { table: 'note_attachments', fk: 'owner_id', type: 'ticket' },
 } as const
 export type AttachmentOwner = keyof typeof OWNERS
-export const NOTE_OWNERS = ['activity', 'request_log', 'stage', 'job', 'repair', 'maintenance_log', 'purchase_request'] as const
+export const NOTE_OWNERS = ['activity', 'request_log', 'stage', 'job', 'repair', 'maintenance_log', 'purchase_request', 'ticket'] as const
 export type NoteOwner = (typeof NOTE_OWNERS)[number]
 export const isNoteOwner = (value: string): value is NoteOwner => (NOTE_OWNERS as readonly string[]).includes(value)
 

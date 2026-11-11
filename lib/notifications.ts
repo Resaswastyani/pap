@@ -6,7 +6,7 @@ export const REMINDER_MINUTES = 15
 // Sales butuh waktu perjalanan: reminder visit dikirim 60 menit sebelumnya
 export const VISIT_REMINDER_MINUTES = 60
 
-export type NotificationType = 'meeting_baru' | 'meeting_diubah' | 'meeting_reminder' | 'planning_pic' | 'planning_baru' | 'sistem' | 'prospek_baru' | 'visit_reminder' | 'followup_due' | 'sample_update' | 'desain_update' | 'repeat_order' | 'pembayaran' | 'quotation' | 'perbaikan_mesin' | 'perawatan_mesin' | 'stok_sparepart' | 'pengajuan_pembelian'
+export type NotificationType = 'meeting_baru' | 'meeting_diubah' | 'meeting_reminder' | 'planning_pic' | 'planning_baru' | 'sistem' | 'prospek_baru' | 'visit_reminder' | 'followup_due' | 'sample_update' | 'desain_update' | 'repeat_order' | 'pembayaran' | 'quotation' | 'perbaikan_mesin' | 'perawatan_mesin' | 'stok_sparepart' | 'pengajuan_pembelian' | 'tiket'
 
 type NotificationInput = {
   type: NotificationType
