@@ -473,7 +473,7 @@ export async function createShiftSchedule(periode: string, userId: number, copyP
 // libur = sel merah kosong, kode lain disingkat (Normal1 -> N1, Driver1 -> D1), rekap jumlah per tanggal & keterangan
 export async function shiftExport(periode: string) {
   const s = await scheduleFromDb(periode)
-  if (!s) fail(404, 'Jadwal bulan ini belum ada.')
+  if (!s || !s.rows.length) fail(404, `Jadwal shift ${MONTH_NAMES[Number(periode.slice(5, 7)) - 1].charAt(0)}${MONTH_NAMES[Number(periode.slice(5, 7)) - 1].slice(1).toLowerCase()} ${periode.slice(0, 4)} belum diupdate / diupload.`)
   const sched = s!
   const total = daysIn(periode)
   const year = Number(periode.slice(0, 4))

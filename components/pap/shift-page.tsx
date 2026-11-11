@@ -135,7 +135,9 @@ export function ShiftPage(_props: { user: UserProfile }) {
           <span>{data?.schedule?.judul ?? 'Jadwal karyawan produksi per bulan'}: shift, jam kerja, dan libur per karyawan, disinkron dari spreadsheet di Google Drive.</span>
         </div>
         <div className="pap-inline-actions pap-wrap">
-          {hasSchedule && !!data?.rows.length && <a className="pap-primary-button" href={`/api/shift-schedule/export?periode=${data!.periode}`} title="Unduh jadwal bulan ini sebagai Excel"><Download /> Unduh jadwal</a>}
+          {data && (hasSchedule && data.rows.length
+            ? <a className="pap-primary-button" href={`/api/shift-schedule/export?periode=${data.periode}`} title="Unduh jadwal bulan ini sebagai Excel"><Download /> Unduh jadwal</a>
+            : <button type="button" className="pap-primary-button" title="Jadwal bulan ini belum ada" onClick={() => { setMessage(''); setWarning(`Jadwal shift ${monthLabel(data.periode)} belum diupdate / diupload. Unggah file jadwal atau sinkron dari Google Sheet terlebih dahulu.`) }}><Download /> Unduh jadwal</button>)}
           <button type="button" className="pap-btn" onClick={() => setTplOpen(true)} title="Template Excel jadwal per bulan beserta contoh pengisian"><Download /> Unduh template</button>
           {data?.canSync && <button className="pap-btn" onClick={() => setUploadOpen(true)}><Upload /> Unggah file</button>}
           <button className="pap-btn" onClick={() => setSheetOpen(true)}><FileSpreadsheet /> Google Sheet</button>
