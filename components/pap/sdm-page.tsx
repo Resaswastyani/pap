@@ -165,11 +165,11 @@ function LeaveForm({ item, employees, approver, onClose, onSaved }: { item: Leav
     }
   }
   return (
-    <Modal title={item ? `Ubah ${item.nomor}` : 'Ajukan izin / cuti'} subtitle={approver && !item ? 'Diajukan HRD / GM langsung berstatus disetujui' : undefined} onClose={onClose}
+    <Modal title={item ? `Ubah ${item.nomor}` : 'Ajukan izin / cuti'} subtitle={approver ? (item ? 'HRD / Admin dapat mengubah pengajuan karyawan mana pun' : 'HRD / Admin: bisa diisi untuk semua karyawan dan langsung berstatus disetujui') : 'Pengajuan atas nama Anda sendiri'} onClose={onClose}
       footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="leave-form" disabled={busy}>{busy ? 'Menyimpan...' : item ? 'Simpan' : 'Ajukan'}</button></>}>
       <form id="leave-form" className="pap-form-grid" onSubmit={submit}>
         {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
-        <Field label="Karyawan *" full hint={emp ? [emp.divisi, emp.jabatan, emp.cuti?.jatah ? `sisa cuti ${emp.cuti.sisa} hari${emp.cuti.menunggu ? ` (${emp.cuti.menunggu} menunggu)` : ''}` : 'belum berhak cuti tahunan'].filter(Boolean).join(' · ') : 'Ketik nama lalu pilih dari daftar'}>
+        <Field label="Karyawan *" full hint={emp ? [emp.divisi, emp.jabatan, emp.cuti?.jatah ? `sisa cuti ${emp.cuti.sisa} hari${emp.cuti.menunggu ? ` (${emp.cuti.menunggu} menunggu)` : ''}` : 'belum berhak cuti tahunan'].filter(Boolean).join(' · ') : approver ? 'Ketik nama karyawan mana pun lalu pilih dari daftar' : 'Pengajuan otomatis atas nama Anda'}>
           {approver ? <>
             <input className="pap-input" list="pap-emps" value={cari} onChange={(e) => pick(e.target.value)} placeholder="Nama / NIP karyawan" required />
             <datalist id="pap-emps">{employees.map((e) => <option key={e.nip} value={`${e.nama} (${e.nip})`}>{e.divisi ?? ''}</option>)}</datalist>
