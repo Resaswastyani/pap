@@ -2,14 +2,14 @@ import type { ResultSetHeader } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
-import { canManageHr, canViewPayroll } from '@/lib/hrd'
+import { canManageHr, canViewOvertime } from '@/lib/hrd'
 import { readOvertime } from '@/lib/payroll-overtime'
 import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
 async function guard(ctx: Ctx) {
   const user = await requireUser()
-  if (!canViewPayroll(user) || !canManageHr(user)) fail(403, 'Lembur manual dikelola oleh HRD.')
+  if (!canViewOvertime(user) || !canManageHr(user)) fail(403, 'Lembur manual dikelola oleh HRD.')
   return int((await ctx.params).id) ?? fail(404, 'Data lembur tidak ditemukan.')
 }
 

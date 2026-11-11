@@ -1,12 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Award, Calculator, ClipboardList, Clock, ExternalLink, FileSpreadsheet, Pencil, Plus, RefreshCw, Search, Settings, Trash2, UserCheck, UserMinus, Users, Wallet } from 'lucide-react'
+import { AlertTriangle, Award, Calculator, ClipboardList, ExternalLink, FileSpreadsheet, Pencil, Plus, RefreshCw, Search, Settings, Trash2, UserCheck, UserMinus, Users, Wallet } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
 import { EmployeeForm } from './employee-form'
 import { EmployeeJobdesk, JobdeskPage, type Jobdesk } from './jobdesk'
-import { PayrollCalc, PayrollEmployees, PayrollOvertime, PayrollSettingsView } from './payroll-page'
+import { PayrollCalc, PayrollEmployees, PayrollSettingsView } from './payroll-page'
 import { api, Field, formatDate, Modal, Notice, Pager, peekQuickAction, usePaged, useQuickAction, confirmDialog } from './ui'
 
 // HRD: data karyawan, grade operator, dan kebijakan gaji dari spreadsheet di Google Drive
@@ -257,7 +257,7 @@ function EmployeeDetail({ id, onClose, onEdit, onDeleted }: { id: number; onClos
           <h3>Gaji (kebijakan gaji operasional)</h3>
           {grid([['Upah harian (7 jam)', rp(d.gaji.upah_harian)], ['Tunjangan grade', `${rp(d.gaji.nominal_grade)} (Grade ${d.gaji.grade ?? '—'})`], ['Upah 25 hari', rp(d.gaji.upah_bulanan)],
             ['Kenaikan', `${rp(d.gaji.kenaikan_bulanan)} / bulan (${d.gaji.kenaikan_persen ?? '—'}%)`], ['Tunjangan', rp(d.gaji.tunjangan)], ['Total terima', rp(d.gaji.total_terima)],
-            ['BPJS (laka, kematian, kesehatan)', `${rp(d.gaji.bpjs_laka)} · ${rp(d.gaji.bpjs_kematian)} · ${rp(d.gaji.bpjs_kesehatan)}`], ['THR', rp(d.gaji.thr)],
+            ['BPJS (laka, kematian, kesehatan)', `${rp(d.gaji.bpjs_laka)} · ${rp(d.gaji.bpjs_kematian)} · ${rp(d.gaji.bpjs_kesehatan)}`],
             ['Tarif per jam', rp(d.gaji.tarif_jam)], ['Lembur per jam', rp(d.gaji.lembur_jam)], ['Lembur hari libur per jam', rp(d.gaji.lembur_libur_jam)]])}
         </section>
       )}
@@ -278,13 +278,12 @@ export function GradeGajiPage(_props: { user: UserProfile }) {
   const [data, setData] = useState<Payroll | null>(null)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
-  const [tab, setTab] = useState<'grade' | 'karyawan' | 'gaji' | 'lembur' | 'hitung' | 'pengaturan'>('grade')
+  const [tab, setTab] = useState<'grade' | 'karyawan' | 'hitung' | 'pengaturan'>('grade')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [gradeForm, setGradeForm] = useState<{ item: Grade | null } | null>(null)
-  const [salaryForm, setSalaryForm] = useState<{ item: Salary | null } | null>(null)
   const load = useCallback(() => api<Payroll>('/api/hrd/payroll').then((r) => { setData(r); setError('') }).catch((e) => setError(e.message)), [])
   useEffect(() => { load() }, [load])
-  const saved = (text: string) => { setGradeForm(null); setSalaryForm(null); setMessage(text); load() }
+  const saved = (text: string) => { setGradeForm(null); setMessage(text); load() }
   async function remove(jenis: 'grade' | 'gaji', item: { id: number; nama: string }) {
     if (!(await confirmDialog(`Hapus ${item.nama} dari tab ${jenis === 'grade' ? 'grade' : 'kebijakan gaji'} di spreadsheet?`))) return
     try {
@@ -301,28 +300,23 @@ export function GradeGajiPage(_props: { user: UserProfile }) {
         <div>
           <p className="pap-eyebrow">SDM · GOOGLE DRIVE</p>
           <h1>Grade &amp; Gaji</h1>
-          <span>Grade operator dari penilaian kepala shift dan kebijakan gaji (spreadsheet Data Grade dan Kenaikan Gaji), pengaturan gaji per karyawan & pengaturan payroll, serta hitung gaji per periode cut off dari Absensi.</span>
+          <span>Grade operator dari penilaian kepala shift (spreadsheet Data Grade), gaji per karyawan (grade, gaji pokok, tunjangan) & pengaturan payroll, serta hitung gaji per periode cut off dari Absensi. Lembur ada di menu Lembur.</span>
         </div>
       </div>
       <div className="pap-segmented pap-page-tabs" role="tablist" aria-label="Grade & Gaji">
         <button role="tab" aria-selected={tab === 'grade'} className={tab === 'grade' ? 'active' : ''} onClick={() => setTab('grade')}><Award /> Grade operator</button>
         <button role="tab" aria-selected={tab === 'karyawan'} className={tab === 'karyawan' ? 'active' : ''} onClick={() => setTab('karyawan')}><Users /> Gaji karyawan</button>
-        <button role="tab" aria-selected={tab === 'gaji'} className={tab === 'gaji' ? 'active' : ''} onClick={() => setTab('gaji')}><FileSpreadsheet /> Kebijakan gaji (sheet)</button>
-        <button role="tab" aria-selected={tab === 'lembur'} className={tab === 'lembur' ? 'active' : ''} onClick={() => setTab('lembur')}><Clock /> Lembur</button>
         <button role="tab" aria-selected={tab === 'hitung'} className={tab === 'hitung' ? 'active' : ''} onClick={() => setTab('hitung')}><Calculator /> Hitung gaji</button>
         <button role="tab" aria-selected={tab === 'pengaturan'} className={tab === 'pengaturan' ? 'active' : ''} onClick={() => setTab('pengaturan')}><Settings /> Pengaturan payroll</button>
       </div>
-      {(tab === 'grade' || tab === 'gaji') && <SyncBar label="Data Grade dan Kenaikan Gaji" syncedAt={data?.meta?.synced_at ?? null} canSync={!!data?.can.manage} onOpen={() => setSheetOpen(true)} />}
+      {tab === 'grade' && <SyncBar label="Data Grade dan Kenaikan Gaji" syncedAt={data?.meta?.synced_at ?? null} canSync={!!data?.can.manage} onOpen={() => setSheetOpen(true)} />}
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
-      {tab === 'karyawan' ? <PayrollEmployees /> : tab === 'lembur' ? <PayrollOvertime /> : tab === 'hitung' ? <PayrollCalc /> : tab === 'pengaturan' ? <PayrollSettingsView /> : <>
+      {tab === 'karyawan' ? <PayrollEmployees /> : tab === 'hitung' ? <PayrollCalc /> : tab === 'pengaturan' ? <PayrollSettingsView /> : <>
       {!data && !error && <div className="pap-table-card"><div className="pap-empty">Memuat...</div></div>}
-      {data && (tab === 'grade'
-        ? <GradeView data={data} onAdd={edit ? () => setGradeForm({ item: null }) : undefined} onEdit={(item) => setGradeForm({ item })} onDelete={(item) => remove('grade', item)} />
-        : <SalaryView data={data} onAdd={edit ? () => setSalaryForm({ item: null }) : undefined} onEdit={(item) => setSalaryForm({ item })} onDelete={(item) => remove('gaji', item)} />)}
+      {data && <GradeView data={data} onAdd={edit ? () => setGradeForm({ item: null }) : undefined} onEdit={(item) => setGradeForm({ item })} onDelete={(item) => remove('grade', item)} />}
       </>}
       {gradeForm && data && <GradeForm item={gradeForm.item} penilai={data.meta?.penilai ?? []} onClose={() => setGradeForm(null)} onSaved={saved} />}
-      {salaryForm && <SalaryForm item={salaryForm.item} onClose={() => setSalaryForm(null)} onSaved={saved} />}
       {sheetOpen && <HrSheetSync jenis="grade" onClose={() => setSheetOpen(false)} onImported={(t) => { setSheetOpen(false); setMessage(t); load() }} />}
     </>
   )
@@ -408,76 +402,6 @@ function GradeView({ data, onAdd, onEdit, onDelete }: { data: Payroll } & RowAct
   )
 }
 
-function SalaryView({ data, onAdd, onEdit, onDelete }: { data: Payroll } & RowActions<Salary>) {
-  const [q, setQ] = useState('')
-  const p = data.meta?.kebijakan
-  const term = q.trim().toLowerCase()
-  const shown = data.salaries.filter((s) => !term || s.nama.toLowerCase().includes(term))
-  const paged = usePaged(shown, q, 50)
-  const sum = (k: keyof Salary) => data.salaries.reduce((t, s) => t + (Number(s[k]) || 0), 0)
-  return (
-    <>
-      <Tiles tiles={[
-        { label: 'Karyawan digaji', value: `${data.salaries.length}`, note: p?.wilayah ?? 'Kebijakan gaji operasional', icon: Users, tone: 'stat-1' },
-        { label: `Upah ${p?.hari_kerja ?? 25} hari kerja`, value: short(p?.total.upah_bulanan ?? sum('upah_bulanan')), note: 'Total per bulan', icon: Wallet, tone: 'stat-1' },
-        { label: 'Total terima', value: short(p?.total.total_terima ?? sum('total_terima')), note: `Tunjangan ${short(p?.total.tunjangan ?? sum('tunjangan'))}`, icon: Wallet, tone: 'stat-0' },
-        { label: 'Termasuk BPJS & THR', value: short(p?.total.total_bpjs_thr ?? sum('total_bpjs_thr')), note: `Tanpa THR ${short(p?.total.tanpa_thr ?? sum('tanpa_thr'))}`, icon: Wallet, tone: 'stat-2' },
-      ]} />
-      {p && (
-        <div className="pap-dash-grid pap-fgs-grid">
-          <section className="pap-table-card pap-dash-card">
-            <div className="pap-card-head"><div><h2>{p.judul ?? 'Kebijakan gaji'}</h2><p>{p.wilayah ?? ''}</p></div></div>
-            <div className="pap-dash-body">
-              <dl className="pap-detail-grid">
-                {p.tingkat.map((t) => <div key={t.label}><dt>{t.label}</dt><dd>{formatRupiah(t.nilai)}</dd></div>)}
-              </dl>
-            </div>
-          </section>
-          <section className="pap-table-card pap-dash-card">
-            <div className="pap-card-head"><div><h2>Tunjangan grade & lembur</h2><p>Tambahan upah harian per grade</p></div></div>
-            <div className="pap-dash-body">
-              <dl className="pap-detail-grid">
-                {p.grade.map((g) => <div key={g.grade}><dt>Grade {g.grade}</dt><dd>{formatRupiah(g.nominal)} / hari</dd></div>)}
-                <div><dt>Hari kerja per bulan</dt><dd>{p.hari_kerja} hari</dd></div>
-                {p.faktor_lembur && <div><dt>Lembur hari kerja</dt><dd>{formatNumber(p.faktor_lembur, 2)} × tarif per jam</dd></div>}
-                {p.faktor_lembur_libur && <div><dt>Lembur hari libur</dt><dd>{formatNumber(p.faktor_lembur_libur, 2)} × tarif per jam</dd></div>}
-              </dl>
-            </div>
-          </section>
-        </div>
-      )}
-      <div className="pap-table-card">
-        <div className="pap-card-head"><div><h2>Gaji per karyawan</h2><p>Sesuai tab kebijakan gaji di spreadsheet{onAdd ? '; perubahan dari SIMPAP ditulis ke spreadsheet' : ''}</p></div>{onAdd && <button className="pap-primary-button" onClick={onAdd}><Plus /> Tambah karyawan</button>}</div>
-        <div className="pap-filters"><label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari karyawan..." /></label></div>
-        <div className="pap-table-wrap">
-          <table>
-            <thead><tr><th>Karyawan</th><th>Grade</th><th className="pap-num">Upah harian</th><th className="pap-num">Upah {p?.hari_kerja ?? 25} hari</th><th className="pap-num">Kenaikan</th><th className="pap-num">Tunjangan</th><th className="pap-num">Total terima</th><th className="pap-num">THR</th><th className="pap-num">Per jam</th><th className="pap-num">Lembur / jam</th>{onAdd && <th aria-label="Aksi" />}</tr></thead>
-            <tbody>
-              {paged.items.map((s) => (
-                <tr key={s.id}>
-                  <td><div className="pap-cell-title">{s.nama}</div><div className="pap-cell-sub">{s.employee_id ? s.jabatan ?? s.nip : notInHr}</div></td>
-                  <td>{s.grade ? <span className={`pap-status ${GRADE_TONE[s.grade] ?? 'neutral'}`}>{s.grade}</span> : '—'}</td>
-                  <td className="pap-num pap-nowrap">{rp(s.upah_harian_total ?? s.upah_harian)}{s.nominal_grade ? <div className="pap-cell-sub">+{formatRupiah(s.nominal_grade)} grade</div> : null}</td>
-                  <td className="pap-num pap-nowrap">{rp(s.upah_bulanan)}</td>
-                  <td className="pap-num pap-nowrap">{rp(s.kenaikan_bulanan)}<div className="pap-cell-sub">{s.kenaikan_persen ? `${formatNumber(s.kenaikan_persen, 2)}%` : ''}</div></td>
-                  <td className="pap-num pap-nowrap">{s.tunjangan ? rp(s.tunjangan) : '—'}</td>
-                  <td className="pap-num pap-nowrap"><strong>{rp(s.total_terima)}</strong></td>
-                  <td className="pap-num pap-nowrap">{rp(s.thr)}</td>
-                  <td className="pap-num pap-nowrap">{rp(s.tarif_jam)}</td>
-                  <td className="pap-num pap-nowrap">{rp(s.lembur_jam)}<div className="pap-cell-sub">libur {rp(s.lembur_libur_jam)}</div></td>
-                  {onAdd && <td><RowButtons label={s.nama} onEdit={() => onEdit(s)} onDelete={() => onDelete(s)} /></td>}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!data.salaries.length && <div className="pap-empty">Belum ada data gaji. Sinkron dari spreadsheet Data Grade dan Kenaikan Gaji.</div>}
-          <Pager {...paged.pager} noun="karyawan" />
-        </div>
-      </div>
-    </>
-  )
-}
-
 function RowButtons({ label, onEdit, onDelete }: { label: string; onEdit: () => void; onDelete: () => void }) {
   return (
     <div className="pap-row-actions">
@@ -538,47 +462,6 @@ function GradeForm({ item, penilai, onClose, onSaved }: { item: Grade | null; pe
           </div>
         ))}
         {!penilai.length && <p className="full pap-muted">Kolom kepala shift belum terbaca. Sinkron spreadsheet dulu agar nilai per kepala shift bisa diisi.</p>}
-      </form>
-    </Modal>
-  )
-}
-
-const SALARY_GROUPS: { title: string; fields: [keyof Salary, string][] }[] = [
-  { title: 'Upah & grade', fields: [['upah_harian', 'Upah harian (7 jam)'], ['nominal_grade', 'Nominal grade / hari'], ['upah_harian_total', 'Upah harian + tunjangan grade'], ['upah_bulanan', 'Upah bulanan']] },
-  { title: 'Kenaikan', fields: [['kenaikan_harian', 'Kenaikan harian'], ['kenaikan_bulanan', 'Kenaikan bulanan'], ['kenaikan_persen', 'Kenaikan (%)']] },
-  { title: 'Tunjangan, BPJS & THR', fields: [['tunjangan', 'Tunjangan'], ['total_terima', 'Total terima'], ['bpjs_laka', 'BPJS Laka Kerja'], ['bpjs_kematian', 'BPJS Kematian'], ['bpjs_kesehatan', 'BPJS Kesehatan'], ['thr', 'THR'], ['total_bpjs_thr', 'Total terima (+ BPJS & THR)'], ['tanpa_thr', 'Tanpa THR']] },
-  { title: 'Tarif per jam & lembur', fields: [['tarif_jam', 'Tarif per jam'], ['lembur_jam', 'Lembur hari kerja / jam'], ['lembur_libur_jam', 'Lembur hari libur / jam']] },
-]
-
-function SalaryForm({ item, onClose, onSaved }: { item: Salary | null; onClose: () => void; onSaved: (text: string) => void }) {
-  const [v, setV] = useState<Record<string, string>>(() => {
-    const keys = ['no', 'nama', 'no_rek_cimb', 'no_rek_lain', 'grade', ...SALARY_GROUPS.flatMap((g) => g.fields.map(([k]) => k))]
-    return Object.fromEntries(keys.map((k) => [k, val(item?.[k as keyof Salary] as number | string | null | undefined)]))
-  })
-  const { busy, error, setError, save } = useSave(item ? `/api/hrd/payroll/${item.id}?jenis=gaji` : '/api/hrd/payroll', item ? 'PATCH' : 'POST', onSaved,
-    item ? `Gaji ${v.nama} diperbarui di spreadsheet.` : `${v.nama} ditambahkan ke spreadsheet kebijakan gaji.`)
-  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setV({ ...v, [k]: e.target.value })
-  return (
-    <Modal title={item ? `Ubah gaji ${item.nama}` : 'Tambah karyawan ke kebijakan gaji'} subtitle={FORMULA_HINT} wide onClose={onClose}
-      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="salary-form" disabled={busy}>{busy ? 'Menyimpan...' : 'Simpan ke spreadsheet'}</button></>}>
-      <form id="salary-form" className="pap-form-grid" onSubmit={(e) => save(e, { jenis: 'gaji', ...v })}>
-        {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
-        <Field label="Nama karyawan *"><input className="pap-input" required maxLength={150} value={v.nama} onChange={set('nama')} /></Field>
-        <Field label="No" hint={item ? undefined : 'Kosongkan untuk nomor berikutnya'}><input className="pap-input" type="number" min={1} value={v.no} onChange={set('no')} /></Field>
-        <Field label="Grade">
-          <select className="pap-select" value={v.grade} onChange={set('grade')}>
-            <option value="">—</option>
-            {['A', 'B', 'C'].map((g) => <option key={g} value={g}>Grade {g}</option>)}
-          </select>
-        </Field>
-        <Field label="No. rekening CIMB"><input className="pap-input" maxLength={60} value={v.no_rek_cimb} onChange={set('no_rek_cimb')} /></Field>
-        <Field label="No. rekening bank lain" full><input className="pap-input" maxLength={150} value={v.no_rek_lain} onChange={set('no_rek_lain')} /></Field>
-        {SALARY_GROUPS.map((g) => (
-          <div className="full pap-form-grid" key={g.title}>
-            <h3 className="full">{g.title}</h3>
-            {g.fields.map(([k, label]) => <Field key={k} label={label}><input className="pap-input" type="number" step="any" value={v[k]} onChange={set(k)} /></Field>)}
-          </div>
-        ))}
       </form>
     </Modal>
   )
