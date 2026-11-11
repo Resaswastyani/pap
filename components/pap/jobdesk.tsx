@@ -233,13 +233,17 @@ function JobdeskForm({ item, bagianList, onClose, onSaved }: { item: Jobdesk | n
       <form id="jobdesk-form" className="pap-form-grid" onSubmit={save}>
         {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <Field label="Nama jabatan *" full><input className="pap-input" required maxLength={150} value={v.jabatan} onChange={set('jabatan')} placeholder="Mis. Operator Mesin Blow, Staff Accounting" /></Field>
-        <Field label="Kategori jabatan" hint="Pilih atau ketik sendiri">
-          <input className="pap-input" list="pap-jd-kategori" maxLength={40} value={v.kategori} onChange={set('kategori')} placeholder="Operator, Staff, Kepala Shift, ..." />
-          <datalist id="pap-jd-kategori">{KATEGORI.map((k) => <option key={k} value={k} />)}</datalist>
+        <Field label="Kategori jabatan">
+          <select className="pap-select" value={v.kategori} onChange={set('kategori')}>
+            <option value="">— Pilih kategori —</option>
+            {[...KATEGORI, ...(v.kategori && !KATEGORI.includes(v.kategori) ? [v.kategori] : [])].map((k) => <option key={k} value={k}>{k}</option>)}
+          </select>
         </Field>
         <Field label="Bagian / divisi">
-          <input className="pap-input" list="pap-jd-bagian" maxLength={100} value={v.bagian} onChange={set('bagian')} placeholder="Produksi, Accounting, ..." />
-          <datalist id="pap-jd-bagian">{bagianList.map((b) => <option key={b} value={b} />)}</datalist>
+          <select className="pap-select" value={v.bagian} onChange={set('bagian')}>
+            <option value="">— Pilih bagian —</option>
+            {[...bagianList, ...(v.bagian && !bagianList.includes(v.bagian) ? [v.bagian] : [])].map((b) => <option key={b} value={b}>{b}</option>)}
+          </select>
         </Field>
         <Field label="Atasan langsung"><input className="pap-input" maxLength={150} value={v.atasan_langsung} onChange={set('atasan_langsung')} /></Field>
         <Field label="Atasan tak langsung"><input className="pap-input" maxLength={150} value={v.atasan_tak_langsung} onChange={set('atasan_tak_langsung')} /></Field>

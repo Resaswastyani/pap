@@ -5,7 +5,7 @@ import { tglId } from '@/lib/attendance-report'
 import { hitungPeriode, listPayrolls } from '@/lib/payroll'
 import { periodeLabel } from '@/lib/payroll-report'
 import type { UserProfile } from '@/lib/users'
-import { writeXlsx, type XlsxCell } from '@/lib/xlsx-write'
+import { colName, writeXlsx, type XlsxCell, type XlsxSheet, type XlsxStyle } from '@/lib/xlsx-write'
 
 export function requireBpjs(user: UserProfile) {
   if (!user.menus.includes('bpjs' as never)) fail(403, 'Anda tidak punya akses ke menu Laporan BPJS.')
@@ -43,42 +43,93 @@ export async function bpjsReport(periode: string, withNumbers: boolean) {
 
 export async function bpjsXlsx(periode: string, withNumbers: boolean) {
   const rep = await bpjsReport(periode, withNumbers)
-  const head = (v: string) => ({ v, s: 'head' as const })
-  const t = (v: string | null) => ({ v, s: 'cell' as const })
-  const num = (v: number) => ({ v: Math.round(v), s: 'num' as const })
-  const tot = (v: number | string) => ({ v: typeof v === 'number' ? Math.round(v) : v, s: 'total' as const })
   const tr = rep.tarif
-  const title = `LAPORAN IURAN BPJS PERIODE ${periodeLabel(periode).toUpperCase()} (${tglId(rep.dari)} s/d ${tglId(rep.sampai)})`
-  const tkCols = ['NO', 'NIP', 'Nama', 'Jabatan', 'No. BPJS TK', 'Upah dilaporkan', `JHT perusahaan ${tr.jht_p}%`, `JHT pegawai ${tr.jht_k}%`, `JKK ${tr.jkk}%`, `JKM ${tr.jkm}%`,
-    'Dasar JP', `JP perusahaan ${tr.jp_p}%`, `JP pegawai ${tr.jp_k}%`, 'Total iuran TK', 'Ditanggung']
-  const kesCols = ['NO', 'NIP', 'Nama', 'Jabatan', 'No. BPJS Kesehatan', 'Upah dilaporkan', `Perusahaan ${tr.kes_p}%`, `Pegawai ${tr.kes_k}%`, 'Total iuran Kesehatan', 'Ditanggung']
+  const sub = `Periode ${tglId(rep.dari)} s/d ${tglId(rep.sampai)} · batas upah JP Rp ${tr.max_jp.toLocaleString('id-ID')}, BPJS Kesehatan Rp ${tr.max_kes.toLocaleString('id-ID')} · JP berhenti di usia ${tr.usia_pensiun} tahun · dicetak dari PAP-MS`
+  // Sel bergaya; z = baris genap (belang)
+  const txt = (v: string | number | null, z: boolean) => ({ v, s: (z ? 'cell-z' : 'cell') as XlsxStyle })
+  const mid = (v: string | number | null, z: boolean) => ({ v, s: (z ? 'center-z' : 'center') as XlsxStyle })
+  const rp = (v: number, z: boolean) => ({ v: Math.round(v), s: (z ? 'money-z' : 'money') as XlsxStyle })
+  const ditanggung = (v: string) => (v === 'perusahaan' ? 'Perusahaan' : 'Pegawai')
+  type Group = { label: string; style: XlsxStyle; cols: string[] }
+  // Lembar berkelompok: judul, keterangan, baris kelompok (digabung), judul kolom berwarna, isi belang, total
+  function build(judul: string, groups: Group[], body: XlsxCell[][], total: XlsxCell[], empty: string) {
+    const width = groups.reduce((n, g) => n + g.cols.length, 0)
+    const merges: string[] = []
+    let c = 0
+    const groupRow: XlsxCell[] = []
+    for (const g of groups) {
+      groupRow.push({ v: g.label, s: 'group' }, ...Array(g.cols.length - 1).fill({ v: null, s: 'group' }))
+      if (g.cols.length > 1) merges.push(`${colName(c)}4:${colName(c + g.cols.length - 1)}4`)
+      c += g.cols.length
+    }
+    const rows: XlsxCell[][] = [
+      [{ v: judul, s: 'title2' }],
+      [{ v: sub, s: 'note' }],
+      [],
+      groupRow,
+      groups.flatMap((g) => g.cols.map((v) => ({ v, s: g.style }))),
+      ...(body.length ? body : [[{ v: empty, s: 'note' as XlsxStyle }]]),
+    ]
+    if (body.length) {
+      rows.push(total)
+      merges.push(`A${rows.length}:E${rows.length}`)
+    } else merges.push(`A6:${colName(width - 1)}6`)
+    return { rows, merges, last: colName(width - 1), count: body.length }
+  }
   const tk = rep.items.filter((x) => x.dasar_tk)
   const kes = rep.items.filter((x) => x.dasar_kes)
-  const note = { v: `Dicetak dari PAP-MS. Batas upah JP Rp ${tr.max_jp.toLocaleString('id-ID')}, BPJS Kesehatan Rp ${tr.max_kes.toLocaleString('id-ID')}; JP berhenti di usia ${tr.usia_pensiun} tahun.`, s: 'note' as const }
-  const ditanggung = (v: string) => (v === 'perusahaan' ? 'Perusahaan' : 'Pegawai')
-  const tkRows: XlsxCell[][] = [
-    [{ v: `${title} — BPJS KETENAGAKERJAAN`, s: 'title' }], [note], tkCols.map(head),
-    ...tk.map((x, i) => [{ v: i + 1, s: 'center' as const }, t(x.nip), t(x.nama), t(x.jabatan), t(x.no_bpjs_tk), num(x.dasar_tk), num(x.jht_p), num(x.jht_k), num(x.jkk), num(x.jkm),
-      num(x.dasar_jp), num(x.jp_p), num(x.jp_k), num(x.total_tk), t(ditanggung(x.tk_ditanggung))]),
-    [tot(''), tot(''), tot(`TOTAL ${tk.length} peserta`), tot(''), tot(''), tot(tk.reduce((a, x) => a + x.dasar_tk, 0)), tot(rep.total.jht_p), tot(rep.total.jht_k), tot(rep.total.jkk), tot(rep.total.jkm),
-      tot(''), tot(rep.total.jp_p), tot(rep.total.jp_k), tot(rep.total.total_tk), tot('')],
-  ]
-  const kesRows: XlsxCell[][] = [
-    [{ v: `${title} — BPJS KESEHATAN`, s: 'title' }], [note], kesCols.map(head),
-    ...kes.map((x, i) => [{ v: i + 1, s: 'center' as const }, t(x.nip), t(x.nama), t(x.jabatan), t(x.no_bpjs_kes), num(x.dasar_kes), num(x.kes_p), num(x.kes_k), num(x.total_kes), t(ditanggung(x.kes_ditanggung))]),
-    [tot(''), tot(''), tot(`TOTAL ${kes.length} peserta`), tot(''), tot(''), tot(kes.reduce((a, x) => a + x.dasar_kes, 0)), tot(rep.total.kes_p), tot(rep.total.kes_k), tot(rep.total.total_kes), tot('')],
+  const sumTot = (v: number): XlsxCell => ({ v: Math.round(v), s: 'total-money' })
+  const label = (text: string): XlsxCell[] => [{ v: text, s: 'total-label' }, ...Array(4).fill({ v: null, s: 'total-label' })]
+
+  const tkSheet = build(`LAPORAN IURAN BPJS KETENAGAKERJAAN · ${periodeLabel(periode).toUpperCase()}`, [
+    { label: 'DATA KARYAWAN', style: 'h-id', cols: ['No', 'NIP', 'Nama', 'Jabatan', 'No. BPJS TK'] },
+    { label: 'DASAR', style: 'h-hadir', cols: ['Upah dilaporkan'] },
+    { label: 'JAMINAN HARI TUA (JHT)', style: 'h-plus', cols: [`Perusahaan ${tr.jht_p}%`, `Pegawai ${tr.jht_k}%`] },
+    { label: 'JKK & JKM', style: 'h-plus', cols: [`JKK ${tr.jkk}%`, `JKM ${tr.jkm}%`] },
+    { label: 'JAMINAN PENSIUN (JP)', style: 'h-minus', cols: ['Dasar JP', `Perusahaan ${tr.jp_p}%`, `Pegawai ${tr.jp_k}%`] },
+    { label: 'TOTAL', style: 'h-thp', cols: ['Total iuran TK'] },
+    { label: 'KET.', style: 'h-misc', cols: ['Ditanggung'] },
+  ], tk.map((x, i) => {
+    const z = i % 2 === 1
+    return [mid(i + 1, z), mid(x.nip, z), txt(x.nama, z), txt(x.jabatan, z), mid(x.no_bpjs_tk, z), rp(x.dasar_tk, z), rp(x.jht_p, z), rp(x.jht_k, z), rp(x.jkk, z), rp(x.jkm, z),
+      rp(x.dasar_jp, z), rp(x.jp_p, z), rp(x.jp_k, z), { v: Math.round(x.total_tk), s: 'thp' as XlsxStyle }, mid(ditanggung(x.tk_ditanggung), z)]
+  }), [...label(`TOTAL ${tk.length} PESERTA`), sumTot(tk.reduce((a, x) => a + x.dasar_tk, 0)), sumTot(rep.total.jht_p), sumTot(rep.total.jht_k), sumTot(rep.total.jkk), sumTot(rep.total.jkm),
+    { v: null, s: 'total-money' }, sumTot(rep.total.jp_p), sumTot(rep.total.jp_k), { v: Math.round(rep.total.total_tk), s: 'total-thp' }, { v: null, s: 'total-money' }],
+  'Belum ada karyawan yang terdaftar BPJS Ketenagakerjaan pada periode ini.')
+
+  const kesSheet = build(`LAPORAN IURAN BPJS KESEHATAN · ${periodeLabel(periode).toUpperCase()}`, [
+    { label: 'DATA KARYAWAN', style: 'h-id', cols: ['No', 'NIP', 'Nama', 'Jabatan', 'No. BPJS Kesehatan'] },
+    { label: 'DASAR', style: 'h-hadir', cols: ['Upah dilaporkan'] },
+    { label: 'IURAN', style: 'h-plus', cols: [`Perusahaan ${tr.kes_p}%`, `Pegawai ${tr.kes_k}%`] },
+    { label: 'TOTAL', style: 'h-thp', cols: ['Total iuran Kesehatan'] },
+    { label: 'KET.', style: 'h-misc', cols: ['Ditanggung'] },
+  ], kes.map((x, i) => {
+    const z = i % 2 === 1
+    return [mid(i + 1, z), mid(x.nip, z), txt(x.nama, z), txt(x.jabatan, z), mid(x.no_bpjs_kes, z), rp(x.dasar_kes, z), rp(x.kes_p, z), rp(x.kes_k, z), { v: Math.round(x.total_kes), s: 'thp' as XlsxStyle }, mid(ditanggung(x.kes_ditanggung), z)]
+  }), [...label(`TOTAL ${kes.length} PESERTA`), sumTot(kes.reduce((a, x) => a + x.dasar_kes, 0)), sumTot(rep.total.kes_p), sumTot(rep.total.kes_k), { v: Math.round(rep.total.total_kes), s: 'total-thp' }, { v: null, s: 'total-money' }],
+  'Belum ada karyawan yang terdaftar BPJS Kesehatan pada periode ini.')
+
+  const heights = (count: number) => ({ 1: 26, 2: 30, 4: 20, 5: 34, [6 + count]: 22 })
+  const sheets: XlsxSheet[] = [
+    { title: 'BPJS Ketenagakerjaan', rows: tkSheet.rows, merges: tkSheet.merges, widths: [5, 11, 24, 18, 16, 15, 14, 14, 12, 12, 14, 14, 14, 16, 12], freeze: { row: 5, col: 3 }, heights: heights(tkSheet.count) },
+    { title: 'BPJS Kesehatan', rows: kesSheet.rows, merges: kesSheet.merges, widths: [5, 11, 24, 18, 18, 15, 15, 15, 17, 12], freeze: { row: 5, col: 3 }, heights: heights(kesSheet.count) },
   ]
   const belum = rep.items.filter((x) => !x.dasar_tk || !x.dasar_kes)
-  const sheets = [
-    { title: 'BPJS Ketenagakerjaan', rows: tkRows, widths: [5, 12, 26, 18, 16, 14, 13, 13, 11, 11, 14, 13, 13, 15, 12], freeze: { row: 3, col: 3 } },
-    { title: 'BPJS Kesehatan', rows: kesRows, widths: [5, 12, 26, 18, 18, 14, 14, 14, 16, 12], freeze: { row: 3, col: 3 } },
-  ]
   if (belum.length) {
+    const status = (ok: boolean, z: boolean): XlsxCell => ({ v: ok ? 'Terdaftar' : 'Belum', s: (ok ? (z ? 'center-z' : 'center') : 'sh-off') as XlsxStyle })
     sheets.push({
-      title: 'Belum terdaftar', widths: [5, 12, 26, 18, 22, 22, 30],
-      rows: [[{ v: 'KARYAWAN BELUM TERDAFTAR BPJS', s: 'title' }], ['NO', 'NIP', 'Nama', 'Jabatan', 'BPJS TK', 'BPJS Kesehatan', 'Catatan'].map(head),
-        ...belum.map((x, i) => [{ v: i + 1, s: 'center' as const }, t(x.nip), t(x.nama), t(x.jabatan), t(x.dasar_tk ? 'Terdaftar' : 'Belum'), t(x.dasar_kes ? 'Terdaftar' : 'Belum'), t(x.catatan.join('; '))])],
-    } as (typeof sheets)[number])
+      title: 'Belum terdaftar', widths: [5, 11, 24, 18, 14, 16, 36], freeze: { row: 4, col: 3 }, heights: { 1: 26, 2: 22, 4: 24 },
+      rows: [
+        [{ v: 'KARYAWAN BELUM TERDAFTAR BPJS', s: 'title2' }],
+        [{ v: `${belum.length} karyawan belum lengkap BPJS-nya per ${periodeLabel(periode)}. Lengkapi di Grade & Gaji › data gaji karyawan.`, s: 'note' }],
+        [],
+        [...['No', 'NIP', 'Nama', 'Jabatan'].map((v) => ({ v, s: 'h-id' as XlsxStyle })), { v: 'BPJS TK', s: 'h-minus' }, { v: 'BPJS Kesehatan', s: 'h-minus' }, { v: 'Catatan', s: 'h-misc' }],
+        ...belum.map((x, i) => {
+          const z = i % 2 === 1
+          return [mid(i + 1, z), mid(x.nip, z), txt(x.nama, z), txt(x.jabatan, z), status(!!x.dasar_tk, z), status(!!x.dasar_kes, z), txt(x.catatan.join('; ') || null, z)]
+        }),
+      ],
+    })
   }
   return { filename: `Laporan_BPJS_${periode}.xlsx`, buffer: writeXlsx(sheets) }
 }

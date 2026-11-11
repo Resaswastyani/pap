@@ -356,7 +356,7 @@ function ShiftRowForm({ periode, days, codes, row, onClose, onSaved }: { periode
 // Unduh template jadwal untuk bulan yang dipilih; jumlah kolom tanggal mengikuti kalender (Feb 28/29, Jan 31, ...)
 function TemplateDialog({ initial, onClose }: { initial: string; onClose: () => void }) {
   const [periode, setPeriode] = useState(initial)
-  const valid = /^d{4}-d{2}$/.test(periode)
+  const valid = /^\d{4}-\d{2}$/.test(periode)
   const days = valid ? new Date(Number(periode.slice(0, 4)), Number(periode.slice(5, 7)), 0).getDate() : 0
   return (
     <Modal title="Unduh template jadwal shift" subtitle="Pilih bulan jadwal yang akan diisi" onClose={onClose}

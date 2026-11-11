@@ -8,7 +8,7 @@ import { readSpreadsheet, spreadsheetId, type SheetTab } from '@/lib/drive'
 import { fail } from '@/lib/api'
 import { readXlsx } from '@/lib/xlsx-lite'
 import { ensureTab, openSheet, readTab, replaceBlock } from '@/lib/sheet-write'
-import { colName, writeXlsx, type XlsxCell } from '@/lib/xlsx-write'
+import { colName, writeXlsx, type XlsxCell, type XlsxStyle } from '@/lib/xlsx-write'
 import type { UserProfile } from '@/lib/users'
 
 const SETTING_KEY = 'jadwal_shift.sheet_url'
@@ -469,7 +469,8 @@ export async function createShiftSchedule(periode: string, userId: number, copyP
   return { id: res.insertId, karyawan: people.length, dari: last?.periode ?? null }
 }
 
-// Unduh jadwal yang sudah dibuat (Excel): susunan sama dengan template, tanggal terisi, rekap jumlah per kode
+// Unduh jadwal yang sudah dibuat (Excel), tampilannya mengikuti SIMPAP: warna per kode shift, kolom Minggu merah,
+// libur = sel merah kosong, kode lain disingkat (Normal1 -> N1, Driver1 -> D1), rekap jumlah per tanggal & keterangan
 export async function shiftExport(periode: string) {
   const s = await scheduleFromDb(periode)
   if (!s) fail(404, 'Jadwal bulan ini belum ada.')
@@ -479,25 +480,54 @@ export async function shiftExport(periode: string) {
   const month = Number(periode.slice(5, 7))
   const dow = (day: number) => new Date(Date.UTC(year, month - 1, day)).getUTCDay()
   const INITIAL = ['M', 'S', 'S', 'R', 'K', 'J', 'S']
-  const left = ['NO', 'NAMA', 'BAGIAN', 'KD KARYAWAN', 'PILIHAN SHIFT']
+  const showKode = sched.rows.some((r) => r.nomor_induk)
+  const showPilihan = sched.rows.some((r) => r.pilihan_shift)
+  const left = ['No', 'Nama', ...(showKode ? ['Kode'] : []), ...(showPilihan ? ['Pilihan Shift'] : [])]
   const lastCol = colName(left.length + total - 1)
   const label = new Map(sched.keterangan.map((k) => [k.kode, k.label]))
-  const cellOf = (kode: string): XlsxCell => (kode === NO_DATA ? { v: null, s: 'center' } : kode === '' ? { v: 'OFF', s: 'off' } : { v: ['1', '2', '3'].includes(kode) ? kode : label.get(kode) ?? kode, s: 'center' })
+  const isShift = (k: string) => k === '1' || k === '2' || k === '3'
+  const styleOf = (k: string): XlsxStyle => (k === NO_DATA ? 'sh-none' : k === '' ? 'sh-off' : isShift(k) ? (`sh-${k}` as XlsxStyle) : /^normal/i.test(k) ? 'sh-normal' : /^driver/i.test(k) ? 'sh-driver' : 'sh-other')
+  // Isi sel seperti SIMPAP: angka shift, kosong untuk libur, singkatan untuk kode lain
+  const textOf = (k: string) => {
+    if (isShift(k)) return k
+    if (k === '' || k === NO_DATA) return null
+    const l = label.get(k) ?? k
+    return `${l[0]?.toUpperCase() ?? ''}${l.match(/\d+$/)?.[0] ?? ''}`
+  }
+  const head = (v: string | number, day?: number): XlsxCell => ({ v, s: day && dow(day) === 0 ? 'sunday' : 'head' })
   const rows: XlsxCell[][] = [
-    [{ v: sched.judul ?? `JADWAL SHIFT KARYAWAN PRODUKSI BULAN ${MONTH_NAMES[month - 1]} ${year}`, s: 'title' }],
-    [{ v: `Diunduh dari SIMPAP. 1 / 2 / 3 = Shift 1-3, OFF = libur.`, s: 'note' }],
-    [...left.map((v) => ({ v, s: 'head' as const })), ...Array.from({ length: total }, (_, i) => ({ v: i + 1, s: dow(i + 1) === 0 ? 'sunday' as const : 'head' as const }))],
-    [...left.map(() => ({ v: null, s: 'head' as const })), ...Array.from({ length: total }, (_, i) => ({ v: INITIAL[dow(i + 1)], s: dow(i + 1) === 0 ? 'sunday' as const : 'head' as const }))],
-    ...sched.rows.map((r, i): XlsxCell[] => [{ v: i + 1, s: 'cell' }, { v: r.nama, s: 'cell' }, { v: r.bagian, s: 'cell' }, { v: r.nomor_induk, s: 'cell' }, { v: r.pilihan_shift, s: 'cell' }, ...r.jadwal.slice(0, total).map(cellOf)]),
-    // Rekap per tanggal seperti baris "Jumlah" di sheet
-    ...sched.keterangan.map((k): XlsxCell[] => [null, { v: `Jumlah ${k.label}`, s: 'total' }, null, null, null, ...Array.from({ length: total }, (_, i) => ({ v: sched.rows.filter((r) => r.jadwal[i] === k.kode).length, s: 'total' as const }))]),
+    [{ v: sched.judul ?? `JADWAL SHIFT KARYAWAN PRODUKSI BULAN ${MONTH_NAMES[month - 1]} ${year}`, s: 'title2' }],
+    [{ v: 'Diunduh dari SIMPAP. Angka = shift; sel merah = libur (OFF); kode lain lihat Keterangan di bawah.', s: 'note' }],
+    [...left.map((v) => head(v)), ...Array.from({ length: total }, (_, i) => head(INITIAL[dow(i + 1)], i + 1))],
+    [...left.map(() => head('')), ...Array.from({ length: total }, (_, i) => head(i + 1, i + 1))],
+    ...sched.rows.map((r, i): XlsxCell[] => {
+      const z = i % 2 === 1
+      return [
+        { v: i + 1, s: z ? 'center-z' : 'center' },
+        { v: r.bagian ? `${r.nama} (${r.bagian})` : r.nama, s: z ? 'sh-name-z' : 'sh-name' },
+        ...(showKode ? [{ v: r.nomor_induk, s: (z ? 'center-z' : 'center') as XlsxStyle }] : []),
+        ...(showPilihan ? [{ v: r.pilihan_shift, s: (z ? 'center-z' : 'center') as XlsxStyle }] : []),
+        ...r.jadwal.slice(0, total).map((k) => ({ v: textOf(k), s: styleOf(k) })),
+      ]
+    }),
+    // Rekap per tanggal seperti baris "Jumlah" di SIMPAP
+    ...sched.keterangan.map((k): XlsxCell[] => [
+      { v: `Jumlah ${k.label}`, s: 'total-label' }, ...Array(left.length - 1).fill({ v: null, s: 'total-label' }),
+      ...Array.from({ length: total }, (_, i) => ({ v: sched.rows.filter((r) => r.jadwal[i] === k.kode).length, s: 'total' as const })),
+    ]),
     [],
-    [null, { v: 'Keterangan :', s: 'head' }, { v: 'Jam kerja', s: 'head' }],
-    ...sched.keterangan.map((k): XlsxCell[] => [null, k.label, k.jam ?? (k.kode === '' ? 'Libur' : '')]),
+    [{ v: 'Keterangan', s: 'head' }, { v: 'Kode', s: 'head' }, { v: 'Jam kerja', s: 'head' }],
+    ...sched.keterangan.map((k): XlsxCell[] => [{ v: textOf(k.kode) ?? (k.kode === '' ? '' : k.kode), s: styleOf(k.kode) }, { v: k.label, s: 'cell' }, { v: k.jam ?? (k.kode === '' ? 'Libur' : ''), s: 'cell' }]),
   ]
+  const firstSum = 5 + sched.rows.length
+  const merges = [`A1:${lastCol}1`, `A2:${lastCol}2`, ...sched.keterangan.map((_, i) => `A${firstSum + i}:${colName(left.length - 1)}${firstSum + i}`)]
   const name = `${MONTH_NAMES[month - 1].charAt(0)}${MONTH_NAMES[month - 1].slice(1).toLowerCase()} ${year}`
   return {
     filename: `Jadwal Shift ${name}.xlsx`,
-    buffer: writeXlsx([{ title: `${MONTH_NAMES[month - 1]} ${year}`, rows, widths: [5, 26, 16, 13, 12, ...Array(total).fill(5)], merges: [`A1:${lastCol}1`, `A2:${lastCol}2`], freeze: { row: 4, col: 2 } }]),
+    buffer: writeXlsx([{
+      title: `${MONTH_NAMES[month - 1]} ${year}`, rows, merges,
+      widths: [5, 30, ...(showKode ? [9] : []), ...(showPilihan ? [11] : []), ...Array(total).fill(4.6)],
+      freeze: { row: 4, col: left.length }, heights: { 1: 26, 2: 18, 3: 18, 4: 18 },
+    }]),
   }
 }
