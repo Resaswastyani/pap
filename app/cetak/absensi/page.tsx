@@ -5,7 +5,7 @@ import { HARI_ID } from '@/lib/payroll-weekly'
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../quotation/[id]/print-button'
 
-export const metadata: Metadata = { title: 'Laporan Absensi · PAP-MS' }
+export const metadata: Metadata = { title: 'Laporan Absensi · SIMPAP' }
 export const maxDuration = 60
 
 const fmt = (v: number) => v.toLocaleString('id-ID', { maximumFractionDigits: 2 })
@@ -72,7 +72,7 @@ export default async function CetakAbsensiPage({ searchParams }: { searchParams:
         </table>
         <p className="pap-fin-note">
           {short ? 'H = hadir, N = scan tidak lengkap, ' : 'Jam masuk–pulang, NSO = tidak scan pulang, '}OFF = libur sesuai Jadwal Shift, TK = tanpa keterangan, I = izin, S = sakit, C = cuti, DL = dinas luar.
-          {' '}Libur bertanda * belum ada di Jadwal Shift (dianggap Minggu). Jam kerja maks 7 jam/hari; lembur rutin = di atas 40 jam/minggu. Dicetak dari PAP-MS {tglId(rep.today)}.
+          {' '}Libur bertanda * belum ada di Jadwal Shift (dianggap Minggu). Jam kerja maks 7 jam/hari; lembur rutin = di atas 40 jam/minggu. Dicetak dari SIMPAP {tglId(rep.today)}.
         </p>
       </article>
     </main>

@@ -126,7 +126,7 @@ export type CustomerInput = {
   notes: string | null
 }
 
-// Nama field PAP-MS -> nama field Accurate
+// Nama field SIMPAP -> nama field Accurate
 const ACCURATE_FIELD: Record<keyof CustomerInput, string> = {
   name: 'name',
   email: 'email',
@@ -140,7 +140,7 @@ const ACCURATE_FIELD: Record<keyof CustomerInput, string> = {
   notes: 'notes',
 }
 
-// Simpan ke Accurate dulu (sumber data utama), lalu salin ke database PAP-MS.
+// Simpan ke Accurate dulu (sumber data utama), lalu salin ke database SIMPAP.
 // Saat edit, hanya field yang berubah yang dikirim agar data lain di Accurate tidak tertimpa.
 export async function saveCustomerToAccurate(input: CustomerInput, accurateId: number | null, previous?: Partial<CustomerInput>) {
   if (!accurateEnabled()) fail(400, 'Integrasi Accurate belum dikonfigurasi, data customer belum bisa disimpan.')
@@ -167,7 +167,7 @@ export async function saveCustomerToAccurate(input: CustomerInput, accurateId: n
   return { accurateId: id, customerNo: (saved?.customerNo as string) ?? null }
 }
 
-// Ambil detail terbaru dari Accurate (alamat tidak tersedia di daftar) lalu perbarui salinan PAP-MS.
+// Ambil detail terbaru dari Accurate (alamat tidak tersedia di daftar) lalu perbarui salinan SIMPAP.
 // Gagal tidak menghentikan proses: data lokal tetap ditampilkan.
 export async function refreshCustomerFromAccurate(accurateId: number | null) {
   if (!accurateId || !accurateEnabled()) return false

@@ -10,7 +10,7 @@ import { canManageFormulations, loadFormulation, readBomInput, readExtras, requi
 type Ctx = { params: Promise<{ id: string }> }
 const bomId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Formulasi tidak ditemukan.')
 
-// Detail: ambil versi terbaru dari Accurate (bila gagal, salinan PAP-MS tetap ditampilkan) + SPK yang memakainya
+// Detail: ambil versi terbaru dari Accurate (bila gagal, salinan SIMPAP tetap ditampilkan) + SPK yang memakainya
 export const GET = handle(async (_request: Request, ctx: Ctx) => {
   const user = await requireUser()
   requireFormulations(user)
@@ -34,7 +34,7 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
   return NextResponse.json({ item, jobs, can: { manage: canManageFormulations(user) && accurateEnabled() } })
 })
 
-// Ubah: { items?, hasil?, deskripsi? } -> disimpan ke Accurate; { jenis_plastik, tingkat_kualitas, catatan, status } -> data PPIC di PAP-MS
+// Ubah: { items?, hasil?, deskripsi? } -> disimpan ke Accurate; { jenis_plastik, tingkat_kualitas, catatan, status } -> data PPIC di SIMPAP
 export const PUT = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
   requireFormulations(user)

@@ -44,7 +44,7 @@ export async function bpjsReport(periode: string, withNumbers: boolean) {
 export async function bpjsXlsx(periode: string, withNumbers: boolean) {
   const rep = await bpjsReport(periode, withNumbers)
   const tr = rep.tarif
-  const sub = `Periode ${tglId(rep.dari)} s/d ${tglId(rep.sampai)} · batas upah JP Rp ${tr.max_jp.toLocaleString('id-ID')}, BPJS Kesehatan Rp ${tr.max_kes.toLocaleString('id-ID')} · JP berhenti di usia ${tr.usia_pensiun} tahun · dicetak dari PAP-MS`
+  const sub = `Periode ${tglId(rep.dari)} s/d ${tglId(rep.sampai)} · batas upah JP Rp ${tr.max_jp.toLocaleString('id-ID')}, BPJS Kesehatan Rp ${tr.max_kes.toLocaleString('id-ID')} · JP berhenti di usia ${tr.usia_pensiun} tahun · dicetak dari SIMPAP`
   // Sel bergaya; z = baris genap (belang)
   const txt = (v: string | number | null, z: boolean) => ({ v, s: (z ? 'cell-z' : 'cell') as XlsxStyle })
   const mid = (v: string | number | null, z: boolean) => ({ v, s: (z ? 'center-z' : 'center') as XlsxStyle })

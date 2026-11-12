@@ -61,7 +61,7 @@ export function KpiPage({ user }: { user: UserProfile }) {
         <div>
           <p className="pap-eyebrow">MARKETING</p>
           <h1>KPI Marketing</h1>
-          <span>Pencapaian tiap sales per bulan dari aktivitas di PAP-MS: lead, follow-up, visit, penawaran, closing, nilai deal, dan follow-up customer.</span>
+          <span>Pencapaian tiap sales per bulan dari aktivitas di SIMPAP: lead, follow-up, visit, penawaran, closing, nilai deal, dan follow-up customer.</span>
         </div>
         {data?.canSetTarget && <button className="pap-btn" onClick={copyTargets}><Copy /> Salin target bulan lalu</button>}
       </div>

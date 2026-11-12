@@ -131,7 +131,7 @@ function SupplierDetail({ vendor, canManage, onClose, onChanged }: { vendor: Ven
         <div><dt>Telepon</dt><dd>{phone ? <><a href={`tel:${phone}`}><Phone className="pap-inline-icon" /> {phone}</a> · <a href={waLink(phone)} target="_blank" rel="noreferrer">WhatsApp</a></> : '—'}</dd></div>
         <div><dt>Email</dt><dd>{item.email ? <a href={`mailto:${item.email}`}><Mail className="pap-inline-icon" /> {item.email}</a> : '—'}</dd></div>
         <div><dt>Alamat</dt><dd>{[item.address, item.city].filter(Boolean).join(', ') || '—'}</dd></div>
-        <div><dt>Pengajuan PAP-MS</dt><dd>{requests.length ? requests.map((r) => r.nomor).slice(0, 5).join(', ') : '—'}</dd></div>
+        <div><dt>Pengajuan SIMPAP</dt><dd>{requests.length ? requests.map((r) => r.nomor).slice(0, 5).join(', ') : '—'}</dd></div>
       </dl>
       {canManage && (
         <div className="pap-inline-actions pap-wrap">

@@ -27,7 +27,7 @@ export async function payrollReport(periode: string, withBank: boolean) {
 export async function payrollXlsx(periode: string, withBank: boolean) {
   const rep = await payrollReport(periode, withBank)
   const title = `LAPORAN GAJI KARYAWAN · ${periodeLabel(periode).toUpperCase()}`
-  const sub = `Periode ${tglId(rep.dari)} s/d ${tglId(rep.sampai)} · absensi dihitung sampai ${tglId(rep.sampai_data)} · ${rep.slips.length} karyawan · dicetak dari PAP-MS (PPh 21 belum dihitung)`
+  const sub = `Periode ${tglId(rep.dari)} s/d ${tglId(rep.sampai)} · absensi dihitung sampai ${tglId(rep.sampai_data)} · ${rep.slips.length} karyawan · dicetak dari SIMPAP (PPh 21 belum dihitung)`
   // Sel bergaya; z = baris genap (belang) agar mudah dibaca
   const txt = (v: string | number | null, z: boolean) => ({ v, s: (z ? 'cell-z' : 'cell') as XlsxStyle })
   const mid = (v: string | number | null, z: boolean) => ({ v, s: (z ? 'center-z' : 'center') as XlsxStyle })

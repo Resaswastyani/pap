@@ -8,7 +8,7 @@ import { requireMaintenanceSheet } from '@/lib/maintenance-sheet'
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../quotation/[id]/print-button'
 
-export const metadata: Metadata = { title: 'Lembar Perawatan Mesin · PAP-MS' }
+export const metadata: Metadata = { title: 'Lembar Perawatan Mesin · SIMPAP' }
 
 // Lembar "MAINTENANCE MESIN ..." seperti di spreadsheet: NO | NAMA PART | KELOMPOK | MAINTENANCE | CHECK LIST | KETERANGAN,
 // untuk diisi teknisi saat perawatan (?tab=<nama tab mesin>)

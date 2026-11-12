@@ -5,7 +5,7 @@ import { purchaseDocHtml, purchaseRequestView } from '@/lib/purchase-doc'
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../../quotation/[id]/print-button'
 
-export const metadata: Metadata = { title: 'Pengajuan Pembelian · PAP-MS' }
+export const metadata: Metadata = { title: 'Pengajuan Pembelian · SIMPAP' }
 
 // Cetak formulir Pengajuan Pembelian (Purchasing); simpan PDF lewat dialog cetak
 export default async function CetakPengajuanPembelianPage({ params }: { params: Promise<{ id: string }> }) {

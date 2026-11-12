@@ -89,7 +89,7 @@ export function EmployeeForm({ item, employees, onClose, onSaved }: { item: Reco
   )
 
   return (
-    <Modal wide title={isNew ? 'Tambah karyawan' : `Ubah data ${String(item.nama)}`} subtitle={isNew ? 'Kolom bertanda * wajib diisi' : 'Setelah disimpan, data karyawan ini dikelola di PAP-MS dan tidak ditimpa sinkron spreadsheet.'} onClose={onClose}
+    <Modal wide title={isNew ? 'Tambah karyawan' : `Ubah data ${String(item.nama)}`} subtitle={isNew ? 'Kolom bertanda * wajib diisi' : 'Setelah disimpan, data karyawan ini dikelola di SIMPAP dan tidak ditimpa sinkron spreadsheet.'} onClose={onClose}
       footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="employee-form" disabled={busy}><Save /> {busy ? 'Menyimpan...' : 'Simpan'}</button></>}>
       <div className="pap-segmented pap-page-tabs" role="tablist" aria-label="Bagian form karyawan">
         <button type="button" role="tab" aria-selected={tab === 'diri'} className={tab === 'diri' ? 'active' : ''} onClick={() => setTab('diri')}><UserRound /> Data Diri</button>

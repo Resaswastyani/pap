@@ -8,7 +8,7 @@ import { loadSettings } from '@/lib/hpp'
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../quotation/[id]/print-button'
 
-export const metadata: Metadata = { title: 'Laporan Keuangan · PAP-MS' }
+export const metadata: Metadata = { title: 'Laporan Keuangan · SIMPAP' }
 export const maxDuration = 60
 
 const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
@@ -77,7 +77,7 @@ export default async function CetakLaporanKeuanganPage({ searchParams }: { searc
             <tr className="total grand"><td>TOTAL KEWAJIBAN & EKUITAS</td><td className="r">{rp(bs.liabilitas + bs.ekuitas + bs.laba_berjalan)}</td></tr>
           </tbody>
         </table>
-        <p className="pap-fin-note">Sumber: Accurate Online, dicetak dari PAP-MS {tgl(today)}. Angka dalam Rupiah; tanda kurung = negatif.</p>
+        <p className="pap-fin-note">Sumber: Accurate Online, dicetak dari SIMPAP {tgl(today)}. Angka dalam Rupiah; tanda kurung = negatif.</p>
       </article>
     </main>
   )

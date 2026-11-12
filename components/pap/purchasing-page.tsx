@@ -13,7 +13,7 @@ import { api, Field, formatDate, Modal, Notice, Pager, Progress, usePaged, RowAc
 import { YearNav } from './accounting-page'
 
 // Purchasing: supplier, PO pembelian, harga bahan, hutang supplier. Data dari Accurate Online; supplier, PO, dan harga beli acuan
-// bisa ditambah / diubah / dihapus dari PAP-MS sesuai permission modul Purchasing (lihat lib/purchasing-write.ts).
+// bisa ditambah / diubah / dihapus dari SIMPAP sesuai permission modul Purchasing (lihat lib/purchasing-write.ts).
 
 const JENIS = { bahan_baku: 'Bahan baku', bahan_pendukung: 'Bahan pendukung', teknik: 'Teknik / sparepart', atk: 'ATK', jasa: 'Jasa', lainnya: 'Lainnya' } as const
 type Jenis = keyof typeof JENIS
@@ -128,7 +128,7 @@ export function SupplierPage(_props: { user: UserProfile }) {
       ]} />
       <div className="pap-table-card">
         <div className="pap-card-head">
-          <div><h2>Daftar supplier</h2><p>Urut nilai pembelian {periodLabel} (PO). Hutang dari faktur pembelian {periodLabel} yang belum lunas. Data pemasok tersimpan di Accurate; catatan Purchasing tersimpan di PAP-MS.</p></div>
+          <div><h2>Daftar supplier</h2><p>Urut nilai pembelian {periodLabel} (PO). Hutang dari faktur pembelian {periodLabel} yang belum lunas. Data pemasok tersimpan di Accurate; catatan Purchasing tersimpan di SIMPAP.</p></div>
           {data?.can.manage && <button className="pap-primary-button" onClick={() => setVendorForm('baru')}><Plus /> Tambah pemasok</button>}
         </div>
         <div className="pap-filters">

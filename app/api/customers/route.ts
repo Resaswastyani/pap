@@ -52,7 +52,7 @@ export const GET = handle(async (request: Request) => {
   })
 })
 
-// Customer baru: dibuat di Accurate, lalu disalin ke PAP-MS
+// Customer baru: dibuat di Accurate, lalu disalin ke SIMPAP
 export const POST = handle(async (request: Request) => {
   const user = await requireUser()
   if (!canManageCustomer(user)) fail(403, 'Anda tidak punya akses untuk menambah customer.')

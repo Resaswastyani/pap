@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { canSupervise, MARKETING_DIVISIONS } from '@/lib/marketing'
 import type { UserProfile } from '@/lib/users'
 
-// KPI marketing per sales per bulan, dihitung dari aktivitas yang tercatat di PAP-MS
+// KPI marketing per sales per bulan, dihitung dari aktivitas yang tercatat di SIMPAP
 export const KPI_METRICS = {
   leads: { label: 'Lead baru', hint: 'Prospek yang dibuat / diimpor', satuan: '' },
   followup: { label: 'Follow-up prospek', hint: 'WA, telepon, email, meeting ke prospek', satuan: '' },

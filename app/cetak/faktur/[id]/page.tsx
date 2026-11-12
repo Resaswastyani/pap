@@ -5,7 +5,7 @@ import { invoiceDetail } from '@/lib/sales-invoices'
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../../quotation/[id]/print-button'
 
-export const metadata: Metadata = { title: 'Invoice · PAP-MS' }
+export const metadata: Metadata = { title: 'Invoice · SIMPAP' }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 const tgl = (s: string | null) => (s ? `${Number(s.slice(8, 10))} ${MONTHS[Number(s.slice(5, 7)) - 1]} ${s.slice(0, 4)}` : '')

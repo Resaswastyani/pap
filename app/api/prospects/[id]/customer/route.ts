@@ -30,7 +30,7 @@ export const POST = handle(async (request: Request, { params }: Ctx) => {
       bill_province: null,
       bill_zip: null,
       npwp_no: null,
-      notes: [prospect.kontak_nama && `Kontak: ${prospect.kontak_nama}${prospect.kontak_jabatan ? ` (${prospect.kontak_jabatan})` : ''}`, prospect.kebutuhan && `Kebutuhan: ${prospect.kebutuhan}`, 'Dari prospek PAP-MS']
+      notes: [prospect.kontak_nama && `Kontak: ${prospect.kontak_nama}${prospect.kontak_jabatan ? ` (${prospect.kontak_jabatan})` : ''}`, prospect.kebutuhan && `Kebutuhan: ${prospect.kebutuhan}`, 'Dari prospek SIMPAP']
         .filter(Boolean).join('\n'),
     }
     const saved = await saveCustomerToAccurate(input, null)

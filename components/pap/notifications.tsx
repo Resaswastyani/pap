@@ -222,7 +222,7 @@ export function NotificationCenter({ userId, onOpen }: { userId: number; onOpen:
         setPushActive((pushActiveRef.current = ok))
         setShowBanner(false)
         const registration = await navigator.serviceWorker?.getRegistration()
-        registration?.showNotification('Notifikasi PAP-MS aktif', { body: 'Pemberitahuan meeting dan planning akan muncul di perangkat ini.', icon: '/icon-192.png', badge: '/notification-badge.png', tag: 'pap-welcome' })
+        registration?.showNotification('Notifikasi SIMPAP aktif', { body: 'Pemberitahuan meeting dan planning akan muncul di perangkat ini.', icon: '/icon-192.png', badge: '/notification-badge.png', tag: 'pap-welcome' })
       }
     } catch (e) {
       setPushError((e as Error).message || 'Gagal mengaktifkan notifikasi.')
@@ -248,7 +248,7 @@ export function NotificationCenter({ userId, onOpen }: { userId: number; onOpen:
     } catch {}
   }
 
-  const iosHint = <><Smartphone className="pap-inline-icon" /> Di iPhone: ketuk <strong>Share</strong> lalu <strong>Add to Home Screen</strong>, buka PAP-MS dari ikon tersebut, kemudian aktifkan notifikasi.</>
+  const iosHint = <><Smartphone className="pap-inline-icon" /> Di iPhone: ketuk <strong>Share</strong> lalu <strong>Add to Home Screen</strong>, buka SIMPAP dari ikon tersebut, kemudian aktifkan notifikasi.</>
 
   return (
     <>

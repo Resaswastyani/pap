@@ -8,7 +8,7 @@ import { loadSettings } from '@/lib/hpp'
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../quotation/[id]/print-button'
 
-export const metadata: Metadata = { title: 'Laporan Kerusakan Mesin · PAP-MS' }
+export const metadata: Metadata = { title: 'Laporan Kerusakan Mesin · SIMPAP' }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 const tgl = (v: unknown) => {

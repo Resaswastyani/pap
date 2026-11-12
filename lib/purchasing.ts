@@ -1,5 +1,5 @@
 // Purchasing (Guidance divisi Purchasing): database supplier, PO pembelian, harga bahan, hutang supplier.
-// Data transaksi diambil dari Accurate Online (hanya baca, lihat lib/accurate-sync.ts); PAP-MS hanya menyimpan
+// Data transaksi diambil dari Accurate Online (hanya baca, lihat lib/accurate-sync.ts); SIMPAP hanya menyimpan
 // catatan Purchasing per supplier (vendor_profiles).
 import type { RowDataPacket } from 'mysql2'
 import { fail } from '@/lib/api'

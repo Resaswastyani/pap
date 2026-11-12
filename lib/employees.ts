@@ -1,4 +1,4 @@
-// Tambah / ubah / hapus karyawan oleh HRD di PAP-MS (form Data Diri, Pekerjaan, Payroll seperti HRIS Altius).
+// Tambah / ubah / hapus karyawan oleh HRD di SIMPAP (form Data Diri, Pekerjaan, Payroll seperti HRIS Altius).
 // Karyawan yang disimpan di sini ditandai sumber = 'pap' sehingga sinkron spreadsheet Data Karyawan tidak menimpanya;
 // NIP yang dihapus dicatat di employee_deletions agar tidak muncul lagi dari spreadsheet.
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'

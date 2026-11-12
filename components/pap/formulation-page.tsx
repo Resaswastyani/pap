@@ -193,7 +193,7 @@ function FormulationForm({ bomId, plasticTypes, canManage, onClose, onSaved }: {
     <Modal
       wide
       title={item ? `${item.kode} · ${item.nama}` : bomId ? 'Formulasi' : 'Formulasi baru (Bill of Material Accurate)'}
-      subtitle={item ? `Bill of Material Accurate · ${formatDate(item.tanggal)} · diperbarui dari Accurate ${formatDate(item.synced_at, true)}` : 'Disimpan ke Accurate sebagai Bill of Material (Formula Produksi), lalu tampil di PAP-MS.'}
+      subtitle={item ? `Bill of Material Accurate · ${formatDate(item.tanggal)} · diperbarui dari Accurate ${formatDate(item.synced_at, true)}` : 'Disimpan ke Accurate sebagai Bill of Material (Formula Produksi), lalu tampil di SIMPAP.'}
       onClose={onClose}
       footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>{readOnly ? 'Tutup' : 'Batal'}</button>{!readOnly && <button className="pap-primary-button" form="formulation-form" disabled={busy || loading}>{busy ? 'Menyimpan ke Accurate...' : 'Simpan'}</button>}</>}
     >
@@ -243,20 +243,20 @@ function FormulationForm({ bomId, plasticTypes, canManage, onClose, onSaved }: {
                 {rows.some((r) => r.item_accurate_id) && total > 0 && <FormulaBar items={rows.filter((r) => r.item_accurate_id).map((r) => ({ nama: optionFor(r.item_accurate_id)?.name ?? '', persentase: ((Number(r.quantity.replace(',', '.')) || 0) / total) * 100, per_unit: (Number(r.quantity.replace(',', '.')) || 0) / hasilNum, unit: r.unit || null }))} />}
                 {item && materialsChanged && <small className="pap-hint">Bahan berubah: perubahan disimpan ke Bill of Material {item.kode} di Accurate. SPK yang sudah terbit tetap memakai salinan komposisi lama.</small>}
               </div>
-              <Field label="Jenis plastik (PAP-MS)">
+              <Field label="Jenis plastik (SIMPAP)">
                 <select className="pap-select" value={extras.jenis_plastik} onChange={(e) => setExtras((v) => ({ ...v, jenis_plastik: e.target.value }))}>
                   <option value="">—</option>
                   {plasticTypes.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </Field>
-              <Field label="Tingkat kualitas (PAP-MS)"><input className="pap-input" maxLength={100} value={extras.tingkat_kualitas} onChange={(e) => setExtras((v) => ({ ...v, tingkat_kualitas: e.target.value }))} placeholder="mis. Grade A, food grade" /></Field>
-              <Field label="Status di PAP-MS">
+              <Field label="Tingkat kualitas (SIMPAP)"><input className="pap-input" maxLength={100} value={extras.tingkat_kualitas} onChange={(e) => setExtras((v) => ({ ...v, tingkat_kualitas: e.target.value }))} placeholder="mis. Grade A, food grade" /></Field>
+              <Field label="Status di SIMPAP">
                 <select className="pap-select" value={extras.status} onChange={(e) => setExtras((v) => ({ ...v, status: e.target.value }))}>
                   <option value="aktif">Aktif (bisa dipilih di SPK)</option>
                   <option value="arsip">Arsip (disembunyikan dari SPK)</option>
                 </select>
               </Field>
-              <Field label="Catatan proses (PAP-MS)" full><textarea className="pap-input" rows={3} maxLength={5000} value={extras.catatan} onChange={(e) => setExtras((v) => ({ ...v, catatan: e.target.value }))} placeholder="Suhu, urutan pencampuran, standar ketebalan, dll." /></Field>
+              <Field label="Catatan proses (SIMPAP)" full><textarea className="pap-input" rows={3} maxLength={5000} value={extras.catatan} onChange={(e) => setExtras((v) => ({ ...v, catatan: e.target.value }))} placeholder="Suhu, urutan pencampuran, standar ketebalan, dll." /></Field>
             </div>
           </fieldset>
           {jobs.length > 0 && (

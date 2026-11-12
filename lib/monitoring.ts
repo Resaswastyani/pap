@@ -1,5 +1,5 @@
 // Monitoring Top Management (Guidance "Kebutuhan Top Management"): analisa performa perusahaan, monitoring performa divisi,
-// plan monitoring & koordinasi, dan KPI. Semua angka dibaca dari data yang sudah ada di PAP-MS / salinan Accurate.
+// plan monitoring & koordinasi, dan KPI. Semua angka dibaca dari data yang sudah ada di SIMPAP / salinan Accurate.
 import type { RowDataPacket } from 'mysql2'
 import { fail } from '@/lib/api'
 import { db } from '@/lib/db'

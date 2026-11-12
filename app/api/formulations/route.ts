@@ -29,7 +29,7 @@ export const GET = handle(async (request: Request) => {
   })
 })
 
-// Formulasi baru: dibuat sebagai Bill of Material di Accurate, lalu data tambahan PPIC disimpan di PAP-MS
+// Formulasi baru: dibuat sebagai Bill of Material di Accurate, lalu data tambahan PPIC disimpan di SIMPAP
 export const POST = handle(async (request: Request) => {
   const user = await requireUser()
   requireFormulations(user)

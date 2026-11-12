@@ -288,7 +288,7 @@ function MachineSheetSync({ onClose, onImported }: { onClose: () => void; onImpo
           {canSync && data && url !== data.url && <button className="pap-btn" disabled={busy} onClick={saveUrl}>Simpan link</button>}
         </div>
       </Field>
-      <p className="pap-muted">Spreadsheet harus bisa dibuka akun Google tersebut (bagikan sebagai Viewer). Dibaca: judul lini (INLINE PP / INLINE HD), mesin (A. MC BLOW), komponen (- EPC), langkah bernomor beserta link foto/video, dan Data Pembantu. Mesin baru dibuat otomatis; status, kapasitas, dan keterangan yang diatur di PAP-MS tidak ditimpa. Sinkron ulang mengganti critical point dengan isi sheet terbaru.</p>
+      <p className="pap-muted">Spreadsheet harus bisa dibuka akun Google tersebut (bagikan sebagai Viewer). Dibaca: judul lini (INLINE PP / INLINE HD), mesin (A. MC BLOW), komponen (- EPC), langkah bernomor beserta link foto/video, dan Data Pembantu. Mesin baru dibuat otomatis; status, kapasitas, dan keterangan yang diatur di SIMPAP tidak ditimpa. Sinkron ulang mengganti critical point dengan isi sheet terbaru.</p>
       {loading ? <p className="pap-muted">Membaca spreadsheet...</p> : data && data.machines.length > 0 && (
         <div className="pap-table-wrap bordered">
           <table>

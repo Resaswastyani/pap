@@ -55,7 +55,7 @@ export async function ensureInvoiceNet() {
         [...chunk.flat(), chunk.map((c) => c[0])],
       )
     }
-    // Faktur yang tidak ada lagi di Accurate pada rentang yang sama -> dihapus dari salinan PAP-MS
+    // Faktur yang tidak ada lagi di Accurate pada rentang yang sama -> dihapus dari salinan SIMPAP
     if (seen.length) {
       const ids = new Set(seen.map((s) => s[0]))
       const [local] = await db.query<Row[]>(

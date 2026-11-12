@@ -7,7 +7,7 @@ import { loadProduct, loadProductFiles } from '@/lib/products'
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../../quotation/[id]/print-button'
 
-export const metadata: Metadata = { title: 'Dokumen Spek Produk · PAP-MS' }
+export const metadata: Metadata = { title: 'Dokumen Spek Produk · SIMPAP' }
 
 // Dokumen spesifikasi produk + desain cetakan (untuk customer, PPIC, Produksi)
 export default async function CetakProdukPage({ params }: { params: Promise<{ id: string }> }) {
@@ -66,7 +66,7 @@ export default async function CetakProdukPage({ params }: { params: Promise<{ id
           <thead><tr><th>Disiapkan (Marketing)</th><th>Diperiksa (PPIC)</th><th>Disetujui customer</th></tr></thead>
           <tbody><tr><td><div className="space" />{user.name}</td><td><div className="space" /></td><td><div className="space" /></td></tr></tbody>
         </table>
-        <p className="pap-sheet-note">Dicetak {now} dari PAP-MS.</p>
+        <p className="pap-sheet-note">Dicetak {now} dari SIMPAP.</p>
       </article>
     </main>
   )

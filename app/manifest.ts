@@ -4,7 +4,7 @@ import type { MetadataRoute } from 'next'
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'PAP Management System',
-    short_name: 'PAP-MS',
+    short_name: 'SIMPAP',
     description: 'Sistem manajemen operasional PT Pandawa Amerta Packindo',
     start_url: '/',
     scope: '/',

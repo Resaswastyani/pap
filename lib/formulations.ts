@@ -1,6 +1,6 @@
 // Formulasi Produk = Bill of Material (Formula Produksi) Accurate.
 // Data utama di Accurate: barang jadi + bahan (barang bertanda Bahan Baku) dengan jumlah per satuan hasil.
-// PAP-MS menyimpan salinannya (sinkron) ditambah data PPIC: jenis plastik, tingkat kualitas, catatan proses, arsip.
+// SIMPAP menyimpan salinannya (sinkron) ditambah data PPIC: jenis plastik, tingkat kualitas, catatan proses, arsip.
 // Formulasi baru / perubahan bahan disimpan ke Accurate dulu, lalu salinan diperbarui dari balasan Accurate.
 import type { RowDataPacket } from 'mysql2'
 import { accurate, accurateDateTime, accurateEnabled } from '@/lib/accurate'
@@ -105,7 +105,7 @@ export async function loadFormulation(bomId: number) {
   return row ?? fail(404, 'Formulasi (BOM) tidak ditemukan. Jalankan sinkron Accurate dulu.')
 }
 
-// Baris formulasi PAP-MS untuk satu BOM (dibuat saat PPIC mengisi data tambahan atau memakai BOM di SPK)
+// Baris formulasi SIMPAP untuk satu BOM (dibuat saat PPIC mengisi data tambahan atau memakai BOM di SPK)
 export async function ensureFormulationRow(bomId: number, userId: number) {
   const bom = await loadFormulation(bomId)
   if (bom.id) return bom.id
@@ -163,7 +163,7 @@ export async function readBomInput(body: Record<string, unknown>, existing?: For
   return { product, hasil, lines, byId, description: str(body.deskripsi, 500) || null }
 }
 
-// Simpan BOM ke Accurate (baru / ubah bahan), lalu ambil detail terbaru ke salinan PAP-MS
+// Simpan BOM ke Accurate (baru / ubah bahan), lalu ambil detail terbaru ke salinan SIMPAP
 export async function saveBomToAccurate(input: Awaited<ReturnType<typeof readBomInput>>, existing?: Formulation) {
   if (!accurateEnabled()) fail(400, 'Integrasi Accurate belum dikonfigurasi, formulasi belum bisa disimpan ke Accurate.')
   const body: Record<string, unknown> = {
@@ -193,7 +193,7 @@ export async function saveBomToAccurate(input: Awaited<ReturnType<typeof readBom
   const saved = (res!.r ?? res!.d) as Record<string, unknown>
   const bomId = Number(saved?.id ?? existing?.bom_accurate_id)
   if (!bomId) fail(502, 'Accurate tidak mengembalikan ID formula (BOM).')
-  // Detail lengkap dari Accurate (nomor BOM, id baris bahan) disalin ke PAP-MS
+  // Detail lengkap dari Accurate (nomor BOM, id baris bahan) disalin ke SIMPAP
   const detail = await accurate<Record<string, unknown>>('/api/bill-of-material/detail.do', { params: { id: bomId } })
   await storeBomDetail(detail.d, null)
   return bomId

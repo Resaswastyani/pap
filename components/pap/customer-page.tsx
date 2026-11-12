@@ -209,10 +209,10 @@ function CustomerForm({ initial, onClose, onSaved }: { initial: Customer | null;
     try {
       if (initial) {
         await api(`/api/customers/${initial.id}`, { method: 'PATCH', json: values })
-        onSaved('Customer diperbarui di Accurate dan PAP-MS.')
+        onSaved('Customer diperbarui di Accurate dan SIMPAP.')
       } else {
         const res = await api<{ id: number }>('/api/customers', { method: 'POST', json: values })
-        onSaved('Customer ditambahkan ke Accurate dan PAP-MS.', res.id)
+        onSaved('Customer ditambahkan ke Accurate dan SIMPAP.', res.id)
       }
     } catch (err) {
       setError((err as Error).message)

@@ -8,7 +8,7 @@ import { MonthNav, monthLabel, useDebounced } from './accurate-production'
 import { api, Field, formatDate, Modal, Notice, Pager, usePaged, confirmDialog } from './ui'
 
 // Dokumen Order: Surat Order & Proforma Invoice. Tab "Dokumen tersimpan" untuk dokumen yang dibuat, diubah, dan
-// dihapus di PAP-MS; tab "Sales order Accurate" untuk cetak langsung dari SO atau membuat dokumen tersimpan darinya.
+// dihapus di SIMPAP; tab "Sales order Accurate" untuk cetak langsung dari SO atau membuat dokumen tersimpan darinya.
 type So = { id: number; number: string; tanggal: string; ship_date: string | null; status: string | null; total: number; customer_name: string | null; customer_no: string | null; baris: number; dp_persen: number | null; ekspedisi: string | null }
 type Detail = { id: number; nomor: string; customer_name: string; total: number; terbayar: number; sisa: number; dp_persen: number | null; proforma_nomor: string; payment_term: string | null; items: unknown[] }
 type Jenis = 'order' | 'proforma'

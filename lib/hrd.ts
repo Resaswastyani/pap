@@ -303,7 +303,7 @@ export async function importEmployees(employees: EmployeeRow[]) {
   const conn = await db.getConnection()
   try {
     await conn.beginTransaction()
-    // Karyawan yang ditambah / diubah HRD di PAP-MS (sumber = 'pap') dan NIP yang dihapus di PAP-MS tidak disentuh sinkron
+    // Karyawan yang ditambah / diubah HRD di SIMPAP (sumber = 'pap') dan NIP yang dihapus di SIMPAP tidak disentuh sinkron
     const [kept] = await conn.query<RowDataPacket[]>("SELECT nip FROM employees WHERE sumber = 'pap' UNION SELECT nip FROM employee_deletions")
     const skip = new Set(kept.map((r) => String(r.nip)))
     const rows = employees.filter((e) => !skip.has(e.nip))

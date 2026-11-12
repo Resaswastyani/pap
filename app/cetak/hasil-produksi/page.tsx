@@ -8,7 +8,7 @@ import { currentShift, QC_STATUS, RESULT_SELECT, type QcStatus } from '@/lib/pro
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../quotation/[id]/print-button'
 
-export const metadata: Metadata = { title: 'Rangkuman Hasil Produksi & QC · PAP-MS' }
+export const metadata: Metadata = { title: 'Rangkuman Hasil Produksi & QC · SIMPAP' }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 const tgl = (v: unknown) => {

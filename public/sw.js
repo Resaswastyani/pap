@@ -1,4 +1,4 @@
-// PAP-MS service worker: menerima Web Push, menampilkan pop-up notifikasi, dan menangani kliknya.
+// SIMPAP service worker: menerima Web Push, menampilkan pop-up notifikasi, dan menangani kliknya.
 // Sengaja tidak meng-cache request apa pun.
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
@@ -24,7 +24,7 @@ async function showPending() {
   if (!items.length) {
     const shown = await self.registration.getNotifications()
     if (shown.length) return
-    return self.registration.showNotification('PAP-MS', { body: 'Ada notifikasi baru. Ketuk untuk membuka.', icon: ICON, badge: BADGE, tag: 'pap-generic' })
+    return self.registration.showNotification('SIMPAP', { body: 'Ada notifikasi baru. Ketuk untuk membuka.', icon: ICON, badge: BADGE, tag: 'pap-generic' })
   }
   await Promise.all(
     items.reverse().map((item) =>

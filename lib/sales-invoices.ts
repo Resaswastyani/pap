@@ -163,7 +163,7 @@ function invoiceForm(v: InvoiceInput, old?: { id: number; lineIds: number[]; exp
   return form
 }
 
-// Salinan ringkas faktur di PAP-MS diperbarui dari detail Accurate
+// Salinan ringkas faktur di SIMPAP diperbarui dari detail Accurate
 async function storeInvoice(d: AccInvoice, userCol?: 'created_by' | 'updated_by', userId?: number) {
   const customer = (d.customer ?? {}) as Obj
   await db.query(
@@ -194,7 +194,7 @@ export async function updateInvoice(id: number, v: InvoiceInput, userId: number)
 
 export async function deleteInvoice(id: number) {
   const cur = await invoiceRaw(id)
-  if (Number(cur.primeReceipt ?? 0) > 0) fail(400, 'Faktur sudah ada penerimaan pembayaran dan tidak bisa dihapus dari PAP-MS. Hapus penerimaannya dulu di Accurate.')
+  if (Number(cur.primeReceipt ?? 0) > 0) fail(400, 'Faktur sudah ada penerimaan pembayaran dan tidak bisa dihapus dari SIMPAP. Hapus penerimaannya dulu di Accurate.')
   await send('/api/sales-invoice/delete.do', { method: 'DELETE', params: { id } })
   await db.query('DELETE FROM accurate_sales_invoices WHERE accurate_id = ?', [id])
   return { number: String(cur.number) }

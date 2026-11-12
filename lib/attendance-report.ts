@@ -94,7 +94,7 @@ export async function attendanceXlsx(dari: string, sampai: string) {
   const head = (v: string) => ({ v, s: 'head' as const })
   const rekap: XlsxCell[][] = [
     [{ v: title, s: 'title' }],
-    [{ v: `Dicetak dari PAP-MS ${tglId(rep.today)}. Hari libur mengikuti Jadwal Shift (* = belum ada di Jadwal Shift, dianggap Minggu). Jam kerja & lembur dihitung seperti Grade & Gaji.`, s: 'note' }],
+    [{ v: `Dicetak dari SIMPAP ${tglId(rep.today)}. Hari libur mengikuti Jadwal Shift (* = belum ada di Jadwal Shift, dianggap Minggu). Jam kerja & lembur dihitung seperti Grade & Gaji.`, s: 'note' }],
     [...info.map(head), ...SUMMARY_HEAD.map(head)],
     ...rep.rows.map((r) => [
       { v: r.no, s: 'center' as const }, { v: r.nip, s: 'cell' as const }, { v: r.nama, s: 'cell' as const }, { v: r.jabatan, s: 'cell' as const }, { v: r.divisi, s: 'cell' as const },

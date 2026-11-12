@@ -509,7 +509,7 @@ export function PermitPage(_props: { user: UserProfile }) {
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       <div className="pap-stat-grid four">
-        <div className="pap-stat-card"><div><span>Total izin</span><strong className="pap-stat-text">{data?.items.length ?? '…'}</strong><small className="neutral">Tercatat di PAP-MS</small></div><div className="pap-stat-icon stat-1"><Stamp /></div></div>
+        <div className="pap-stat-card"><div><span>Total izin</span><strong className="pap-stat-text">{data?.items.length ?? '…'}</strong><small className="neutral">Tercatat di SIMPAP</small></div><div className="pap-stat-icon stat-1"><Stamp /></div></div>
         <div className="pap-stat-card"><div><span>Berlaku</span><strong className="pap-stat-text">{data ? count('aktif') + count('tanpa_batas') : '…'}</strong><small className="neutral">Termasuk tanpa batas waktu</small></div><div className="pap-stat-icon stat-0"><CheckCircle2 /></div></div>
         <div className="pap-stat-card"><div><span>Segera habis</span><strong className="pap-stat-text">{data ? count('segera_habis') : '…'}</strong><small className="neutral">Masuk masa pengingat</small></div><div className={`pap-stat-icon ${count('segera_habis') ? 'stat-2' : 'stat-0'}`}><Clock /></div></div>
         <div className="pap-stat-card"><div><span>Kedaluwarsa</span><strong className="pap-stat-text">{data ? count('kadaluarsa') : '…'}</strong><small className="neutral">Perlu diperpanjang</small></div><div className={`pap-stat-icon ${count('kadaluarsa') ? 'stat-2' : 'stat-0'}`}><AlertTriangle /></div></div>

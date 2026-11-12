@@ -1915,7 +1915,7 @@ a.pap-btn.disabled, a.pap-primary-button.disabled { pointer-events:none; opacity
 .pap-back-button:hover { border-color:var(--pap-primary); color:var(--pap-primary); }
 .pap-breadcrumb .pap-back-button svg { display:block; width:16px; color:inherit; }
 
-/* Karyawan: penanda data yang dikelola di PAP-MS */
+/* Karyawan: penanda data yang dikelola di SIMPAP */
 .pap-emp-chip { margin-left:6px; padding:1px 6px; font-size:10px; vertical-align:middle; }
 /* General Affair: status bayar per bulan & baris barang pengajuan */
 .ga-pay { display:grid; grid-template-columns:repeat(6, 34px); gap:3px; }

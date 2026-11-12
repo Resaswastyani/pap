@@ -8,7 +8,7 @@ import { CHECKUP_RESULT, isDate, todayWib, type CheckupResult } from '@/lib/tekn
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../quotation/[id]/print-button'
 
-export const metadata: Metadata = { title: 'Laporan Checkup & Perawatan Mesin · PAP-MS' }
+export const metadata: Metadata = { title: 'Laporan Checkup & Perawatan Mesin · SIMPAP' }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 const tgl = (v: unknown) => {

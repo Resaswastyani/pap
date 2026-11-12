@@ -285,7 +285,7 @@ function ItemForm({ initial, categories, locations, people, onClose, onSaved }: 
         <datalist id="pap-inv-lokasi">{locations.map((l) => <option key={l} value={l} />)}</datalist>
         <Field label="Pemegang / penanggung jawab">
           <select className="pap-select" value={values.pemegang_id} onChange={set('pemegang_id')}>
-            <option value="">— Bukan user PAP-MS / belum ada —</option>
+            <option value="">— Bukan user SIMPAP / belum ada —</option>
             {people.map((p) => <option key={p.id} value={p.id}>{p.name} · {p.division_name}</option>)}
           </select>
         </Field>

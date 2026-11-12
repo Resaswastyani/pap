@@ -5,7 +5,7 @@ import { loadSoDocument, readSoJenis, requireDokumenOrder, soDocumentHtml } from
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../../quotation/[id]/print-button'
 
-export const metadata: Metadata = { title: 'Dokumen Order · PAP-MS' }
+export const metadata: Metadata = { title: 'Dokumen Order · SIMPAP' }
 
 // Surat Order / Proforma Invoice dari Sales Order Accurate (?jenis=order|proforma, ?dp=persen untuk proforma)
 export default async function CetakSalesOrderPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ jenis?: string; dp?: string }> }) {

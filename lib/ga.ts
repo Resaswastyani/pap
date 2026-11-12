@@ -1,5 +1,5 @@
 // General Affair: nomor HP, langganan aplikasi, dan WiFi kantor dari spreadsheet "PAP - GA - List No HP, Subscription, WIFI".
-// Spreadsheet tetap sumber utama (seperti Data Mesin / Grade): tambah, ubah, hapus, dan centang bayar di PAP-MS ditulis ke
+// Spreadsheet tetap sumber utama (seperti Data Mesin / Grade): tambah, ubah, hapus, dan centang bayar di SIMPAP ditulis ke
 // sheet lebih dulu lalu disinkron ulang; perubahan langsung di sheet terbaca saat sinkron (cron Drive, tombol Sinkron,
 // atau otomatis saat menu dibuka bila sinkron terakhir > 10 menit).
 //   No HP PAP    : No | Nomor HP | Ket | Masa Aktif | Provider | <tahun> > <bulan> berisi "Sudah"

@@ -392,7 +392,7 @@ function GaSheetDialog({ manage, onClose, onSynced }: { manage: boolean; onClose
       footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Tutup</button>{manage && <button className="pap-primary-button" disabled={busy} onClick={() => run(async () => { const r = await api<{ hp: number; langganan: number; wifi: number; lainnya: number }>('/api/ga/sheet', { method: 'POST' }); onSynced(`Sinkron selesai: ${r.hp} nomor HP, ${r.langganan} langganan, ${r.wifi} WiFi, ${r.lainnya} data lainnya.`) })}><RefreshCw /> Sinkron sekarang</button>}</>}>
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       {manage && (
-        <Field label="Link Google Spreadsheet" hint="Akun Google yang terhubung (Master Data > Logo & Desain) harus punya akses Editor agar tambah / ubah dari PAP-MS bisa ditulis ke sheet." full>
+        <Field label="Link Google Spreadsheet" hint="Akun Google yang terhubung (Master Data > Logo & Desain) harus punya akses Editor agar tambah / ubah dari SIMPAP bisa ditulis ke sheet." full>
           <div className="pap-inline-actions">
             <input className="pap-input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/..." />
             <button className="pap-btn" disabled={busy || !url.trim() || url === info?.url} onClick={() => run(async () => { await api('/api/ga/sheet', { method: 'PUT', json: { url } }); await load() })}>Simpan link</button>

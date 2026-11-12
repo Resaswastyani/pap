@@ -6,7 +6,7 @@ import { loadSettings } from '@/lib/hpp'
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../quotation/[id]/print-button'
 
-export const metadata: Metadata = { title: 'Laporan PPN Digunggung · PAP-MS' }
+export const metadata: Metadata = { title: 'Laporan PPN Digunggung · SIMPAP' }
 
 const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
 const tgl = (s: string) => `${Number(s.slice(8, 10))} ${MONTHS[Number(s.slice(5, 7)) - 1]} ${s.slice(0, 4)}`
@@ -61,7 +61,7 @@ export default async function CetakPpnDigunggungPage({ searchParams }: { searchP
             )}
           </>
         )}
-        <p className="pap-fin-note">Dicetak dari PAP-MS {tgl(todayWib())}. Angka dalam Rupiah. Kolom mengikuti template Coretax Retail (RetailInvoiceBulk).</p>
+        <p className="pap-fin-note">Dicetak dari SIMPAP {tgl(todayWib())}. Angka dalam Rupiah. Kolom mengikuti template Coretax Retail (RetailInvoiceBulk).</p>
       </article>
     </main>
   )

@@ -5,7 +5,7 @@ import { loadQuotationDocument, quotationDocumentHtml, readJenis } from '@/lib/q
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from './print-button'
 
-export const metadata: Metadata = { title: 'Dokumen Order · PAP-MS' }
+export const metadata: Metadata = { title: 'Dokumen Order · SIMPAP' }
 
 // Surat penawaran / surat order / proforma invoice siap cetak atau simpan PDF (Word: /api/quotations/[id]/word)
 export default async function CetakQuotationPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ jenis?: string }> }) {

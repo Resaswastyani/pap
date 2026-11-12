@@ -5,7 +5,7 @@ import { gaRequestView, purchaseDocHtml } from '@/lib/purchase-doc'
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../../quotation/[id]/print-button'
 
-export const metadata: Metadata = { title: 'Pengajuan GA · PAP-MS' }
+export const metadata: Metadata = { title: 'Pengajuan GA · SIMPAP' }
 
 // Cetak formulir Pengajuan Pembelian GA; simpan PDF lewat dialog cetak
 export default async function CetakPengajuanGaPage({ params }: { params: Promise<{ id: string }> }) {

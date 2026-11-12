@@ -10,7 +10,7 @@ import { MonthNav, monthLabel, useDebounced } from './accurate-production'
 import { BarList, ColumnChart } from './charts'
 import { api, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged, confirmDialog } from './ui'
 
-// Accounting, Pajak & Finance (Guidance): angka dari Accurate, catatan Accounting di PAP-MS.
+// Accounting, Pajak & Finance (Guidance): angka dari Accurate, catatan Accounting di SIMPAP.
 
 const short = (v: number) => (Math.abs(v) >= 1e9 ? `Rp ${formatNumber(v / 1e9, 2)} M` : Math.abs(v) >= 1e6 ? `Rp ${formatNumber(v / 1e6, 1)} jt` : formatRupiah(v))
 const pct = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${formatNumber(v, 1)}%`)

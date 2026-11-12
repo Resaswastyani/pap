@@ -6,7 +6,7 @@ import { payrollReport, periodeLabel } from '@/lib/payroll-report'
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../quotation/[id]/print-button'
 
-export const metadata: Metadata = { title: 'Laporan Gaji · PAP-MS' }
+export const metadata: Metadata = { title: 'Laporan Gaji · SIMPAP' }
 export const maxDuration = 60
 
 const rp = (v: number) => Math.round(v).toLocaleString('id-ID')
@@ -56,7 +56,7 @@ export default async function CetakLaporanGajiPage({ searchParams }: { searchPar
         </table>
         <p className="pap-fin-note">
           Iuran BPJS bagian perusahaan (di luar gaji): Rp {rp(rep.total.bpjs_perusahaan)}. Jam dibayar maks 40 jam/minggu, lembur rutin = di atas 40 jam/minggu, lembur variabel = di luar shift / input manual,
-          lembur libur = bekerja di hari libur Jadwal Shift. PPh 21 belum dihitung. Dicetak dari PAP-MS {tglId(new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10))}.
+          lembur libur = bekerja di hari libur Jadwal Shift. PPh 21 belum dihitung. Dicetak dari SIMPAP {tglId(new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10))}.
         </p>
         <table className="pap-sheet-sign">
           <tbody>

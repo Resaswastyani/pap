@@ -339,7 +339,7 @@ ${block('Formulasi / campuran bahan', job.formulasi)}${block('Acuan kerja', job.
 <h3>Laporan hasil per shift</h3><table><tr><th>Tanggal</th><th>Shift</th><th>Tahap</th><th>Hasil</th><th>Reject</th><th>Operator</th><th>QC</th><th>Paraf KA Shift</th></tr>
 ${results.length ? results.map((r) => `<tr><td>${esc(formatDate(r.tanggal))}</td><td>${r.shift}</td><td>${esc(r.tahap)}</td><td>${esc(qty(r.jumlah_hasil, r.satuan))}</td><td>${esc(qty(r.jumlah_reject, r.satuan))}</td><td>${esc(r.operator) || '—'}</td><td>${esc(r.status_qc)}</td><td></td></tr>`).join('') : Array.from({ length: 6 }, () => '<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}</table>
 <div class="sign"><div>PPIC</div><div>Kepala Produksi</div><div>QC</div></div>
-<p style="margin-top:18px;color:#777;font-size:10.5px">Dicetak dari PAP-MS · ${esc(new Date().toLocaleString('id-ID'))}</p>
+<p style="margin-top:18px;color:#777;font-size:10.5px">Dicetak dari SIMPAP · ${esc(new Date().toLocaleString('id-ID'))}</p>
 <script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`)
   win.document.close()
 }

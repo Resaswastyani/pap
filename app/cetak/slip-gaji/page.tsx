@@ -5,7 +5,7 @@ import { hitungPeriode } from '@/lib/payroll'
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../quotation/[id]/print-button'
 
-export const metadata: Metadata = { title: 'Slip Gaji · PAP-MS' }
+export const metadata: Metadata = { title: 'Slip Gaji · SIMPAP' }
 export const maxDuration = 60
 
 const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']

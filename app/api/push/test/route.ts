@@ -11,7 +11,7 @@ export const POST = handle(async () => {
   const [[count]] = await db.query<(RowDataPacket & { n: number })[]>('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?', [user.id])
   const created = await notify([user.id], {
     type: 'sistem',
-    title: 'Tes notifikasi PAP-MS',
+    title: 'Tes notifikasi SIMPAP',
     body: 'Jika pesan ini muncul di layar HP/laptop, notifikasi sudah berfungsi.',
     refKey: `test:${Date.now()}`,
   })

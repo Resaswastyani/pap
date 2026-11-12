@@ -7,7 +7,7 @@ import { serializeShipment, SHIPMENT_SELECT, shipmentItems } from '@/lib/logisti
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../../quotation/[id]/print-button'
 
-export const metadata: Metadata = { title: 'Surat Jalan · PAP-MS' }
+export const metadata: Metadata = { title: 'Surat Jalan · SIMPAP' }
 
 const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
 const tgl = (s: string | null) => (s ? `${Number(s.slice(8, 10))} ${MONTHS[Number(s.slice(5, 7)) - 1]} ${s.slice(0, 4)}` : '')

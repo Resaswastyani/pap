@@ -6,9 +6,9 @@ import { orderDocumentHtml, requireDokumenOrder } from '@/lib/so-document'
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../../quotation/[id]/print-button'
 
-export const metadata: Metadata = { title: 'Dokumen Order · PAP-MS' }
+export const metadata: Metadata = { title: 'Dokumen Order · SIMPAP' }
 
-// Cetak dokumen order tersimpan (Surat Order / Proforma Invoice yang sudah diedit di PAP-MS)
+// Cetak dokumen order tersimpan (Surat Order / Proforma Invoice yang sudah diedit di SIMPAP)
 export default async function CetakDokumenOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
   if (!user) redirect('/')

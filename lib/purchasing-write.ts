@@ -1,4 +1,4 @@
-// Purchasing: tambah / ubah / hapus data di Accurate dari PAP-MS (PO pembelian, harga beli acuan barang, supplier).
+// Purchasing: tambah / ubah / hapus data di Accurate dari SIMPAP (PO pembelian, harga beli acuan barang, supplier).
 // Setiap perubahan dikirim ke Accurate lebih dulu; data lokal (accurate_*) diperbarui dari jawaban Accurate.
 import type { RowDataPacket } from 'mysql2'
 import { accurate, accurateList, AccurateError, fromAccurateDate } from '@/lib/accurate'
@@ -65,7 +65,7 @@ export async function poOptions() {
     optionCache = { at: Date.now(), data: { paymentTerms: await list('payment-term'), fobs: await list('fob'), shipments: await list('shipment') } }
   }
   const [vendors] = await db.query<RowDataPacket[]>('SELECT accurate_id AS id, vendor_no, name FROM accurate_vendors WHERE suspended = 0 AND vendor_no IS NOT NULL ORDER BY name')
-  // Alamat kirim bawaan: alamat PO terakhir dari PAP-MS, atau dari PO terbaru di Accurate
+  // Alamat kirim bawaan: alamat PO terakhir dari SIMPAP, atau dari PO terbaru di Accurate
   const [[addr]] = await db.query<(RowDataPacket & { value: string | null })[]>("SELECT value FROM app_settings WHERE `key` = 'purchasing.po_address'")
   let defaultAddress = addr?.value ?? ''
   if (!defaultAddress) {

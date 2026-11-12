@@ -72,7 +72,7 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
     sets.push('spk_nomor = NULL, spk_terbit_at = NULL, spk_terbit_oleh = NULL, spk_revisi = spk_revisi + 1, spk_ditarik_at = NOW(), spk_ditarik_oleh = ?, spk_alasan_tarik = ?')
     args.push(user.id, alasan)
   }
-  // Batalkan produksi: job dihentikan di PAP-MS saja, Sales Order di Accurate tidak berubah
+  // Batalkan produksi: job dihentikan di SIMPAP saja, Sales Order di Accurate tidak berubah
   if (body.batal === true) sets.push("status = 'batal'")
   if (sets.length) await db.query(`UPDATE production_jobs SET ${sets.join(', ')}, updated_by = ? WHERE id = ?`, [...args, user.id, job.id])
   if (body.batal === false && job.status === 'batal') {

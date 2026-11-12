@@ -99,7 +99,7 @@ export function KaryawanPage(_props: { user: UserProfile }) {
         <div>
           <p className="pap-eyebrow">SDM · GOOGLE DRIVE</p>
           <h1>Karyawan</h1>
-          <span>Data karyawan dari spreadsheet Data Karyawan di Google Drive{data?.can.manage ? ' dan yang ditambah / diubah HRD di PAP-MS' : ''}: divisi, jabatan, status kepegawaian, masa kerja, atasan{data?.can.payroll ? ', serta grade & gaji' : ''}.</span>
+          <span>Data karyawan dari spreadsheet Data Karyawan di Google Drive{data?.can.manage ? ' dan yang ditambah / diubah HRD di SIMPAP' : ''}: divisi, jabatan, status kepegawaian, masa kerja, atasan{data?.can.payroll ? ', serta grade & gaji' : ''}.</span>
         </div>
         {data?.can.manage && <button className="pap-primary-button" onClick={() => setForm({ item: null })}><Plus /> Tambah karyawan</button>}
       </div>
@@ -162,7 +162,7 @@ export function KaryawanPage(_props: { user: UserProfile }) {
             <tbody>
               {paged.items.map((e) => (
                 <tr key={e.id} className="pap-row-link" onClick={() => setDetail(e.id)}>
-                  <td><div className="pap-cell-title">{e.nama}{e.sumber === 'pap' && <span className="pap-chip pap-emp-chip" title="Ditambah / diubah HRD di PAP-MS, tidak ditimpa sinkron spreadsheet">PAP-MS</span>}</div><div className="pap-cell-sub">{e.nip} · {e.jabatan ?? '—'}</div></td>
+                  <td><div className="pap-cell-title">{e.nama}{e.sumber === 'pap' && <span className="pap-chip pap-emp-chip" title="Ditambah / diubah HRD di SIMPAP, tidak ditimpa sinkron spreadsheet">SIMPAP</span>}</div><div className="pap-cell-sub">{e.nip} · {e.jabatan ?? '—'}</div></td>
                   <td>{e.divisi ?? '—'}{e.departemen && e.departemen !== e.divisi && <div className="pap-cell-sub">{e.departemen}</div>}</td>
                   <td><span className={`pap-status ${STATUS_TONE(e.status_karyawan)}`}>{e.status_karyawan ?? '—'}</span>{e.tgl_berhenti && <div className="pap-cell-sub">keluar {formatDate(e.tgl_berhenti)}</div>}</td>
                   <td className="pap-nowrap">{formatDate(e.tgl_masuk)}<div className="pap-cell-sub">{e.masa_kerja ?? ''}</div></td>
@@ -220,7 +220,7 @@ function EmployeeDetail({ id, onClose, onEdit, onDeleted }: { id: number; onClos
         {d.can.manage && <button className="pap-primary-button" disabled={busy} onClick={() => onEdit(e)}><Pencil /> Ubah</button>}
       </>}>
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
-      {e.sumber === 'pap' && <p className="pap-muted">Dikelola di PAP-MS{e.diubah_pada ? ` · terakhir diubah ${formatDate(String(e.diubah_pada), true)}` : ''}; tidak ditimpa sinkron spreadsheet.</p>}
+      {e.sumber === 'pap' && <p className="pap-muted">Dikelola di SIMPAP{e.diubah_pada ? ` · terakhir diubah ${formatDate(String(e.diubah_pada), true)}` : ''}; tidak ditimpa sinkron spreadsheet.</p>}
       <div className="pap-detail-badges"><span className={`pap-status ${STATUS_TONE(e.status_karyawan as string)}`}>{v('status_karyawan')}</span>{d.grade?.grade && <span className={`pap-status ${GRADE_TONE[d.grade.grade] ?? 'neutral'}`}>Grade {d.grade.grade}</span>}</div>
       <section className="pap-detail-section">
         <h3>Pekerjaan</h3>

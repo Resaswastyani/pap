@@ -1,5 +1,5 @@
 // Harga Pemasok Accurate (modul "Harga Pemasok", nomor VPA.xxxx): daftar harga beli barang per pemasok yang berlaku mulai tanggal tertentu.
-// Data dibaca & ditulis langsung ke Accurate (tidak disalin ke database PAP-MS).
+// Data dibaca & ditulis langsung ke Accurate (tidak disalin ke database SIMPAP).
 import { accurate, AccurateError, fromAccurateDate } from '@/lib/accurate'
 import { fail, str } from '@/lib/api'
 

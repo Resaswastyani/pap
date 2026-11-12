@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { ensureInvoiceNet, netAmount } from '@/lib/invoice-net'
 import { syncProductionJobs } from '@/lib/production'
 
-// Sinkronisasi data Accurate -> database PAP-MS.
+// Sinkronisasi data Accurate -> database SIMPAP.
 // - Inkremental memakai filter lastUpdate (hanya data yang berubah sejak sinkron terakhir)
 // - Bisa terpotong batas waktu (Vercel); halaman berikutnya dilanjutkan pada run berikutnya
 
@@ -495,7 +495,7 @@ async function syncBomDetails(deadline: number) {
   return { saved, done: saved === pending.length && pending.length < 400 }
 }
 
-// Satu PO dibaca ulang dari Accurate (setelah dibuat / diubah dari PAP-MS): header + baris barang
+// Satu PO dibaca ulang dari Accurate (setelah dibuat / diubah dari SIMPAP): header + baris barang
 export async function refreshPurchaseOrder(id: number) {
   const res = await accurate<Row>('/api/purchase-order/detail.do', { params: { id } })
   const d = res.d

@@ -37,7 +37,7 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
   })
 })
 
-// Edit customer: disimpan ke Accurate dulu, lalu ke database PAP-MS
+// Edit customer: disimpan ke Accurate dulu, lalu ke database SIMPAP
 export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
   if (!canManageCustomer(user)) fail(403, 'Anda tidak punya akses untuk mengedit customer.')
