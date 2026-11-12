@@ -84,6 +84,28 @@ export function RecycleBinPage({ user }: { user: UserProfile }) {
   }
   const toggle = (id: number) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
 
+  // Hapus permanen banyak: yang dicentang, atau semua yang cocok dengan filter
+  async function purgeMany(mode: 'selected' | 'all') {
+    const count = mode === 'selected' ? selected.size : data?.total ?? 0
+    if (!count) return
+    const scope = mode === 'selected' ? `${count} data terpilih` : `SEMUA ${count} data terhapus${modul ? ` modul ${modul}` : ''}${term ? ` yang cocok dengan "${term}"` : ''}`
+    if (!(await confirmDialog({ title: 'Hapus permanen', message: `Hapus permanen ${scope}? Data tidak bisa dipulihkan lagi.`, confirmLabel: 'Ya, hapus permanen', tone: 'danger' }))) return
+    setBulkBusy(true)
+    setError('')
+    try {
+      const res = await api<{ deleted: number }>('/api/recycle-bin/purge', {
+        method: 'POST', json: mode === 'selected' ? { ids: [...selected] } : { all: true, modul, q: term },
+      })
+      setNotice(`${res.deleted} data dihapus permanen.`)
+      setSelected(new Set())
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
   async function purge(item: Item) {
     if (!(await confirmDialog(`Hapus PERMANEN ${item.modul}: ${item.label}? Data ini tidak bisa dipulihkan lagi.`))) return
     setBusy(item.id)
@@ -115,7 +137,7 @@ export function RecycleBinPage({ user }: { user: UserProfile }) {
       </div>
       {notice && <Notice kind="success" onClose={() => setNotice('')}>{notice}</Notice>}
       <div className="pap-table-card">
-        <div className="pap-filters">
+        <div className="pap-filters pap-filters-top">
           <div className="pap-segmented" role="tablist">
             <button role="tab" aria-selected={open} className={open ? 'active' : ''} onClick={() => setStatus('terhapus')}>Terhapus</button>
             <button role="tab" aria-selected={!open} className={!open ? 'active' : ''} onClick={() => setStatus('dipulihkan')}>Sudah dipulihkan</button>
@@ -132,7 +154,9 @@ export function RecycleBinPage({ user }: { user: UserProfile }) {
             <span className="pap-spacer" />
             {!!selected.size && <button type="button" className="pap-btn" disabled={bulkBusy} onClick={() => setSelected(new Set())}>Batal pilih</button>}
             {!!selected.size && <button type="button" className="pap-primary-button" disabled={bulkBusy} onClick={() => restoreMany('selected')}><RotateCcw /> Pulihkan terpilih ({selected.size})</button>}
-            <button type="button" className={selected.size ? 'pap-btn' : 'pap-primary-button'} disabled={bulkBusy} onClick={() => restoreMany('all')}><RotateCcw /> {bulkBusy ? 'Memulihkan…' : `Pulihkan semua (${data.total})`}</button>
+            <button type="button" className={selected.size ? 'pap-btn' : 'pap-primary-button'} disabled={bulkBusy} onClick={() => restoreMany('all')}><RotateCcw /> {bulkBusy ? 'Memproses…' : `Pulihkan semua (${data.total})`}</button>
+            {data.can.purge && !!selected.size && <button type="button" className="pap-btn danger" disabled={bulkBusy} onClick={() => purgeMany('selected')}><Trash2 /> Hapus terpilih ({selected.size})</button>}
+            {data.can.purge && <button type="button" className="pap-btn pap-btn-danger-solid" disabled={bulkBusy} onClick={() => purgeMany('all')}><Trash2 /> Hapus semua ({data.total})</button>}
           </div>
         )}
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}><span style={{ whiteSpace: 'pre-line' }}>{error}</span></Notice></div>}
