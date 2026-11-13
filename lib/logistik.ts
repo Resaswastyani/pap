@@ -213,7 +213,8 @@ async function toleransi() {
   return Math.max(0, Number(row?.value ?? 0) || 0)
 }
 
-// SO yang perlu dikirim: 60 hari terakhir, belum masuk pengiriman (selain batal); terlambat bila lewat tanggal kirim SO + toleransi
+// SO yang perlu dikirim: sejak tanggal mulai pantau, belum masuk pengiriman (selain batal); terlambat bila lewat tanggal kirim SO + toleransi.
+// SO berstatus "Terproses" di Accurate sudah difakturkan seluruhnya (faktur menyebut nomor SO-nya), jadi dianggap selesai dikirim.
 export async function shipCandidates() {
   const tol = await toleransi()
   const mulai = await mulaiPantau()
@@ -223,7 +224,7 @@ export async function shipCandidates() {
        (SELECT COUNT(*) FROM accurate_sales_order_items i WHERE i.so_accurate_id = so.accurate_id) AS baris,
        (SELECT SUM(IF(i.unit = 'kg', i.quantity, 0)) FROM accurate_sales_order_items i WHERE i.so_accurate_id = so.accurate_id) AS berat_kg
      FROM accurate_sales_orders so LEFT JOIN customers c ON c.accurate_id = so.customer_accurate_id
-     WHERE COALESCE(so.ship_date, so.trans_date) >= ? AND COALESCE(so.status, '') NOT IN ('Ditutup', 'Closed')
+     WHERE COALESCE(so.ship_date, so.trans_date) >= ? AND COALESCE(so.status, '') NOT IN ('Ditutup', 'Closed', 'Terproses')
        AND NOT EXISTS (SELECT 1 FROM shipment_items si JOIN shipments s ON s.id = si.shipment_id WHERE si.so_accurate_id = so.accurate_id AND s.status <> 'batal')
      ORDER BY so.ship_date IS NULL, so.ship_date, so.trans_date`,
     [mulai],
