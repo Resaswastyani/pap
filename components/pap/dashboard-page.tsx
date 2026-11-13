@@ -11,7 +11,7 @@ import { SECTORS, type SectorKey } from '@/lib/sectors'
 
 type Metric = { label: string; satuan: string }
 type GanttStage = { id: number; tahap: string; plan_start: string; plan_end: string | null; status: string; progress: number }
-type GanttJob = { id: number; nomor: string | null; item_name: string; due_date: string | null; status: string; prioritas: string; customer: string | null; so_date: string | null; stages: GanttStage[] }
+type GanttJob = { id: number; nomor: string | null; item_name: string; due_date: string | null; status: string; prioritas: string; customer: string | null; so_date: string | null; stages: GanttStage[]; formula?: number; formula_selesai?: number; status_name?: string | null }
 type GanttPlanning = { id: number; judul: string; tanggal_mulai: string; tanggal_selesai: string; progress: number; status: string; divisi: string }
 type SalesSet = { omzet_bulan_lalu_sd_hari_ini: number; bulan: { bulan: string; omzet: number; faktur: number; customer: number }[]; sektor: { bulan: string; sektor: string; omzet: number; faktur: number; customer: number }[]; top: { name: string; omzet: number }[]; top_sektor: { sektor: string; name: string; omzet: number }[] }
 type DashboardData = {
@@ -66,8 +66,8 @@ const KPI_LABEL: Record<string, Metric> = {
 // Urutan tahap prospek dari awal sampai serah terima (gagal ditampilkan terpisah)
 const FUNNEL: [string, string][] = [['baru', 'Baru'], ['dihubungi', 'Dihubungi'], ['janji_temu', 'Janji temu'], ['visit', 'Visit'], ['penawaran', 'Penawaran'], ['order_pertama', 'Order pertama'], ['handover', 'Handover']]
 // Warna tahap produksi (slot kategorikal tetap, sama di semua Gantt)
-const STAGE_TONE: Record<string, string> = { Blow: 's1', Cetak: 's2', 'Bag making': 's3' }
-const STAGE_STATUS: Record<string, string> = { belum: 'Belum mulai', berjalan: 'Berjalan', selesai: 'Selesai' }
+const MP_TONE: Record<string, string> = { selesai: 's3', berjalan: 's1', belum: 's4' }
+const MP_STATUS: Record<string, string> = { belum: 'Belum mulai', berjalan: 'Diproses', selesai: 'Selesai' }
 // Absensi: segmen grafik kehadiran harian (hadir = tepat waktu)
 const ATTENDANCE_PARTS: { key: keyof AttendanceCounts; label: string; tone: string }[] = [
   { key: 'hadir', label: 'Tepat waktu', tone: 's3' }, { key: 'terlambat', label: 'Terlambat', tone: 's2' },
@@ -106,34 +106,32 @@ function Tile({ label, value, note, icon: Icon, tone = 'stat-1', onClick }: { la
   )
 }
 
+// Timeline produksi = Rencana Produksi (MP) Accurate, sama dengan menu Rencana Produksi: satu baris per MP,
+// batang = tanggal mulai → selesai, warna = status formula (selesai / diproses / belum mulai)
 function productionRows(jobs: GanttJob[], today: number, onOpen: () => void): GanttRow[] {
   return jobs.map((job) => {
     const due = job.due_date ? dayNumber(job.due_date) : null
-    const late = due !== null && due < today
+    const done = job.status === 'selesai'
+    const late = !done && due !== null && due < today
     const bars: GanttBar[] = job.stages.map((s) => {
       const start = dayNumber(s.plan_start)
-      const end = Math.max(s.plan_end ? dayNumber(s.plan_end) : start + 1, start + 0.5)
+      const end = Math.max(s.plan_end ? dayNumber(s.plan_end) + 1 : start + 1, start + 0.5)
       return {
-        key: `s${s.id}`, start, end, tone: STAGE_TONE[s.tahap] ?? 's4', label: s.tahap, progress: s.progress,
-        tip: <><b>{s.tahap} · {job.nomor ?? job.item_name}</b><span>{formatDate(s.plan_start, true)} → {formatDate(s.plan_end, true)}</span><span>{STAGE_STATUS[s.status] ?? s.status} · {s.progress}%</span></>,
+        key: `s${s.id}`, start, end, tone: MP_TONE[s.status] ?? 's4', label: s.tahap, progress: s.progress,
+        tip: <><b>{job.nomor} · {job.item_name}</b><span>{formatDate(s.plan_start)} → {formatDate(s.plan_end)}</span><span>{job.formula_selesai ?? 0}/{job.formula ?? 0} formula selesai · {MP_STATUS[s.status] ?? s.status}{job.status_name ? ` (${job.status_name})` : ''}</span></>,
       }
     })
-    // Job belum dijadwalkan: tampilkan rentang SO → tanggal kirim sebagai jendela order
-    if (!bars.length && due !== null) {
-      const start = job.so_date ? dayNumber(job.so_date) : due - 7
-      bars.push({ key: `w${job.id}`, start, end: due + 1, tone: 'window', label: 'Belum dijadwalkan', tip: <><b>{job.nomor ?? job.item_name}</b><span>Belum ada tahap terjadwal</span><span>SO {formatDate(job.so_date)} · kirim {formatDate(job.due_date)}</span></> })
-    }
-    // Keterlambatan: dari tanggal kirim sampai hari ini
+    // Keterlambatan: dari tanggal selesai rencana sampai hari ini
     if (late && due !== null) {
-      bars.push({ key: `late${job.id}`, start: due + 1, end: today + 1, tone: 'overdue', label: `+${today - due} hari`, tip: <><b>{job.nomor ?? job.item_name}</b><span>Tanggal kirim {formatDate(job.due_date)}</span><span>Terlambat {today - due} hari</span></> })
+      bars.push({ key: `late${job.id}`, start: due + 1, end: today + 1, tone: 'overdue', label: `+${today - due} hari`, tip: <><b>{job.nomor ?? job.item_name}</b><span>Rencana selesai {formatDate(job.due_date)}</span><span>Terlambat {today - due} hari</span></> })
     }
     return {
       key: `j${job.id}`,
       label: `${job.nomor ? `${job.nomor} · ` : ''}${job.item_name}`,
-      sub: `${job.customer ?? 'Tanpa customer'}${job.due_date ? ` · kirim ${formatDate(job.due_date)}` : ''}`,
-      flag: late ? <AlertTriangle className="pap-gantt2-flag late" aria-label="Lewat tenggat" /> : job.prioritas === 'tinggi' ? <span className="pap-gantt2-pill">Prioritas</span> : null,
+      sub: `${job.formula ?? 0} formula · ${MP_STATUS[job.status] ?? job.status}${job.due_date ? ` · selesai ${formatDate(job.due_date)}` : ''}`,
+      flag: late ? <AlertTriangle className="pap-gantt2-flag late" aria-label="Lewat tenggat" /> : null,
       bars,
-      markers: due !== null ? [{ key: 'due', at: due + 0.5, tone: late ? 'late' : 'due', tip: <><b>Tanggal kirim{late ? ' (lewat)' : ''}</b><span>{formatDate(job.due_date)}</span></> }] : [],
+      markers: due !== null && !done ? [{ key: 'due', at: due + 0.5, tone: late ? 'late' : 'due', tip: <><b>Rencana selesai{late ? ' (lewat)' : ''}</b><span>{formatDate(job.due_date)}</span></> }] : [],
       onClick: onOpen,
     }
   })
@@ -220,7 +218,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
     ['quotation', d.quotation && <Tile label="Penawaran menunggu" value={d.quotation.menunggu} note={`${formatRupiah(d.quotation.nilai_menunggu)}${d.quotation.draft ? ` · ${d.quotation.draft} draft` : ''}`} icon={ClipboardList} onClick={() => onNavigate('Quotation')} />],
     ['sample', d.sample && <Tile label="Request sample" value={d.sample.todo} note={`perlu tindakan · ${d.sample.aktif} berjalan`} icon={FlaskConical} tone={d.sample.todo ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Request Sample')} />],
     ['desain', d.desain && <Tile label="Request desain" value={d.desain.todo} note={`perlu tindakan · ${d.desain.aktif} berjalan`} icon={Palette} tone={d.desain.todo ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Request Desain')} />],
-    ['produksi', d.produksi && <Tile label="Produksi berjalan" value={d.produksi.berjalan} note={`${d.produksi.menunggu} menunggu · ${d.produksi.dijadwalkan} terjadwal`} icon={Factory} onClick={() => onNavigate('Rencana Produksi')} />],
+    ['produksi', d.produksi && <Tile label="Produksi berjalan" value={d.produksi.berjalan} note={`${d.produksi.menunggu} belum mulai · ${d.produksi.dijadwalkan} rencana bulan ini`} icon={Factory} onClick={() => onNavigate('Rencana Produksi')} />],
     ['karyawan', d.karyawan && <Tile label="Karyawan aktif" value={d.karyawan.aktif} note={`${d.karyawan.tetap} tetap · ${d.karyawan.kontrak} kontrak · ${d.karyawan.percobaan} percobaan`} icon={Users} onClick={() => onNavigate('Karyawan')} />],
     ['hadir', d.absensi && <Tile label={`Hadir · ${formatDate(d.absensi.tanggal)}`} value={`${d.absensi.hari.hadir + d.absensi.hari.terlambat}/${wajibOf(d.absensi.hari) + d.absensi.hari.belum_scan}`} note={`${pct(d.absensi.hari.hadir + d.absensi.hari.terlambat, wajibOf(d.absensi.hari) + d.absensi.hari.belum_scan)}% hadir · ${d.absensi.hari.terlambat} terlambat${d.absensi.hari.belum_scan ? ` · ${d.absensi.hari.belum_scan} belum scan` : ''}`} icon={UserCheck} tone="stat-0" onClick={() => onNavigate('Absensi')} />],
     ['absen', d.absensi && <Tile label="Tidak hadir" value={d.absensi.hari.tidak_hadir} note={`${d.absensi.hari.izin + d.absensi.hari.sakit + d.absensi.hari.cuti} izin / sakit / cuti`} icon={UserX} tone={d.absensi.hari.tidak_hadir ? 'stat-2' : 'stat-0'} onClick={() => onNavigate('Absensi')} />],
@@ -428,15 +426,15 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         {d.produksi && (
           <section key="timeline-produksi" data-title="Timeline produksi" className="pap-table-card pap-dash-card wide">
             <div className="pap-card-head">
-              <div><h2>Timeline produksi</h2><p>Tahap terjadwal & tanggal kirim · {gantt.before} hari lalu s/d {gantt.days - gantt.before - 1} hari ke depan</p></div>
+              <div><h2>Timeline produksi</h2><p>Rencana Produksi (MP) Accurate · {gantt.before} hari lalu s/d {gantt.days - gantt.before - 1} hari ke depan</p></div>
               <button className="pap-btn" onClick={() => onNavigate('Rencana Produksi')}>Jadwal lengkap</button>
             </div>
             <Gantt
               start={ganttStart}
               days={gantt.days}
               rows={productionRows(d.produksi.gantt, dayToday, () => onNavigate('Rencana Produksi'))}
-              legend={[{ tone: 's1', label: 'Blow' }, { tone: 's2', label: 'Cetak' }, { tone: 's3', label: 'Bag making' }, { tone: 's4', label: 'Lainnya' }, { tone: 'window', label: 'Belum dijadwalkan' }, { tone: 'overdue', label: 'Keterlambatan' }, { tone: 'due', label: 'Tanggal kirim', shape: 'marker' }, { tone: 'late', label: 'Lewat tenggat', shape: 'marker' }]}
-              empty="Tidak ada job aktif dalam rentang ini."
+              legend={[{ tone: 's3', label: 'Selesai' }, { tone: 's1', label: 'Diproses' }, { tone: 's4', label: 'Belum mulai' }, { tone: 'overdue', label: 'Keterlambatan' }, { tone: 'due', label: 'Rencana selesai', shape: 'marker' }, { tone: 'late', label: 'Lewat tenggat', shape: 'marker' }]}
+              empty="Tidak ada rencana produksi dalam rentang ini."
             />
           </section>
         )}
@@ -595,13 +593,13 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         )}
 
         {d.produksi && (
-          <section key="status-produksi" data-title="Status job produksi" className="pap-table-card pap-dash-card">
-            <div className="pap-card-head"><div><h2>Status job produksi</h2><p>Semua job yang belum selesai</p></div></div>
+          <section key="status-produksi" data-title="Status rencana produksi" className="pap-table-card pap-dash-card">
+            <div className="pap-card-head"><div><h2>Status rencana produksi</h2><p>Rencana Produksi (MP) Accurate, 180 hari terakhir</p></div><button className="pap-btn" onClick={() => onNavigate('Rencana Produksi')}>Detail</button></div>
             <div className="pap-dash-body">
               <BarList items={[
-                { key: 'menunggu', label: 'Menunggu dijadwalkan', value: d.produksi.menunggu },
-                { key: 'dijadwalkan', label: 'Dijadwalkan', value: d.produksi.dijadwalkan },
-                { key: 'berjalan', label: 'Berjalan', value: d.produksi.berjalan },
+                { key: 'menunggu', label: 'Belum mulai', value: d.produksi.menunggu },
+                { key: 'berjalan', label: 'Diproses', value: d.produksi.berjalan },
+                { key: 'dijadwalkan', label: 'Rencana bulan ini', value: d.produksi.dijadwalkan },
                 { key: 'terlambat', label: 'Lewat tenggat', value: d.produksi.terlambat, tone: 'critical', icon: <AlertTriangle className="pap-barlist-icon" /> },
                 { key: 'selesai', label: 'Selesai bulan ini', value: d.produksi.selesai_bulan_ini, tone: 'muted' },
               ]} />
@@ -639,8 +637,8 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
         )}
 
         {d.produksi && d.produksi.jatuh_tempo.length > 0 && (
-          <section key="produksi-kirim" data-title="Produksi mendekati tanggal kirim" className="pap-table-card pap-dash-card">
-            <div className="pap-card-head"><div><h2>Produksi mendekati tanggal kirim</h2><p>Job yang belum selesai</p></div></div>
+          <section key="produksi-kirim" data-title="Rencana produksi mendekati tanggal selesai" className="pap-table-card pap-dash-card">
+            <div className="pap-card-head"><div><h2>Rencana produksi mendekati tanggal selesai</h2><p>Rencana Produksi (MP) yang belum selesai</p></div></div>
             <ul className="pap-dash-agenda">
               {d.produksi.jatuh_tempo.map((j) => <li key={j.id}><button onClick={() => onNavigate('Rencana Produksi')}><Factory /><span><b>{formatDate(j.due_date)}</b> {j.nomor} · {j.item_name}{j.customer ? ` · ${j.customer}` : ''}</span></button></li>)}
             </ul>

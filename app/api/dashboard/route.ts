@@ -214,36 +214,42 @@ export const GET = handle(async () => {
   // ---- Produksi ----
   if (has('jadwal-produksi')) {
     tasks.push((async () => {
+      // Sama dengan menu Rencana Produksi: Rencana Produksi (MP) Accurate beserta baris formulanya.
+      // Belum selesai = ada baris formula yang belum FINISHED; terlambat = belum selesai dan lewat tanggal selesai (sama dengan Monitoring).
+      const MP = `SELECT mo.accurate_id, MAX(mo.number) AS number, MAX(mo.name) AS name, MAX(mo.trans_date) AS trans_date, MAX(mo.status_name) AS status_name,
+          COALESCE(MIN(i.start_date), MAX(mo.start_date), MAX(mo.trans_date)) AS mulai, COALESCE(MAX(i.end_date), MAX(mo.end_date), MAX(mo.trans_date)) AS selesai,
+          COUNT(i.line_id) AS formula, SUM(COALESCE(i.status, '') = 'FINISHED') AS formula_selesai,
+          SUM(COALESCE(i.status, '') <> 'FINISHED' AND (i.status IN ('ONPROCESS', 'PROCESSED') OR COALESCE(i.progress, 0) > 0)) AS formula_proses,
+          ROUND(AVG(COALESCE(i.progress, 0))) AS progress
+        FROM accurate_manufacture_orders mo JOIN accurate_manufacture_order_items i ON i.mo_accurate_id = mo.accurate_id`
       const [[p]] = await db.query<Row[]>(
-        `SELECT COALESCE(SUM(status = 'menunggu'), 0) AS menunggu, COALESCE(SUM(status = 'dijadwalkan'), 0) AS dijadwalkan,
-           COALESCE(SUM(status = 'berjalan'), 0) AS berjalan,
-           COALESCE(SUM(status NOT IN ('selesai', 'batal') AND due_date < CURDATE()), 0) AS terlambat,
-           COALESCE(SUM(status = 'selesai' AND updated_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')), 0) AS selesai_bulan_ini
-         FROM production_jobs`,
+        `SELECT COALESCE(SUM(formula_selesai < formula AND formula_proses = 0), 0) AS menunggu,
+           COALESCE(SUM(formula_selesai < formula AND formula_proses > 0), 0) AS berjalan,
+           COALESCE(SUM(formula_selesai < formula AND selesai < CURDATE()), 0) AS terlambat,
+           COALESCE(SUM(trans_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')), 0) AS bulan_ini,
+           COALESCE(SUM(formula_selesai = formula AND trans_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')), 0) AS selesai_bulan_ini
+         FROM (${MP} WHERE mo.trans_date >= CURDATE() - INTERVAL 180 DAY GROUP BY mo.accurate_id) x`,
       )
       const [due] = await db.query<Row[]>(
-        `SELECT j.id, j.nomor, j.item_name, j.due_date, j.status, c.name AS customer FROM production_jobs j LEFT JOIN customers c ON c.id = j.customer_id
-         WHERE j.status NOT IN ('selesai', 'batal') AND j.due_date >= CURDATE() ORDER BY j.due_date LIMIT 5`,
+        `SELECT accurate_id AS id, number AS nomor, name AS item_name, selesai AS due_date, status_name AS status, NULL AS customer
+         FROM (${MP} WHERE mo.trans_date >= CURDATE() - INTERVAL 180 DAY GROUP BY mo.accurate_id) x
+         WHERE formula_selesai < formula AND selesai >= CURDATE() ORDER BY selesai LIMIT 5`,
       )
-      // Gantt: job aktif yang tahapnya terjadwal atau tanggal kirimnya jatuh di jendela 4 minggu (H-7 s/d H+21)
-      const [jobs] = await db.query<Row[]>(
-        `SELECT j.id, j.nomor, j.item_name, j.due_date, j.status, j.prioritas, c.name AS customer, so.trans_date AS so_date
-         FROM production_jobs j LEFT JOIN customers c ON c.id = j.customer_id LEFT JOIN accurate_sales_orders so ON so.accurate_id = j.so_accurate_id
-         WHERE j.status NOT IN ('selesai', 'batal') AND (
-           (j.due_date >= CURDATE() - INTERVAL 7 DAY AND j.due_date < CURDATE() + INTERVAL 21 DAY)
-           OR EXISTS (SELECT 1 FROM production_stages s WHERE s.job_id = j.id AND s.status <> 'dilewati'
-             AND s.plan_start < CURDATE() + INTERVAL 21 DAY AND COALESCE(s.plan_end, s.plan_start) >= CURDATE() - INTERVAL 7 DAY))
-         ORDER BY j.status = 'berjalan' DESC, j.due_date IS NULL, j.due_date, j.id LIMIT 12`,
+      // Timeline: MP yang belum selesai, atau yang rentang tanggalnya jatuh di jendela 4 minggu (H-7 s/d H+21)
+      const [mps] = await db.query<Row[]>(
+        `SELECT * FROM (${MP} WHERE mo.trans_date >= CURDATE() - INTERVAL 180 DAY GROUP BY mo.accurate_id) x
+         WHERE formula_selesai < formula OR (mulai < CURDATE() + INTERVAL 21 DAY AND selesai >= CURDATE() - INTERVAL 7 DAY)
+         ORDER BY formula_selesai < formula DESC, selesai DESC, accurate_id DESC LIMIT 12`,
       )
-      const [stages] = jobs.length
-        ? await db.query<Row[]>(
-          `SELECT id, job_id, tahap, plan_start, plan_end, status, progress FROM production_stages
-           WHERE job_id IN (?) AND status <> 'dilewati' AND plan_start IS NOT NULL ORDER BY job_id, urutan`,
-          [jobs.map((j) => j.id)],
-        )
-        : [[] as Row[]]
-      const gantt = jobs.map((j) => ({ ...j, stages: stages.filter((s) => s.job_id === j.id).map((s) => ({ ...s, progress: n(s.progress) })) }))
-      out.produksi = { gantt, menunggu: n(p.menunggu), dijadwalkan: n(p.dijadwalkan), berjalan: n(p.berjalan), terlambat: n(p.terlambat), selesai_bulan_ini: n(p.selesai_bulan_ini), jatuh_tempo: due }
+      const gantt = mps.map((m) => {
+        const status = n(m.formula_selesai) >= n(m.formula) ? 'selesai' : n(m.formula_proses) > 0 ? 'berjalan' : 'belum'
+        return {
+          id: n(m.accurate_id), nomor: m.number, item_name: m.name, due_date: m.selesai, status, prioritas: '', customer: null, so_date: m.mulai,
+          formula: n(m.formula), formula_selesai: n(m.formula_selesai), status_name: m.status_name,
+          stages: [{ id: n(m.accurate_id), tahap: `${n(m.formula)} formula`, plan_start: m.mulai, plan_end: m.selesai, status, progress: status === 'selesai' ? 100 : n(m.progress) }],
+        }
+      })
+      out.produksi = { gantt, menunggu: n(p.menunggu), dijadwalkan: n(p.bulan_ini), berjalan: n(p.berjalan), terlambat: n(p.terlambat), selesai_bulan_ini: n(p.selesai_bulan_ini), jatuh_tempo: due }
     })())
   }
   if (has('sample')) {
