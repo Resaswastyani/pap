@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, CheckCircle2, Crosshair, Download, ExternalLink, FileText, Link2, MapPin, MessageCircle, Paperclip, Pencil, Plus, Trash2, X, XCircle } from 'lucide-react'
 import { CustomerSelect, type CustomerOption } from './product-page'
 import { prepareFiles } from './attachments'
+import { PhotoPicker } from './photo-picker'
 import { api, askReason, Field, formatDate, formatSize, Modal, Notice, confirmDialog } from './ui'
 
 // ---- Konstanta bersama halaman Prospek & Jadwal Visit ----
@@ -378,7 +379,6 @@ export function CheckinForm({ visit, onClose, onSaved }: { visit: Visit; onClose
   const [files, setFiles] = useState<File[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const fileRef = useRef<HTMLInputElement>(null)
   const set = (key: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [key]: e.target.value }))
 
   function locate() {
@@ -392,10 +392,7 @@ export function CheckinForm({ visit, onClose, onSaved }: { visit: Visit; onClose
   }
   useEffect(() => { if (needsProof) locate() }, [needsProof])
 
-  async function onPhoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
+  async function onPhoto(file: File) {
     try {
       setPhoto(await compressPhoto(file))
     } catch (err) {
@@ -450,8 +447,7 @@ export function CheckinForm({ visit, onClose, onSaved }: { visit: Visit; onClose
               <strong>Foto bukti kunjungan{needsProof ? '' : ' (opsional)'}</strong>
               <span>{photo ? 'Foto siap dikirim.' : 'Foto di lokasi (tampak depan / bersama PIC).'}</span>
             </div>
-            <button type="button" className="pap-btn" onClick={() => fileRef.current?.click()}>{photo ? 'Ambil ulang' : 'Ambil foto'}</button>
-            <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden onChange={onPhoto} />
+            <PhotoPicker label={photo ? 'Ambil ulang' : 'Ambil foto'} onFile={onPhoto} />
           </div>
           {photo && <img className="pap-checkin-photo" src={photo} alt="Pratinjau foto visit" />}
         </div>
