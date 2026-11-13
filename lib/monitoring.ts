@@ -111,8 +111,7 @@ export async function divisionPerformance(periode: string) {
          SUM(next_followup_at < CURDATE() AND status NOT IN ('gagal', 'handover', 'order_pertama')) AS followup_telat FROM prospects`, [dari, sampai, dari, sampai]),
     q(`SELECT SUM(status = 'dikirim') AS menunggu, SUM(status = 'diterima' AND closed_at BETWEEN ? AND ? + INTERVAL 1 DAY) AS diterima,
          COALESCE(SUM(IF(status = 'diterima' AND closed_at BETWEEN ? AND ? + INTERVAL 1 DAY, total, 0)), 0) AS nilai_diterima FROM quotations`, [dari, sampai, dari, sampai]),
-    q(`SELECT SUM(status IN ('Menunggu diproses', 'Sebagian diproses')) AS terbuka, COALESCE(SUM(IF(status IN ('Menunggu diproses', 'Sebagian diproses'), total_amount, 0)), 0) AS nilai_terbuka,
-         SUM(status IN ('Menunggu diproses', 'Sebagian diproses') AND ship_date < CURDATE() AND trans_date >= CURDATE() - INTERVAL 120 DAY) AS lewat_kirim FROM accurate_sales_orders`),
+    q(`SELECT SUM(status IN ('Menunggu diproses', 'Sebagian diproses')) AS terbuka, COALESCE(SUM(IF(status IN ('Menunggu diproses', 'Sebagian diproses'), total_amount, 0)), 0) AS nilai_terbuka FROM accurate_sales_orders`),
     q('SELECT COUNT(*) AS slip FROM accurate_finished_good_slips WHERE trans_date BETWEEN ? AND ?', [dari, sampai]),
     q("SELECT SUM(status = 'diajukan') AS menunggu, SUM(status = 'diajukan' AND created_at < NOW() - INTERVAL 3 DAY) AS lama, SUM(status = 'disetujui') AS belum_po FROM purchase_requests"),
     q("SELECT COUNT(*) AS terbuka, SUM(ship_date < CURDATE()) AS terlambat FROM accurate_purchase_orders po WHERE COALESCE(po.percent_shipped, 0) < 100 AND COALESCE(po.status, '') NOT IN ('CLOSED', 'FULLRECEIVED') AND po.trans_date >= CURDATE() - INTERVAL 180 DAY"),
@@ -125,6 +124,14 @@ export async function divisionPerformance(periode: string) {
     computeEmployeeKpi(periode).catch(() => null),
     q("SELECT COUNT(*) AS aktif, SUM(tanggal_selesai < CURDATE()) AS terlambat, ROUND(AVG(progress)) AS progress FROM plannings WHERE status IN ('belum_mulai', 'berjalan', 'ditunda')"),
   ])
+  // Rencana Produksi (MP) Accurate yang belum selesai, sama seperti menu Rencana Produksi (baris formula belum FINISHED);
+  // terlambat = lewat tanggal selesai baris / rencana. Dibatasi 180 hari terakhir agar MP lama yang terlupa tidak menumpuk.
+  const mp = await q(
+    `SELECT COUNT(DISTINCT mo.accurate_id) AS berjalan,
+       COUNT(DISTINCT CASE WHEN COALESCE(i.end_date, mo.end_date) < CURDATE() THEN mo.accurate_id END) AS terlambat
+     FROM accurate_manufacture_orders mo JOIN accurate_manufacture_order_items i ON i.mo_accurate_id = mo.accurate_id
+     WHERE COALESCE(i.status, '') <> 'FINISHED' AND mo.trans_date >= CURDATE() - INTERVAL 180 DAY`,
+  ).catch(() => ({}) as Row)
   const [ship, permits] = await Promise.all([shipCandidates().catch(() => []), listPermits().catch(() => [])])
   const [[shipStat]] = await db.query<Row[]>(
     `SELECT SUM(status = 'dikirim') AS jalan, SUM(status = 'dikirim' AND target_tiba < CURDATE()) AS telat_tiba,
@@ -151,8 +158,8 @@ export async function divisionPerformance(periode: string) {
       { label: 'Follow-up terlambat', value: fmt(n(mk.followup_telat)), tone: n(mk.followup_telat) > 20 ? 'bad' : n(mk.followup_telat) > 5 ? 'warn' : 'ok' },
     ]),
     div('ppic', 'PPIC & Produksi', 'Rencana Produksi', [
-      { label: 'SO belum selesai', value: `${fmt(n(so.terbuka))} · ${rp(n(so.nilai_terbuka))}` },
-      { label: 'SO lewat tanggal kirim', value: fmt(n(so.lewat_kirim)), tone: n(so.lewat_kirim) > 10 ? 'bad' : n(so.lewat_kirim) > 0 ? 'warn' : 'ok', hint: 'Status Accurate masih menunggu / sebagian diproses' },
+      { label: 'Rencana produksi terlambat', value: fmt(n(mp.terlambat)), tone: n(mp.terlambat) > 5 ? 'bad' : n(mp.terlambat) > 0 ? 'warn' : 'ok', hint: `Lewat tanggal selesai, belum selesai · ${fmt(n(mp.berjalan))} rencana berjalan` },
+      { label: 'SO terbuka (Accurate)', value: `${fmt(n(so.terbuka))} · ${rp(n(so.nilai_terbuka))}`, hint: 'Status SO di Accurate masih menunggu / sebagian diproses' },
       { label: 'Penyelesaian barang jadi', value: `${fmt(n(fgs.slip))} slip` },
       { label: 'KPI operator rata-rata', value: kpiAvg === null ? '—' : String(kpiAvg).replace('.', ','), tone: kpiAvg !== null && kpiAvg < 70 ? 'warn' : 'ok' },
     ]),
