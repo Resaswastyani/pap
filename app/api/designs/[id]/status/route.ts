@@ -17,8 +17,42 @@ const NEXT: Record<DesignStatus, DesignStatus[]> = {
   dikerjakan: ['review', 'batal'],
   review: ['disetujui', 'revisi', 'batal'],
   revisi: ['review', 'batal'],
-  disetujui: [],
+  // Persetujuan bisa dibatalkan (kembali ke Review customer) oleh sales pengaju / Lead / admin
+  disetujui: ['review'],
   batal: [],
+}
+
+// Batalkan efek persetujuan: salinan file desain final di Data Produk dihapus; produk ikut dihapus hanya bila dibuat
+// oleh persetujuan ini, tidak punya file lain, dan belum dipakai di tempat lain. Konten digital: rencana konten kembali "Produksi".
+async function undoApproval(item: RowDataPacket) {
+  if (item.kategori === 'konten') {
+    await db.query("UPDATE content_plans SET status = 'produksi' WHERE design_request_id = ? AND status = 'siap'", [item.id])
+    await db.query('UPDATE design_requests SET final_file_id = NULL WHERE id = ?', [item.id])
+    return null
+  }
+  const productId = item.product_id ? Number(item.product_id) : null
+  if (!productId || !item.final_file_id) return null
+  const [[final]] = await db.query<(RowDataPacket & { name: string; size: number })[]>('SELECT name, size FROM design_request_files WHERE id = ?', [item.final_file_id])
+  if (final) {
+    await db.query('DELETE FROM customer_product_files WHERE product_id = ? AND name = ? AND size = ? ORDER BY id DESC LIMIT 1', [productId, final.name, final.size])
+  }
+  const [[p]] = await db.query<(RowDataPacket & { keterangan: string | null; files: number; dipakai: number })[]>(
+    `SELECT cp.keterangan, (SELECT COUNT(*) FROM customer_product_files f WHERE f.product_id = cp.id) AS files,
+       (SELECT COUNT(*) FROM design_requests d WHERE d.product_id = cp.id AND d.id <> ?) + (SELECT COUNT(*) FROM sample_requests s WHERE s.product_id = cp.id)
+       + (SELECT COUNT(*) FROM sample_request_items si WHERE si.product_id = cp.id) + (SELECT COUNT(*) FROM prospect_products pp WHERE pp.product_id = cp.id)
+       + (SELECT COUNT(*) FROM quotation_items qi WHERE qi.product_id = cp.id) + (SELECT COUNT(*) FROM production_jobs j WHERE j.product_id = cp.id)
+       + (SELECT COUNT(*) FROM formulations fo WHERE fo.product_id = cp.id) AS dipakai
+     FROM customer_products cp WHERE cp.id = ?`,
+    [item.id, productId],
+  )
+  const createdHere = !!p && String(p.keterangan ?? '').startsWith(`Dari request desain ${item.nomor}`)
+  if (createdHere && Number(p.files) === 0 && Number(p.dipakai) === 0) {
+    await db.query('UPDATE design_requests SET product_id = NULL, final_file_id = NULL WHERE id = ?', [item.id])
+    await db.query('DELETE FROM customer_products WHERE id = ?', [productId])
+    return 'produk dihapus dari Data Produk'
+  }
+  await db.query('UPDATE design_requests SET final_file_id = NULL WHERE id = ?', [item.id])
+  return 'file desain final dilepas dari Data Produk'
 }
 
 export const POST = handle(async (request: Request, ctx: Ctx) => {
@@ -38,7 +72,14 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   const values: unknown[] = [to]
   let note = catatan
   let finalFileId: number | null = null
-  if (to === 'dikerjakan') {
+  let undone: string | null = null
+  if (from === 'disetujui' && to === 'review') {
+    // Batalkan persetujuan: kembali menunggu tanggapan customer
+    if (!requester) fail(403, 'Persetujuan hanya bisa dibatalkan oleh sales pengaju, Lead, atau admin.')
+    if (!catatan) fail(400, 'Tulis alasan membatalkan persetujuan.')
+    undone = await undoApproval(item as RowDataPacket)
+    note = `Persetujuan dibatalkan, kembali ke Review customer${undone ? ` (${undone})` : ''}. ${catatan}`
+  } else if (to === 'dikerjakan') {
     // Diterima Lead Digital Marketing; setelah itu staff Digital Marketing bisa mengunggah & mengirim desain
     if (!canAcceptDesign(user)) fail(403, 'Hanya Lead Digital Marketing yang dapat menerima request desain.')
     note = `Diterima ${user.name}, dikerjakan tim Digital Marketing${catatan ? `. ${catatan}` : ''}`

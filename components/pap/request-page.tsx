@@ -858,6 +858,20 @@ function DesignDetail({ id, user, onClose, onChanged }: { id: number; user: User
       {s === 'disetujui' && (item.kategori === 'konten'
         ? <Notice kind="success">Konten final tersimpan di Bank Konten (menu Kalender Konten).</Notice>
         : <Notice kind="success">Desain final sudah masuk ke Data Produk{item.product_name ? `: ${item.product_name}` : ''}.{item.customer_id ? '' : ' Produk akan terhubung ke customer saat prospek dijadikan customer.'}</Notice>)}
+      {s === 'disetujui' && roles.isRequester && (
+        <div className="pap-inline-actions pap-wrap">
+          <span className="pap-muted">Salah klik atau customer berubah pikiran?</span>
+          <button className="pap-btn" disabled={busy} onClick={async () => {
+            const a = await askReason({
+              title: 'Kembalikan ke Review customer',
+              label: 'Alasan membatalkan persetujuan',
+              confirmLabel: 'Kembalikan ke review',
+              placeholder: item.kategori === 'konten' ? 'Mis. customer belum final' : 'Mis. salah klik setuju, customer belum memberi keputusan',
+            })
+            if (a) act({ status: 'review', catatan: a }, item.kategori === 'konten' ? 'Persetujuan dibatalkan; konten kembali menunggu review.' : 'Persetujuan dibatalkan; desain kembali ke Review customer dan file final dilepas dari Data Produk.')
+          }}><RotateCcw /> Kembalikan ke review customer</button>
+        </div>
+      )}
 
       <dl className="pap-detail-grid">
         {item.jenis && <div><dt>Jenis</dt><dd>{item.jenis}</dd></div>}
