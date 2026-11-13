@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, FileText, FlaskConical, Package, Palette, CalendarClock, CalendarPlus, Columns3, Handshake, LayoutList, Link2, Mail, MapPin, Pencil, Phone, Plus, Search, Send, Trash2, Upload, UserPlus } from 'lucide-react'
+import { AlertTriangle, Download, FileText, FlaskConical, Package, Palette, CalendarClock, CalendarPlus, Columns3, Handshake, LayoutList, Link2, Mail, MapPin, Pencil, Phone, Plus, Search, Send, Trash2, Upload, UserPlus } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { CustomerSelect, type CustomerOption } from './product-page'
 import {
@@ -128,7 +128,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
           <span>Pipeline calon customer: lead dari Marketing Digital, follow-up & visit Marketing Development, hingga handover ke Marketing Maintenance.</span>
         </div>
         <div className="pap-inline-actions">
-          <button className="pap-btn" onClick={() => setImporting(true)}><Upload /> Impor CSV</button>
+          <button className="pap-btn" onClick={() => setImporting(true)}><Upload /> Impor Excel / CSV</button>
           <button className="pap-primary-button" onClick={() => setForm('new')}><Plus /> Tambah prospek</button>
         </div>
       </div>
@@ -810,23 +810,47 @@ function ImportModal({ users, canSupervise, onClose, onDone }: { users: Marketin
   const [fileName, setFileName] = useState('')
   const [assigned, setAssigned] = useState('')
   const [saving, setSaving] = useState(false)
+  const [reading, setReading] = useState(false)
   const [error, setError] = useState('')
   const salesUsers = users.filter((u) => u.division_code !== 'marketing_digital')
   const template = useMemo(() => `data:text/csv;charset=utf-8,${encodeURIComponent(`${CSV_COLUMNS.map(([, l]) => l).join(',')}\nLaundry Bersih Jaya,Budi,081234567890,,Laundry,Jl. Melati 5,Sidoarjo,Instagram,Kantong laundry HD 40x60,200 kg/bulan,\n`)}`, [])
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
     setError('')
+    setRows([])
     setFileName(file.name)
-    const table = parseCsv(await file.text())
+    let table: string[][]
+    if (/\.(xlsx|xlsm)$/i.test(file.name)) {
+      // Excel dibaca di server (sheet pertama berisi data), pemetaan kolom sama dengan CSV
+      setReading(true)
+      try {
+        const body = new FormData()
+        body.append('file', file)
+        table = (await api<{ rows: string[][] }>('/api/prospects/import/excel', { method: 'POST', body })).rows
+      } catch (err) {
+        return setError((err as Error).message)
+      } finally {
+        setReading(false)
+      }
+    } else if (/\.xls$/i.test(file.name)) {
+      return setError('File Excel 97-2003 (.xls) belum didukung. Buka di Excel lalu Simpan Sebagai "Excel Workbook (.xlsx)".')
+    } else table = parseCsv(await file.text())
     if (table.length < 2) return setError('File kosong atau hanya berisi judul kolom.')
-    const keys = table[0].map((h) => {
-      const key = h.trim().toLowerCase().replace(/[_*]/g, ' ').replace(/\s+/g, ' ')
+    // Baris judul = baris pertama yang memuat kolom Nama usaha (judul laporan di atas tabel dilewati)
+    const keyOf = (h: string) => {
+      const key = String(h ?? '').trim().toLowerCase().replace(/[_*]/g, ' ').replace(/\s+/g, ' ')
       return HEADER_ALIASES[key] ?? CSV_COLUMNS.find(([k, l]) => k === key.replace(/ /g, '_') || l.toLowerCase() === key)?.[0] ?? null
-    })
-    if (!keys.includes('nama_usaha')) return setError('Kolom "Nama usaha" tidak ditemukan. Gunakan template CSV.')
-    setRows(table.slice(1).map((cells) => Object.fromEntries(keys.map((k, i) => [k, (cells[i] ?? '').trim()]).filter(([k]) => k))).filter((r) => r.nama_usaha))
+    }
+    const headIdx = table.slice(0, 10).findIndex((r) => r.map(keyOf).includes('nama_usaha'))
+    if (headIdx < 0) return setError('Kolom "Nama usaha" tidak ditemukan. Gunakan template Excel atau CSV.')
+    const keys = table[headIdx].map(keyOf)
+    const data = table.slice(headIdx + 1).map((cells) => Object.fromEntries(keys.map((k, i) => [k, String(cells[i] ?? '').trim()]).filter(([k]) => k))).filter((r) => r.nama_usaha)
+    if (!data.length) return setError('Tidak ada baris dengan Nama usaha yang terisi.')
+    if (data.length > 500) return setError(`Maksimal 500 prospek per impor (file berisi ${data.length}). Bagi menjadi beberapa file.`)
+    setRows(data)
   }
   async function submit() {
     setSaving(true)
@@ -842,17 +866,18 @@ function ImportModal({ users, canSupervise, onClose, onDone }: { users: Marketin
   }
   return (
     <Modal
-      title="Impor prospek dari CSV"
+      title="Impor prospek dari Excel / CSV"
       subtitle="Untuk lead hasil riset Marketing Digital (Instagram, Google Maps, marketplace, ...)"
       wide
       onClose={onClose}
-      footer={<><a className="pap-btn" href={template} download="template-prospek.csv">Unduh template</a><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" disabled={saving || !rows.length} onClick={submit}>{saving ? 'Mengimpor...' : `Impor ${rows.length || ''} prospek`}</button></>}
+      footer={<><a className="pap-btn" href="/api/prospects/import/excel" download><Download /> Template Excel</a><a className="pap-btn" href={template} download="template-prospek.csv">Template CSV</a><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" disabled={saving || reading || !rows.length} onClick={submit}>{saving ? 'Mengimpor...' : `Impor ${rows.length || ''} prospek`}</button></>}
     >
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       <div className="pap-form-grid">
-        <Field label="File CSV" full hint="Simpan dari Excel/Google Sheets sebagai CSV. Kolom minimal: Nama usaha. Nomor WA yang sudah terdaftar dilewati.">
-          <input className="pap-input" type="file" accept=".csv,text/csv" onChange={onFile} />
+        <Field label="File Excel (.xlsx) atau CSV" full hint="Pakai template Excel / CSV, atau file sendiri dengan judul kolom yang sama. Kolom minimal: Nama usaha. Maksimal 500 baris; nomor WA yang sudah terdaftar dilewati.">
+          <input className="pap-input" type="file" accept=".xlsx,.xlsm,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={onFile} disabled={reading} />
         </Field>
+        {reading && <p className="pap-muted full">Membaca file Excel...</p>}
         {canSupervise && (
           <Field label="Bagikan ke sales" full>
             <select className="pap-select" value={assigned} onChange={(e) => setAssigned(e.target.value)}>
