@@ -22,6 +22,10 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
   return data as T
 }
 
+// Laptop / desktop (mouse atau touchpad): jendela pop-up tidak tertutup saat klik di luar area, supaya isian tidak
+// hilang karena salah klik. Tutup lewat tombol ✕, Batal / Tutup, atau Esc. HP & tablet: ketuk di luar tetap menutup.
+export const closeOnOutsideClick = () => typeof window === 'undefined' || !window.matchMedia('(hover: hover) and (pointer: fine)').matches
+
 export function Modal({ title, subtitle, onClose, children, footer, wide }: { title: string; subtitle?: string; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -29,7 +33,7 @@ export function Modal({ title, subtitle, onClose, children, footer, wide }: { ti
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
   return (
-    <div className="pap-modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="pap-modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && closeOnOutsideClick() && onClose()}>
       <div className={`pap-modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="pap-modal-head">
           <div>
@@ -99,7 +103,7 @@ export function ConfirmHost() {
   if (!current) return null
   const c = guessConfirm(current)
   return (
-    <div className="pap-modal-backdrop pap-confirm-backdrop" onMouseDown={(e) => e.target === e.currentTarget && done(false)}>
+    <div className="pap-modal-backdrop pap-confirm-backdrop" onMouseDown={(e) => e.target === e.currentTarget && closeOnOutsideClick() && done(false)}>
       <div className={`pap-confirm ${c.tone}`} role="alertdialog" aria-modal="true" aria-labelledby="pap-confirm-title" aria-describedby="pap-confirm-msg">
         <span className="pap-confirm-icon">{c.tone === 'danger' ? <Trash2 /> : <span>?</span>}</span>
         <h2 id="pap-confirm-title">{c.title}</h2>

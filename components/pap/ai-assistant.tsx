@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowUp, Maximize2, Minimize2, RotateCcw, Sparkles, Table2, X, BarChart3 } from 'lucide-react'
 import { formatNumber, formatRupiah } from './accurate'
-import { api } from './ui'
+import { api, closeOnOutsideClick } from './ui'
 
 type Chart = { jenis: 'bar' | 'line' | 'hbar'; judul: string; label: string[]; seri: { nama: string; data: number[] }[]; format: 'rupiah' | 'angka' | 'persen'; catatan?: string }
 type Message = { role: 'user' | 'model'; text: string; charts?: Chart[]; sources?: string[]; error?: boolean }
@@ -267,7 +267,7 @@ export function AiAssistant({ userId, userName }: { userId: number; userName: st
       <button type="button" className={`pap-ai-fab ${open ? 'hidden' : ''}`} onClick={() => setOpen(true)} aria-label="Buka PAP AI">
         <Sparkles /><span className="pap-ai-fab-badge">AI</span><span className="pap-ai-fab-label">Tanya PAP AI</span>
       </button>
-      {open && <button type="button" className="pap-ai-backdrop" aria-label="Tutup PAP AI" onClick={() => setOpen(false)} />}
+      {open && <button type="button" className="pap-ai-backdrop" aria-label="Tutup PAP AI" onClick={() => closeOnOutsideClick() && setOpen(false)} />}
       <aside className={`pap-ai-panel ${open ? 'open' : ''} ${wide ? 'wide' : ''}`} aria-label="PAP AI" aria-hidden={!open}>
         <header className="pap-ai-head">
           <span className="pap-ai-logo"><Sparkles /></span>
