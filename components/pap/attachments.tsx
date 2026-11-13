@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, Download, FileText, Link2, Paperclip, Trash2, X } from 'lucide-react'
-import { ATTACHMENT_MAX_BYTES } from '@/lib/permissions'
+import { ATTACHMENT_MAX_BYTES, VIDEO_ATTACHMENT_MAX_BYTES } from '@/lib/permissions'
 import { compressImage, isCompressibleImage } from './compress'
 import { api, formatDate, formatSize, Notice, confirmDialog } from './ui'
 
@@ -15,19 +15,26 @@ type Attachment = { id: number; kind: 'file' | 'link'; name: string; url: string
 
 const normalizeUrl = (value: string) => (/^https?:\/\//i.test(value.trim()) ? value.trim() : `https://${value.trim()}`)
 
-// Foto dari kamera HP biasanya > 2 MB: perkecil ke JPEG sampai muat; file lain > 2 MB ditolak
-async function fitFile(file: File): Promise<File> {
+const isVideo = (f: File) => f.type.startsWith('video/') || /\.(mp4|mov|m4v|3gp|webm|mkv|avi)$/i.test(f.name)
+
+// Foto dari kamera HP biasanya > 2 MB: perkecil ke JPEG sampai muat; file lain > 2 MB ditolak.
+// allowVideo (lampiran Prospek): video boleh sampai 10 MB.
+async function fitFile(file: File, allowVideo = false): Promise<File> {
+  if (allowVideo && isVideo(file)) {
+    if (file.size <= VIDEO_ATTACHMENT_MAX_BYTES) return file
+    throw new Error(`${file.name}: video ${formatSize(file.size)}, maksimal 10 MB. Simpan di Google Drive lalu tambahkan sebagai link.`)
+  }
   if (file.size <= ATTACHMENT_MAX_BYTES) return file
   if (!isCompressibleImage(file)) throw new Error(`${file.name}: ukuran ${formatSize(file.size)}, maksimal 2 MB.`)
   return compressImage(file, ATTACHMENT_MAX_BYTES)
 }
 
-async function fitFiles(list: File[]) {
+async function fitFiles(list: File[], allowVideo = false) {
   const ok: File[] = []
   const errors: string[] = []
   for (const f of list) {
     try {
-      ok.push(await fitFile(f))
+      ok.push(await fitFile(f, allowVideo))
     } catch (e) {
       errors.push((e as Error).message)
     }
@@ -51,7 +58,7 @@ function FileButtons({ disabled, onFiles }: { disabled?: boolean; onFiles: (file
 }
 
 // Isian lampiran yang belum dikirim (dipakai di form tambah); diunggah setelah data tersimpan
-export function AttachmentInput({ value, onChange }: { value: PendingAttachments; onChange: (v: PendingAttachments) => void }) {
+export function AttachmentInput({ value, onChange, allowVideo = false }: { value: PendingAttachments; onChange: (v: PendingAttachments) => void; allowVideo?: boolean }) {
   const url = value.draft?.url ?? ''
   const name = value.draft?.name ?? ''
   const setUrl = (v: string) => onChange({ ...value, draft: { url: v, name } })
@@ -63,7 +70,7 @@ export function AttachmentInput({ value, onChange }: { value: PendingAttachments
   }
   async function addFiles(list: File[], fromCamera: boolean) {
     const named = fromCamera ? list.map((f) => new File([f], cameraName(), { type: f.type })) : list
-    const { ok, errors } = await fitFiles(named)
+    const { ok, errors } = await fitFiles(named, allowVideo)
     setError(errors.join(' '))
     if (ok.length) onChange({ ...value, files: [...value.files, ...ok] })
   }
@@ -71,7 +78,7 @@ export function AttachmentInput({ value, onChange }: { value: PendingAttachments
     <div className="pap-attach-editor">
       <div className="pap-attach-row">
         <FileButtons onFiles={addFiles} />
-        <small className="pap-muted">Semua format file, maks 2 MB per file. Gambar lebih besar dikompres otomatis ke 2 MB.</small>
+        <small className="pap-muted">{allowVideo ? 'Foto, video (maks 10 MB), atau file lain (maks 2 MB). Foto besar dikompres otomatis.' : 'Semua format file, maks 2 MB per file. Gambar lebih besar dikompres otomatis ke 2 MB.'}</small>
       </div>
       <div className="pap-attach-row">
         <input className="pap-input" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Link (opsional): Google Drive, katalog, dll." onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLink() } }} />
@@ -108,8 +115,8 @@ export async function uploadPendingAttachments(basePath: string, pending: Pendin
 }
 
 // Daftar lampiran di halaman detail + tambah file / foto / link
-export function AttachmentPanel({ title = 'Lampiran', basePath, fileBase, canAdd, currentUserId, isAdmin }: {
-  title?: string; basePath: string; fileBase: string; canAdd: boolean; currentUserId: number; isAdmin: boolean
+export function AttachmentPanel({ title = 'Lampiran', basePath, fileBase, canAdd, currentUserId, isAdmin, allowVideo = false }: {
+  title?: string; basePath: string; fileBase: string; canAdd: boolean; currentUserId: number; isAdmin: boolean; allowVideo?: boolean
 }) {
   const [items, setItems] = useState<Attachment[]>([])
   const [busy, setBusy] = useState(false)
@@ -137,7 +144,7 @@ export function AttachmentPanel({ title = 'Lampiran', basePath, fileBase, canAdd
   }
   const addFiles = (list: File[], fromCamera: boolean) => run(async () => {
     const named = fromCamera ? list.map((f) => new File([f], cameraName(), { type: f.type })) : list
-    const { ok, errors } = await fitFiles(named)
+    const { ok, errors } = await fitFiles(named, allowVideo)
     return [...errors, ...(await uploadPendingAttachments(basePath, { files: ok, links: [] }))]
   })
   const addLink = () => run(async () => {

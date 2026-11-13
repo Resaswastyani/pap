@@ -10,7 +10,7 @@ const MAX_ROWS = 501 // judul + 500 baris (batas impor prospek)
 // Kolom template (judul sama dengan template CSV, dibaca lewat alias yang sama di form impor)
 const COLUMNS: [string, number, string][] = [
   ['Nama usaha', 28, 'Laundry Bersih Jaya'], ['Nama kontak', 18, 'Budi'], ['No WA', 16, '081234567890'], ['Email', 22, ''], ['Sektor', 14, 'Laundry'],
-  ['Alamat', 30, 'Jl. Melati 5'], ['Kota', 14, 'Sidoarjo'], ['Sumber', 14, 'Instagram'], ['Kebutuhan', 28, 'Kantong laundry HD 40x60'], ['Estimasi order', 16, '200 kg/bulan'], ['Catatan', 24, ''],
+  ['Alamat', 30, 'Jl. Melati 5'], ['Kota', 14, 'Sidoarjo'], ['Sumber', 14, 'Instagram'], ['Kebutuhan', 28, 'Kantong laundry HD 40x60'], ['Estimasi order', 16, '200 kg/bulan'], ['Kompetitor / supplier lain', 30, 'Toko Plastik Maju, Rp 28.000/kg'], ['Catatan', 24, ''],
 ]
 
 // Template Excel impor prospek

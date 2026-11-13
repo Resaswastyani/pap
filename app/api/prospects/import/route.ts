@@ -40,10 +40,10 @@ export const POST = handle(async (request: Request) => {
   })
   if (fresh.length) {
     await db.query(
-      `INSERT INTO prospects (nama_usaha, sektor, kontak_nama, kontak_jabatan, telepon, email, alamat, kota, sumber, kebutuhan, estimasi_order, catatan,
+      `INSERT INTO prospects (nama_usaha, sektor, kontak_nama, kontak_jabatan, telepon, email, alamat, kota, sumber, kebutuhan, estimasi_order, kompetitor, catatan,
          assigned_to, created_by, last_activity_at) VALUES ?`,
       [fresh.map((p) => [p!.nama_usaha, p!.sektor, p!.kontak_nama, p!.kontak_jabatan, p!.telepon, p!.email, p!.alamat, p!.kota, p!.sumber, p!.kebutuhan,
-        p!.estimasi_order, p!.catatan, assigned, user.id, new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 19).replace('T', ' ')])],
+        p!.estimasi_order, p!.kompetitor, p!.catatan, assigned, user.id, new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 19).replace('T', ' ')])],
     )
   }
   if (assigned && assigned !== user.id && fresh.length) {

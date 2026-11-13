@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { readLink } from '@/lib/marketing'
-import { ATTACHMENT_MAX_BYTES } from '@/lib/permissions'
+import { ATTACHMENT_MAX_BYTES, VIDEO_ATTACHMENT_MAX_BYTES } from '@/lib/permissions'
 
 // Lampiran generik (file apa pun maks 2 MB, atau link):
 // - prospect / sample: lampiran data Prospek & Request Sample
@@ -34,10 +34,12 @@ const scope = (owner: AttachmentOwner, alias = '') => {
   return { table: o.table, where: `${alias}${o.fk} = ?${o.type ? ` AND ${alias}owner_type = '${o.type}'` : ''}` }
 }
 
-export function validAttachmentFile(value: unknown) {
+export function validAttachmentFile(value: unknown, allowVideo = false) {
   if (!(value instanceof File) || !value.size) return fail(400, 'File wajib dipilih.')
   if (!value.name.trim()) fail(400, 'Nama file tidak valid.')
-  if (value.size > ATTACHMENT_MAX_BYTES) fail(400, `${value.name}: ukuran maksimal 2 MB.`)
+  const video = allowVideo && (value.type.startsWith('video/') || /\.(mp4|mov|m4v|3gp|webm|mkv|avi)$/i.test(value.name))
+  if (video && value.size > VIDEO_ATTACHMENT_MAX_BYTES) fail(400, `${value.name}: video maksimal 10 MB. Untuk video lebih besar, simpan di Google Drive lalu tambahkan sebagai link.`)
+  if (!video && value.size > ATTACHMENT_MAX_BYTES) fail(400, `${value.name}: ukuran maksimal 2 MB.`)
   return value
 }
 
@@ -69,7 +71,7 @@ export async function addAttachment(owner: AttachmentOwner, ownerId: number, for
   const typeVal = o.type ? [o.type] : []
   const fileValue = form.get('file')
   if (fileValue instanceof File && fileValue.size) {
-    const file = validAttachmentFile(fileValue)
+    const file = validAttachmentFile(fileValue, owner === 'prospect')
     await db.query(`INSERT INTO ${o.table} (${cols}${o.fk}, kind, name, mime, size, data, uploaded_by) VALUES (${o.type ? '?, ' : ''}?, 'file', ?, ?, ?, ?, ?)`, [
       ...typeVal, ownerId, file.name.slice(0, 255), (file.type || 'application/octet-stream').slice(0, 150), file.size, Buffer.from(await file.arrayBuffer()), userId,
     ])
@@ -101,10 +103,10 @@ export async function deleteNoteAttachments(owner: NoteOwner, ownerIds: number[]
   if (ownerIds.length) await db.query('DELETE FROM note_attachments WHERE owner_type = ? AND owner_id IN (?)', [owner, ownerIds])
 }
 
-// Gambar & PDF ditampilkan di browser; format lain selalu diunduh (aman untuk file apa pun)
+// Gambar, PDF & video umum ditampilkan / diputar di browser; format lain selalu diunduh (aman untuk file apa pun)
 export function attachmentResponse(row: AttachmentRow, download: boolean) {
   if (row.kind === 'link') return NextResponse.redirect(row.url!)
-  const inline = !download && /^(image\/(jpeg|png|webp|gif)|application\/pdf)$/.test(row.mime ?? '')
+  const inline = !download && /^(image\/(jpeg|png|webp|gif)|application\/pdf|video\/(mp4|webm|quicktime))$/.test(row.mime ?? '')
   return new NextResponse(new Uint8Array(row.data!), {
     headers: {
       'Content-Type': inline ? row.mime! : 'application/octet-stream',

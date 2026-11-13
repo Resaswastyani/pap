@@ -34,6 +34,8 @@ export const PERMISSIONS = {
 export const PRODUCT_FILE_MAX_BYTES = 4 * 1024 * 1024
 // Lampiran Prospek & Request Sample: semua format, maks 2 MB per file
 export const ATTACHMENT_MAX_BYTES = 2 * 1024 * 1024
+// Lampiran Prospek: video boleh sampai 10 MB (sama dengan materi Training); file lain tetap 2 MB
+export const VIDEO_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
 export const PRODUCT_FILE_ACCEPT = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'] as const
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]

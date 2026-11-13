@@ -10,7 +10,7 @@ import {
 } from './marketing'
 import { QuotationForm } from './quotation-page'
 import { DesignForm, SampleForm } from './request-page'
-import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
+import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, uploadPendingAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
 import { api, askReason, Field, formatDate, Modal, Notice, Pager, RowActions, useQuickAction, confirmDialog } from './ui'
 
 export type Prospect = {
@@ -34,6 +34,7 @@ export type Prospect = {
   next_followup_at: string | null
   last_activity_at: string | null
   catatan: string | null
+  kompetitor?: string | null
   created_by: number
   created_at: string
   assigned_name: string | null
@@ -290,6 +291,7 @@ function ProspectForm({ initial, users, sources, canSupervise, onClose, onSaved 
     sumber: initial?.sumber ?? '',
     kebutuhan: initial?.kebutuhan ?? '',
     estimasi_order: initial?.estimasi_order ?? '',
+    kompetitor: initial?.kompetitor ?? '',
     catatan: initial?.catatan ?? '',
     assigned_to: String(initial?.assigned_to ?? ''),
     next_followup_at: initial ? toInputDateTime(initial.next_followup_at) : nowInput(1, 10),
@@ -299,6 +301,8 @@ function ProspectForm({ initial, users, sources, canSupervise, onClose, onSaved 
   const [duplicate, setDuplicate] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // Lampiran foto / video saat tambah prospek: diunggah setelah prospek tersimpan
+  const [attachments, setAttachments] = useState<PendingAttachments>(emptyAttachments)
   const set = (key: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [key]: e.target.value }))
   const salesUsers = users.filter((u) => u.division_code !== 'marketing_digital')
 
@@ -313,7 +317,9 @@ function ProspectForm({ initial, users, sources, canSupervise, onClose, onSaved 
         onSaved('Prospek diperbarui.')
       } else {
         const res = await api<{ id: number }>('/api/prospects', { method: 'POST', json: payload })
-        onSaved('Prospek ditambahkan.', res.id)
+        const total = pendingCount(attachments)
+        const failed = total ? await uploadPendingAttachments(`/api/prospects/${res.id}/attachments`, attachments) : []
+        onSaved(failed.length ? `Prospek ditambahkan, tetapi ${failed.length} dari ${total} lampiran gagal diunggah: ${failed.join(' ')}` : `Prospek ditambahkan${total ? ` dengan ${total} lampiran` : ''}.`, res.id)
       }
     } catch (err) {
       const text = (err as Error).message
@@ -364,7 +370,17 @@ function ProspectForm({ initial, users, sources, canSupervise, onClose, onSaved 
             </select>
           </Field>
         )}
-        <Field label="Catatan" full><textarea className="pap-input" rows={2} maxLength={5000} value={values.catatan} onChange={set('catatan')} /></Field>
+        <Field label="Kompetitor / supplier lain" full hint="Supplier yang sekarang dipakai calon customer: nama, produk, harga, kelebihan / kekurangannya.">
+          <textarea className="pap-input" rows={2} maxLength={2000} value={values.kompetitor} onChange={set('kompetitor')} placeholder="Contoh: Ambil dari Toko Plastik Maju, HD 40x60 Rp 28.000/kg, sering telat kirim" />
+        </Field>
+        <Field label="Catatan threat/ kendala/ lainnya" full>
+          <textarea className="pap-input" rows={2} maxLength={5000} value={values.catatan} onChange={set('catatan')} placeholder="Contoh: harga kompetitor lebih murah, minimal order terlalu besar, keputusan di pemilik" />
+        </Field>
+        {!initial && (
+          <Field label="Lampiran foto / video" full>
+            <AttachmentInput value={attachments} onChange={setAttachments} allowVideo />
+          </Field>
+        )}
         <datalist id="pap-sektor">{['Laundry', 'F&B / Kuliner', 'Retail / Toko', 'Minimarket', 'Garmen / Konveksi', 'Farmasi', 'Bakery', 'Frozen food', 'Distributor', 'Pabrik'].map((s) => <option key={s} value={s} />)}</datalist>
       </form>
     </Modal>
@@ -581,7 +597,8 @@ function ProspectDetail({ id, autoEdit = false, user, users, onClose, onEdit, on
             <dd>{canEdit ? <input className="pap-input" type="datetime-local" defaultValue={toInputDateTime(item.next_followup_at)} key={item.next_followup_at ?? 'none'} onBlur={(e) => e.target.value !== toInputDateTime(item.next_followup_at) && patch({ next_followup_at: e.target.value }, 'Jadwal follow-up diperbarui.')} /> : formatDate(item.next_followup_at, true)}</dd>
           </div>
           <div><dt>Dibuat</dt><dd>{item.created_name} · {formatDate(item.created_at)}</dd></div>
-          {item.catatan && <div className="full"><dt>Catatan</dt><dd className="pap-prewrap">{item.catatan}</dd></div>}
+          {item.kompetitor && <div className="full"><dt>Kompetitor / supplier lain</dt><dd className="pap-prewrap">{item.kompetitor}</dd></div>}
+          {item.catatan && <div className="full"><dt>Catatan threat/ kendala/ lainnya</dt><dd className="pap-prewrap">{item.catatan}</dd></div>}
         </dl>
 
         <div className="pap-inline-actions pap-wrap">
@@ -601,7 +618,7 @@ function ProspectDetail({ id, autoEdit = false, user, users, onClose, onEdit, on
 
         {canFollowUp && <ActivityForm prospect={item} onSaved={(text) => changed(text)} />}
 
-        <AttachmentPanel basePath={`/api/prospects/${item.id}/attachments`} fileBase="/api/prospects/attachments" canAdd={canEdit} currentUserId={user.id} isAdmin={user.role.isAdmin} />
+        <AttachmentPanel title="Lampiran foto / video" basePath={`/api/prospects/${item.id}/attachments`} fileBase="/api/prospects/attachments" canAdd={canEdit} currentUserId={user.id} isAdmin={user.role.isAdmin} allowVideo />
 
         {visits.length > 0 && (
           <section className="pap-detail-section">
@@ -767,14 +784,15 @@ function CustomerLinkPanel({ prospect, onDone, onError }: { prospect: Prospect; 
 // ---- Impor CSV (Marketing Digital) ----
 const CSV_COLUMNS: [string, string][] = [
   ['nama_usaha', 'Nama usaha'], ['kontak_nama', 'Nama kontak'], ['telepon', 'No WA'], ['email', 'Email'], ['sektor', 'Sektor'],
-  ['alamat', 'Alamat'], ['kota', 'Kota'], ['sumber', 'Sumber'], ['kebutuhan', 'Kebutuhan'], ['estimasi_order', 'Estimasi order'], ['catatan', 'Catatan'],
+  ['alamat', 'Alamat'], ['kota', 'Kota'], ['sumber', 'Sumber'], ['kebutuhan', 'Kebutuhan'], ['estimasi_order', 'Estimasi order'], ['kompetitor', 'Kompetitor / supplier lain'], ['catatan', 'Catatan'],
 ]
 const HEADER_ALIASES: Record<string, string> = {
   nama: 'nama_usaha', 'nama usaha': 'nama_usaha', usaha: 'nama_usaha', perusahaan: 'nama_usaha', toko: 'nama_usaha',
   kontak: 'kontak_nama', 'nama kontak': 'kontak_nama', pic: 'kontak_nama', jabatan: 'kontak_jabatan',
   wa: 'telepon', 'no wa': 'telepon', whatsapp: 'telepon', hp: 'telepon', telepon: 'telepon', phone: 'telepon', 'no hp': 'telepon',
   email: 'email', sektor: 'sektor', alamat: 'alamat', kota: 'kota', sumber: 'sumber', kebutuhan: 'kebutuhan', produk: 'kebutuhan',
-  'estimasi order': 'estimasi_order', estimasi: 'estimasi_order', catatan: 'catatan', keterangan: 'catatan',
+  'estimasi order': 'estimasi_order', estimasi: 'estimasi_order', catatan: 'catatan', keterangan: 'catatan', kompetitor: 'kompetitor', supplier: 'kompetitor', 'supplier lain': 'kompetitor', 'kompetitor supplier lain': 'kompetitor',
+  'catatan threat/ kendala/ lainnya': 'catatan', threat: 'catatan', kendala: 'catatan',
 }
 
 // Parser CSV sederhana (koma atau titik koma, mendukung tanda kutip)

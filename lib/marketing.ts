@@ -105,6 +105,7 @@ export type ProspectInput = {
   sumber: string | null
   kebutuhan: string | null
   estimasi_order: string | null
+  kompetitor: string | null
   catatan: string | null
 }
 
@@ -126,6 +127,7 @@ export function readProspectInput(body: Record<string, unknown>): ProspectInput 
     sumber: opt('sumber', 60),
     kebutuhan: opt('kebutuhan', 500),
     estimasi_order: opt('estimasi_order', 150),
+    kompetitor: opt('kompetitor', 2000),
     catatan: opt('catatan', 5000),
   }
 }
