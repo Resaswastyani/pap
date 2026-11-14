@@ -1,10 +1,10 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
-import { fail, handle, int, readJson, requireUser, str, pageParams } from '@/lib/api'
+import { fail, handle, readJson, requireUser, pageParams } from '@/lib/api'
 import { db } from '@/lib/db'
 import {
-  canSupervise, isMarketing, logActivity, MARKETING_DIVISIONS, parseDateTime, PROSPECT_SELECT, PROSPECT_SOURCES, PROSPECT_STATUS,
-  prospectScope, readProspectInput, readProspectProducts, saveProspectProducts, requireMarketing, requireMarketingUser,
+  applyStatusFilter, canSupervise, isMarketing, logActivity, MARKETING_DIVISIONS, parseDateTime, PROSPECT_SELECT, PROSPECT_SOURCES,
+  prospectFilter, prospectScope, readProspectInput, readProspectProducts, saveProspectProducts, requireMarketing, requireMarketingUser,
 } from '@/lib/marketing'
 import { notify } from '@/lib/notifications'
 import { pushToUsers } from '@/lib/push'
@@ -17,32 +17,7 @@ export const GET = handle(async (request: Request) => {
   requireMarketing(user, 'prospek')
   const url = new URL(request.url)
   const scope = prospectScope(user)
-  const where = [scope.sql]
-  const params: (string | number)[] = [...scope.params]
-
-  const q = str(url.searchParams.get('q'), 100)
-  if (q) {
-    where.push('(p.nama_usaha LIKE ? OR p.kontak_nama LIKE ? OR p.telepon LIKE ? OR p.kota LIKE ? OR p.kebutuhan LIKE ?)')
-    params.push(...Array(5).fill(`%${q}%`))
-  }
-  const sumber = str(url.searchParams.get('sumber'), 60)
-  if (sumber) {
-    where.push('p.sumber = ?')
-    params.push(sumber)
-  }
-  const owner = url.searchParams.get('owner')
-  if (owner === 'me') {
-    where.push('(p.assigned_to = ? OR p.maintenance_to = ?)')
-    params.push(user.id, user.id)
-  } else if (owner === 'none') {
-    where.push('p.assigned_to IS NULL')
-  } else if (int(owner)) {
-    where.push('(p.assigned_to = ? OR p.maintenance_to = ?)')
-    params.push(int(owner)!, int(owner)!)
-  }
-  const followup = url.searchParams.get('followup')
-  if (followup === 'overdue') where.push("p.next_followup_at < CURDATE() AND p.status NOT IN ('gagal')")
-  else if (followup === 'today') where.push("DATE(p.next_followup_at) = CURDATE() AND p.status NOT IN ('gagal')")
+  const { where, params } = prospectFilter(user, url.searchParams)
 
   // Ringkasan funnel memakai filter yang sama kecuali status
   const [summaryRows] = await db.query<(RowDataPacket & { status: string; n: number })[]>(
@@ -55,13 +30,7 @@ export const GET = handle(async (request: Request) => {
     scope.params,
   )
 
-  const status = url.searchParams.get('status')
-  if (status && status in PROSPECT_STATUS) {
-    where.push('p.status = ?')
-    params.push(status)
-  } else if (status === 'aktif') {
-    where.push("p.status NOT IN ('handover', 'gagal')")
-  }
+  applyStatusFilter(where, params, url.searchParams.get('status'))
   const view = url.searchParams.get('view')
   const { page, pageSize } = pageParams(url.searchParams, PAGE_SIZE)
   // Tampilan kanban butuh semua kartu aktif sekaligus (dibatasi 600)

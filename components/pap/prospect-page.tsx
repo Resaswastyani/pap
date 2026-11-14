@@ -86,6 +86,18 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
   const [importing, setImporting] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
 
+  // Filter daftar (tanpa halaman) untuk unduh PDF / Excel / CSV
+  const exportQuery = useMemo(() => {
+    const p = new URLSearchParams()
+    if (q.trim()) p.set('q', q.trim())
+    p.set('status', view === 'kanban' ? 'aktif' : status || 'semua')
+    if (sumber) p.set('sumber', sumber)
+    if (owner) p.set('owner', owner)
+    if (followup) p.set('followup', followup)
+    return p.toString()
+  }, [q, status, view, sumber, owner, followup])
+  const [downloadOpen, setDownloadOpen] = useState(false)
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -129,7 +141,18 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
           <h1>Prospek</h1>
           <span>Pipeline calon customer: lead dari Marketing Digital, follow-up & visit Marketing Development, hingga handover ke Marketing Maintenance.</span>
         </div>
-        <div className="pap-inline-actions">
+        <div className="pap-inline-actions pap-wrap">
+          <div className="pap-download" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDownloadOpen(false) }}>
+            <button className="pap-btn" aria-haspopup="menu" aria-expanded={downloadOpen} onClick={() => setDownloadOpen((v) => !v)}><Download /> Unduh daftar</button>
+            {downloadOpen && (
+              <div className="pap-download-menu" role="menu">
+                <a role="menuitem" href={`/cetak/prospek?${exportQuery}`} target="_blank" rel="noreferrer" onClick={() => setDownloadOpen(false)}><FileText /> PDF<small>Buka halaman cetak, pilih Simpan sebagai PDF</small></a>
+                <a role="menuitem" href={`/api/prospects/export?format=xlsx&${exportQuery}`} onClick={() => setDownloadOpen(false)}><Download /> Excel (.xlsx)</a>
+                <a role="menuitem" href={`/api/prospects/export?format=csv&${exportQuery}`} onClick={() => setDownloadOpen(false)}><Download /> CSV</a>
+                <p>Sesuai filter yang sedang dipakai</p>
+              </div>
+            )}
+          </div>
           <button className="pap-btn" onClick={() => setImporting(true)}><Upload /> Impor Excel / CSV</button>
           <button className="pap-primary-button" onClick={() => setForm('new')}><Plus /> Tambah prospek</button>
         </div>
@@ -442,15 +465,15 @@ function ProductTable({ value, onChange }: { value: NeedItem[]; onChange: (value
               </div>
               <div className="pap-prod-fields">
                 <label><span>Jenis Plastik</span><input className="pap-input" list="pap-plastik" maxLength={40} value={n.jenis_plastik ?? ''} onChange={(e) => edit(i, { jenis_plastik: e.target.value })} placeholder="PP / HD / PE" /></label>
-                <label><span>Qty Kebutuhan (Kg)</span><input className="pap-input" inputMode="decimal" value={n.qty_kg ?? ''} onChange={(e) => edit(i, { qty_kg: e.target.value })} placeholder="2000" /></label>
-                <label><span>Harga / satuan (Rp)</span><input className="pap-input" inputMode="decimal" value={n.harga ?? ''} onChange={(e) => edit(i, { harga: e.target.value })} placeholder="50000" /></label>
+                <label><span>Qty Kebutuhan (Kg)</span><input className="pap-input" inputMode="decimal" value={n.qty_kg ?? ''} onChange={(e) => edit(i, { qty_kg: e.target.value })} placeholder="0" /></label>
+                <label><span>Harga / satuan (Rp)</span><input className="pap-input" inputMode="decimal" value={n.harga ?? ''} onChange={(e) => edit(i, { harga: e.target.value })} placeholder="0" /></label>
                 <label><span>Satuan Harga</span>
                   <select className="pap-select" value={n.satuan_harga ?? ''} onChange={(e) => edit(i, { satuan_harga: e.target.value })}>
                     <option value="">—</option>
                     {['Kg', 'Pcs', 'Lembar', 'Roll', 'Pack'].map((x) => <option key={x} value={x}>{x}</option>)}
                   </select>
                 </label>
-                <label><span>GPF/sat (Rp)</span><input className="pap-input" inputMode="decimal" value={n.gpf ?? ''} onChange={(e) => edit(i, { gpf: e.target.value })} placeholder="11500" /></label>
+                <label><span>GPF/sat (Rp)</span><input className="pap-input" inputMode="decimal" value={n.gpf ?? ''} onChange={(e) => edit(i, { gpf: e.target.value })} placeholder="0" /></label>
               </div>
               {n.estimasi ? <small className="pap-muted">Estimasi (data lama): {n.estimasi}</small> : null}
             </li>
@@ -497,9 +520,9 @@ function ProductList({ items }: { items: NeedItem[] }) {
               <td>{i + 1}</td>
               <td>{p.product_id ? <Package className="pap-inline-icon" /> : null}{p.label}{p.estimasi ? <div className="pap-cell-sub">{p.estimasi}</div> : null}</td>
               <td>{p.jenis_plastik || '—'}</td>
-              <td className="num">{fmtNum(p.qty_kg) || '—'}</td>
-              <td className="num">{p.harga !== null && p.harga !== undefined && p.harga !== '' ? `Rp ${fmtNum(p.harga)}${p.satuan_harga ? `/${p.satuan_harga.toLowerCase()}` : ''}` : '—'}</td>
-              <td className="num">{fmtNum(p.gpf) || '—'}</td>
+              <td className="num">{fmtNum(p.qty_kg) || '0'}</td>
+              <td className="num">Rp {fmtNum(p.harga) || '0'}{p.satuan_harga ? `/${p.satuan_harga.toLowerCase()}` : ''}</td>
+              <td className="num">{fmtNum(p.gpf) || '0'}</td>
             </tr>
           ))}
         </tbody>

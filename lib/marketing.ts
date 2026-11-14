@@ -320,3 +320,99 @@ export async function loadProspectProducts(prospectId: number) {
   )
   return rows.map((r) => ({ ...r, qty_kg: r.qty_kg === null ? null : Number(r.qty_kg), harga: r.harga === null ? null : Number(r.harga), gpf: r.gpf === null ? null : Number(r.gpf) }))
 }
+
+// ---- Filter daftar prospek (dipakai daftar, ekspor Excel/CSV & cetak PDF) ----
+export function prospectFilter(user: UserProfile, sp: URLSearchParams) {
+  const scope = prospectScope(user)
+  const where = [scope.sql]
+  const params: (string | number)[] = [...scope.params]
+  const q = str(sp.get('q'), 100)
+  if (q) {
+    where.push('(p.nama_usaha LIKE ? OR p.kontak_nama LIKE ? OR p.telepon LIKE ? OR p.kota LIKE ? OR p.kebutuhan LIKE ?)')
+    params.push(...Array(5).fill(`%${q}%`))
+  }
+  const sumber = str(sp.get('sumber'), 60)
+  if (sumber) {
+    where.push('p.sumber = ?')
+    params.push(sumber)
+  }
+  const owner = sp.get('owner')
+  if (owner === 'me') {
+    where.push('(p.assigned_to = ? OR p.maintenance_to = ?)')
+    params.push(user.id, user.id)
+  } else if (owner === 'none') {
+    where.push('p.assigned_to IS NULL')
+  } else if (int(owner)) {
+    where.push('(p.assigned_to = ? OR p.maintenance_to = ?)')
+    params.push(int(owner)!, int(owner)!)
+  }
+  const followup = sp.get('followup')
+  if (followup === 'overdue') where.push("p.next_followup_at < CURDATE() AND p.status NOT IN ('gagal')")
+  else if (followup === 'today') where.push("DATE(p.next_followup_at) = CURDATE() AND p.status NOT IN ('gagal')")
+  return { where, params }
+}
+
+export function applyStatusFilter(where: string[], params: (string | number)[], status: string | null) {
+  if (status && status in PROSPECT_STATUS) {
+    where.push('p.status = ?')
+    params.push(status)
+  } else if (status === 'aktif') {
+    where.push("p.status NOT IN ('handover', 'gagal')")
+  }
+}
+
+export type ProspectExportRow = RowDataPacket & {
+  id: number; nama_usaha: string; sektor: string | null; alamat: string | null; kota: string | null; kontak_nama: string | null; kontak_jabatan: string | null
+  telepon: string | null; kebutuhan: string | null; payment: string | null; kompetitor: string | null; catatan: string | null; status: string
+  assigned_name: string | null; next_followup_at: string | null
+  products: { label: string; jenis_plastik: string | null; qty_kg: number | null; harga: number | null; satuan_harga: string | null; gpf: number | null }[]
+}
+
+// Semua prospek sesuai filter daftar (maks 3000) beserta produknya, urut nama
+export async function prospectExport(user: UserProfile, sp: URLSearchParams) {
+  const { where, params } = prospectFilter(user, sp)
+  applyStatusFilter(where, params, sp.get('status'))
+  const [rows] = await db.query<ProspectExportRow[]>(
+    `SELECT p.id, p.nama_usaha, p.sektor, p.alamat, p.kota, p.kontak_nama, p.kontak_jabatan, p.telepon, p.kebutuhan, p.payment, p.kompetitor, p.catatan, p.status,
+       ua.name AS assigned_name, DATE_FORMAT(p.next_followup_at, '%Y-%m-%d %H:%i') AS next_followup_at
+     FROM prospects p LEFT JOIN users ua ON ua.id = p.assigned_to
+     WHERE ${where.join(' AND ')} ORDER BY p.nama_usaha, p.id LIMIT 3000`,
+    params,
+  )
+  if (rows.length) {
+    const [products] = await db.query<RowDataPacket[]>(
+      'SELECT prospect_id, label, jenis_plastik, qty_kg, harga, satuan_harga, gpf FROM prospect_products WHERE prospect_id IN (?) ORDER BY prospect_id, sort_order, id',
+      [rows.map((r) => r.id)],
+    )
+    const n = (v: unknown) => (v === null || v === undefined ? null : Number(v))
+    const byId = new Map<number, ProspectExportRow['products']>()
+    for (const p of products) byId.set(p.prospect_id, [...(byId.get(p.prospect_id) ?? []), { label: p.label, jenis_plastik: p.jenis_plastik, qty_kg: n(p.qty_kg), harga: n(p.harga), satuan_harga: p.satuan_harga, gpf: n(p.gpf) }])
+    for (const r of rows) {
+      r.products = byId.get(r.id) ?? []
+      // Prospek lama tanpa baris produk: kebutuhan dipecah per "; "
+      if (!r.products.length && r.kebutuhan) r.products = r.kebutuhan.split(/\s*;\s*/).filter(Boolean).map((label) => ({ label, jenis_plastik: null, qty_kg: null, harga: null, satuan_harga: null, gpf: null }))
+    }
+  }
+  return rows
+}
+
+// Kolom ekspor = kolom tabel Program Mkt Dev (bisa diimpor ulang) + status, sales, follow-up
+export const PROSPECT_EXPORT_HEAD = ['No', 'Nama Customer', 'Bidang Usaha', 'Alamat dll', 'Nama Kontak PIC', 'Nomor WhatsApp', 'Jenis Product - Spec', 'Jenis Plastik',
+  'Qty Kebutuhan (Kg)', 'Harga / satuan', 'Satuan Harga', 'GPF/sat', 'Payment', 'Kompetitor', 'Kendala', 'Status', 'Sales', 'Follow-up berikutnya']
+
+// Satu baris per produk; baris produk berikutnya hanya berisi kolom produk (format sama dengan file impor)
+export function prospectExportTable(rows: ProspectExportRow[]) {
+  const out: (string | number | null)[][] = []
+  rows.forEach((r, i) => {
+    const products = r.products.length ? r.products : [null]
+    products.forEach((p, k) => {
+      const head = k === 0
+        ? [i + 1, r.nama_usaha, r.sektor, r.alamat || r.kota, [r.kontak_nama, r.kontak_jabatan].filter(Boolean).join(' - ') || null, r.telepon ? `0${r.telepon.replace(/^62/, '')}` : null]
+        : [null, null, null, null, null, null]
+      const prod = p ? [p.label, p.jenis_plastik, p.qty_kg ?? 0, p.harga ?? 0, p.satuan_harga, p.gpf ?? 0] : [null, null, null, null, null, null]
+      const tail = k === 0 ? [r.payment, r.kompetitor, r.catatan, PROSPECT_STATUS[r.status as keyof typeof PROSPECT_STATUS] ?? r.status, r.assigned_name, r.next_followup_at] : [null, null, null, null, null, null]
+      out.push([...head, ...prod, ...tail])
+    })
+  })
+  return out
+}
