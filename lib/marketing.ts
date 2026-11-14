@@ -106,6 +106,7 @@ export type ProspectInput = {
   kebutuhan: string | null
   estimasi_order: string | null
   kompetitor: string | null
+  payment: string | null
   catatan: string | null
 }
 
@@ -128,6 +129,7 @@ export function readProspectInput(body: Record<string, unknown>): ProspectInput 
     kebutuhan: opt('kebutuhan', 500),
     estimasi_order: opt('estimasi_order', 150),
     kompetitor: opt('kompetitor', 2000),
+    payment: opt('payment', 255),
     catatan: opt('catatan', 5000),
   }
 }
@@ -255,16 +257,41 @@ export async function saveVisitSales(visitId: number, ids: number[]) {
   await db.query('UPDATE visits SET sales_id = ? WHERE id = ?', [ids[0], visitId])
 }
 
-// ---- Produk diminati prospek: dari Data Produk (product_id) atau teks bebas ----
-export type ProspectProduct = { product_id: number | null; label: string; estimasi: string | null }
+// ---- Produk diminati prospek (format tabel Program Mkt Dev): dari Data Produk (product_id) atau teks bebas ----
+export type ProspectProduct = {
+  product_id: number | null; label: string; estimasi: string | null
+  jenis_plastik: string | null; qty_kg: number | null; harga: number | null; satuan_harga: string | null; gpf: number | null
+}
 
-// body.products = [{ product_id, label, estimasi? }] (null = tidak dikirim, data lama tidak diubah)
+// Angka gaya Indonesia: "Rp 50.000/kg", "2.000", "45,5", 11500 -> number
+export function parseIdNumber(value: unknown) {
+  if (value === null || value === undefined || value === '') return null
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  let t = String(value).replace(/rp\.?/i, '').split('/')[0].replace(/\s+/g, '')
+  if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(t)) t = t.replace(/\./g, '').replace(',', '.')
+  else t = t.replace(',', '.')
+  const n = Number(t.replace(/[^\d.-]/g, ''))
+  return t && Number.isFinite(n) && /\d/.test(t) ? Math.round(n * 100) / 100 : null
+}
+const capital = (v: string) => (v ? v[0].toUpperCase() + v.slice(1).toLowerCase() : null)
+// Satuan dari teks harga ("Rp 350/pcs" -> Pcs)
+const satuanOf = (value: unknown) => {
+  const m = String(value ?? '').match(/\/\s*([a-z]+)/i)
+  return m ? m[1][0].toUpperCase() + m[1].slice(1).toLowerCase() : null
+}
+
+// body.products = [{ product_id, label, jenis_plastik, qty_kg, harga, satuan_harga, gpf, estimasi? }] (null = tidak dikirim, data lama tidak diubah)
 export function readProspectProducts(body: Record<string, unknown>): ProspectProduct[] | null {
   if (!Array.isArray(body.products)) return null
   const list: ProspectProduct[] = []
-  for (const raw of body.products.slice(0, 30) as { product_id?: unknown; label?: unknown; estimasi?: unknown }[]) {
+  for (const raw of body.products.slice(0, 60) as Record<string, unknown>[]) {
     const label = str(raw?.label, 255)
-    if (label && !list.some((p) => p.label.toLowerCase() === label.toLowerCase())) list.push({ product_id: int(raw?.product_id), label, estimasi: str(raw?.estimasi, 150) || null })
+    if (!label || list.some((p) => p.label.toLowerCase() === label.toLowerCase())) continue
+    list.push({
+      product_id: int(raw?.product_id), label, estimasi: str(raw?.estimasi, 150) || null,
+      jenis_plastik: str(raw?.jenis_plastik, 40) || null, qty_kg: parseIdNumber(raw?.qty_kg), harga: parseIdNumber(raw?.harga),
+      satuan_harga: capital(str(raw?.satuan_harga, 20)) || satuanOf(raw?.harga), gpf: parseIdNumber(raw?.gpf),
+    })
   }
   return list
 }
@@ -279,17 +306,17 @@ export async function saveProspectProducts(prospectId: number, products: Prospec
     const [rows] = await db.query<(RowDataPacket & { id: number })[]>('SELECT id FROM customer_products WHERE id IN (?)', [ids])
     for (const r of rows) valid.add(r.id)
   }
-  await db.query('INSERT INTO prospect_products (prospect_id, product_id, label, estimasi, sort_order) VALUES ?', [
-    products.map((p, i) => [prospectId, p.product_id && valid.has(p.product_id) ? p.product_id : null, p.label, p.estimasi, i + 1]),
+  await db.query('INSERT INTO prospect_products (prospect_id, product_id, label, estimasi, jenis_plastik, qty_kg, harga, satuan_harga, gpf, sort_order) VALUES ?', [
+    products.map((p, i) => [prospectId, p.product_id && valid.has(p.product_id) ? p.product_id : null, p.label, p.estimasi, p.jenis_plastik, p.qty_kg, p.harga, p.satuan_harga, p.gpf, i + 1]),
   ])
 }
 
 export async function loadProspectProducts(prospectId: number) {
   const [rows] = await db.query<RowDataPacket[]>(
-    `SELECT pp.product_id, pp.label, pp.estimasi, cp.nama, cp.jenis, cp.spesifikasi, cp.bahan
+    `SELECT pp.product_id, pp.label, pp.estimasi, pp.jenis_plastik, pp.qty_kg, pp.harga, pp.satuan_harga, pp.gpf, cp.nama, cp.jenis, cp.spesifikasi, cp.bahan
      FROM prospect_products pp LEFT JOIN customer_products cp ON cp.id = pp.product_id
      WHERE pp.prospect_id = ? ORDER BY pp.sort_order, pp.id`,
     [prospectId],
   )
-  return rows
+  return rows.map((r) => ({ ...r, qty_kg: r.qty_kg === null ? null : Number(r.qty_kg), harga: r.harga === null ? null : Number(r.harga), gpf: r.gpf === null ? null : Number(r.gpf) }))
 }

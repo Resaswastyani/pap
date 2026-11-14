@@ -264,7 +264,7 @@ function planFor(method: string, path: string): Plan | null {
   if (res === 'prospects' && isId(a) && b === 'customer')
     return { ...base, action: 'update', table: r.table, id: a, describe: (l) => `Menghubungkan prospek ${l} ke customer` }
   if (res === 'prospects' && a === 'import')
-    return { ...base, action: 'import', describe: () => 'Mengimpor data prospek' }
+    return method === 'DELETE' ? { ...base, action: 'delete', describe: () => 'Membatalkan impor prospek (dipindah ke Data Terhapus)' } : { ...base, action: 'import', describe: () => 'Mengimpor data prospek' }
   if (res === 'visits' && isId(a) && b === 'checkin')
     return { ...base, action: 'checkin', table: r.table, id: a, describe: (l) => `Check-in visit ${l}` }
   if (['samples', 'designs', 'quotations'].includes(res) && isId(a) && b === 'status')

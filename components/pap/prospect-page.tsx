@@ -35,6 +35,7 @@ export type Prospect = {
   last_activity_at: string | null
   catatan: string | null
   kompetitor?: string | null
+  payment?: string | null
   created_by: number
   created_at: string
   assigned_name: string | null
@@ -219,6 +220,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
 
       {form && (
         <ProspectForm
+          user={user}
           initial={form === 'new' ? null : form}
           users={data?.users ?? []}
           sources={data?.sources ?? []}
@@ -271,7 +273,8 @@ function Kanban({ items, onOpen }: { items: Prospect[]; onOpen: (id: number) => 
   )
 }
 
-function ProspectForm({ initial, users, sources, canSupervise, onClose, onSaved }: {
+function ProspectForm({ user, initial, users, canSupervise, onClose, onSaved }: {
+  user: UserProfile
   initial: Prospect | null
   users: MarketingUser[]
   sources: string[]
@@ -279,29 +282,30 @@ function ProspectForm({ initial, users, sources, canSupervise, onClose, onSaved 
   onClose: () => void
   onSaved: (message: string, id?: number) => void
 }) {
+  // Isian mengikuti tabel "Program Mkt Dev". Kolom lama (email, kota, sumber, estimasi) tidak ditampilkan tetapi tetap dikirim agar tidak terhapus.
   const [values, setValues] = useState({
     nama_usaha: initial?.nama_usaha ?? '',
     sektor: initial?.sektor ?? '',
-    kontak_nama: initial?.kontak_nama ?? '',
-    kontak_jabatan: initial?.kontak_jabatan ?? '',
+    alamat: initial?.alamat ?? '',
+    // Nama Kontak PIC = nama + jabatan dalam satu isian ("Ibu Surti - Purchasing")
+    kontak_nama: [initial?.kontak_nama, initial?.kontak_jabatan].filter(Boolean).join(' - '),
+    kontak_jabatan: '',
     telepon: initial?.telepon ?? '',
     email: initial?.email ?? '',
-    alamat: initial?.alamat ?? '',
     kota: initial?.kota ?? '',
     sumber: initial?.sumber ?? '',
-    kebutuhan: initial?.kebutuhan ?? '',
     estimasi_order: initial?.estimasi_order ?? '',
+    payment: initial?.payment ?? '',
     kompetitor: initial?.kompetitor ?? '',
     catatan: initial?.catatan ?? '',
     assigned_to: String(initial?.assigned_to ?? ''),
     next_followup_at: initial ? toInputDateTime(initial.next_followup_at) : nowInput(1, 10),
   })
-  // Produk diminati: terhubung ke Data Produk (product_id) atau teks bebas
-  const [products, setProducts] = useState<NeedItem[]>(() => initial?.products ?? splitNeeds(initial?.kebutuhan ?? '').map((label) => ({ product_id: null, label })))
+  const [products, setProducts] = useState<NeedItem[]>(() => (initial?.products?.length ? initial.products : splitNeeds(initial?.kebutuhan ?? '').map((label) => ({ product_id: null, label }))).map(withKey))
   const [duplicate, setDuplicate] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  // Lampiran foto / video saat tambah prospek: diunggah setelah prospek tersimpan
+  // Foto produk / lampiran saat tambah prospek: diunggah setelah prospek tersimpan (saat edit langsung lewat panel lampiran)
   const [attachments, setAttachments] = useState<PendingAttachments>(emptyAttachments)
   const set = (key: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [key]: e.target.value }))
   const salesUsers = users.filter((u) => u.division_code !== 'marketing_digital')
@@ -311,7 +315,8 @@ function ProspectForm({ initial, users, sources, canSupervise, onClose, onSaved 
     setSaving(true)
     setError('')
     try {
-      const payload = { ...values, products, assigned_to: canSupervise ? values.assigned_to || null : undefined, force }
+      const list = products.filter((p) => p.label.trim()).map(({ _k, ...p }) => ({ ...p, label: p.label.trim() }))
+      const payload = { ...values, products: list, assigned_to: canSupervise ? values.assigned_to || null : undefined, force }
       if (initial) {
         await api(`/api/prospects/${initial.id}`, { method: 'PATCH', json: payload })
         onSaved('Prospek diperbarui.')
@@ -343,71 +348,68 @@ function ProspectForm({ initial, users, sources, canSupervise, onClose, onSaved 
         {duplicate && (
           <div className="full"><Notice onClose={() => setDuplicate('')}>{duplicate} <button type="button" className="pap-link-button" onClick={(e) => { setDuplicate(''); submit(e as unknown as React.FormEvent, true) }}>Tetap simpan</button></Notice></div>
         )}
-        <Field label="Nama usaha / perusahaan"><input className="pap-input" required maxLength={200} value={values.nama_usaha} onChange={set('nama_usaha')} placeholder="Contoh: Laundry Bersih Jaya" /></Field>
-        <Field label="Sektor usaha"><input className="pap-input" list="pap-sektor" maxLength={120} value={values.sektor} onChange={set('sektor')} placeholder="Laundry, F&B, Retail, Garmen..." /></Field>
-        <Field label="Nama kontak (PIC)"><input className="pap-input" maxLength={150} value={values.kontak_nama} onChange={set('kontak_nama')} /></Field>
-        <Field label="Jabatan kontak"><input className="pap-input" maxLength={120} value={values.kontak_jabatan} onChange={set('kontak_jabatan')} placeholder="Owner, Purchasing, ..." /></Field>
-        <Field label="No. WhatsApp" hint="Format 08xx / 62xx, dipakai untuk tombol WhatsApp."><input className="pap-input" inputMode="tel" maxLength={40} value={values.telepon} onChange={set('telepon')} /></Field>
-        <Field label="Email"><input className="pap-input" type="email" maxLength={200} value={values.email} onChange={set('email')} /></Field>
-        <Field label="Alamat" full><input className="pap-input" maxLength={500} value={values.alamat} onChange={set('alamat')} /></Field>
-        <Field label="Kota"><input className="pap-input" maxLength={120} value={values.kota} onChange={set('kota')} /></Field>
-        <Field label="Sumber lead">
-          <select className="pap-select" value={values.sumber} onChange={set('sumber')}>
-            <option value="">—</option>
-            {sources.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+        <Field label="Nama Customer"><input className="pap-input" required maxLength={200} value={values.nama_usaha} onChange={set('nama_usaha')} placeholder="Contoh: PT. Star Global Interpack" /></Field>
+        <Field label="Bidang Usaha"><input className="pap-input" list="pap-sektor" maxLength={120} value={values.sektor} onChange={set('sektor')} placeholder="Plastik Cup, RPA, Briket, Garmen..." /></Field>
+        <Field label="Alamat dll" full><input className="pap-input" maxLength={500} value={values.alamat} onChange={set('alamat')} placeholder="Alamat lengkap atau kota" /></Field>
+        <Field label="Nama Kontak PIC"><input className="pap-input" maxLength={150} value={values.kontak_nama} onChange={set('kontak_nama')} placeholder="Contoh: Ibu Surti - Purchasing" /></Field>
+        <Field label="Nomor WhatsApp" hint="Format 08xx / 62xx, dipakai untuk tombol WhatsApp."><input className="pap-input" inputMode="tel" maxLength={40} value={values.telepon} onChange={set('telepon')} /></Field>
+        <Field label="Produk" full hint="Satu baris per produk: Jenis Product - Spec, Jenis Plastik, Qty Kebutuhan (Kg), Harga / satuan, Satuan Harga, GPF/sat. Bisa lebih dari satu produk.">
+          <ProductTable value={products} onChange={setProducts} />
         </Field>
-        <Field label="Produk diminati" full hint="Bisa lebih dari satu produk: pilih dari Data Produk atau ketik bebas lalu Enter, ulangi untuk produk berikutnya. Isi estimasi order per produk bila sudah diketahui.">
-          <ProductNeedPicker value={products} onChange={setProducts} />
-        </Field>
-        <Field label="Estimasi order total"><input className="pap-input" maxLength={150} value={values.estimasi_order} onChange={set('estimasi_order')} placeholder="Contoh: 200 kg / bulan" /></Field>
-        <Field label="Follow-up berikutnya"><input className="pap-input" type="datetime-local" value={values.next_followup_at} onChange={set('next_followup_at')} /></Field>
-        {canSupervise && (
-          <Field label="Sales (Marketing Development)" full>
+        <Field label="Payment"><input className="pap-input" list="pap-payment" maxLength={255} value={values.payment} onChange={set('payment')} placeholder="Contoh: TOP 30 Days, DP 50% Pelunasan COD" /></Field>
+        {canSupervise ? (
+          <Field label="Sales (Marketing Development)">
             <select className="pap-select" value={values.assigned_to} onChange={set('assigned_to')}>
               <option value="">Belum dibagikan</option>
               {salesUsers.map((u) => <option key={u.id} value={u.id}>{u.name} · {u.division_name}</option>)}
             </select>
           </Field>
-        )}
-        <Field label="Kompetitor / supplier lain" full hint="Supplier yang sekarang dipakai calon customer: nama, produk, harga, kelebihan / kekurangannya.">
-          <textarea className="pap-input" rows={2} maxLength={2000} value={values.kompetitor} onChange={set('kompetitor')} placeholder="Contoh: Ambil dari Toko Plastik Maju, HD 40x60 Rp 28.000/kg, sering telat kirim" />
+        ) : <div />}
+        <Field label="Kompetitor" full>
+          <textarea className="pap-input" rows={2} maxLength={2000} value={values.kompetitor} onChange={set('kompetitor')} placeholder="Supplier yang sekarang dipakai: nama, produk, harga, kelebihan / kekurangannya" />
         </Field>
-        <Field label="Catatan threat/ kendala/ lainnya" full>
-          <textarea className="pap-input" rows={2} maxLength={5000} value={values.catatan} onChange={set('catatan')} placeholder="Contoh: harga kompetitor lebih murah, minimal order terlalu besar, keputusan di pemilik" />
+        <Field label="Kendala" full>
+          <textarea className="pap-input" rows={2} maxLength={5000} value={values.catatan} onChange={set('catatan')} placeholder="Threat / kendala / catatan lain, mis. harga kompetitor lebih murah, minimal order terlalu besar" />
         </Field>
-        {!initial && (
-          <Field label="Lampiran foto / video" full>
-            <AttachmentInput value={attachments} onChange={setAttachments} allowVideo />
-          </Field>
-        )}
-        <datalist id="pap-sektor">{['Laundry', 'F&B / Kuliner', 'Retail / Toko', 'Minimarket', 'Garmen / Konveksi', 'Farmasi', 'Bakery', 'Frozen food', 'Distributor', 'Pabrik'].map((s) => <option key={s} value={s} />)}</datalist>
+        <Field label="Foto Produk / lampiran (file & link)" full hint={initial ? 'File dan link langsung tersimpan saat ditambahkan; bisa lebih dari satu.' : 'Bisa lebih dari satu file dan link; diunggah saat prospek disimpan.'}>
+          {initial
+            ? <AttachmentPanel title="Lampiran tersimpan" basePath={`/api/prospects/${initial.id}/attachments`} fileBase="/api/prospects/attachments" canAdd currentUserId={user.id} isAdmin={user.role.isAdmin} allowVideo />
+            : <AttachmentInput value={attachments} onChange={setAttachments} allowVideo />}
+        </Field>
+        <datalist id="pap-sektor">{['Plastik Cup', 'RPA', 'Briket', 'Garmen Lokal', 'Apparel & Shoes', 'Snack', 'Laundry', 'F&B / Kuliner', 'Retail / Toko', 'Distributor', 'Pabrik'].map((x) => <option key={x} value={x} />)}</datalist>
+        <datalist id="pap-payment">{['TOP 30 Days', 'TOP 60 Days', 'COD Full Quantity PO', 'DP 50% Pelunasan COD', 'DP 50% Pelunasan sblm kirim', 'DP 30% Pelunasan COD'].map((x) => <option key={x} value={x} />)}</datalist>
       </form>
     </Modal>
   )
 }
 
-// ---- Kebutuhan prospek: ambil dari master Data Produk (atau jenis produk), tetap bisa diketik bebas ----
+// ---- Produk prospek (format tabel Program Mkt Dev): dari Data Produk atau teks bebas ----
 type ProductOption = { id: number; nama: string; jenis: string | null; spesifikasi: string | null; bahan: string | null; customer_name: string | null }
 const splitNeeds = (text: string) => text.split(/\s*;\s*/).map((t) => t.trim()).filter(Boolean)
-export type NeedItem = { product_id: number | null; label: string; estimasi?: string | null; jenis?: string | null; spesifikasi?: string | null; bahan?: string | null }
+export type NeedItem = {
+  product_id: number | null; label: string; estimasi?: string | null
+  jenis_plastik?: string | null; qty_kg?: number | string | null; harga?: number | string | null; satuan_harga?: string | null; gpf?: number | string | null
+  jenis?: string | null; spesifikasi?: string | null; bahan?: string | null; _k?: number
+}
+let needKey = 0
+const withKey = (n: NeedItem): NeedItem => ({ ...n, _k: ++needKey })
+const PLASTIK = ['HD', 'PP', 'PE', 'PP KW', 'LDPE', 'LLDPE', 'OPP', 'CPP']
+const plastikOf = (p: ProductOption) => PLASTIK.find((j) => j === (p.jenis ?? '').toUpperCase() || new RegExp(`\\b${j}\\b`, 'i').test(p.nama)) ?? null
+const fmtNum = (v: number | string | null | undefined) => (v === null || v === undefined || v === '' ? '' : Number(v).toLocaleString('id-ID', { maximumFractionDigits: 2 }))
 
-function ProductNeedPicker({ value, onChange }: { value: NeedItem[]; onChange: (value: NeedItem[]) => void }) {
+function ProductTable({ value, onChange }: { value: NeedItem[]; onChange: (value: NeedItem[]) => void }) {
   const [term, setTerm] = useState('')
   const [open, setOpen] = useState(false)
   const [options, setOptions] = useState<ProductOption[]>([])
-  const [jenisList, setJenisList] = useState<string[]>([])
-  const needs = value
 
   useEffect(() => {
     if (!open) return
     const timer = setTimeout(() => {
-      api<{ items: ProductOption[]; jenis: string[] }>(`/api/products?status=aktif&q=${encodeURIComponent(term)}`)
+      api<{ items: ProductOption[] }>(`/api/products?status=aktif&q=${encodeURIComponent(term)}`)
         .then((res) => {
           // Produk sama dipesan banyak customer: tampilkan satu per nama
           const seen = new Set<string>()
           setOptions(res.items.filter((p) => !seen.has(p.nama.toLowerCase()) && seen.add(p.nama.toLowerCase())).slice(0, 15))
-          setJenisList(res.jenis)
         })
         .catch(() => {})
     }, 250)
@@ -416,56 +418,92 @@ function ProductNeedPicker({ value, onChange }: { value: NeedItem[]; onChange: (
 
   const add = (text: string, product?: ProductOption) => {
     const clean = text.trim().replace(/;/g, ',')
-    if (!clean || needs.some((n) => n.label.toLowerCase() === clean.toLowerCase())) return
-    onChange([...needs, { product_id: product?.id ?? null, label: clean, estimasi: null, jenis: product?.jenis, spesifikasi: product?.spesifikasi, bahan: product?.bahan }])
+    if (!clean || value.some((n) => n.label.trim().toLowerCase() === clean.toLowerCase())) return
+    onChange([...value, withKey({ product_id: product?.id ?? null, label: clean, jenis_plastik: product ? plastikOf(product) : null, satuan_harga: 'Kg', jenis: product?.jenis, spesifikasi: product?.spesifikasi, bahan: product?.bahan })])
     setTerm('')
   }
-  const remove = (i: number) => onChange(needs.filter((_, idx) => idx !== i))
-  const setEstimasi = (i: number, estimasi: string) => onChange(needs.map((n, idx) => (idx === i ? { ...n, estimasi } : n)))
+  const blank = () => onChange([...value, withKey({ product_id: null, label: '', satuan_harga: 'Kg' })])
+  const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i))
+  const edit = (i: number, patch: Partial<NeedItem>) => onChange(value.map((n, idx) => (idx === i ? { ...n, ...patch, ...(patch.label !== undefined && patch.label !== n.label ? { product_id: null } : {}) } : n)))
 
   return (
     <div className="pap-need-picker">
-      {needs.length > 0 && (
-        <ol className="pap-need-rows">
-          {needs.map((n, i) => (
-            <li key={n.label}>
-              <span className="pap-need-no">{i + 1}</span>
-              <span className="pap-need-name" title={n.product_id ? 'Terhubung ke Data Produk' : 'Teks bebas (belum ada di Data Produk)'}>
-                <strong>{n.product_id ? <Package className="pap-inline-icon" /> : null}{n.label}</strong>
-                {n.product_id && (n.spesifikasi || n.bahan) ? <small>{[n.spesifikasi, n.bahan].filter(Boolean).join(' · ')}</small> : null}
-              </span>
-              <input className="pap-input" maxLength={150} value={n.estimasi ?? ''} onChange={(e) => setEstimasi(i, e.target.value)} placeholder="Estimasi order, mis. 200 kg/bulan" aria-label={`Estimasi order ${n.label}`} />
-              <button type="button" className="pap-icon-button" aria-label={`Hapus ${n.label}`} title="Hapus produk" onClick={() => remove(i)}><Trash2 /></button>
+      {value.length > 0 && (
+        <ol className="pap-prod-rows">
+          {value.map((n, i) => (
+            <li key={n._k ?? i}>
+              <div className="pap-prod-top">
+                <span className="pap-need-no">{i + 1}</span>
+                <label className="pap-prod-spec">
+                  <span>Jenis Product - Spec{n.product_id ? <em> · <Package className="pap-inline-icon" /> Data Produk</em> : null}</span>
+                  <input className="pap-input" maxLength={255} value={n.label} onChange={(e) => edit(i, { label: e.target.value })} placeholder="Contoh: PP Kantong Uk. 16x75x025 2W 22 OZ" />
+                </label>
+                <button type="button" className="pap-icon-button" aria-label={`Hapus produk ${i + 1}`} title="Hapus produk" onClick={() => remove(i)}><Trash2 /></button>
+              </div>
+              <div className="pap-prod-fields">
+                <label><span>Jenis Plastik</span><input className="pap-input" list="pap-plastik" maxLength={40} value={n.jenis_plastik ?? ''} onChange={(e) => edit(i, { jenis_plastik: e.target.value })} placeholder="PP / HD / PE" /></label>
+                <label><span>Qty Kebutuhan (Kg)</span><input className="pap-input" inputMode="decimal" value={n.qty_kg ?? ''} onChange={(e) => edit(i, { qty_kg: e.target.value })} placeholder="2000" /></label>
+                <label><span>Harga / satuan (Rp)</span><input className="pap-input" inputMode="decimal" value={n.harga ?? ''} onChange={(e) => edit(i, { harga: e.target.value })} placeholder="50000" /></label>
+                <label><span>Satuan Harga</span>
+                  <select className="pap-select" value={n.satuan_harga ?? ''} onChange={(e) => edit(i, { satuan_harga: e.target.value })}>
+                    <option value="">—</option>
+                    {['Kg', 'Pcs', 'Lembar', 'Roll', 'Pack'].map((x) => <option key={x} value={x}>{x}</option>)}
+                  </select>
+                </label>
+                <label><span>GPF/sat (Rp)</span><input className="pap-input" inputMode="decimal" value={n.gpf ?? ''} onChange={(e) => edit(i, { gpf: e.target.value })} placeholder="11500" /></label>
+              </div>
+              {n.estimasi ? <small className="pap-muted">Estimasi (data lama): {n.estimasi}</small> : null}
             </li>
           ))}
         </ol>
       )}
-      <div className="pap-combo">
-        <input
-          className="pap-input"
-          value={term}
-          placeholder={needs.length ? '+ Tambah produk lain: cari di Data Produk atau ketik, tekan Enter...' : 'Cari di Data Produk atau ketik kebutuhan, tekan Enter...'}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-          onChange={(e) => setTerm(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(term) } }}
-        />
-        {open && (
-          <ul className="pap-combo-list">
-            {term.trim() && <li><button type="button" onMouseDown={(e) => { e.preventDefault(); add(term) }}><strong>Tambah "{term.trim()}"</strong><small>Ketik bebas (produk baru / custom)</small></button></li>}
-            {options.filter((p) => !needs.some((n) => n.label.toLowerCase() === p.nama.toLowerCase())).map((p) => (
-              <li key={p.id}><button type="button" onMouseDown={(e) => { e.preventDefault(); add(p.nama, p) }}><strong>{p.nama}</strong><small>{[p.jenis, p.spesifikasi, p.bahan].filter(Boolean).join(' · ') || 'Data Produk'}</small></button></li>
-            ))}
-            {!options.length && !term.trim() && <li className="pap-combo-empty">Ketik untuk mencari produk.</li>}
-          </ul>
-        )}
-      </div>
-      {jenisList.length > 0 && (
-        <div className="pap-need-jenis">
-          <span>Tambah cepat:</span>
-          {jenisList.map((j) => <button key={j} type="button" onClick={() => add(['HD', 'PP', 'PE'].includes(j) ? `Kantong ${j}` : j)}>+ {j}</button>)}
+      <div className="pap-prod-add">
+        <button type="button" className="pap-btn" onClick={blank}><Plus /> Tambah produk</button>
+        <div className="pap-combo">
+          <input
+            className="pap-input"
+            value={term}
+            placeholder="atau cari di Data Produk, tekan Enter untuk menambah..."
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 150)}
+            onChange={(e) => setTerm(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(term) } }}
+          />
+          {open && (
+            <ul className="pap-combo-list">
+              {term.trim() && <li><button type="button" onMouseDown={(e) => { e.preventDefault(); add(term) }}><strong>Tambah "{term.trim()}"</strong><small>Ketik bebas (produk baru / custom)</small></button></li>}
+              {options.filter((p) => !value.some((n) => n.label.trim().toLowerCase() === p.nama.toLowerCase())).map((p) => (
+                <li key={p.id}><button type="button" onMouseDown={(e) => { e.preventDefault(); add(p.nama, p) }}><strong>{p.nama}</strong><small>{[p.jenis, p.spesifikasi, p.bahan].filter(Boolean).join(' · ') || 'Data Produk'}</small></button></li>
+              ))}
+              {!options.length && !term.trim() && <li className="pap-combo-empty">Ketik untuk mencari produk.</li>}
+            </ul>
+          )}
         </div>
-      )}
+      </div>
+      <datalist id="pap-plastik">{PLASTIK.map((x) => <option key={x} value={x} />)}</datalist>
+    </div>
+  )
+}
+
+// Tabel produk di detail prospek
+function ProductList({ items }: { items: NeedItem[] }) {
+  return (
+    <div className="pap-table-wrap">
+      <table className="pap-prod-table">
+        <thead><tr><th>No</th><th>Jenis Product - Spec</th><th>Jenis Plastik</th><th className="num">Qty (Kg)</th><th className="num">Harga / satuan</th><th className="num">GPF/sat</th></tr></thead>
+        <tbody>
+          {items.map((p, i) => (
+            <tr key={i}>
+              <td>{i + 1}</td>
+              <td>{p.product_id ? <Package className="pap-inline-icon" /> : null}{p.label}{p.estimasi ? <div className="pap-cell-sub">{p.estimasi}</div> : null}</td>
+              <td>{p.jenis_plastik || '—'}</td>
+              <td className="num">{fmtNum(p.qty_kg) || '—'}</td>
+              <td className="num">{p.harga !== null && p.harga !== undefined && p.harga !== '' ? `Rp ${fmtNum(p.harga)}${p.satuan_harga ? `/${p.satuan_harga.toLowerCase()}` : ''}` : '—'}</td>
+              <td className="num">{fmtNum(p.gpf) || '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -590,7 +628,7 @@ function ProspectDetail({ id, autoEdit = false, user, users, onClose, onEdit, on
           <div><dt>Kontak</dt><dd>{item.kontak_nama ?? '—'}{item.kontak_jabatan ? ` · ${item.kontak_jabatan}` : ''}</dd></div>
           <div><dt>Telepon / email</dt><dd>{item.telepon ? <a href={`tel:+${item.telepon}`}><Phone className="pap-inline-icon" /> +{item.telepon}</a> : '—'}{item.email && <><br /><a href={`mailto:${item.email}`}><Mail className="pap-inline-icon" /> {item.email}</a></>}</dd></div>
           <div><dt>Alamat</dt><dd>{[item.alamat, item.kota].filter(Boolean).join(', ') || '—'}</dd></div>
-          <div><dt>Kebutuhan</dt><dd>{item.products?.length ? <span className="pap-need-chips">{item.products.map((p) => <span key={p.label} className={`pap-need-chip ${p.product_id ? '' : 'free'}`}>{p.product_id ? <Package className="pap-inline-icon" /> : null}{p.label}{p.estimasi ? <small className="pap-need-qty">· {p.estimasi}</small> : null}</span>)}</span> : item.kebutuhan ?? '—'}{item.estimasi_order && <><br /><small className="pap-muted">Estimasi: {item.estimasi_order}</small></>}</dd></div>
+          <div><dt>Payment</dt><dd>{item.payment || '—'}{item.estimasi_order && <><br /><small className="pap-muted">Estimasi: {item.estimasi_order}</small></>}</dd></div>
           <div>
             <dt>Sales</dt>
             <dd>
@@ -608,8 +646,9 @@ function ProspectDetail({ id, autoEdit = false, user, users, onClose, onEdit, on
             <dd>{canEdit ? <input className="pap-input" type="datetime-local" defaultValue={toInputDateTime(item.next_followup_at)} key={item.next_followup_at ?? 'none'} onBlur={(e) => e.target.value !== toInputDateTime(item.next_followup_at) && patch({ next_followup_at: e.target.value }, 'Jadwal follow-up diperbarui.')} /> : formatDate(item.next_followup_at, true)}</dd>
           </div>
           <div><dt>Dibuat</dt><dd>{item.created_name} · {formatDate(item.created_at)}</dd></div>
-          {item.kompetitor && <div className="full"><dt>Kompetitor / supplier lain</dt><dd className="pap-prewrap">{item.kompetitor}</dd></div>}
-          {item.catatan && <div className="full"><dt>Catatan threat/ kendala/ lainnya</dt><dd className="pap-prewrap">{item.catatan}</dd></div>}
+          <div className="full"><dt>Produk</dt><dd>{item.products?.length ? <ProductList items={item.products} /> : item.kebutuhan ?? '—'}</dd></div>
+          {item.kompetitor && <div className="full"><dt>Kompetitor</dt><dd className="pap-prewrap">{item.kompetitor}</dd></div>}
+          {item.catatan && <div className="full"><dt>Kendala</dt><dd className="pap-prewrap">{item.catatan}</dd></div>}
         </dl>
 
         <div className="pap-inline-actions pap-wrap">
@@ -629,7 +668,7 @@ function ProspectDetail({ id, autoEdit = false, user, users, onClose, onEdit, on
 
         {canFollowUp && <ActivityForm prospect={item} onSaved={(text) => changed(text)} />}
 
-        <AttachmentPanel title="Lampiran foto / video" basePath={`/api/prospects/${item.id}/attachments`} fileBase="/api/prospects/attachments" canAdd={canEdit} currentUserId={user.id} isAdmin={user.role.isAdmin} allowVideo />
+        <AttachmentPanel title="Foto Produk / lampiran" basePath={`/api/prospects/${item.id}/attachments`} fileBase="/api/prospects/attachments" canAdd={canEdit} currentUserId={user.id} isAdmin={user.role.isAdmin} allowVideo />
 
         {visits.length > 0 && (
           <section className="pap-detail-section">
@@ -792,22 +831,60 @@ function CustomerLinkPanel({ prospect, onDone, onError }: { prospect: Prospect; 
   )
 }
 
-// ---- Impor CSV (Marketing Digital) ----
+// ---- Impor Excel / CSV: kolom sama dengan tabel "Program Mkt Dev" ----
 const CSV_COLUMNS: [string, string][] = [
-  ['nama_usaha', 'Nama usaha'], ['kontak_nama', 'Nama kontak'], ['telepon', 'No WA'], ['email', 'Email'], ['sektor', 'Sektor'],
-  ['alamat', 'Alamat'], ['kota', 'Kota'], ['sumber', 'Sumber'], ['kebutuhan', 'Kebutuhan'], ['estimasi_order', 'Estimasi order'], ['kompetitor', 'Kompetitor / supplier lain'], ['catatan', 'Catatan'],
+  ['nama_usaha', 'Nama Customer'], ['sektor', 'Bidang Usaha'], ['alamat', 'Alamat dll'], ['kontak_nama', 'Nama Kontak PIC'], ['telepon', 'Nomor WhatsApp'],
+  ['kebutuhan', 'Jenis Product - Spec'], ['jenis_plastik', 'Jenis Plastik'], ['qty_kg', 'Qty Kebutuhan (Kg)'], ['harga', 'Harga / satuan'], ['satuan_harga', 'Satuan Harga'],
+  ['gpf', 'GPF/sat'], ['payment', 'Payment'], ['kompetitor', 'Kompetitor'], ['catatan', 'Kendala'],
 ]
-const PREVIEW_COLUMNS = CSV_COLUMNS.filter(([k]) => ['nama_usaha', 'kontak_nama', 'telepon', 'sektor', 'kota'].includes(k))
-type ImportRow = Record<string, string> & { products?: { label: string; estimasi: string }[] }
+const PRODUCT_KEYS = ['jenis_plastik', 'qty_kg', 'harga', 'satuan_harga', 'gpf'] as const
+type ImportProduct = { label: string; jenis_plastik?: string; qty_kg?: string; harga?: string; satuan_harga?: string; gpf?: string; estimasi?: string }
+type ImportRow = Record<string, string> & { products?: ImportProduct[] }
+type ImportBatch = { batch: string; waktu: string; jumlah: number; oleh: string; contoh: string; aktivitas: number }
+// Judul kolom lain yang tetap dikenali (template lama, file sendiri)
 const HEADER_ALIASES: Record<string, string> = {
-  nama: 'nama_usaha', 'nama usaha': 'nama_usaha', usaha: 'nama_usaha', perusahaan: 'nama_usaha', toko: 'nama_usaha',
-  kontak: 'kontak_nama', 'nama kontak': 'kontak_nama', pic: 'kontak_nama', jabatan: 'kontak_jabatan',
-  wa: 'telepon', 'no wa': 'telepon', whatsapp: 'telepon', hp: 'telepon', telepon: 'telepon', phone: 'telepon', 'no hp': 'telepon',
-  email: 'email', sektor: 'sektor', alamat: 'alamat', kota: 'kota', sumber: 'sumber', kebutuhan: 'kebutuhan', produk: 'kebutuhan',
-  'estimasi order': 'estimasi_order', estimasi: 'estimasi_order', catatan: 'catatan', keterangan: 'catatan', kompetitor: 'kompetitor', supplier: 'kompetitor', 'supplier lain': 'kompetitor', 'kompetitor supplier lain': 'kompetitor',
-  'catatan threat/ kendala/ lainnya': 'catatan', threat: 'catatan', kendala: 'catatan',
-  'nama customer': 'nama_usaha', 'nama cust': 'nama_usaha', customer: 'nama_usaha', 'bidang usaha': 'sektor', 'jabatan kontak': 'kontak_jabatan',
-  'produk diminati': 'kebutuhan', 'estimasi order per produk': 'estimasi_order',
+  no: '_no', nama: 'nama_usaha', 'nama usaha': 'nama_usaha', usaha: 'nama_usaha', perusahaan: 'nama_usaha', toko: 'nama_usaha', customer: 'nama_usaha', 'nama cust': 'nama_usaha', 'nama pelanggan': 'nama_usaha',
+  kontak: 'kontak_nama', 'nama kontak': 'kontak_nama', pic: 'kontak_nama', jabatan: 'kontak_jabatan', 'jabatan kontak': 'kontak_jabatan',
+  wa: 'telepon', 'no wa': 'telepon', 'nomor wa': 'telepon', 'no whatsapp': 'telepon', 'no. wa': 'telepon', 'no. whatsapp': 'telepon', 'nomor hp': 'telepon', 'no telp': 'telepon', whatsapp: 'telepon', hp: 'telepon', telepon: 'telepon', phone: 'telepon', 'no hp': 'telepon',
+  email: 'email', sektor: 'sektor', 'sektor usaha': 'sektor', alamat: 'alamat', kota: 'kota', sumber: 'sumber',
+  kebutuhan: 'kebutuhan', produk: 'kebutuhan', 'produk diminati': 'kebutuhan', 'jenis product': 'kebutuhan', 'jenis produk - spec': 'kebutuhan', 'jenis produk': 'kebutuhan',
+  qty: 'qty_kg', 'qty (kg)': 'qty_kg', 'qty kebutuhan': 'qty_kg', harga: 'harga', 'harga/satuan': 'harga', satuan: 'satuan_harga', gpf: 'gpf', 'gpf / sat': 'gpf',
+  'estimasi order': 'estimasi_order', estimasi: 'estimasi_order', catatan: 'catatan', keterangan: 'catatan', 'catatan threat/ kendala/ lainnya': 'catatan', threat: 'catatan', kendala: 'catatan',
+  supplier: 'kompetitor', 'supplier lain': 'kompetitor', 'kompetitor / supplier lain': 'kompetitor', 'kompetitor supplier lain': 'kompetitor', pembayaran: 'payment',
+}
+const productOf = (r: Record<string, string>): ImportProduct => ({
+  label: r.kebutuhan, ...Object.fromEntries(PRODUCT_KEYS.filter((k) => r[k]).map((k) => [k, r[k]])),
+})
+const addLine = (text: string | undefined, line: string) => [text, line].filter(Boolean).join('\n')
+
+// Baris file -> prospek. Baris tanpa Nama Customer di bawah prospek = produk tambahan / kontak lain prospek itu.
+function groupImportRows(parsed: Record<string, string>[]) {
+  const data: ImportRow[] = []
+  for (const raw of parsed) {
+    const r = { ...raw }
+    // Nama tertulis di kolom No ("12 Ciomas Adi Satwa")
+    if (!r.nama_usaha && /^\d+\s+\D/.test(r._no ?? '')) r.nama_usaha = r._no.replace(/^\d+\s+/, '')
+    delete r._no
+    if (r.nama_usaha) {
+      const row: ImportRow = { ...r }
+      if (r.kebutuhan) row.products = r.kebutuhan.includes(';') && !PRODUCT_KEYS.some((k) => r[k]) ? r.kebutuhan.split(/\s*;\s*/).filter(Boolean).map((label) => ({ label })) : [productOf(r)]
+      if (row.products?.length === 1 && r.estimasi_order) row.products[0].estimasi = r.estimasi_order
+      // Kolom "Alamat dll" yang hanya berisi kota -> juga jadi Kota (untuk filter & jadwal visit)
+      if (!row.kota && row.alamat && row.alamat.length <= 40 && !/\d/.test(row.alamat)) row.kota = row.alamat
+      data.push(row)
+      continue
+    }
+    const prev = data.at(-1)
+    if (!prev) continue
+    if (r.kebutuhan && !prev.products?.some((p) => p.label.toLowerCase() === r.kebutuhan.toLowerCase())) (prev.products ??= []).push(productOf(r))
+    if (r.payment && !prev.payment) prev.payment = r.payment
+    const kontak = [r.kontak_nama, r.kontak_jabatan, r.telepon].filter(Boolean).join(' · ')
+    if (kontak) prev.catatan = addLine(prev.catatan, `Kontak lain: ${kontak}`)
+    if (r.catatan) prev.catatan = addLine(prev.catatan, r.catatan)
+    if (r.kompetitor) prev.kompetitor = addLine(prev.kompetitor, r.kompetitor)
+  }
+  for (const r of data) if (r.products?.length) r.kebutuhan = r.products.map((p) => p.label).join('; ')
+  return data
 }
 
 // Parser CSV sederhana (koma atau titik koma, mendukung tanda kutip)
@@ -845,8 +922,12 @@ function ImportModal({ users, canSupervise, onClose, onDone }: { users: Marketin
   const [saving, setSaving] = useState(false)
   const [reading, setReading] = useState(false)
   const [error, setError] = useState('')
+  const [batches, setBatches] = useState<ImportBatch[]>([])
+  const [undoing, setUndoing] = useState('')
   const salesUsers = users.filter((u) => u.division_code !== 'marketing_digital')
-  const template = useMemo(() => `data:text/csv;charset=utf-8,${encodeURIComponent(`${CSV_COLUMNS.map(([, l]) => l).join(',')}\nLaundry Bersih Jaya,Budi,081234567890,,Laundry,Jl. Melati 5,Sidoarjo,Instagram,Kantong laundry HD 40x60,200 kg/bulan,\n`)}`, [])
+  const template = useMemo(() => `data:text/csv;charset=utf-8,${encodeURIComponent(`${CSV_COLUMNS.map(([, l]) => l).join(',')}\nPT. Contoh Plastik Jaya,Plastik Cup,Sukoharjo,Ibu Surti - Purchasing,081234567890,PP Kantong Uk. 16x75x025 2W 22 OZ,PP,2000,Rp 50.000/kg,Kg,11500,TOP 30 Days,,\n,,,,,PP Kantong Uk. 16x61x03 2W 14 OZ,PP,1000,Rp 50.000/kg,Kg,11500,,,\n`)}`, [])
+  const loadBatches = useCallback(() => { api<{ items: ImportBatch[] }>('/api/prospects/import').then((r) => setBatches(r.items)).catch(() => {}) }, [])
+  useEffect(loadBatches, [loadBatches])
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -872,38 +953,17 @@ function ImportModal({ users, canSupervise, onClose, onDone }: { users: Marketin
       return setError('File Excel 97-2003 (.xls) belum didukung. Buka di Excel lalu Simpan Sebagai "Excel Workbook (.xlsx)".')
     } else table = parseCsv(await file.text())
     if (table.length < 2) return setError('File kosong atau hanya berisi judul kolom.')
-    // Baris judul = baris pertama yang memuat kolom Nama usaha (judul laporan di atas tabel dilewati)
+    // Baris judul = baris pertama yang memuat kolom Nama Cust (judul laporan di atas tabel dilewati)
     const keyOf = (h: string) => {
       const key = String(h ?? '').trim().toLowerCase().replace(/[_*]/g, ' ').replace(/\s+/g, ' ')
-      return HEADER_ALIASES[key] ?? CSV_COLUMNS.find(([k, l]) => k === key.replace(/ /g, '_') || l.toLowerCase() === key)?.[0] ?? null
+      return CSV_COLUMNS.find(([k, l]) => k === key.replace(/ /g, '_') || l.toLowerCase() === key)?.[0] ?? HEADER_ALIASES[key] ?? null
     }
     const headIdx = table.slice(0, 10).findIndex((r) => r.map(keyOf).includes('nama_usaha'))
-    if (headIdx < 0) return setError('Kolom "Nama usaha" tidak ditemukan. Gunakan template Excel atau CSV.')
+    if (headIdx < 0) return setError('Kolom "Nama Customer" tidak ditemukan. Gunakan template Excel atau CSV.')
     const keys = table[headIdx].map(keyOf)
     const parsed = table.slice(headIdx + 1).map((cells) => Object.fromEntries(keys.map((k, i) => [k, String(cells[i] ?? '').trim()]).filter(([k]) => k)) as Record<string, string>)
-    // Baris tanpa Nama usaha di bawah sebuah prospek = produk tambahan prospek itu (Kebutuhan + Estimasi order per baris);
-    // kontak tambahan di baris lanjutan dicatat di Catatan
-    const data: ImportRow[] = []
-    for (const r of parsed) {
-      const prev = data.at(-1)
-      if (r.nama_usaha) {
-        data.push({ ...r })
-        continue
-      }
-      if (!prev) continue
-      if (r.kebutuhan) {
-        prev.products ??= prev.kebutuhan ? [{ label: prev.kebutuhan, estimasi: prev.estimasi_order ?? '' }] : []
-        if (!prev.products.some((p) => p.label.toLowerCase() === r.kebutuhan.toLowerCase())) prev.products.push({ label: r.kebutuhan, estimasi: r.estimasi_order ?? '' })
-      }
-      const kontak = [r.kontak_nama, r.kontak_jabatan, r.telepon].filter(Boolean).join(' · ')
-      if (kontak) prev.catatan = [prev.catatan, `Kontak lain: ${kontak}`].filter(Boolean).join('\n')
-    }
-    // Produk lebih dari satu: estimasi per produk, estimasi total dikosongkan
-    for (const r of data) {
-      if (r.products && r.products.length > 1) { r.kebutuhan = r.products.map((p) => p.label).join('; '); r.estimasi_order = '' }
-      else if (!r.products && r.kebutuhan && !r.kebutuhan.includes(';')) r.products = [{ label: r.kebutuhan, estimasi: r.estimasi_order ?? '' }]
-    }
-    if (!data.length) return setError('Tidak ada baris dengan Nama usaha yang terisi.')
+    const data = groupImportRows(parsed)
+    if (!data.length) return setError('Tidak ada baris dengan Nama Customer yang terisi.')
     if (data.length > 500) return setError(`Maksimal 500 prospek per impor (file berisi ${data.length}). Bagi menjadi beberapa file.`)
     setRows(data)
   }
@@ -919,17 +979,33 @@ function ImportModal({ users, canSupervise, onClose, onDone }: { users: Marketin
       setSaving(false)
     }
   }
+  async function undo(b: ImportBatch) {
+    const warn = b.aktivitas ? ` ${b.aktivitas} follow-up / visit yang sudah dicatat pada prospek ini ikut terhapus.` : ''
+    if (!(await confirmDialog(`Batalkan impor ${formatDate(b.waktu, true)} (${b.jumlah} prospek)? Prospek dipindah ke Data Terhapus dan masih bisa dipulihkan.${warn}`))) return
+    setUndoing(b.batch)
+    setError('')
+    try {
+      const res = await api<{ deleted: number }>(`/api/prospects/import?batch=${encodeURIComponent(b.batch)}`, { method: 'DELETE' })
+      onDone(`Impor dibatalkan: ${res.deleted} prospek dipindah ke Data Terhapus.`)
+    } catch (e) {
+      setError((e as Error).message)
+      loadBatches()
+    } finally {
+      setUndoing('')
+    }
+  }
+  const productCount = rows.reduce((n, r) => n + (r.products?.length ?? 0), 0)
   return (
     <Modal
       title="Impor prospek dari Excel / CSV"
-      subtitle="Untuk lead hasil riset Marketing Digital (Instagram, Google Maps, marketplace, ...)"
+      subtitle='Format kolom sama dengan tabel "Program Mkt Dev": satu prospek bisa beberapa baris produk'
       wide
       onClose={onClose}
       footer={<><a className="pap-btn" href="/api/prospects/import/excel" download><Download /> Template Excel</a><a className="pap-btn" href={template} download="template-prospek.csv">Template CSV</a><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" disabled={saving || reading || !rows.length} onClick={submit}>{saving ? 'Mengimpor...' : `Impor ${rows.length || ''} prospek`}</button></>}
     >
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       <div className="pap-form-grid">
-        <Field label="File Excel (.xlsx) atau CSV" full hint="Pakai template Excel / CSV, atau file sendiri dengan judul kolom yang sama. Kolom minimal: Nama usaha. Satu prospek dengan beberapa produk: tulis produk berikutnya di baris bawahnya dengan Nama usaha dikosongkan. Maksimal 500 prospek; nomor WA yang sudah terdaftar dilewati.">
+        <Field label="File Excel (.xlsx) atau CSV" full hint="Kolom: Nama Customer, Bidang Usaha, Alamat dll, Nama Kontak PIC, Nomor WhatsApp, Jenis Product - Spec, Jenis Plastik, Qty Kebutuhan (Kg), Harga / satuan, Satuan Harga, GPF/sat, Payment, Kompetitor, Kendala. Produk berikutnya ditulis di baris bawahnya dengan Nama Customer dikosongkan. Nomor WA yang sudah terdaftar dilewati.">
           <input className="pap-input" type="file" accept=".xlsx,.xlsm,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={onFile} disabled={reading} />
         </Field>
         {reading && <p className="pap-muted full">Membaca file Excel...</p>}
@@ -944,12 +1020,35 @@ function ImportModal({ users, canSupervise, onClose, onDone }: { users: Marketin
       </div>
       {rows.length > 0 && (
         <div className="pap-table-wrap pap-import-preview">
-          <p className="pap-muted">{fileName}: {rows.length} prospek{rows.some((r) => r.products) ? `, ${rows.reduce((n, r) => n + (r.products?.length ?? (r.kebutuhan ? 1 : 0)), 0)} produk` : ''}. Pratinjau 10 prospek pertama:</p>
+          <p className="pap-muted">{fileName}: {rows.length} prospek, {productCount} produk. Pratinjau 10 prospek pertama:</p>
           <table>
-            <thead><tr>{PREVIEW_COLUMNS.map(([, l]) => <th key={l}>{l}</th>)}<th>Produk / kebutuhan</th></tr></thead>
-            <tbody>{rows.slice(0, 10).map((r, i) => <tr key={i}>{PREVIEW_COLUMNS.map(([k]) => <td key={k}>{(r[k] as string) || '—'}</td>)}<td>{r.products?.length ? <><strong>{r.products.length} produk</strong><div className="pap-cell-sub">{r.products.map((p) => p.label).join('; ')}</div></> : r.kebutuhan || '—'}</td></tr>)}</tbody>
+            <thead><tr><th>Nama Customer</th><th>Bidang Usaha</th><th>Nama Kontak PIC</th><th>Nomor WhatsApp</th><th>Payment</th><th>Produk</th></tr></thead>
+            <tbody>{rows.slice(0, 10).map((r, i) => (
+              <tr key={i}>
+                <td>{r.nama_usaha}</td><td>{r.sektor || '—'}</td><td>{r.kontak_nama || '—'}</td><td>{r.telepon || '—'}</td><td>{r.payment || '—'}</td>
+                <td>{r.products?.length ? <><strong>{r.products.length} produk</strong><div className="pap-cell-sub">{r.products.map((p) => [p.label, p.qty_kg && `${p.qty_kg} kg`, p.harga].filter(Boolean).join(' · ')).join('; ')}</div></> : '—'}</td>
+              </tr>
+            ))}</tbody>
           </table>
         </div>
+      )}
+      {batches.length > 0 && (
+        <section className="pap-detail-section">
+          <h3>Riwayat impor (30 hari)</h3>
+          <p className="pap-muted">Salah impor? Batalkan lalu impor ulang file yang benar. Prospek yang dibatalkan masuk Data Terhapus.</p>
+          <ul className="pap-file-list">
+            {batches.map((b) => (
+              <li key={b.batch}>
+                <Upload />
+                <div>
+                  <strong>{formatDate(b.waktu, true)} · {b.jumlah} prospek</strong>
+                  <span>{b.oleh} · {b.contoh}{b.jumlah > 3 ? ', ...' : ''}{b.aktivitas ? ` · ${b.aktivitas} follow-up/visit` : ''}</span>
+                </div>
+                <button type="button" className="pap-btn danger" disabled={!!undoing} onClick={() => undo(b)}>{undoing === b.batch ? 'Membatalkan...' : 'Batalkan impor'}</button>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </Modal>
   )

@@ -9,8 +9,9 @@ const MAX_ROWS = 501 // judul + 500 baris (batas impor prospek)
 
 // Kolom template (judul sama dengan template CSV, dibaca lewat alias yang sama di form impor)
 const COLUMNS: [string, number, string][] = [
-  ['Nama usaha', 28, 'Laundry Bersih Jaya'], ['Nama kontak', 18, 'Budi'], ['No WA', 16, '081234567890'], ['Email', 22, ''], ['Sektor', 14, 'Laundry'],
-  ['Alamat', 30, 'Jl. Melati 5'], ['Kota', 14, 'Sidoarjo'], ['Sumber', 14, 'Instagram'], ['Kebutuhan', 28, 'Kantong laundry HD 40x60'], ['Estimasi order', 16, '200 kg/bulan'], ['Kompetitor / supplier lain', 30, 'Toko Plastik Maju, Rp 28.000/kg'], ['Catatan', 24, ''],
+  ['Nama Customer', 30, 'PT. Contoh Plastik Jaya'], ['Bidang Usaha', 16, 'Plastik Cup'], ['Alamat dll', 26, 'Sukoharjo'], ['Nama Kontak PIC', 24, 'Ibu Surti - Purchasing'], ['Nomor WhatsApp', 16, '081234567890'],
+  ['Jenis Product - Spec', 44, 'PP Kantong Uk. 16x75x025 2W 22 OZ'], ['Jenis Plastik', 12, 'PP'], ['Qty Kebutuhan (Kg)', 12, '2000'], ['Harga / satuan', 16, 'Rp 50.000/kg'], ['Satuan Harga', 10, 'Kg'],
+  ['GPF/sat', 10, '11500'], ['Payment', 18, 'TOP 30 Days'], ['Kompetitor', 22, ''], ['Kendala', 24, ''],
 ]
 
 // Template Excel impor prospek
@@ -25,9 +26,9 @@ export const GET = handle(async () => {
       title: 'Petunjuk', widths: [100], rows: [
         [{ v: 'Cara mengisi template impor prospek', s: 'title' }],
         ['1. Isi data di sheet "Prospek", satu prospek per baris, mulai baris ke-2. Baris contoh boleh dihapus atau ditimpa.'],
-        ['2. Kolom wajib: Nama usaha. Kolom lain boleh dikosongkan. Urutan kolom boleh berbeda, asalkan judul kolomnya sama.'],
-        ['3. No WA boleh ditulis 0812..., 62812..., atau +62 812...; otomatis disamakan. Nomor yang sudah terdaftar di SIMPAP dilewati.'],
-        ['4. Satu prospek dengan beberapa produk: tulis produk pertama di baris prospek, produk berikutnya di baris bawahnya dengan Nama usaha dikosongkan (isi Kebutuhan & Estimasi order per produk).'],
+        ['2. Kolom wajib: Nama Customer. Kolom lain boleh dikosongkan. Urutan kolom boleh berbeda, asalkan judul kolomnya sama.'],
+        ['3. Nomor WhatsApp boleh ditulis (juga link wa.me/62...) 0812..., 62812..., atau +62 812...; otomatis disamakan. Nomor yang sudah terdaftar di SIMPAP dilewati.'],
+        ['4. Satu prospek dengan beberapa produk: tulis produk pertama di baris prospek, produk berikutnya di baris bawahnya dengan Nama Customer dikosongkan (isi kolom Jenis Product - Spec sampai GPF/sat per produk).'],
         ['5. Maksimal 500 baris per impor. Simpan sebagai Excel Workbook (.xlsx), lalu unggah di menu Prospek › Impor Excel / CSV.'],
       ],
     },

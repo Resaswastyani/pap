@@ -170,7 +170,7 @@ export function AttachmentPanel({ title = 'Lampiran', basePath, fileBase, canAdd
       {busy && <p className="pap-muted">Mengunggah...</p>}
       {linking && (
         <div className="pap-attach-row">
-          <input className="pap-input" inputMode="url" autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Tempel link" onKeyDown={(e) => { if (e.key === 'Enter' && url.trim()) addLink() }} />
+          <input className="pap-input" inputMode="url" autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Tempel link" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (url.trim()) addLink() } }} />
           <input className="pap-input" value={name} maxLength={255} onChange={(e) => setName(e.target.value)} placeholder="Judul link (opsional)" />
           <button type="button" className="pap-primary-button" disabled={busy || !url.trim()} onClick={addLink}>Simpan link</button>
         </div>

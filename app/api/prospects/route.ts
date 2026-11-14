@@ -107,11 +107,11 @@ export const POST = handle(async (request: Request) => {
   const nextFollowup = parseDateTime(body.next_followup_at, 'Jadwal follow-up')
 
   const [result] = await db.query<ResultSetHeader>(
-    `INSERT INTO prospects (nama_usaha, sektor, kontak_nama, kontak_jabatan, telepon, email, alamat, kota, sumber, kebutuhan, estimasi_order, kompetitor, catatan,
+    `INSERT INTO prospects (nama_usaha, sektor, kontak_nama, kontak_jabatan, telepon, email, alamat, kota, sumber, kebutuhan, estimasi_order, kompetitor, payment, catatan,
        assigned_to, next_followup_at, created_by, last_activity_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
     [input.nama_usaha, input.sektor, input.kontak_nama, input.kontak_jabatan, input.telepon, input.email, input.alamat, input.kota, input.sumber,
-      input.kebutuhan, input.estimasi_order, input.kompetitor, input.catatan, assigned, nextFollowup, user.id],
+      input.kebutuhan, input.estimasi_order, input.kompetitor, input.payment, input.catatan, assigned, nextFollowup, user.id],
   )
   const id = result.insertId
   if (products) await saveProspectProducts(id, products)
