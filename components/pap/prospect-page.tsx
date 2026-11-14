@@ -797,6 +797,8 @@ const CSV_COLUMNS: [string, string][] = [
   ['nama_usaha', 'Nama usaha'], ['kontak_nama', 'Nama kontak'], ['telepon', 'No WA'], ['email', 'Email'], ['sektor', 'Sektor'],
   ['alamat', 'Alamat'], ['kota', 'Kota'], ['sumber', 'Sumber'], ['kebutuhan', 'Kebutuhan'], ['estimasi_order', 'Estimasi order'], ['kompetitor', 'Kompetitor / supplier lain'], ['catatan', 'Catatan'],
 ]
+const PREVIEW_COLUMNS = CSV_COLUMNS.filter(([k]) => ['nama_usaha', 'kontak_nama', 'telepon', 'sektor', 'kota'].includes(k))
+type ImportRow = Record<string, string> & { products?: { label: string; estimasi: string }[] }
 const HEADER_ALIASES: Record<string, string> = {
   nama: 'nama_usaha', 'nama usaha': 'nama_usaha', usaha: 'nama_usaha', perusahaan: 'nama_usaha', toko: 'nama_usaha',
   kontak: 'kontak_nama', 'nama kontak': 'kontak_nama', pic: 'kontak_nama', jabatan: 'kontak_jabatan',
@@ -804,6 +806,8 @@ const HEADER_ALIASES: Record<string, string> = {
   email: 'email', sektor: 'sektor', alamat: 'alamat', kota: 'kota', sumber: 'sumber', kebutuhan: 'kebutuhan', produk: 'kebutuhan',
   'estimasi order': 'estimasi_order', estimasi: 'estimasi_order', catatan: 'catatan', keterangan: 'catatan', kompetitor: 'kompetitor', supplier: 'kompetitor', 'supplier lain': 'kompetitor', 'kompetitor supplier lain': 'kompetitor',
   'catatan threat/ kendala/ lainnya': 'catatan', threat: 'catatan', kendala: 'catatan',
+  'nama customer': 'nama_usaha', 'nama cust': 'nama_usaha', customer: 'nama_usaha', 'bidang usaha': 'sektor', 'jabatan kontak': 'kontak_jabatan',
+  'produk diminati': 'kebutuhan', 'estimasi order per produk': 'estimasi_order',
 }
 
 // Parser CSV sederhana (koma atau titik koma, mendukung tanda kutip)
@@ -835,7 +839,7 @@ function parseCsv(text: string) {
 }
 
 function ImportModal({ users, canSupervise, onClose, onDone }: { users: MarketingUser[]; canSupervise: boolean; onClose: () => void; onDone: (message: string) => void }) {
-  const [rows, setRows] = useState<Record<string, string>[]>([])
+  const [rows, setRows] = useState<ImportRow[]>([])
   const [fileName, setFileName] = useState('')
   const [assigned, setAssigned] = useState('')
   const [saving, setSaving] = useState(false)
@@ -876,7 +880,29 @@ function ImportModal({ users, canSupervise, onClose, onDone }: { users: Marketin
     const headIdx = table.slice(0, 10).findIndex((r) => r.map(keyOf).includes('nama_usaha'))
     if (headIdx < 0) return setError('Kolom "Nama usaha" tidak ditemukan. Gunakan template Excel atau CSV.')
     const keys = table[headIdx].map(keyOf)
-    const data = table.slice(headIdx + 1).map((cells) => Object.fromEntries(keys.map((k, i) => [k, String(cells[i] ?? '').trim()]).filter(([k]) => k))).filter((r) => r.nama_usaha)
+    const parsed = table.slice(headIdx + 1).map((cells) => Object.fromEntries(keys.map((k, i) => [k, String(cells[i] ?? '').trim()]).filter(([k]) => k)) as Record<string, string>)
+    // Baris tanpa Nama usaha di bawah sebuah prospek = produk tambahan prospek itu (Kebutuhan + Estimasi order per baris);
+    // kontak tambahan di baris lanjutan dicatat di Catatan
+    const data: ImportRow[] = []
+    for (const r of parsed) {
+      const prev = data.at(-1)
+      if (r.nama_usaha) {
+        data.push({ ...r })
+        continue
+      }
+      if (!prev) continue
+      if (r.kebutuhan) {
+        prev.products ??= prev.kebutuhan ? [{ label: prev.kebutuhan, estimasi: prev.estimasi_order ?? '' }] : []
+        if (!prev.products.some((p) => p.label.toLowerCase() === r.kebutuhan.toLowerCase())) prev.products.push({ label: r.kebutuhan, estimasi: r.estimasi_order ?? '' })
+      }
+      const kontak = [r.kontak_nama, r.kontak_jabatan, r.telepon].filter(Boolean).join(' · ')
+      if (kontak) prev.catatan = [prev.catatan, `Kontak lain: ${kontak}`].filter(Boolean).join('\n')
+    }
+    // Produk lebih dari satu: estimasi per produk, estimasi total dikosongkan
+    for (const r of data) {
+      if (r.products && r.products.length > 1) { r.kebutuhan = r.products.map((p) => p.label).join('; '); r.estimasi_order = '' }
+      else if (!r.products && r.kebutuhan && !r.kebutuhan.includes(';')) r.products = [{ label: r.kebutuhan, estimasi: r.estimasi_order ?? '' }]
+    }
     if (!data.length) return setError('Tidak ada baris dengan Nama usaha yang terisi.')
     if (data.length > 500) return setError(`Maksimal 500 prospek per impor (file berisi ${data.length}). Bagi menjadi beberapa file.`)
     setRows(data)
@@ -903,7 +929,7 @@ function ImportModal({ users, canSupervise, onClose, onDone }: { users: Marketin
     >
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       <div className="pap-form-grid">
-        <Field label="File Excel (.xlsx) atau CSV" full hint="Pakai template Excel / CSV, atau file sendiri dengan judul kolom yang sama. Kolom minimal: Nama usaha. Maksimal 500 baris; nomor WA yang sudah terdaftar dilewati.">
+        <Field label="File Excel (.xlsx) atau CSV" full hint="Pakai template Excel / CSV, atau file sendiri dengan judul kolom yang sama. Kolom minimal: Nama usaha. Satu prospek dengan beberapa produk: tulis produk berikutnya di baris bawahnya dengan Nama usaha dikosongkan. Maksimal 500 prospek; nomor WA yang sudah terdaftar dilewati.">
           <input className="pap-input" type="file" accept=".xlsx,.xlsm,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={onFile} disabled={reading} />
         </Field>
         {reading && <p className="pap-muted full">Membaca file Excel...</p>}
@@ -918,10 +944,10 @@ function ImportModal({ users, canSupervise, onClose, onDone }: { users: Marketin
       </div>
       {rows.length > 0 && (
         <div className="pap-table-wrap pap-import-preview">
-          <p className="pap-muted">{fileName}: {rows.length} baris. Pratinjau 10 baris pertama:</p>
+          <p className="pap-muted">{fileName}: {rows.length} prospek{rows.some((r) => r.products) ? `, ${rows.reduce((n, r) => n + (r.products?.length ?? (r.kebutuhan ? 1 : 0)), 0)} produk` : ''}. Pratinjau 10 prospek pertama:</p>
           <table>
-            <thead><tr>{CSV_COLUMNS.slice(0, 8).map(([, l]) => <th key={l}>{l}</th>)}</tr></thead>
-            <tbody>{rows.slice(0, 10).map((r, i) => <tr key={i}>{CSV_COLUMNS.slice(0, 8).map(([k]) => <td key={k}>{r[k] || '—'}</td>)}</tr>)}</tbody>
+            <thead><tr>{PREVIEW_COLUMNS.map(([, l]) => <th key={l}>{l}</th>)}<th>Produk / kebutuhan</th></tr></thead>
+            <tbody>{rows.slice(0, 10).map((r, i) => <tr key={i}>{PREVIEW_COLUMNS.map(([k]) => <td key={k}>{(r[k] as string) || '—'}</td>)}<td>{r.products?.length ? <><strong>{r.products.length} produk</strong><div className="pap-cell-sub">{r.products.map((p) => p.label).join('; ')}</div></> : r.kebutuhan || '—'}</td></tr>)}</tbody>
           </table>
         </div>
       )}

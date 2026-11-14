@@ -27,7 +27,8 @@ export const GET = handle(async () => {
         ['1. Isi data di sheet "Prospek", satu prospek per baris, mulai baris ke-2. Baris contoh boleh dihapus atau ditimpa.'],
         ['2. Kolom wajib: Nama usaha. Kolom lain boleh dikosongkan. Urutan kolom boleh berbeda, asalkan judul kolomnya sama.'],
         ['3. No WA boleh ditulis 0812..., 62812..., atau +62 812...; otomatis disamakan. Nomor yang sudah terdaftar di SIMPAP dilewati.'],
-        ['4. Maksimal 500 baris per impor. Simpan sebagai Excel Workbook (.xlsx), lalu unggah di menu Prospek › Impor Excel / CSV.'],
+        ['4. Satu prospek dengan beberapa produk: tulis produk pertama di baris prospek, produk berikutnya di baris bawahnya dengan Nama usaha dikosongkan (isi Kebutuhan & Estimasi order per produk).'],
+        ['5. Maksimal 500 baris per impor. Simpan sebagai Excel Workbook (.xlsx), lalu unggah di menu Prospek › Impor Excel / CSV.'],
       ],
     },
   ])

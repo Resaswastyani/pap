@@ -1,8 +1,8 @@
-import type { RowDataPacket } from 'mysql2'
+import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
-import { canSupervise, readProspectInput, requireMarketing, requireMarketingUser } from '@/lib/marketing'
+import { canSupervise, readProspectInput, readProspectProducts, requireMarketing, requireMarketingUser, saveProspectProducts } from '@/lib/marketing'
 import { notify } from '@/lib/notifications'
 import { pushToUsers } from '@/lib/push'
 
@@ -10,6 +10,7 @@ const MAX_ROWS = 500
 
 // Impor banyak lead sekaligus (Marketing Digital): { rows: [...], assigned_to? }.
 // CSV dibaca di browser; baris dengan nomor WA yang sudah terdaftar dilewati.
+// rows[i].products = [{ label, estimasi }] (opsional): beberapa produk diminati per prospek.
 export const POST = handle(async (request: Request) => {
   const user = await requireUser()
   requireMarketing(user, 'prospek')
@@ -21,7 +22,10 @@ export const POST = handle(async (request: Request) => {
 
   const inputs = rows.map((row, i) => {
     try {
-      return readProspectInput(row)
+      const input = readProspectInput(row)
+      const products = readProspectProducts(row)
+      if (products?.length) input.kebutuhan = products.map((p) => p.label).join('; ').slice(0, 500)
+      return { ...input, products }
     } catch (error) {
       fail(400, `Baris ${i + 2}: ${(error as Error).message}`)
     }
@@ -38,12 +42,25 @@ export const POST = handle(async (request: Request) => {
     existing.add(p!.telepon)
     return true
   })
-  if (fresh.length) {
+  // Prospek dengan daftar produk disimpan satu per satu (butuh id untuk baris produknya)
+  const withProducts = fresh.filter((p) => p!.products?.length)
+  const plain = fresh.filter((p) => !p!.products?.length)
+  const now = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 19).replace('T', ' ')
+  for (const p of withProducts) {
+    const [res] = await db.query<ResultSetHeader>(
+      `INSERT INTO prospects (nama_usaha, sektor, kontak_nama, kontak_jabatan, telepon, email, alamat, kota, sumber, kebutuhan, estimasi_order, kompetitor, catatan,
+         assigned_to, created_by, last_activity_at) VALUES (?)`,
+      [[p!.nama_usaha, p!.sektor, p!.kontak_nama, p!.kontak_jabatan, p!.telepon, p!.email, p!.alamat, p!.kota, p!.sumber, p!.kebutuhan,
+        p!.estimasi_order, p!.kompetitor, p!.catatan, assigned, user.id, now]],
+    )
+    await saveProspectProducts(res.insertId, p!.products!)
+  }
+  if (plain.length) {
     await db.query(
       `INSERT INTO prospects (nama_usaha, sektor, kontak_nama, kontak_jabatan, telepon, email, alamat, kota, sumber, kebutuhan, estimasi_order, kompetitor, catatan,
          assigned_to, created_by, last_activity_at) VALUES ?`,
-      [fresh.map((p) => [p!.nama_usaha, p!.sektor, p!.kontak_nama, p!.kontak_jabatan, p!.telepon, p!.email, p!.alamat, p!.kota, p!.sumber, p!.kebutuhan,
-        p!.estimasi_order, p!.kompetitor, p!.catatan, assigned, user.id, new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 19).replace('T', ' ')])],
+      [plain.map((p) => [p!.nama_usaha, p!.sektor, p!.kontak_nama, p!.kontak_jabatan, p!.telepon, p!.email, p!.alamat, p!.kota, p!.sumber, p!.kebutuhan,
+        p!.estimasi_order, p!.kompetitor, p!.catatan, assigned, user.id, now])],
     )
   }
   if (assigned && assigned !== user.id && fresh.length) {
