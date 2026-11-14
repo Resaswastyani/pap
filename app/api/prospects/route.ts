@@ -42,6 +42,11 @@ export const GET = handle(async (request: Request) => {
      ORDER BY (p.next_followup_at IS NULL), p.next_followup_at, p.updated_at DESC LIMIT ? OFFSET ?`,
     [...params, limit, offset],
   )
+  // Pilihan filter Bidang Usaha: semua bidang usaha yang ada di prospek yang bisa dilihat user
+  const [sectors] = await db.query<RowDataPacket[]>(
+    `SELECT DISTINCT TRIM(p.sektor) AS sektor FROM prospects p WHERE ${scope.sql} AND TRIM(COALESCE(p.sektor, '')) <> '' ORDER BY sektor LIMIT 200`,
+    scope.params,
+  )
   const [users] = await db.query<RowDataPacket[]>(
     `SELECT u.id, u.name, d.code AS division_code, d.name AS division_name FROM users u JOIN divisions d ON d.id = u.division_id
      WHERE u.is_active = 1 AND d.code IN (?) ORDER BY d.sort_order, u.name`,
@@ -55,6 +60,7 @@ export const GET = handle(async (request: Request) => {
     due: { overdue: Number(due.overdue), today: Number(due.today) },
     users,
     sources: PROSPECT_SOURCES,
+    sectors: sectors.map((r) => String(r.sektor)),
     canSupervise: canSupervise(user),
   })
 })

@@ -3,7 +3,7 @@ import { fail, handle, int, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canSupervise } from '@/lib/marketing'
 import { validProductFile } from '@/lib/products'
-import { isDesigner, loadDesign, requireRequestMenu } from '@/lib/requests'
+import { DESIGN_TEAM, divisionUsers, isDesigner, leadDmUsers, loadDesign, notifyRequest, requireRequestMenu } from '@/lib/requests'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -28,5 +28,15 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   await db.query('INSERT INTO design_request_files (design_id, kind, versi, name, mime, size, data, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [
     item.id, kind, versi, file.name.slice(0, 255), file.type, file.size, Buffer.from(await file.arrayBuffer()), user.id,
   ])
+  // Desain baru diunggah: kabari rekan tim Digital Marketing, Lead Digital Marketing, dan marketing yang mengajukan
+  if (kind === 'desain') {
+    await notifyRequest([...(await divisionUsers(DESIGN_TEAM)), ...(await leadDmUsers()), item.requested_by], user.id, {
+      type: 'desain_update',
+      title: `Desain ${item.nomor ?? item.judul} diunggah (versi ${versi})`,
+      body: [item.judul, item.target_name, `${file.name} · oleh ${user.name}`].filter(Boolean).join(' · '),
+      designId: item.id,
+      refKey: `desain-file:${item.id}:${versi}:${Date.now()}`,
+    })
+  }
   return NextResponse.json({ ok: true }, { status: 201 })
 })

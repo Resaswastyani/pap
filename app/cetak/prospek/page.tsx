@@ -27,6 +27,7 @@ export default async function CetakProspekPage({ searchParams }: { searchParams:
   const rows = await prospectExport(user, params)
   const doc = await loadSettings('doc.')
   const filters = [STATUS_FILTER[params.get('status') ?? 'semua'] ?? null, params.get('q') && `Cari "${params.get('q')}"`, params.get('sumber') && `Sumber ${params.get('sumber')}`,
+    params.get('sektor') && (params.get('sektor') === '-' ? 'Bidang usaha belum diisi' : `Bidang usaha ${params.get('sektor')}`),
     params.get('followup') === 'overdue' ? 'Follow-up terlambat' : params.get('followup') === 'today' ? 'Follow-up hari ini' : null].filter(Boolean).join(' · ')
   const now = new Date(Date.now() + 7 * 3600e3).toISOString()
   const productCount = rows.reduce((n, r) => n + r.products.length, 0)

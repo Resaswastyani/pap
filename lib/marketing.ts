@@ -336,6 +336,13 @@ export function prospectFilter(user: UserProfile, sp: URLSearchParams) {
     where.push('p.sumber = ?')
     params.push(sumber)
   }
+  // Bidang usaha: "-" = belum diisi
+  const sektor = str(sp.get('sektor'), 120)
+  if (sektor === '-') where.push("COALESCE(TRIM(p.sektor), '') = ''")
+  else if (sektor) {
+    where.push('p.sektor = ?')
+    params.push(sektor)
+  }
   const owner = sp.get('owner')
   if (owner === 'me') {
     where.push('(p.assigned_to = ? OR p.maintenance_to = ?)')

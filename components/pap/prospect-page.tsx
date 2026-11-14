@@ -56,6 +56,7 @@ type ListResponse = {
   due: { overdue: number; today: number }
   users: MarketingUser[]
   sources: string[]
+  sectors?: string[]
   canSupervise: boolean
 }
 
@@ -76,6 +77,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('aktif')
   const [sumber, setSumber] = useState('')
+  const [sektor, setSektor] = useState('')
   const [owner, setOwner] = useState('')
   const [followup, setFollowup] = useState('')
   const [page, setPage] = useState(1)
@@ -92,10 +94,11 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
     if (q.trim()) p.set('q', q.trim())
     p.set('status', view === 'kanban' ? 'aktif' : status || 'semua')
     if (sumber) p.set('sumber', sumber)
+    if (sektor) p.set('sektor', sektor)
     if (owner) p.set('owner', owner)
     if (followup) p.set('followup', followup)
     return p.toString()
-  }, [q, status, view, sumber, owner, followup])
+  }, [q, status, view, sumber, sektor, owner, followup])
   const [downloadOpen, setDownloadOpen] = useState(false)
 
   const load = useCallback(async () => {
@@ -106,6 +109,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
       if (status && view === 'list') params.set('status', status)
       if (view === 'kanban') params.set('status', 'aktif')
       if (sumber) params.set('sumber', sumber)
+      if (sektor) params.set('sektor', sektor)
       if (owner) params.set('owner', owner)
       if (followup) params.set('followup', followup)
       setData(await api<ListResponse>(`/api/prospects?${params}`))
@@ -115,12 +119,12 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
     } finally {
       setLoading(false)
     }
-  }, [q, status, sumber, owner, followup, page, view, size])
+  }, [q, status, sumber, sektor, owner, followup, page, view, size])
   useEffect(() => {
     const timer = setTimeout(load, q ? 300 : 0)
     return () => clearTimeout(timer)
   }, [load, q])
-  useEffect(() => setPage(1), [q, status, sumber, owner, followup, view])
+  useEffect(() => setPage(1), [q, status, sumber, sektor, owner, followup, view])
 
   const flash = (text: string) => {
     setMessage(text)
@@ -202,6 +206,12 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
               {Object.entries(PROSPECT_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </select>
           )}
+          <select className="pap-select" value={sektor} onChange={(e) => setSektor(e.target.value)} aria-label="Filter bidang usaha">
+            <option value="">Semua bidang usaha</option>
+            {sektor && sektor !== '-' && !(data?.sectors ?? []).includes(sektor) && <option value={sektor}>{sektor}</option>}
+            {(data?.sectors ?? []).map((s) => <option key={s} value={s}>{s}</option>)}
+            <option value="-">Belum diisi</option>
+          </select>
           <select className="pap-select" value={sumber} onChange={(e) => setSumber(e.target.value)} aria-label="Filter sumber">
             <option value="">Semua sumber</option>
             {(data?.sources ?? []).map((s) => <option key={s} value={s}>{s}</option>)}
@@ -232,7 +242,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
                 ))}
               </tbody>
             </table>
-            {!loading && !data?.items.length && <div className="pap-empty">{q || sumber || owner || followup || status !== 'aktif' ? 'Tidak ada prospek yang cocok dengan filter.' : `Belum ada prospek. ${isDigital ? 'Impor lead dari CSV atau tambah satu per satu.' : 'Klik "Tambah prospek" untuk mulai.'}`}</div>}
+            {!loading && !data?.items.length && <div className="pap-empty">{q || sumber || sektor || owner || followup || status !== 'aktif' ? 'Tidak ada prospek yang cocok dengan filter.' : `Belum ada prospek. ${isDigital ? 'Impor lead dari CSV atau tambah satu per satu.' : 'Klik "Tambah prospek" untuk mulai.'}`}</div>}
             {loading && !data && <div className="pap-empty">Memuat prospek...</div>}
           </div>
         ) : (
