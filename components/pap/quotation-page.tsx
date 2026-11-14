@@ -8,7 +8,7 @@ import { DocForm, useHppData } from './hpp-page'
 import { ProspectSelect, waLink, type ProspectOption } from './marketing'
 import { PaymentForm } from './payment-page'
 import { CustomerSelect, type CustomerOption } from './product-page'
-import { api, askReason, Field, formatDate, Modal, Notice, Pager, usePaged, RowActions, confirmDialog } from './ui'
+import { api, askReason, Field, formatDate, Modal, Notice, Pager, usePaged, RowActions, confirmDialog, FreshBadge } from './ui'
 
 type Status = 'draft' | 'dikirim' | 'diterima' | 'ditolak' | 'batal'
 const STATUS_LABEL: Record<Status, string> = { draft: 'Draft', dikirim: 'Dikirim', diterima: 'Diterima', ditolak: 'Ditolak', batal: 'Batal' }
@@ -127,7 +127,7 @@ export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number
             <tbody>
               {paged.items.map((x) => (
                 <tr key={x.id} className="pap-row-link" onClick={() => setDetailId(x.id)}>
-                  <td><div className="pap-cell-title">{x.nomor}</div><div className="pap-cell-sub">{x.item_count} produk</div></td>
+                  <td><div className="pap-cell-title">{x.nomor}<FreshBadge item={x} /></div><div className="pap-cell-sub">{x.item_count} produk</div></td>
                   <td><div className="pap-cell-title">{x.kepada}</div><div className="pap-cell-sub">{x.kontak ?? (x.prospect_name ? 'Prospek' : x.customer_no ?? '')}</div></td>
                   <td>{formatDate(x.tanggal)}</td>
                   <td className={x.status === 'dikirim' && x.berlaku_sampai < today() ? 'pap-followup overdue' : ''}>{formatDate(x.berlaku_sampai)}</td>

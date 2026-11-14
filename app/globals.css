@@ -597,6 +597,11 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
 .pap-prod-add { display:grid; grid-template-columns:auto minmax(0, 1fr); gap:8px; align-items:start; }
 .pap-prod-table td.num, .pap-prod-table th.num { text-align:right; white-space:nowrap; }
 .pap-prod-table td { vertical-align:top; }
+.pap-fresh { display:inline-flex; align-items:center; margin-left:6px; padding:1px 7px; border-radius:99px; font-size:10px; font-weight:800; letter-spacing:.02em; vertical-align:middle; white-space:nowrap; }
+.pap-fresh.baru { background:rgb(29 185 138 / .16); color:#12946c; }
+.pap-fresh.diedit { background:rgb(245 158 11 / .16); color:#b26b00; }
+.pap-shell.dark .pap-fresh.baru { color:#4fd8a9; }
+.pap-shell.dark .pap-fresh.diedit { color:#fbbf4a; }
 .pap-download { position:relative; }
 .pap-download-menu { position:absolute; left:0; top:calc(100% + 6px); z-index:30; width:250px; padding:6px; border:1px solid var(--pap-border); border-radius:12px; background:var(--pap-surface, #fff); box-shadow:0 12px 30px rgb(15 18 40 / .18); }
 .pap-download-menu a { display:grid; grid-template-columns:18px 1fr; column-gap:8px; align-items:center; padding:8px 10px; border-radius:8px; color:var(--pap-text); font-size:13px; font-weight:700; text-decoration:none; }

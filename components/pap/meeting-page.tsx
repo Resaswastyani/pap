@@ -5,10 +5,12 @@ import { CalendarClock, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, C
 import { MEETING_STATUS, PERMISSIONS, type MeetingStatus, type PlanningStatus } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
 import { AttachmentPicker, FileItems, PendingItems, PlanningForm, type PendingAttachment, type PlanningFile } from './planning-page'
-import { api, Field, formatDate, Modal, Notice, Pager, Progress, StatusBadge, usePaged, type UserOption, UserPicker, RowActions, useQuickAction, confirmDialog } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, Progress, StatusBadge, usePaged, type UserOption, UserPicker, RowActions, useQuickAction, confirmDialog, FreshBadge } from './ui'
 
 type Abilities = { edit: boolean; delete: boolean; result: boolean }
 type Meeting = {
+  created_at?: string | null
+  updated_at?: string | null
   id: number
   nomor: string
   planning_id: number | null
@@ -195,7 +197,7 @@ export function MeetingPage({ user, focusId, onOpenPlanning }: { user: UserProfi
               {paged.items.map((item) => (
                 <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
                   <td>
-                    <div className="pap-cell-title">{item.judul}</div>
+                    <div className="pap-cell-title">{item.judul}<FreshBadge item={item} /></div>
                     <div className="pap-cell-sub">{item.nomor} · {item.planning_nomor ? `Planning ${item.planning_nomor}` : 'Meeting dadakan'}{viewAll ? ` · ${item.division_name}` : ''}</div>
                   </td>
                   <td className="pap-nowrap">{formatDate(item.waktu, true)}</td>

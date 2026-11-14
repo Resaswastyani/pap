@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { canEditContent } from '@/lib/content'
 import { logActivity } from '@/lib/marketing'
 import {
+  canDeleteDesign,
   canRequest, DESIGN_SELECT, DESIGN_STATUS, designScope, designTodoSql, isDesigner, logRequest, notifyRequest, leadDmUsers, readDesignBrief,
   readTarget, requireRequestMenu, setNomor,
 } from '@/lib/requests'
@@ -54,7 +55,7 @@ export const GET = handle(async (request: Request) => {
     params,
   )
   return NextResponse.json({
-    items: items.map((d) => ({ ...d, design_count: Number(d.design_count) })),
+    items: items.map((d) => ({ ...d, design_count: Number(d.design_count), can_delete: canDeleteDesign(user, d as never) })),
     counts: { todo: Number(counts.todo), aktif: Number(counts.aktif) },
     summary: Object.fromEntries(summary.map((r) => [r.status, Number(r.n)])),
     roles: { canRequest: canRequest(user), designer: isDesigner(user) },

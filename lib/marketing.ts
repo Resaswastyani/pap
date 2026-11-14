@@ -148,7 +148,7 @@ export async function requireMarketingUser(value: unknown, label: string) {
 
 export const VISIT_SELECT = `SELECT v.id, v.prospect_id, v.customer_id, v.sales_id, v.jenis, v.jadwal, v.tujuan, v.alamat, v.status,
   v.checkin_at, v.checkin_lat, v.checkin_lng, v.checkin_accuracy, (v.foto IS NOT NULL) AS has_foto, v.hasil, v.next_followup_at,
-  v.created_by, v.created_at, uc.name AS created_name,
+  v.created_by, v.created_at, v.updated_at, uc.name AS created_name,
   (SELECT GROUP_CONCAT(su.name ORDER BY su.id = v.sales_id DESC, su.name SEPARATOR ', ') FROM visit_sales vs JOIN users su ON su.id = vs.user_id WHERE vs.visit_id = v.id) AS sales_name,
   (SELECT GROUP_CONCAT(vs.user_id ORDER BY vs.user_id = v.sales_id DESC, vs.user_id) FROM visit_sales vs WHERE vs.visit_id = v.id) AS sales_ids,
   COALESCE(p.nama_usaha, c.name) AS target_name, COALESCE(p.telepon, c.mobile_phone) AS target_phone,

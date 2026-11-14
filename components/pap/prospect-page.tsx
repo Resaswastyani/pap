@@ -11,7 +11,7 @@ import {
 import { QuotationForm } from './quotation-page'
 import { DesignForm, SampleForm } from './request-page'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, uploadPendingAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
-import { api, askReason, Field, formatDate, Modal, Notice, Pager, RowActions, useQuickAction, confirmDialog } from './ui'
+import { api, askReason, Field, formatDate, Modal, Notice, Pager, RowActions, useQuickAction, confirmDialog, FreshBadge } from './ui'
 
 export type Prospect = {
   id: number
@@ -38,6 +38,7 @@ export type Prospect = {
   payment?: string | null
   created_by: number
   created_at: string
+  updated_at?: string
   assigned_name: string | null
   maintenance_name: string | null
   created_name: string | null
@@ -231,7 +232,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
               <tbody>
                 {(data?.items ?? []).map((p) => (
                   <tr key={p.id} className="pap-row-link" onClick={() => setDetailId(p.id)}>
-                    <td><div className="pap-cell-title">{p.nama_usaha}</div><div className="pap-cell-sub">{[p.sektor, p.kota, p.sumber].filter(Boolean).join(' · ') || '—'}</div></td>
+                    <td><div className="pap-cell-title">{p.nama_usaha}<FreshBadge item={p} /></div><div className="pap-cell-sub">{[p.sektor, p.kota, p.sumber].filter(Boolean).join(' · ') || '—'}</div></td>
                     <td><div>{p.kontak_nama ?? '—'}</div><div className="pap-cell-sub">{p.telepon ?? p.email ?? ''}</div></td>
                     <td><div className="pap-clamp">{p.kebutuhan ?? '—'}</div>{p.estimasi_order && <div className="pap-cell-sub">{p.estimasi_order}</div>}</td>
                     <td>{p.assigned_name ?? <span className="pap-muted">Belum dibagi</span>}{p.maintenance_name && <div className="pap-cell-sub">Maint: {p.maintenance_name}</div>}</td>
@@ -291,7 +292,7 @@ function Kanban({ items, onOpen }: { items: Prospect[]; onOpen: (id: number) => 
             <div className="pap-kanban-cards">
               {cards.map((p) => (
                 <button key={p.id} className={`pap-kanban-card ${followupState(p)}`} onClick={() => onOpen(p.id)}>
-                  <strong>{p.nama_usaha}</strong>
+                  <strong>{p.nama_usaha}<FreshBadge item={p} /></strong>
                   <small>{[p.kontak_nama, p.kota].filter(Boolean).join(' · ') || '—'}</small>
                   {p.kebutuhan && <span className="pap-clamp">{p.kebutuhan}</span>}
                   <em>{p.assigned_name ?? 'Belum dibagi'}{p.next_followup_at ? ` · FU ${formatDate(p.next_followup_at)}` : ''}</em>

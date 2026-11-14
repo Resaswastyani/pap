@@ -6,7 +6,7 @@ import { PRODUCT_FILE_ACCEPT, PRODUCT_FILE_MAX_BYTES } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
 import { compressImage, isCompressibleImage } from './compress'
 import { AccurateSyncBar, formatNumber, formatRupiah } from './accurate'
-import { api, Field, formatDate, formatSize, Modal, Notice, Pager, RowActions, confirmDialog } from './ui'
+import { api, Field, formatDate, formatSize, Modal, Notice, Pager, RowActions, confirmDialog, FreshBadge } from './ui'
 
 export type Product = {
   id: number
@@ -146,7 +146,7 @@ export function ProductPage({ user, focusId }: { user: UserProfile; focusId?: nu
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
-                  <td><div className="pap-cell-title">{item.nama}</div><div className="pap-cell-sub">{item.kode ?? 'Tanpa kode'}{item.accurate_item_id ? <span className="pap-chip">Accurate</span> : <span className="pap-chip">Manual</span>}{item.status === 'nonaktif' && <span className="pap-chip">nonaktif</span>}</div></td>
+                  <td><div className="pap-cell-title">{item.nama}<FreshBadge item={item} /></div><div className="pap-cell-sub">{item.kode ?? 'Tanpa kode'}{item.accurate_item_id ? <span className="pap-chip">Accurate</span> : <span className="pap-chip">Manual</span>}{item.status === 'nonaktif' && <span className="pap-chip">nonaktif</span>}</div></td>
                   <td>{item.customer_name ?? <span className="pap-muted">—</span>}{item.customer_count > 1 && <div className="pap-cell-sub">+{item.customer_count - 1} customer lain</div>}</td>
                   <td>{item.jenis ?? '—'}</td>
                   <td className="pap-num pap-nowrap">{item.stock === null ? '—' : `${formatNumber(item.stock)} ${item.unit ?? ''}`}</td>

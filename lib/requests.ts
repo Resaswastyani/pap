@@ -20,6 +20,10 @@ export const isDesigner = (user: UserProfile) => user.role.isAdmin || DESIGN_TEA
 export const canRequest = (user: UserProfile) => user.role.isAdmin || isGM(user) || isMarketing(user)
 // Request desain baru diterima (langsung dikerjakan & ditugaskan) atau ditolak oleh Lead Digital Marketing
 export const canAcceptDesign = (user: UserProfile) => isLeadOf(user, 'marketing_digital')
+// Hapus request desain (masuk Data Terhapus): admin, GM, Lead marketing / Lead Digital Marketing, atau sales pengaju.
+// Desain yang sudah disetujui (sudah masuk Data Produk) hanya admin.
+export const canDeleteDesign = (user: UserProfile, d: { requested_by: number; status: string }) =>
+  user.role.isAdmin || (d.status !== 'disetujui' && (isManagement(user) || (isMarketing(user) && user.role.code === 'lead') || canAcceptDesign(user) || d.requested_by === user.id))
 export async function leadDmUsers() {
   const [rows] = await db.query<(RowDataPacket & { id: number })[]>(
     `SELECT u.id FROM users u JOIN divisions d ON d.id = u.division_id JOIN roles r ON r.id = u.role_id

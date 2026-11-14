@@ -33,6 +33,8 @@ export const VisitBadge = ({ value }: { value: VisitStatus }) => <span className
 export type MarketingUser = { id: number; name: string; division_code: string; division_name: string }
 
 export type Visit = {
+  created_at?: string | null
+  updated_at?: string | null
   id: number
   prospect_id: number | null
   customer_id: number | null

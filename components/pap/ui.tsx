@@ -296,6 +296,25 @@ export function formatDate(value: string | null | undefined, withTime = false) {
   return `${d} ${MONTHS[m - 1]} ${y}${withTime && time ? ` ${time.slice(0, 5)}` : ''}`
 }
 
+// Label "Baru" (dibuat < 24 jam) / "Baru diedit" (diubah < 24 jam, beberapa menit setelah dibuat).
+// Waktu dari database berupa teks WIB "YYYY-MM-DD HH:MM:SS".
+export const FRESH_HOURS = 24
+const wibTime = (value: string | null | undefined) => (value ? Date.parse(value.includes('T') ? value : `${value.replace(' ', 'T')}+07:00`) : NaN)
+export function freshness(item: { created_at?: string | null; updated_at?: string | null }, now = Date.now()) {
+  const created = wibTime(item.created_at)
+  const updated = wibTime(item.updated_at)
+  const limit = FRESH_HOURS * 3600e3
+  if (created && now - created < limit) return 'baru' as const
+  if (updated && now - updated < limit && (!created || updated - created > 5 * 60e3)) return 'diedit' as const
+  return null
+}
+export function FreshBadge({ item }: { item: { created_at?: string | null; updated_at?: string | null } }) {
+  const state = freshness(item)
+  if (!state) return null
+  const at = state === 'baru' ? item.created_at : item.updated_at
+  return <span className={`pap-fresh ${state}`} title={`${state === 'baru' ? 'Ditambahkan' : 'Diubah'} ${formatDate(at ?? null, true)}`}>{state === 'baru' ? 'Baru' : 'Baru diedit'}</span>
+}
+
 export function formatSize(bytes: number | null) {
   if (!bytes) return ''
   return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`

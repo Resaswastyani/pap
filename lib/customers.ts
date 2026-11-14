@@ -85,7 +85,7 @@ export const CRM_CASE = `CASE
   ELSE IF(s.order_count >= 2, 'pelanggan', 'pembeli') END`
 
 export const CUSTOMER_SELECT = `SELECT c.id, c.accurate_id, c.customer_no, c.name, c.category, c.email, c.mobile_phone, c.work_phone,
-  c.bill_street, c.bill_city, c.bill_province, c.bill_zip, c.npwp_no, c.notes, c.suspended, c.synced_at, c.updated_at,
+  c.bill_street, c.bill_city, c.bill_province, c.bill_zip, c.npwp_no, c.notes, c.suspended, c.synced_at, c.created_at, c.updated_at,
   COALESCE(s.order_count, 0) AS order_count, s.first_order, s.last_order, COALESCE(s.total_amount, 0) AS total_amount,
   (SELECT COUNT(*) FROM customer_products cp WHERE cp.customer_id = c.id) AS product_count,
   ${CRM_CASE} AS crm_status, ${sectorSql('c.category')} AS sektor,

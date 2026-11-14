@@ -5,7 +5,7 @@ import { CalendarDays, CheckCircle2, ClipboardList, Clock3, ExternalLink, FileTe
 import { FILE_MAX_BYTES, PERMISSIONS, PLANNING_STATUS, type PlanningStatus } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
 import { prepareFiles } from './attachments'
-import { api, Field, formatDate, formatSize, Modal, Notice, Pager, Progress, StatusBadge, usePaged, type UserOption, UserPicker, RowActions, useQuickAction, confirmDialog } from './ui'
+import { api, Field, formatDate, formatSize, Modal, Notice, Pager, Progress, StatusBadge, usePaged, type UserOption, UserPicker, RowActions, useQuickAction, confirmDialog, FreshBadge } from './ui'
 
 type Division = { id: number; code: string; name: string }
 type Abilities = { edit: boolean; delete: boolean; progress: boolean; attach: boolean }
@@ -165,7 +165,7 @@ export function PlanningPage({ user, focusId, onOpenMeeting }: { user: UserProfi
               {paged.items.map((item) => (
                 <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
                   <td>
-                    <div className="pap-cell-title">{item.judul}</div>
+                    <div className="pap-cell-title">{item.judul}<FreshBadge item={item} /></div>
                     <div className="pap-cell-sub">{item.nomor} · oleh {item.created_by_name}{item.meeting_nomor ? <> · <CalendarDays className="pap-inline-icon" />{item.meeting_nomor}</> : null}{item.file_count ? <> · <Paperclip className="pap-inline-icon" />{item.file_count}</> : null}{item.is_pic && <span className="pap-chip">PIC</span>}</div>
                   </td>
                   <td>{item.division_name}</td>

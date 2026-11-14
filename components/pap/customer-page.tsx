@@ -7,10 +7,11 @@ import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatRupiah } from './accurate'
 import { ProductDetail, ProductForm, type Product } from './product-page'
 import { CycleField, cycleText, type CycleInfo } from './customer-cycle'
-import { api, Field, formatDate, Modal, Notice, Pager, RowActions } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, RowActions, FreshBadge } from './ui'
 
 type CrmStatus = 'pelanggan' | 'pembeli' | 'prospek' | 'pelanggan_nonaktif' | 'pembeli_nonaktif'
 type Customer = CycleInfo & {
+  created_at?: string | null
   id: number
   accurate_id: number | null
   customer_no: string | null
@@ -151,7 +152,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
-                  <td><div className="pap-cell-title">{item.name}</div><div className="pap-cell-sub">{item.customer_no ?? 'Belum ada nomor'}{item.sektor ? ` · ${SECTOR_LABEL[item.sektor]}` : ''}{item.category ? ` · ${item.category}` : ''}</div></td>
+                  <td><div className="pap-cell-title">{item.name}<FreshBadge item={{ created_at: item.created_at }} /></div><div className="pap-cell-sub">{item.customer_no ?? 'Belum ada nomor'}{item.sektor ? ` · ${SECTOR_LABEL[item.sektor]}` : ''}{item.category ? ` · ${item.category}` : ''}</div></td>
                   <td><div className="pap-cell-sub">{item.mobile_phone ?? item.work_phone ?? '—'}</div><div className="pap-cell-sub">{item.email ?? ''}</div></td>
                   <td className="pap-nowrap">{item.order_count ? <><strong>{item.order_count}×</strong> · {formatDate(item.last_order)}<div className="pap-cell-sub">{cycleText(item) ? `Cycle ${cycleText(item)}${item.cycle_manual_days ? ' (manual)' : ''}` : 'Cycle belum ketahuan'}</div></> : <span className="pap-muted">Belum ada</span>}</td>
                   <td><CrmBadge value={item.crm_status} /></td>

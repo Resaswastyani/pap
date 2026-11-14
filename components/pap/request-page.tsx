@@ -7,7 +7,7 @@ import { ProspectSelect, type ProspectOption } from './marketing'
 import { CustomerSelect, type CustomerOption } from './product-page'
 import { compressImage, isCompressibleImage } from './compress'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, uploadPendingAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
-import { api, askReason, Field, formatDate, formatSize, Modal, Notice, Pager, usePaged, useQuickAction, confirmDialog } from './ui'
+import { api, askReason, Field, formatDate, formatSize, Modal, Notice, Pager, RowActions, usePaged, useQuickAction, confirmDialog, FreshBadge } from './ui'
 
 // ---------------- Konstanta ----------------
 type SampleStatus = 'diajukan' | 'dijadwalkan' | 'diproduksi' | 'selesai' | 'dikirim' | 'disetujui' | 'revisi' | 'batal'
@@ -194,7 +194,7 @@ export function SamplePage({ user, focusId }: { user: UserProfile; focusId?: num
               {paged.items.map((s) => (
                 <tr key={s.id} className="pap-row-link" onClick={() => setDetailId(s.id)}>
                   <td><div className="pap-cell-title">{s.nomor}</div>{s.revisi_ke > 0 && <div className="pap-cell-sub">Revisi {s.revisi_ke}</div>}</td>
-                  <td><div className="pap-cell-title">{s.nama_produk}</div><div className="pap-cell-sub">{s.item_count > 1 ? `${s.item_count} produk` : [s.jenis, s.ukuran, s.jumlah].filter(Boolean).join(' · ')}</div></td>
+                  <td><div className="pap-cell-title">{s.nama_produk}<FreshBadge item={s} /></div><div className="pap-cell-sub">{s.item_count > 1 ? `${s.item_count} produk` : [s.jenis, s.ukuran, s.jumlah].filter(Boolean).join(' · ')}</div></td>
                   <td>{s.target_name ?? '—'}</td>
                   <td>{s.requested_name}<div className="pap-cell-sub">{formatDate(s.created_at)}</div></td>
                   <td className={s.tenggat && s.tenggat < new Date().toISOString().slice(0, 10) && !['disetujui', 'batal', 'dikirim'].includes(s.status) ? 'pap-followup overdue' : ''}>{formatDate(s.tenggat)}</td>
@@ -509,10 +509,10 @@ type Design = {
   judul: string; jenis: string | null; ukuran: string | null; warna_cetak: string | null; brief: string; deadline: string | null
   status: DesignStatus; designer_id: number | null; revisi_ke: number; feedback: string | null; final_file_id: number | null
   requested_by: number; requested_name: string; designer_name: string | null; target_name: string | null; customer_no: string | null
-  product_name: string | null; design_count: number; created_at: string; kategori: 'klise' | 'konten'; jenis_konten: string | null
+  product_name: string | null; design_count: number; created_at: string; updated_at?: string; can_delete?: boolean; kategori: 'klise' | 'konten'; jenis_konten: string | null
 }
 type DesignFile = { id: number; kind: 'referensi' | 'desain'; versi: number; name: string; mime: string; size: number; created_at: string; uploaded_by_name: string }
-type DesignRoles = { canRequest: boolean; designer: boolean; canAccept?: boolean; isRequester?: boolean; isDesignerOf?: boolean }
+type DesignRoles = { canRequest: boolean; designer: boolean; canAccept?: boolean; isRequester?: boolean; isDesignerOf?: boolean; canDelete?: boolean }
 
 export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: number | null }) {
   const [items, setItems] = useState<Design[]>([])
@@ -559,6 +559,16 @@ export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: num
   const flash = (text: string) => { setMessage(text); setTimeout(() => setMessage(''), 5000); load() }
 
   const paged = usePaged(items, items.length)
+  async function removeDesign(d: Design) {
+    if (!(await confirmDialog(`Hapus request desain ${d.nomor} · ${d.judul}? File desain & riwayatnya ikut dihapus (masuk Data Terhapus, bisa dipulihkan admin).`))) return
+    try {
+      await api(`/api/designs/${d.id}`, { method: 'DELETE' })
+      if (detailId === d.id) setDetailId(null)
+      flash(`Request desain ${d.nomor} dihapus.`)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
   return (
     <>
       <div className="pap-page-heading">
@@ -583,17 +593,18 @@ export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: num
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Nomor</th><th>Desain</th><th>Untuk</th><th>Sales</th><th>Desainer</th><th>Deadline</th><th>Status</th></tr></thead>
+            <thead><tr><th>Nomor</th><th>Desain</th><th>Untuk</th><th>Sales</th><th>Desainer</th><th>Deadline</th><th>Status</th><th className="pap-actions-col">Aksi</th></tr></thead>
             <tbody>
               {paged.items.map((d) => (
                 <tr key={d.id} className="pap-row-link" onClick={() => setDetailId(d.id)}>
                   <td><div className="pap-cell-title">{d.nomor}</div>{d.revisi_ke > 0 && <div className="pap-cell-sub">Revisi {d.revisi_ke}</div>}</td>
-                  <td><div className="pap-cell-title">{d.judul} <span className={`pap-chip ${d.kategori === 'konten' ? 'konten' : ''}`}>{d.kategori === 'konten' ? `Konten ${d.jenis_konten ?? ''}` : 'Klise'}</span></div><div className="pap-cell-sub">{[d.jenis, d.ukuran, d.design_count ? `${d.design_count} file desain` : null].filter(Boolean).join(' · ')}</div></td>
+                  <td><div className="pap-cell-title">{d.judul}<FreshBadge item={d} /> <span className={`pap-chip ${d.kategori === 'konten' ? 'konten' : ''}`}>{d.kategori === 'konten' ? `Konten ${d.jenis_konten ?? ''}` : 'Klise'}</span></div><div className="pap-cell-sub">{[d.jenis, d.ukuran, d.design_count ? `${d.design_count} file desain` : null].filter(Boolean).join(' · ')}</div></td>
                   <td>{d.target_name ?? (d.kategori === 'konten' ? 'Marketing Digital' : '—')}</td>
                   <td>{d.requested_name}<div className="pap-cell-sub">{formatDate(d.created_at)}</div></td>
                   <td>{d.designer_name ?? <span className="pap-muted">Belum diambil</span>}</td>
                   <td className={d.deadline && d.deadline < new Date().toISOString().slice(0, 10) && !['disetujui', 'batal'].includes(d.status) ? 'pap-followup overdue' : ''}>{formatDate(d.deadline)}</td>
                   <td><Badge tone={DESIGN_TONE[d.status]} label={DESIGN_LABEL[d.status]} /></td>
+                  <td className="pap-actions-cell"><RowActions label={`${d.nomor} ${d.judul}`} onView={() => setDetailId(d.id)} onDelete={d.can_delete ? () => removeDesign(d) : undefined} /></td>
                 </tr>
               ))}
             </tbody>
@@ -604,7 +615,7 @@ export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: num
         <Pager {...paged.pager} noun="request desain" />
       </div>
       {form && <DesignForm onClose={() => setForm(false)} onSaved={(text, id) => { setForm(false); flash(text); setDetailId(id) }} />}
-      {detailId && <DesignDetail id={detailId} user={user} onClose={() => setDetailId(null)} onChanged={flash} />}
+      {detailId && <DesignDetail id={detailId} user={user} onClose={() => setDetailId(null)} onChanged={flash} onDeleted={(text) => { setDetailId(null); flash(text) }} />}
     </>
   )
 }
@@ -710,7 +721,7 @@ export function DesignForm({ prospect, preset, onClose, onSaved }: { prospect?: 
   )
 }
 
-function DesignDetail({ id, user, onClose, onChanged }: { id: number; user: UserProfile; onClose: () => void; onChanged: (message: string) => void }) {
+function DesignDetail({ id, user, onClose, onChanged, onDeleted }: { id: number; user: UserProfile; onClose: () => void; onChanged: (message: string) => void; onDeleted?: (message: string) => void }) {
   const [item, setItem] = useState<Design | null>(null)
   const [files, setFiles] = useState<DesignFile[]>([])
   const [logs, setLogs] = useState<Log[]>([])
@@ -808,7 +819,7 @@ function DesignDetail({ id, user, onClose, onChanged }: { id: number; user: User
       subtitle={`Untuk ${item.target_name ?? '—'} · diajukan ${item.requested_name}, ${formatDate(item.created_at, true)}`}
       wide
       onClose={onClose}
-      footer={<>{open && (roles.isRequester || roles.isDesignerOf) && <button className="pap-btn danger" disabled={busy} onClick={async () => { const a = await askReason({ title: 'Batalkan request desain', label: 'Alasan pembatalan', confirmLabel: 'Batalkan request' }); if (a) act({ status: 'batal', catatan: a }, 'Request desain dibatalkan.') }}><Ban /> Batalkan</button>}<span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Tutup</button></>}
+      footer={<>{open && (roles.isRequester || roles.isDesignerOf) && <button className="pap-btn danger" disabled={busy} onClick={async () => { const a = await askReason({ title: 'Batalkan request desain', label: 'Alasan pembatalan', confirmLabel: 'Batalkan request' }); if (a) act({ status: 'batal', catatan: a }, 'Request desain dibatalkan.') }}><Ban /> Batalkan</button>}{roles.canDelete && onDeleted && item && <button className="pap-btn danger" disabled={busy} onClick={async () => { if (!(await confirmDialog(`Hapus request desain ${item.nomor}? File desain & riwayatnya ikut dihapus (masuk Data Terhapus).`))) return; try { await api(`/api/designs/${item.id}`, { method: 'DELETE' }); onDeleted(`Request desain ${item.nomor} dihapus.`) } catch (e) { setError((e as Error).message) } }}><Trash2 /> Hapus</button>}<span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Tutup</button></>}
     >
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       <div className="pap-detail-badges"><Badge tone={DESIGN_TONE[s]} label={DESIGN_LABEL[s]} />{item.revisi_ke > 0 && <span className="pap-status warning">Revisi ke-{item.revisi_ke}</span>}{item.designer_name && <span className="pap-status neutral">Desainer: {item.designer_name}</span>}</div>

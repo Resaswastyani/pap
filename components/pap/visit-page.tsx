@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CalendarCheck, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, MapPin, Navigation, Plus } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { CheckinForm, localDate, mapsSearch, VISIT_LABEL, VISIT_TYPE_LABEL, VisitBadge, VisitDetail, VisitForm, type MarketingUser, type Visit } from './marketing'
-import { api, formatDate, Notice, useQuickAction } from './ui'
+import { api, formatDate, Notice, useQuickAction, FreshBadge } from './ui'
 
 const DAY_NAMES = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
 
@@ -126,7 +126,7 @@ export function VisitPage({ user, focusId, onOpenProspect }: { user: UserProfile
                   <article key={v.id} className={`pap-visit-card ${v.status} ${isOverdue(v) ? 'overdue' : ''}`} onClick={() => setDetail(v)}>
                     <div className="pap-visit-time">{v.jadwal.slice(11, 16)}</div>
                     <div className="pap-visit-main">
-                      <strong>{v.target_name ?? '—'}</strong>
+                      <strong>{v.target_name ?? '—'}<FreshBadge item={v} /></strong>
                       <small>{VISIT_TYPE_LABEL[v.jenis]}{canSupervise || v.sales_ids.length > 1 ? ` · ${v.sales_name}` : ''}{v.kontak_nama ? ` · ${v.kontak_nama}` : ''}</small>
                       {v.alamat && <small className="pap-visit-addr"><MapPin className="pap-inline-icon" /> {v.alamat}</small>}
                       {v.tujuan && <span className="pap-clamp">{v.tujuan}</span>}

@@ -5,7 +5,7 @@ import { Ban, CheckCircle2, FileText, PackageCheck, Pencil, Phone, Plus, Printer
 import type { UserProfile } from '@/lib/users'
 import { AttachmentPanel } from './attachments'
 import { SupplierList, SupplierSelect } from './supplier-list'
-import { api, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged, useQuickAction, confirmDialog } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged, useQuickAction, confirmDialog, FreshBadge } from './ui'
 
 type Status = 'diajukan' | 'disetujui' | 'dipesan' | 'diterima' | 'ditolak' | 'batal'
 type Priority = 'darurat' | 'tinggi' | 'normal'
@@ -113,7 +113,7 @@ export function PurchaseRequestPage({ user, focusId }: { user: UserProfile; focu
             <tbody>
               {paged.items.map((p) => (
                 <tr key={p.id} className="pap-row-link" onClick={() => setDetailId(p.id)}>
-                  <td className="pap-nowrap"><div className="pap-cell-title">{p.nomor}</div><div className="pap-cell-sub">{p.requested_name} · {formatDate(p.created_at)}</div></td>
+                  <td className="pap-nowrap"><div className="pap-cell-title">{p.nomor}<FreshBadge item={p} /></div><div className="pap-cell-sub">{p.requested_name} · {formatDate(p.created_at)}</div></td>
                   <td><div className="pap-repair-keluhan">{p.item_names}</div><div className="pap-cell-sub">{p.item_count} barang · {p.keperluan}</div></td>
                   <td><span className={`pap-status ${PRIORITY_TONE[p.prioritas]}`}>{PRIORITY_LABEL[p.prioritas]}</span></td>
                   <td className="pap-nowrap">{p.dibutuhkan ? formatDate(p.dibutuhkan) : '—'}</td>

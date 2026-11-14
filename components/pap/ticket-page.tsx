@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { CheckCircle2, Clock, Inbox, LifeBuoy, MessageSquare, Pencil, Plus, RotateCcw, Search, Send, Trash2, UserCheck } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AttachmentPanel } from './attachments'
-import { api, askReason, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged, confirmDialog } from './ui'
+import { api, askReason, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged, confirmDialog, FreshBadge } from './ui'
 
 // Tiket Kendala Sistem: semua pengguna melaporkan kendala SIMPAP; Super Admin / Staff IT menangani semua tiket,
 // pengguna lain hanya melihat & menindaklanjuti tiket yang ia ajukan.
@@ -123,7 +123,7 @@ export function TicketPage({ user, menus, focusId }: { user: UserProfile; menus:
                 const editable = handler || (own && t.status === 'baru')
                 return (
                   <tr key={t.id} className="pap-row-link" onClick={() => setOpenId(t.id)}>
-                    <td><div className="pap-cell-title">{t.judul}</div><div className="pap-cell-sub">{t.nomor} · {formatDate(t.created_at, true)}{t.pesan ? ` · ${t.pesan} pesan` : ''}</div></td>
+                    <td><div className="pap-cell-title">{t.judul}<FreshBadge item={t} /></div><div className="pap-cell-sub">{t.nomor} · {formatDate(t.created_at, true)}{t.pesan ? ` · ${t.pesan} pesan` : ''}</div></td>
                     <td>{t.jenis === 'umum' ? <span className="pap-status neutral">IT umum</span> : <span className="pap-status info">SIMPAP</span>} {t.modul ?? t.lokasi ?? ''}<div className="pap-cell-sub">{KATEGORI[t.kategori] ?? t.kategori}</div></td>
                     {handler && <td>{t.pelapor ?? '—'}<div className="pap-cell-sub">{t.pelapor_divisi ?? ''}</div></td>}
                     <td><span className={`pap-status ${PRIORITAS_TONE[t.prioritas]}`}>{PRIORITAS[t.prioritas]}</span></td>
