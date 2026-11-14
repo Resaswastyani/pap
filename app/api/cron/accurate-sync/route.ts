@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { accurateEnabled } from '@/lib/accurate'
 import { syncAll } from '@/lib/accurate-sync'
+import { refreshCandidateStatus } from '@/lib/logistik'
 
 export const maxDuration = 60
 
@@ -13,7 +14,10 @@ export async function GET(request: Request) {
   if (!accurateEnabled()) return NextResponse.json({ ok: false, error: 'Integrasi Accurate belum dikonfigurasi.' })
   try {
     // cron-job.org memutus request setelah ±30 detik; sisa data dilanjutkan pada putaran berikutnya
-    return NextResponse.json({ ok: true, results: await syncAll(25_000) })
+    const results = await syncAll(20_000)
+    // Status SO yang masih perlu dikirim dicek ulang (SO yang sudah difakturkan tidak selalu ikut sinkron inkremental)
+    const pengiriman = await refreshCandidateStatus(6_000).catch((e) => ({ error: (e as Error).message }))
+    return NextResponse.json({ ok: true, results, pengiriman })
   } catch (error) {
     console.error('[cron/accurate-sync]', error)
     return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 500 })

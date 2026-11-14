@@ -242,6 +242,30 @@ export async function shipCandidates() {
   })
 }
 
+// Perbarui status SO yang masih "perlu dikirim" langsung dari Accurate (hanya membaca).
+// Sinkron rutin memakai lastUpdate, padahal membuat faktur dari SO tidak selalu mengubah lastUpdate SO,
+// jadi SO yang sudah difakturkan (Terproses) bisa tertinggal berstatus "Menunggu diproses".
+export async function refreshCandidateStatus(deadlineMs = 25_000) {
+  const deadline = Date.now() + deadlineMs
+  const cands = await shipCandidates()
+  const changed: { number: string; dari: string | null; menjadi: string }[] = []
+  let checked = 0
+  for (let i = 0; i < cands.length && Date.now() < deadline; i += 5) {
+    const part = cands.slice(i, i + 5)
+    const docs = await Promise.all(part.map((c) => accurate<Obj>('/api/sales-order/detail.do', { params: { id: c.id } }).then((r) => r.d).catch(() => null)))
+    for (const [k, d] of docs.entries()) {
+      if (!d) continue
+      checked++
+      const status = str(d.statusName ?? d.status, 80)
+      if (status && status !== part[k].status) {
+        await db.query('UPDATE accurate_sales_orders SET status = ? WHERE accurate_id = ?', [status, part[k].id])
+        changed.push({ number: part[k].number, dari: part[k].status, menjadi: status })
+      }
+    }
+  }
+  return { total: cands.length, checked, changed, selesai: changed.filter((c) => ['Ditutup', 'Closed', 'Terproses'].includes(c.menjadi)).length }
+}
+
 // Isi awal pengiriman dari satu / beberapa SO (customer yang sama): alamat & keterangan langsung dari Accurate
 export async function draftFromSo(ids: number[]) {
   if (!ids.length || ids.length > 10) fail(400, 'Pilih 1–10 SO.')

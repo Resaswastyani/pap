@@ -256,15 +256,15 @@ export async function saveVisitSales(visitId: number, ids: number[]) {
 }
 
 // ---- Produk diminati prospek: dari Data Produk (product_id) atau teks bebas ----
-export type ProspectProduct = { product_id: number | null; label: string }
+export type ProspectProduct = { product_id: number | null; label: string; estimasi: string | null }
 
-// body.products = [{ product_id, label }] (null = tidak dikirim, data lama tidak diubah)
+// body.products = [{ product_id, label, estimasi? }] (null = tidak dikirim, data lama tidak diubah)
 export function readProspectProducts(body: Record<string, unknown>): ProspectProduct[] | null {
   if (!Array.isArray(body.products)) return null
   const list: ProspectProduct[] = []
-  for (const raw of body.products.slice(0, 30) as { product_id?: unknown; label?: unknown }[]) {
+  for (const raw of body.products.slice(0, 30) as { product_id?: unknown; label?: unknown; estimasi?: unknown }[]) {
     const label = str(raw?.label, 255)
-    if (label && !list.some((p) => p.label.toLowerCase() === label.toLowerCase())) list.push({ product_id: int(raw?.product_id), label })
+    if (label && !list.some((p) => p.label.toLowerCase() === label.toLowerCase())) list.push({ product_id: int(raw?.product_id), label, estimasi: str(raw?.estimasi, 150) || null })
   }
   return list
 }
@@ -279,14 +279,14 @@ export async function saveProspectProducts(prospectId: number, products: Prospec
     const [rows] = await db.query<(RowDataPacket & { id: number })[]>('SELECT id FROM customer_products WHERE id IN (?)', [ids])
     for (const r of rows) valid.add(r.id)
   }
-  await db.query('INSERT INTO prospect_products (prospect_id, product_id, label, sort_order) VALUES ?', [
-    products.map((p, i) => [prospectId, p.product_id && valid.has(p.product_id) ? p.product_id : null, p.label, i + 1]),
+  await db.query('INSERT INTO prospect_products (prospect_id, product_id, label, estimasi, sort_order) VALUES ?', [
+    products.map((p, i) => [prospectId, p.product_id && valid.has(p.product_id) ? p.product_id : null, p.label, p.estimasi, i + 1]),
   ])
 }
 
 export async function loadProspectProducts(prospectId: number) {
   const [rows] = await db.query<RowDataPacket[]>(
-    `SELECT pp.product_id, pp.label, cp.nama, cp.jenis, cp.spesifikasi, cp.bahan
+    `SELECT pp.product_id, pp.label, pp.estimasi, cp.nama, cp.jenis, cp.spesifikasi, cp.bahan
      FROM prospect_products pp LEFT JOIN customer_products cp ON cp.id = pp.product_id
      WHERE pp.prospect_id = ? ORDER BY pp.sort_order, pp.id`,
     [prospectId],

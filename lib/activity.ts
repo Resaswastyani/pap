@@ -312,6 +312,8 @@ function planFor(method: string, path: string): Plan | null {
     return { ...base, action: 'create', table: 'shipments', describe: (l, f) => (f.action === 'pengaturan' ? `Mengubah standar waktu pengiriman (toleransi ${f.hari ?? 0} hari, dipantau sejak ${f.mulai ?? '-'})` : `Membuat pengiriman ${l} untuk ${f.customer_name ?? ''}`) }
   if (res === 'logistik/shipments' && isId(a) && method === 'PATCH')
     return { ...base, action: 'update', always: true, table: 'shipments', id: a, describe: (l, f) => `Mengubah status pengiriman ${l} menjadi ${String(f.status ?? '').replace('_', ' ')}${f.no_resi ? ` (resi ${f.no_resi})` : ''}` }
+  if (res === 'logistik/shipments' && a === 'sync')
+    return { ...base, action: 'sync', describe: () => 'Menyinkronkan status SO & faktur dari Accurate (Pengiriman)' }
   if (res === 'logistik/expeditions' && a === 'sync')
     return { ...base, action: 'sync', describe: () => 'Menyinkronkan ekspedisi & tarif dari keterangan SO Accurate' }
   if (res === 'faktur' && !a && method === 'POST')

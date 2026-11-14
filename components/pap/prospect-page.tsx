@@ -357,10 +357,10 @@ function ProspectForm({ initial, users, sources, canSupervise, onClose, onSaved 
             {sources.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </Field>
-        <Field label="Kebutuhan / produk diminati" full hint="Pilih dari Data Produk atau jenis produk, lalu tambah ukuran/catatan bila perlu. Bisa lebih dari satu.">
+        <Field label="Produk diminati" full hint="Bisa lebih dari satu produk: pilih dari Data Produk atau ketik bebas lalu Enter, ulangi untuk produk berikutnya. Isi estimasi order per produk bila sudah diketahui.">
           <ProductNeedPicker value={products} onChange={setProducts} />
         </Field>
-        <Field label="Estimasi order"><input className="pap-input" maxLength={150} value={values.estimasi_order} onChange={set('estimasi_order')} placeholder="Contoh: 200 kg / bulan" /></Field>
+        <Field label="Estimasi order total"><input className="pap-input" maxLength={150} value={values.estimasi_order} onChange={set('estimasi_order')} placeholder="Contoh: 200 kg / bulan" /></Field>
         <Field label="Follow-up berikutnya"><input className="pap-input" type="datetime-local" value={values.next_followup_at} onChange={set('next_followup_at')} /></Field>
         {canSupervise && (
           <Field label="Sales (Marketing Development)" full>
@@ -390,7 +390,7 @@ function ProspectForm({ initial, users, sources, canSupervise, onClose, onSaved 
 // ---- Kebutuhan prospek: ambil dari master Data Produk (atau jenis produk), tetap bisa diketik bebas ----
 type ProductOption = { id: number; nama: string; jenis: string | null; spesifikasi: string | null; bahan: string | null; customer_name: string | null }
 const splitNeeds = (text: string) => text.split(/\s*;\s*/).map((t) => t.trim()).filter(Boolean)
-export type NeedItem = { product_id: number | null; label: string; jenis?: string | null; spesifikasi?: string | null; bahan?: string | null }
+export type NeedItem = { product_id: number | null; label: string; estimasi?: string | null; jenis?: string | null; spesifikasi?: string | null; bahan?: string | null }
 
 function ProductNeedPicker({ value, onChange }: { value: NeedItem[]; onChange: (value: NeedItem[]) => void }) {
   const [term, setTerm] = useState('')
@@ -417,23 +417,34 @@ function ProductNeedPicker({ value, onChange }: { value: NeedItem[]; onChange: (
   const add = (text: string, product?: ProductOption) => {
     const clean = text.trim().replace(/;/g, ',')
     if (!clean || needs.some((n) => n.label.toLowerCase() === clean.toLowerCase())) return
-    onChange([...needs, { product_id: product?.id ?? null, label: clean, jenis: product?.jenis, spesifikasi: product?.spesifikasi, bahan: product?.bahan }])
+    onChange([...needs, { product_id: product?.id ?? null, label: clean, estimasi: null, jenis: product?.jenis, spesifikasi: product?.spesifikasi, bahan: product?.bahan }])
     setTerm('')
   }
   const remove = (i: number) => onChange(needs.filter((_, idx) => idx !== i))
+  const setEstimasi = (i: number, estimasi: string) => onChange(needs.map((n, idx) => (idx === i ? { ...n, estimasi } : n)))
 
   return (
     <div className="pap-need-picker">
       {needs.length > 0 && (
-        <div className="pap-need-chips">
-          {needs.map((n, i) => <span key={n.label} className={`pap-need-chip ${n.product_id ? '' : 'free'}`} title={n.product_id ? 'Terhubung ke Data Produk' : 'Teks bebas (belum ada di Data Produk)'}>{n.product_id ? <Package className="pap-inline-icon" /> : null}{n.label}<button type="button" aria-label={`Hapus ${n.label}`} onClick={() => remove(i)}>×</button></span>)}
-        </div>
+        <ol className="pap-need-rows">
+          {needs.map((n, i) => (
+            <li key={n.label}>
+              <span className="pap-need-no">{i + 1}</span>
+              <span className="pap-need-name" title={n.product_id ? 'Terhubung ke Data Produk' : 'Teks bebas (belum ada di Data Produk)'}>
+                <strong>{n.product_id ? <Package className="pap-inline-icon" /> : null}{n.label}</strong>
+                {n.product_id && (n.spesifikasi || n.bahan) ? <small>{[n.spesifikasi, n.bahan].filter(Boolean).join(' · ')}</small> : null}
+              </span>
+              <input className="pap-input" maxLength={150} value={n.estimasi ?? ''} onChange={(e) => setEstimasi(i, e.target.value)} placeholder="Estimasi order, mis. 200 kg/bulan" aria-label={`Estimasi order ${n.label}`} />
+              <button type="button" className="pap-icon-button" aria-label={`Hapus ${n.label}`} title="Hapus produk" onClick={() => remove(i)}><Trash2 /></button>
+            </li>
+          ))}
+        </ol>
       )}
       <div className="pap-combo">
         <input
           className="pap-input"
           value={term}
-          placeholder="Cari di Data Produk atau ketik kebutuhan, tekan Enter..."
+          placeholder={needs.length ? '+ Tambah produk lain: cari di Data Produk atau ketik, tekan Enter...' : 'Cari di Data Produk atau ketik kebutuhan, tekan Enter...'}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           onChange={(e) => setTerm(e.target.value)}
@@ -441,9 +452,9 @@ function ProductNeedPicker({ value, onChange }: { value: NeedItem[]; onChange: (
         />
         {open && (
           <ul className="pap-combo-list">
-            {term.trim() && <li><button type="button" onMouseDown={() => add(term)}><strong>Tambah "{term.trim()}"</strong><small>Ketik bebas (produk baru / custom)</small></button></li>}
-            {options.map((p) => (
-              <li key={p.id}><button type="button" onMouseDown={() => add(p.nama, p)}><strong>{p.nama}</strong><small>{[p.jenis, p.spesifikasi, p.bahan].filter(Boolean).join(' · ') || 'Data Produk'}</small></button></li>
+            {term.trim() && <li><button type="button" onMouseDown={(e) => { e.preventDefault(); add(term) }}><strong>Tambah "{term.trim()}"</strong><small>Ketik bebas (produk baru / custom)</small></button></li>}
+            {options.filter((p) => !needs.some((n) => n.label.toLowerCase() === p.nama.toLowerCase())).map((p) => (
+              <li key={p.id}><button type="button" onMouseDown={(e) => { e.preventDefault(); add(p.nama, p) }}><strong>{p.nama}</strong><small>{[p.jenis, p.spesifikasi, p.bahan].filter(Boolean).join(' · ') || 'Data Produk'}</small></button></li>
             ))}
             {!options.length && !term.trim() && <li className="pap-combo-empty">Ketik untuk mencari produk.</li>}
           </ul>
@@ -451,8 +462,8 @@ function ProductNeedPicker({ value, onChange }: { value: NeedItem[]; onChange: (
       </div>
       {jenisList.length > 0 && (
         <div className="pap-need-jenis">
-          <span>Jenis:</span>
-          {jenisList.map((j) => <button key={j} type="button" onClick={() => add(['HD', 'PP', 'PE'].includes(j) ? `Kantong ${j}` : j)}>{j}</button>)}
+          <span>Tambah cepat:</span>
+          {jenisList.map((j) => <button key={j} type="button" onClick={() => add(['HD', 'PP', 'PE'].includes(j) ? `Kantong ${j}` : j)}>+ {j}</button>)}
         </div>
       )}
     </div>
@@ -579,7 +590,7 @@ function ProspectDetail({ id, autoEdit = false, user, users, onClose, onEdit, on
           <div><dt>Kontak</dt><dd>{item.kontak_nama ?? '—'}{item.kontak_jabatan ? ` · ${item.kontak_jabatan}` : ''}</dd></div>
           <div><dt>Telepon / email</dt><dd>{item.telepon ? <a href={`tel:+${item.telepon}`}><Phone className="pap-inline-icon" /> +{item.telepon}</a> : '—'}{item.email && <><br /><a href={`mailto:${item.email}`}><Mail className="pap-inline-icon" /> {item.email}</a></>}</dd></div>
           <div><dt>Alamat</dt><dd>{[item.alamat, item.kota].filter(Boolean).join(', ') || '—'}</dd></div>
-          <div><dt>Kebutuhan</dt><dd>{item.products?.length ? <span className="pap-need-chips">{item.products.map((p) => <span key={p.label} className={`pap-need-chip ${p.product_id ? '' : 'free'}`}>{p.product_id ? <Package className="pap-inline-icon" /> : null}{p.label}</span>)}</span> : item.kebutuhan ?? '—'}{item.estimasi_order && <><br /><small className="pap-muted">Estimasi: {item.estimasi_order}</small></>}</dd></div>
+          <div><dt>Kebutuhan</dt><dd>{item.products?.length ? <span className="pap-need-chips">{item.products.map((p) => <span key={p.label} className={`pap-need-chip ${p.product_id ? '' : 'free'}`}>{p.product_id ? <Package className="pap-inline-icon" /> : null}{p.label}{p.estimasi ? <small className="pap-need-qty">· {p.estimasi}</small> : null}</span>)}</span> : item.kebutuhan ?? '—'}{item.estimasi_order && <><br /><small className="pap-muted">Estimasi: {item.estimasi_order}</small></>}</dd></div>
           <div>
             <dt>Sales</dt>
             <dd>

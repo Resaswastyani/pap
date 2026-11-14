@@ -37,12 +37,20 @@ export function ShipmentPage(_props: { user: UserProfile }) {
   const [form, setForm] = useState<{ id: number | null; so: number[] } | null>(null)
   const [detail, setDetail] = useState<number | null>(null)
   const [settings, setSettings] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const load = useCallback(() => {
     const status = tab === 'selesai' ? 'selesai' : 'aktif'
     api<ShipRes>(`/api/logistik/shipments?status=${status}${q.trim() ? `&q=${encodeURIComponent(q.trim())}` : ''}`).then((r) => { setData(r); setError('') }).catch((e) => setError(e.message))
   }, [tab, q])
   useEffect(() => { const t = setTimeout(load, q ? 300 : 0); return () => clearTimeout(t) }, [load, q])
   const flash = (text: string) => { setMessage(text); setTimeout(() => setMessage(''), 6000); load() }
+  const syncAccurate = () => {
+    setSyncing(true)
+    api<{ total: number; checked: number; selesai: number; changed: { number: string }[]; errors: string[] }>('/api/logistik/shipments/sync', { method: 'POST' })
+      .then((r) => flash(`Sinkron Accurate selesai: ${r.checked} SO dicek, ${r.selesai} SO sudah difakturkan/ditutup sehingga keluar dari daftar${r.changed.length > r.selesai ? `, ${r.changed.length - r.selesai} status lain diperbarui` : ''}.${r.errors.length ? ` Catatan: ${r.errors.join('; ')}` : ''}`))
+      .catch((e) => setError(e.message))
+      .finally(() => setSyncing(false))
+  }
   const term = q.trim().toLowerCase()
   const candidates = (data?.candidates ?? []).filter((c) => !term || `${c.number} ${c.customer_name ?? ''} ${c.ekspedisi ?? ''} ${c.tujuan ?? ''}`.toLowerCase().includes(term))
   const pagedC = usePaged(candidates, `${q}`, 50)
@@ -60,6 +68,7 @@ export function ShipmentPage(_props: { user: UserProfile }) {
           <span>Order yang sudah jadi dipacking dan dikirim: buat pengiriman dari SO Accurate, cetak surat jalan, catat ekspedisi & nomor resi, dan pantau ketepatan waktu kirim maupun tiba.</span>
         </div>
         <div className="pap-inline-actions pap-wrap">
+          <button className="pap-btn" onClick={syncAccurate} disabled={syncing} title="Ambil SO & faktur terbaru dari Accurate; SO yang sudah difakturkan keluar dari daftar perlu dikirim"><RefreshCw className={syncing ? 'pap-spin' : undefined} /> {syncing ? 'Menyinkronkan…' : 'Sinkron Accurate'}</button>
           {data?.can.manage && <button className="pap-btn" onClick={() => setSettings(true)}><Settings /> Standar waktu kirim</button>}
           {data?.can.manage && <button className="pap-primary-button" onClick={() => setForm({ id: null, so: [] })}><Plus /> Pengiriman manual</button>}
         </div>

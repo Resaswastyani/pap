@@ -576,6 +576,19 @@ textarea.pap-input { resize:vertical; line-height:1.55; }
 .pap-need-jenis { display:flex; flex-wrap:wrap; align-items:center; gap:6px; color:var(--pap-muted); font-size:11px; font-weight:700; }
 .pap-need-jenis button { padding:4px 10px; border:1px dashed var(--pap-border); border-radius:99px; background:transparent; color:var(--pap-text); font-size:11px; cursor:pointer; }
 .pap-need-jenis button:hover { border-color:#7c5cfc; color:#7050e7; }
+.pap-need-rows { display:flex; flex-direction:column; gap:6px; margin:0; padding:0; list-style:none; }
+.pap-need-rows li { display:grid; grid-template-columns:24px minmax(0, 1fr) minmax(150px, 220px) 34px; align-items:center; gap:8px; padding:6px 6px 6px 8px; border:1px solid var(--pap-border); border-radius:10px; background:var(--pap-bg); }
+.pap-need-no { display:grid; place-items:center; width:22px; height:22px; border-radius:50%; background:rgb(124 92 252 / .12); color:#7050e7; font-size:11px; font-weight:800; }
+.pap-need-name { display:flex; flex-direction:column; min-width:0; }
+.pap-need-name strong { font-size:13px; overflow-wrap:anywhere; }
+.pap-need-name small { color:var(--pap-muted); font-size:11px; }
+.pap-need-rows .pap-input { height:34px; font-size:12px; }
+.pap-need-rows .pap-icon-button { width:32px; height:32px; }
+.pap-need-qty { margin-left:4px; font-weight:600; opacity:.8; }
+@media (max-width: 560px) {
+  .pap-need-rows li { grid-template-columns:24px minmax(0, 1fr) 34px; }
+  .pap-need-rows .pap-input { grid-column:2 / 4; grid-row:2; }
+}
 
 /* Request Sample & Request Desain */
 .pap-request-filters { display:flex; flex-direction:column; gap:12px; margin-bottom:16px; }
