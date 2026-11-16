@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CornerDownLeft, LayoutGrid, Search, X } from 'lucide-react'
 import type { NotificationTarget } from './notifications'
 import { api } from './ui'
+import { menuName } from '@/lib/menus'
 
 type Hit = { page: string; title: string; sub: string | null; target?: NotificationTarget; query?: string }
 type Option = { key: string; group: string; title: string; sub?: string | null; run: () => void }
@@ -73,9 +74,9 @@ export function GlobalSearch({ menus, active, onGo, onOpen }: { menus: string[];
     if (!term) return []
     const list: Option[] = []
     const lower = term.toLowerCase()
-    if (pageHasSearch) list.push({ key: 'page', group: 'Halaman ini', title: `Cari “${term}” di ${active}`, run: () => fillPageSearch(term) })
-    for (const label of menus.filter((m) => m.toLowerCase().includes(lower)).slice(0, 5)) {
-      list.push({ key: `menu-${label}`, group: 'Menu', title: label, run: () => onGo(label) })
+    if (pageHasSearch) list.push({ key: 'page', group: 'Halaman ini', title: `Cari “${term}” di ${menuName(active)}`, run: () => fillPageSearch(term) })
+    for (const label of menus.filter((m) => menuName(m).toLowerCase().includes(lower)).slice(0, 5)) {
+      list.push({ key: `menu-${label}`, group: 'Menu', title: menuName(label), run: () => onGo(label) })
     }
     hits.forEach((h, i) => list.push({
       key: `hit-${i}`, group: h.page, title: h.title, sub: h.sub,

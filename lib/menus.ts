@@ -96,3 +96,7 @@ export const MENU_GROUPS: { label: string; items: (keyof typeof MENU_KEYS)[] }[]
 ]
 // Kunci menu yang bisa diatur per divisi (selain ini, isi division_menus tidak disentuh saat disimpan)
 export const CONFIGURABLE_MENU_KEYS = MENU_GROUPS.flatMap((g) => g.items.map((label) => MENU_KEYS[label])) as MenuKey[]
+
+// Nama menu yang tampil di layar bila berbeda dari kunci internalnya (kunci tetap dipakai untuk akses, notifikasi & log)
+export const MENU_DISPLAY: Record<string, string> = { 'Tiket Kendala': 'Tiket Kendala (IT Support)' }
+export const menuName = (label: string) => MENU_DISPLAY[label] ?? label
