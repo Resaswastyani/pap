@@ -27,8 +27,8 @@ export const GET = handle(async (request: Request) => {
   const body: XlsxCell[][] = table.map((r) => r.map((v, i) => (NUM.has(i) && typeof v === 'number' ? { v, s: 'num' } : { v, s: 'cell' })))
   const xlsx = writeXlsx([{
     title: 'Prospek', rows: [head, ...body], freeze: { row: 1, col: 2 },
-    widths: [5, 30, 16, 26, 24, 16, 46, 11, 12, 13, 10, 10, 22, 22, 28, 13, 18, 18],
-    autoFilter: `A1:R${body.length + 1}`,
+    widths: [5, 30, 16, 26, 24, 16, 46, 11, 12, 13, 10, 10, 14, 30, 22, 22, 28, 13, 18, 18],
+    autoFilter: `A1:T${body.length + 1}`,
   }])
   return new Response(new Uint8Array(xlsx), {
     headers: {

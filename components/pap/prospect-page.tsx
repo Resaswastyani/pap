@@ -423,12 +423,14 @@ const splitNeeds = (text: string) => text.split(/\s*;\s*/).map((t) => t.trim()).
 export type NeedItem = {
   product_id: number | null; label: string; estimasi?: string | null
   jenis_plastik?: string | null; qty_kg?: number | string | null; harga?: number | string | null; satuan_harga?: string | null; gpf?: number | string | null
+  cycle_nilai?: number | string | null; cycle_satuan?: string | null; catatan?: string | null
   jenis?: string | null; spesifikasi?: string | null; bahan?: string | null; _k?: number
 }
 let needKey = 0
 const withKey = (n: NeedItem): NeedItem => ({ ...n, _k: ++needKey })
 const PLASTIK = ['HD', 'PP', 'PE', 'PP KW', 'LDPE', 'LLDPE', 'OPP', 'CPP']
 const plastikOf = (p: ProductOption) => PLASTIK.find((j) => j === (p.jenis ?? '').toUpperCase() || new RegExp(`\\b${j}\\b`, 'i').test(p.nama)) ?? null
+const cycleLabel = (n: NeedItem) => (n.cycle_nilai ? `Tiap ${n.cycle_nilai} ${(n.cycle_satuan || 'Bulan').toLowerCase()}` : '')
 const fmtNum = (v: number | string | null | undefined) => (v === null || v === undefined || v === '' ? '' : Number(v).toLocaleString('id-ID', { maximumFractionDigits: 2 }))
 
 function ProductTable({ value, onChange }: { value: NeedItem[]; onChange: (value: NeedItem[]) => void }) {
@@ -453,10 +455,10 @@ function ProductTable({ value, onChange }: { value: NeedItem[]; onChange: (value
   const add = (text: string, product?: ProductOption) => {
     const clean = text.trim().replace(/;/g, ',')
     if (!clean || value.some((n) => n.label.trim().toLowerCase() === clean.toLowerCase())) return
-    onChange([...value, withKey({ product_id: product?.id ?? null, label: clean, jenis_plastik: product ? plastikOf(product) : null, satuan_harga: 'Kg', jenis: product?.jenis, spesifikasi: product?.spesifikasi, bahan: product?.bahan })])
+    onChange([...value, withKey({ product_id: product?.id ?? null, label: clean, jenis_plastik: product ? plastikOf(product) : null, satuan_harga: 'Kg', cycle_satuan: 'Bulan', jenis: product?.jenis, spesifikasi: product?.spesifikasi, bahan: product?.bahan })])
     setTerm('')
   }
-  const blank = () => onChange([...value, withKey({ product_id: null, label: '', satuan_harga: 'Kg' })])
+  const blank = () => onChange([...value, withKey({ product_id: null, label: '', satuan_harga: 'Kg', cycle_satuan: 'Bulan' })])
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i))
   const edit = (i: number, patch: Partial<NeedItem>) => onChange(value.map((n, idx) => (idx === i ? { ...n, ...patch, ...(patch.label !== undefined && patch.label !== n.label ? { product_id: null } : {}) } : n)))
 
@@ -485,6 +487,19 @@ function ProductTable({ value, onChange }: { value: NeedItem[]; onChange: (value
                   </select>
                 </label>
                 <label><span>GPF/sat (Rp)</span><input className="pap-input" inputMode="decimal" value={n.gpf ?? ''} onChange={(e) => edit(i, { gpf: e.target.value })} placeholder="0" /></label>
+              </div>
+              <div className="pap-prod-extra">
+                <label><span>Cycle kebutuhan</span>
+                  <div className="pap-prod-cycle">
+                    <span className="pap-muted">Tiap</span>
+                    <input className="pap-input" inputMode="numeric" maxLength={3} value={n.cycle_nilai ?? ''} onChange={(e) => edit(i, { cycle_nilai: e.target.value.replace(/\D/g, '') })} placeholder="1" aria-label="Jumlah cycle" />
+                    <select className="pap-select" value={n.cycle_satuan || 'Bulan'} onChange={(e) => edit(i, { cycle_satuan: e.target.value })} aria-label="Satuan cycle">
+                      <option value="Hari">Hari</option>
+                      <option value="Bulan">Bulan</option>
+                    </select>
+                  </div>
+                </label>
+                <label><span>Spek khusus / catatan (opsional)</span><input className="pap-input" maxLength={500} value={n.catatan ?? ''} onChange={(e) => edit(i, { catatan: e.target.value })} placeholder="Contoh: sablon 2 warna, food grade, lubang angin" /></label>
               </div>
               {n.estimasi ? <small className="pap-muted">Estimasi (data lama): {n.estimasi}</small> : null}
             </li>
@@ -524,16 +539,17 @@ function ProductList({ items }: { items: NeedItem[] }) {
   return (
     <div className="pap-table-wrap">
       <table className="pap-prod-table">
-        <thead><tr><th>No</th><th>Jenis Product - Spec</th><th>Jenis Plastik</th><th className="num">Qty (Kg)</th><th className="num">Harga / satuan</th><th className="num">GPF/sat</th></tr></thead>
+        <thead><tr><th>No</th><th>Jenis Product - Spec</th><th>Jenis Plastik</th><th className="num">Qty (Kg)</th><th className="num">Harga / satuan</th><th className="num">GPF/sat</th><th>Cycle</th></tr></thead>
         <tbody>
           {items.map((p, i) => (
             <tr key={i}>
               <td>{i + 1}</td>
-              <td>{p.product_id ? <Package className="pap-inline-icon" /> : null}{p.label}{p.estimasi ? <div className="pap-cell-sub">{p.estimasi}</div> : null}</td>
+              <td>{p.product_id ? <Package className="pap-inline-icon" /> : null}{p.label}{p.catatan ? <div className="pap-cell-sub">{p.catatan}</div> : null}{p.estimasi ? <div className="pap-cell-sub">{p.estimasi}</div> : null}</td>
               <td>{p.jenis_plastik || '—'}</td>
               <td className="num">{fmtNum(p.qty_kg) || '0'}</td>
               <td className="num">Rp {fmtNum(p.harga) || '0'}{p.satuan_harga ? `/${p.satuan_harga.toLowerCase()}` : ''}</td>
               <td className="num">{fmtNum(p.gpf) || '0'}</td>
+              <td>{cycleLabel(p) || '—'}</td>
             </tr>
           ))}
         </tbody>
@@ -870,9 +886,10 @@ const CSV_COLUMNS: [string, string][] = [
   ['nama_usaha', 'Nama Customer'], ['sektor', 'Bidang Usaha'], ['alamat', 'Alamat dll'], ['kontak_nama', 'Nama Kontak PIC'], ['telepon', 'Nomor WhatsApp'],
   ['kebutuhan', 'Jenis Product - Spec'], ['jenis_plastik', 'Jenis Plastik'], ['qty_kg', 'Qty Kebutuhan (Kg)'], ['harga', 'Harga / satuan'], ['satuan_harga', 'Satuan Harga'],
   ['gpf', 'GPF/sat'], ['payment', 'Payment'], ['kompetitor', 'Kompetitor'], ['catatan', 'Kendala'],
+  ['cycle', 'Cycle Kebutuhan'], ['spek_khusus', 'Spek Khusus / Catatan'],
 ]
-const PRODUCT_KEYS = ['jenis_plastik', 'qty_kg', 'harga', 'satuan_harga', 'gpf'] as const
-type ImportProduct = { label: string; jenis_plastik?: string; qty_kg?: string; harga?: string; satuan_harga?: string; gpf?: string; estimasi?: string }
+const PRODUCT_KEYS = ['jenis_plastik', 'qty_kg', 'harga', 'satuan_harga', 'gpf', 'cycle', 'spek_khusus'] as const
+type ImportProduct = { label: string; jenis_plastik?: string; qty_kg?: string; harga?: string; satuan_harga?: string; gpf?: string; cycle?: string; spek_khusus?: string; estimasi?: string }
 type ImportRow = Record<string, string> & { products?: ImportProduct[] }
 type ImportBatch = { batch: string; waktu: string; jumlah: number; oleh: string; contoh: string; aktivitas: number }
 // Judul kolom lain yang tetap dikenali (template lama, file sendiri)
@@ -883,6 +900,7 @@ const HEADER_ALIASES: Record<string, string> = {
   email: 'email', sektor: 'sektor', 'sektor usaha': 'sektor', alamat: 'alamat', kota: 'kota', sumber: 'sumber',
   kebutuhan: 'kebutuhan', produk: 'kebutuhan', 'produk diminati': 'kebutuhan', 'jenis product': 'kebutuhan', 'jenis produk - spec': 'kebutuhan', 'jenis produk': 'kebutuhan',
   qty: 'qty_kg', 'qty (kg)': 'qty_kg', 'qty kebutuhan': 'qty_kg', harga: 'harga', 'harga/satuan': 'harga', satuan: 'satuan_harga', gpf: 'gpf', 'gpf / sat': 'gpf',
+  cycle: 'cycle', 'cycle kebutuhan': 'cycle', siklus: 'cycle', 'spek khusus': 'spek_khusus', 'spek khusus / catatan': 'spek_khusus', 'catatan produk': 'spek_khusus',
   'estimasi order': 'estimasi_order', estimasi: 'estimasi_order', catatan: 'catatan', keterangan: 'catatan', 'catatan threat/ kendala/ lainnya': 'catatan', threat: 'catatan', kendala: 'catatan',
   supplier: 'kompetitor', 'supplier lain': 'kompetitor', 'kompetitor / supplier lain': 'kompetitor', 'kompetitor supplier lain': 'kompetitor', pembayaran: 'payment',
 }

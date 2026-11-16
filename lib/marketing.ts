@@ -261,6 +261,7 @@ export async function saveVisitSales(visitId: number, ids: number[]) {
 export type ProspectProduct = {
   product_id: number | null; label: string; estimasi: string | null
   jenis_plastik: string | null; qty_kg: number | null; harga: number | null; satuan_harga: string | null; gpf: number | null
+  cycle_nilai: number | null; cycle_satuan: 'Hari' | 'Bulan' | null; catatan: string | null
 }
 
 // Angka gaya Indonesia: "Rp 50.000/kg", "2.000", "45,5", 11500 -> number
@@ -280,7 +281,26 @@ const satuanOf = (value: unknown) => {
   return m ? m[1][0].toUpperCase() + m[1].slice(1).toLowerCase() : null
 }
 
-// body.products = [{ product_id, label, jenis_plastik, qty_kg, harga, satuan_harga, gpf, estimasi? }] (null = tidak dikirim, data lama tidak diubah)
+// Cycle kebutuhan: { cycle_nilai: 15, cycle_satuan: 'Hari' } atau teks impor "1 Bulan" / "tiap 15 hari" / "2 minggu"
+export function readCycle(raw: Record<string, unknown> | undefined) {
+  let nilai = parseIdNumber(raw?.cycle_nilai)
+  let satuan = str(raw?.cycle_satuan, 10).toLowerCase()
+  const text = str(raw?.cycle, 40).toLowerCase()
+  if (nilai === null && text) {
+    const m = text.match(/(\d+(?:[.,]\d+)?)\s*(hari|bulan|minggu|day|month|week)?/)
+    if (m) {
+      nilai = parseIdNumber(m[1])
+      satuan = m[2] ?? ''
+    } else if (/bulan|month/.test(text)) nilai = 1, satuan = 'bulan'
+    else if (/hari|day/.test(text)) nilai = 1, satuan = 'hari'
+  }
+  if (/minggu|week/.test(satuan) && nilai) nilai *= 7, satuan = 'hari'
+  const n = nilai && nilai > 0 ? Math.min(Math.round(nilai), 999) : null
+  return { cycle_nilai: n, cycle_satuan: n ? (/hari|day/.test(satuan) ? 'Hari' as const : 'Bulan' as const) : null }
+}
+export const cycleText = (p: { cycle_nilai: number | null; cycle_satuan: string | null }) => (p.cycle_nilai ? `${p.cycle_nilai} ${p.cycle_satuan ?? 'Bulan'}` : null)
+
+// body.products = [{ product_id, label, jenis_plastik, qty_kg, harga, satuan_harga, gpf, cycle_nilai, cycle_satuan, catatan, estimasi? }] (null = tidak dikirim, data lama tidak diubah)
 export function readProspectProducts(body: Record<string, unknown>): ProspectProduct[] | null {
   if (!Array.isArray(body.products)) return null
   const list: ProspectProduct[] = []
@@ -291,6 +311,7 @@ export function readProspectProducts(body: Record<string, unknown>): ProspectPro
       product_id: int(raw?.product_id), label, estimasi: str(raw?.estimasi, 150) || null,
       jenis_plastik: str(raw?.jenis_plastik, 40) || null, qty_kg: parseIdNumber(raw?.qty_kg), harga: parseIdNumber(raw?.harga),
       satuan_harga: capital(str(raw?.satuan_harga, 20)) || satuanOf(raw?.harga), gpf: parseIdNumber(raw?.gpf),
+      ...readCycle(raw), catatan: str(raw?.catatan ?? raw?.spek_khusus, 500) || null,
     })
   }
   return list
@@ -306,19 +327,19 @@ export async function saveProspectProducts(prospectId: number, products: Prospec
     const [rows] = await db.query<(RowDataPacket & { id: number })[]>('SELECT id FROM customer_products WHERE id IN (?)', [ids])
     for (const r of rows) valid.add(r.id)
   }
-  await db.query('INSERT INTO prospect_products (prospect_id, product_id, label, estimasi, jenis_plastik, qty_kg, harga, satuan_harga, gpf, sort_order) VALUES ?', [
-    products.map((p, i) => [prospectId, p.product_id && valid.has(p.product_id) ? p.product_id : null, p.label, p.estimasi, p.jenis_plastik, p.qty_kg, p.harga, p.satuan_harga, p.gpf, i + 1]),
+  await db.query('INSERT INTO prospect_products (prospect_id, product_id, label, estimasi, jenis_plastik, qty_kg, harga, satuan_harga, gpf, cycle_nilai, cycle_satuan, catatan, sort_order) VALUES ?', [
+    products.map((p, i) => [prospectId, p.product_id && valid.has(p.product_id) ? p.product_id : null, p.label, p.estimasi, p.jenis_plastik, p.qty_kg, p.harga, p.satuan_harga, p.gpf, p.cycle_nilai, p.cycle_satuan, p.catatan, i + 1]),
   ])
 }
 
 export async function loadProspectProducts(prospectId: number) {
   const [rows] = await db.query<RowDataPacket[]>(
-    `SELECT pp.product_id, pp.label, pp.estimasi, pp.jenis_plastik, pp.qty_kg, pp.harga, pp.satuan_harga, pp.gpf, cp.nama, cp.jenis, cp.spesifikasi, cp.bahan
+    `SELECT pp.product_id, pp.label, pp.estimasi, pp.jenis_plastik, pp.qty_kg, pp.harga, pp.satuan_harga, pp.gpf, pp.cycle_nilai, pp.cycle_satuan, pp.catatan, cp.nama, cp.jenis, cp.spesifikasi, cp.bahan
      FROM prospect_products pp LEFT JOIN customer_products cp ON cp.id = pp.product_id
      WHERE pp.prospect_id = ? ORDER BY pp.sort_order, pp.id`,
     [prospectId],
   )
-  return rows.map((r) => ({ ...r, qty_kg: r.qty_kg === null ? null : Number(r.qty_kg), harga: r.harga === null ? null : Number(r.harga), gpf: r.gpf === null ? null : Number(r.gpf) }))
+  return rows.map((r) => ({ ...r, qty_kg: r.qty_kg === null ? null : Number(r.qty_kg), harga: r.harga === null ? null : Number(r.harga), gpf: r.gpf === null ? null : Number(r.gpf), cycle_nilai: r.cycle_nilai === null ? null : Number(r.cycle_nilai) }))
 }
 
 // ---- Filter daftar prospek (dipakai daftar, ekspor Excel/CSV & cetak PDF) ----
@@ -372,7 +393,7 @@ export type ProspectExportRow = RowDataPacket & {
   id: number; nama_usaha: string; sektor: string | null; alamat: string | null; kota: string | null; kontak_nama: string | null; kontak_jabatan: string | null
   telepon: string | null; kebutuhan: string | null; payment: string | null; kompetitor: string | null; catatan: string | null; status: string
   assigned_name: string | null; next_followup_at: string | null
-  products: { label: string; jenis_plastik: string | null; qty_kg: number | null; harga: number | null; satuan_harga: string | null; gpf: number | null }[]
+  products: { label: string; jenis_plastik: string | null; qty_kg: number | null; harga: number | null; satuan_harga: string | null; gpf: number | null; cycle_nilai: number | null; cycle_satuan: string | null; catatan: string | null }[]
 }
 
 // Semua prospek sesuai filter daftar (maks 3000) beserta produknya, urut nama
@@ -388,16 +409,16 @@ export async function prospectExport(user: UserProfile, sp: URLSearchParams) {
   )
   if (rows.length) {
     const [products] = await db.query<RowDataPacket[]>(
-      'SELECT prospect_id, label, jenis_plastik, qty_kg, harga, satuan_harga, gpf FROM prospect_products WHERE prospect_id IN (?) ORDER BY prospect_id, sort_order, id',
+      'SELECT prospect_id, label, jenis_plastik, qty_kg, harga, satuan_harga, gpf, cycle_nilai, cycle_satuan, catatan FROM prospect_products WHERE prospect_id IN (?) ORDER BY prospect_id, sort_order, id',
       [rows.map((r) => r.id)],
     )
     const n = (v: unknown) => (v === null || v === undefined ? null : Number(v))
     const byId = new Map<number, ProspectExportRow['products']>()
-    for (const p of products) byId.set(p.prospect_id, [...(byId.get(p.prospect_id) ?? []), { label: p.label, jenis_plastik: p.jenis_plastik, qty_kg: n(p.qty_kg), harga: n(p.harga), satuan_harga: p.satuan_harga, gpf: n(p.gpf) }])
+    for (const p of products) byId.set(p.prospect_id, [...(byId.get(p.prospect_id) ?? []), { label: p.label, jenis_plastik: p.jenis_plastik, qty_kg: n(p.qty_kg), harga: n(p.harga), satuan_harga: p.satuan_harga, gpf: n(p.gpf), cycle_nilai: n(p.cycle_nilai), cycle_satuan: p.cycle_satuan, catatan: p.catatan }])
     for (const r of rows) {
       r.products = byId.get(r.id) ?? []
       // Prospek lama tanpa baris produk: kebutuhan dipecah per "; "
-      if (!r.products.length && r.kebutuhan) r.products = r.kebutuhan.split(/\s*;\s*/).filter(Boolean).map((label) => ({ label, jenis_plastik: null, qty_kg: null, harga: null, satuan_harga: null, gpf: null }))
+      if (!r.products.length && r.kebutuhan) r.products = r.kebutuhan.split(/\s*;\s*/).filter(Boolean).map((label) => ({ label, jenis_plastik: null, qty_kg: null, harga: null, satuan_harga: null, gpf: null, cycle_nilai: null, cycle_satuan: null, catatan: null }))
     }
   }
   return rows
@@ -405,7 +426,7 @@ export async function prospectExport(user: UserProfile, sp: URLSearchParams) {
 
 // Kolom ekspor = kolom tabel Program Mkt Dev (bisa diimpor ulang) + status, sales, follow-up
 export const PROSPECT_EXPORT_HEAD = ['No', 'Nama Customer', 'Bidang Usaha', 'Alamat dll', 'Nama Kontak PIC', 'Nomor WhatsApp', 'Jenis Product - Spec', 'Jenis Plastik',
-  'Qty Kebutuhan (Kg)', 'Harga / satuan', 'Satuan Harga', 'GPF/sat', 'Payment', 'Kompetitor', 'Kendala', 'Status', 'Sales', 'Follow-up berikutnya']
+  'Qty Kebutuhan (Kg)', 'Harga / satuan', 'Satuan Harga', 'GPF/sat', 'Cycle Kebutuhan', 'Spek Khusus / Catatan', 'Payment', 'Kompetitor', 'Kendala', 'Status', 'Sales', 'Follow-up berikutnya']
 
 // Satu baris per produk; baris produk berikutnya hanya berisi kolom produk (format sama dengan file impor)
 export function prospectExportTable(rows: ProspectExportRow[]) {
@@ -416,7 +437,7 @@ export function prospectExportTable(rows: ProspectExportRow[]) {
       const head = k === 0
         ? [i + 1, r.nama_usaha, r.sektor, r.alamat || r.kota, [r.kontak_nama, r.kontak_jabatan].filter(Boolean).join(' - ') || null, r.telepon ? `0${r.telepon.replace(/^62/, '')}` : null]
         : [null, null, null, null, null, null]
-      const prod = p ? [p.label, p.jenis_plastik, p.qty_kg ?? 0, p.harga ?? 0, p.satuan_harga, p.gpf ?? 0] : [null, null, null, null, null, null]
+      const prod = p ? [p.label, p.jenis_plastik, p.qty_kg ?? 0, p.harga ?? 0, p.satuan_harga, p.gpf ?? 0, cycleText(p), p.catatan] : [null, null, null, null, null, null, null, null]
       const tail = k === 0 ? [r.payment, r.kompetitor, r.catatan, PROSPECT_STATUS[r.status as keyof typeof PROSPECT_STATUS] ?? r.status, r.assigned_name, r.next_followup_at] : [null, null, null, null, null, null]
       out.push([...head, ...prod, ...tail])
     })

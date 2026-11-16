@@ -56,7 +56,7 @@ export default async function CetakProspekPage({ searchParams }: { searchParams:
           <thead>
             <tr>
               <th className="c">No</th><th>Nama Customer</th><th>Bidang Usaha</th><th>Alamat dll</th><th>Nama Kontak PIC</th><th>Nomor WhatsApp</th>
-              <th>Jenis Product - Spec</th><th>Jenis Plastik</th><th className="r">Qty (Kg)</th><th className="r">Harga / satuan</th><th className="r">GPF/sat</th>
+              <th>Jenis Product - Spec</th><th>Jenis Plastik</th><th className="r">Qty (Kg)</th><th className="r">Harga / satuan</th><th className="r">GPF/sat</th><th>Cycle</th>
               <th>Payment</th><th>Status · Sales</th>
             </tr>
           </thead>
@@ -76,11 +76,12 @@ export default async function CetakProspekPage({ searchParams }: { searchParams:
                       <td rowSpan={span}>{r.telepon ? `0${r.telepon.replace(/^62/, '')}` : ''}</td>
                     </>
                   )}
-                  <td>{p?.label}</td>
+                  <td>{p?.label}{p?.catatan ? <div className="spec">{p.catatan}</div> : null}</td>
                   <td>{p?.jenis_plastik}</td>
                   <td className="r">{p ? num(p.qty_kg ?? 0) : ''}</td>
                   <td className="r">{p ? `${num(p.harga ?? 0)}${p.satuan_harga ? `/${p.satuan_harga.toLowerCase()}` : ''}` : ''}</td>
                   <td className="r">{p ? num(p.gpf ?? 0) : ''}</td>
+                  <td>{p?.cycle_nilai ? `Tiap ${p.cycle_nilai} ${(p.cycle_satuan ?? 'Bulan').toLowerCase()}` : ''}</td>
                   {k === 0 && (
                     <>
                       <td rowSpan={span}>{r.payment}</td>
@@ -90,7 +91,7 @@ export default async function CetakProspekPage({ searchParams }: { searchParams:
                 </tr>
               ))
             })}
-            {!rows.length && <tr><td colSpan={13} className="c">Tidak ada prospek sesuai filter.</td></tr>}
+            {!rows.length && <tr><td colSpan={14} className="c">Tidak ada prospek sesuai filter.</td></tr>}
           </tbody>
         </table>
       </article>
