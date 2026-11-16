@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { ApiError } from '@/lib/api'
 import { loadSettings } from '@/lib/hpp'
-import { PROSPECT_STATUS, prospectExport, requireMarketing } from '@/lib/marketing'
+import { areaLabel, PROSPECT_STATUS, prospectExport, requireMarketing } from '@/lib/marketing'
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../quotation/[id]/print-button'
 
@@ -27,6 +27,8 @@ export default async function CetakProspekPage({ searchParams }: { searchParams:
   const rows = await prospectExport(user, params)
   const doc = await loadSettings('doc.')
   const filters = [STATUS_FILTER[params.get('status') ?? 'semua'] ?? null, params.get('q') && `Cari "${params.get('q')}"`, params.get('sumber') && `Sumber ${params.get('sumber')}`,
+    params.get('plastik') && `Jenis plastik ${params.get('plastik')}`,
+    params.get('area') && (params.get('area') === '-' ? 'Area belum terbaca' : `Area ${areaLabel(params.get('area')!)}`),
     params.get('sektor') && (params.get('sektor') === '-' ? 'Bidang usaha belum diisi' : `Bidang usaha ${params.get('sektor')}`),
     params.get('followup') === 'overdue' ? 'Follow-up terlambat' : params.get('followup') === 'today' ? 'Follow-up hari ini' : null].filter(Boolean).join(' · ')
   const now = new Date(Date.now() + 7 * 3600e3).toISOString()

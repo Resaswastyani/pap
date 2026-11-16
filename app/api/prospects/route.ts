@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser, pageParams } from '@/lib/api'
 import { db } from '@/lib/db'
 import {
-  applyStatusFilter, canSupervise, isMarketing, logActivity, MARKETING_DIVISIONS, parseDateTime, PROSPECT_SELECT, PROSPECT_SOURCES,
+  applyStatusFilter, areaOptions, canSupervise, plasticOptions, plasticTotals, isMarketing, logActivity, MARKETING_DIVISIONS, parseDateTime, PROSPECT_SELECT, PROSPECT_SOURCES,
   prospectFilter, prospectScope, readProspectInput, readProspectProducts, saveProspectProducts, requireMarketing, requireMarketingUser,
 } from '@/lib/marketing'
 import { notify } from '@/lib/notifications'
@@ -17,7 +17,7 @@ export const GET = handle(async (request: Request) => {
   requireMarketing(user, 'prospek')
   const url = new URL(request.url)
   const scope = prospectScope(user)
-  const { where, params } = prospectFilter(user, url.searchParams)
+  const { where, params, plastik } = await prospectFilter(user, url.searchParams)
 
   // Ringkasan funnel memakai filter yang sama kecuali status
   const [summaryRows] = await db.query<(RowDataPacket & { status: string; n: number })[]>(
@@ -31,6 +31,7 @@ export const GET = handle(async (request: Request) => {
   )
 
   applyStatusFilter(where, params, url.searchParams.get('status'))
+  const [plasticSummary, plastics, areas] = await Promise.all([plasticTotals(where, params, plastik), plasticOptions(user), areaOptions(user)])
   const view = url.searchParams.get('view')
   const { page, pageSize } = pageParams(url.searchParams, PAGE_SIZE)
   // Tampilan kanban butuh semua kartu aktif sekaligus (dibatasi 600)
@@ -61,6 +62,10 @@ export const GET = handle(async (request: Request) => {
     users,
     sources: PROSPECT_SOURCES,
     sectors: sectors.map((r) => String(r.sektor)),
+    plastics,
+    areas,
+    plasticSummary: plasticSummary.rows,
+    plasticProspek: plasticSummary.prospek,
     canSupervise: canSupervise(user),
   })
 })
