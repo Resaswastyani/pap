@@ -58,8 +58,14 @@ type ListResponse = {
   users: MarketingUser[]
   sources: string[]
   sectors?: string[]
+  plastics?: { value: string; count: number }[]
+  areas?: { value: string; label: string; count: number }[]
+  plasticSummary?: { jenis: string; kg: number; prospek: number }[]
+  plasticProspek?: number
   canSupervise: boolean
 }
+// 12.500 kg -> "12.500 kg (12,5 ton)"
+const kgTon = (kg: number) => `${kg.toLocaleString('id-ID', { maximumFractionDigits: 0 })} kg (${(kg / 1000).toLocaleString('id-ID', { maximumFractionDigits: 2 })} ton)`
 
 const ACTIVITY_LABEL: Record<string, string> = { whatsapp: 'WhatsApp', telepon: 'Telepon', email: 'Email', visit: 'Visit', meeting: 'Meeting', catatan: 'Catatan', status: 'Status', handover: 'Handover' }
 const today = () => nowInput().slice(0, 10)
@@ -79,6 +85,8 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
   const [status, setStatus] = useState('aktif')
   const [sumber, setSumber] = useState('')
   const [sektor, setSektor] = useState('')
+  const [plastik, setPlastik] = useState('')
+  const [area, setArea] = useState('')
   const [owner, setOwner] = useState('')
   const [followup, setFollowup] = useState('')
   const [page, setPage] = useState(1)
@@ -96,10 +104,12 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
     p.set('status', view === 'kanban' ? 'aktif' : status || 'semua')
     if (sumber) p.set('sumber', sumber)
     if (sektor) p.set('sektor', sektor)
+    if (plastik) p.set('plastik', plastik)
+    if (area) p.set('area', area)
     if (owner) p.set('owner', owner)
     if (followup) p.set('followup', followup)
     return p.toString()
-  }, [q, status, view, sumber, sektor, owner, followup])
+  }, [q, status, view, sumber, sektor, plastik, area, owner, followup])
   const [downloadOpen, setDownloadOpen] = useState(false)
 
   const load = useCallback(async () => {
@@ -111,6 +121,8 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
       if (view === 'kanban') params.set('status', 'aktif')
       if (sumber) params.set('sumber', sumber)
       if (sektor) params.set('sektor', sektor)
+      if (plastik) params.set('plastik', plastik)
+      if (area) params.set('area', area)
       if (owner) params.set('owner', owner)
       if (followup) params.set('followup', followup)
       setData(await api<ListResponse>(`/api/prospects?${params}`))
@@ -120,12 +132,12 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
     } finally {
       setLoading(false)
     }
-  }, [q, status, sumber, sektor, owner, followup, page, view, size])
+  }, [q, status, sumber, sektor, plastik, area, owner, followup, page, view, size])
   useEffect(() => {
     const timer = setTimeout(load, q ? 300 : 0)
     return () => clearTimeout(timer)
   }, [load, q])
-  useEffect(() => setPage(1), [q, status, sumber, sektor, owner, followup, view])
+  useEffect(() => setPage(1), [q, status, sumber, sektor, plastik, area, owner, followup, view])
 
   const flash = (text: string) => {
     setMessage(text)
@@ -207,23 +219,34 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
               {Object.entries(PROSPECT_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </select>
           )}
-          <select className="pap-select" value={sektor} onChange={(e) => setSektor(e.target.value)} aria-label="Filter bidang usaha">
-            <option value="">Semua bidang usaha</option>
+          <select className="pap-select" value={plastik} onChange={(e) => setPlastik(e.target.value)} aria-label="Filter jenis plastik">
+            <option value="">Semua jenis plastik</option>
+            {plastik && !(data?.plastics ?? []).some((x) => x.value === plastik) && <option value={plastik}>{plastik}</option>}
+            {(data?.plastics ?? []).map((x) => <option key={x.value} value={x.value}>{x.value} ({x.count})</option>)}
+          </select>
+          <select className="pap-select" value={sektor} onChange={(e) => setSektor(e.target.value)} aria-label="Filter sektor usaha">
+            <option value="">Semua sektor usaha</option>
             {sektor && sektor !== '-' && !(data?.sectors ?? []).includes(sektor) && <option value={sektor}>{sektor}</option>}
             {(data?.sectors ?? []).map((s) => <option key={s} value={s}>{s}</option>)}
             <option value="-">Belum diisi</option>
           </select>
-          <select className="pap-select" value={sumber} onChange={(e) => setSumber(e.target.value)} aria-label="Filter sumber">
-            <option value="">Semua sumber</option>
-            {(data?.sources ?? []).map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select className="pap-select" value={owner} onChange={(e) => setOwner(e.target.value)} aria-label="Filter sales">
-            <option value="">{data?.canSupervise ? 'Semua sales' : 'Semua prospek'}</option>
-            <option value="me">Ditugaskan ke saya</option>
-            {data?.canSupervise && <option value="none">Belum ada sales</option>}
-            {data?.canSupervise && data.users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+          <select className="pap-select" value={area} onChange={(e) => setArea(e.target.value)} aria-label="Filter area">
+            <option value="">Semua area</option>
+            {area && !(data?.areas ?? []).some((x) => x.value === area) && <option value={area}>{area}</option>}
+            {(data?.areas ?? []).map((x) => <option key={x.value} value={x.value}>{x.label} ({x.count})</option>)}
           </select>
         </div>
+        {data?.plasticSummary && (
+          <div className="pap-kg-summary">
+            <strong>Kebutuhan{plastik ? ` ${plastik}` : ''}:</strong>
+            {data.plasticSummary.length ? (
+              <>
+                {!plastik && data.plasticSummary.map((x) => <span key={x.jenis} className="pap-chip">{x.jenis} · {kgTon(x.kg)}</span>)}
+                <span className="pap-kg-total">{plastik ? '' : 'Total '}{kgTon(data.plasticSummary.reduce((n, x) => n + x.kg, 0))} dari {data.plasticProspek ?? 0} prospek</span>
+              </>
+            ) : <span className="pap-muted">belum ada qty kebutuhan pada filter ini</span>}
+          </div>
+        )}
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         {view === 'list' ? (
           <div className="pap-table-wrap">
@@ -243,7 +266,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
                 ))}
               </tbody>
             </table>
-            {!loading && !data?.items.length && <div className="pap-empty">{q || sumber || sektor || owner || followup || status !== 'aktif' ? 'Tidak ada prospek yang cocok dengan filter.' : `Belum ada prospek. ${isDigital ? 'Impor lead dari CSV atau tambah satu per satu.' : 'Klik "Tambah prospek" untuk mulai.'}`}</div>}
+            {!loading && !data?.items.length && <div className="pap-empty">{q || sumber || sektor || plastik || area || owner || followup || status !== 'aktif' ? 'Tidak ada prospek yang cocok dengan filter.' : `Belum ada prospek. ${isDigital ? 'Impor lead dari CSV atau tambah satu per satu.' : 'Klik "Tambah prospek" untuk mulai.'}`}</div>}
             {loading && !data && <div className="pap-empty">Memuat prospek...</div>}
           </div>
         ) : (

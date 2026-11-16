@@ -1,6 +1,8 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { fail, int, str } from '@/lib/api'
 import { db } from '@/lib/db'
+import { KOTA_PROVINSI } from '@/lib/kota'
+import { parseDestination } from '@/lib/logistik'
 import type { UserProfile } from '@/lib/users'
 
 // Divisi marketing sesuai Guidance PT PAP (divisi "marketing" lama = kepala / marketing umum)
@@ -342,8 +344,65 @@ export async function loadProspectProducts(prospectId: number) {
   return rows.map((r) => ({ ...r, qty_kg: r.qty_kg === null ? null : Number(r.qty_kg), harga: r.harga === null ? null : Number(r.harga), gpf: r.gpf === null ? null : Number(r.gpf), cycle_nilai: r.cycle_nilai === null ? null : Number(r.cycle_nilai) }))
 }
 
+// ---- Area prospek: provinsi dari alamat / kota (pakai daftar kota yang sama dengan ekspedisi) ----
+const AREA_SHORT: Record<string, string> = {
+  'Jawa Tengah': 'Jateng', 'Jawa Timur': 'Jatim', 'Jawa Barat': 'Jabar', 'Daerah Istimewa Yogyakarta': 'DIY', 'DKI Jakarta': 'DKI', 'Nusa Tenggara Barat': 'NTB', 'Nusa Tenggara Timur': 'NTT',
+}
+export const areaLabel = (provinsi: string) => (AREA_SHORT[provinsi] ? `${provinsi} (${AREA_SHORT[provinsi]})` : provinsi)
+export function prospectArea(p: { alamat?: string | null; kota?: string | null }) {
+  const kota = p.kota?.trim()
+  if (kota) {
+    const known = Object.keys(KOTA_PROVINSI).find((k) => k.toLowerCase() === kota.toLowerCase().replace(/^(kab(upaten)?\.?|kota)\s+/i, ''))
+    if (known) return KOTA_PROVINSI[known]
+  }
+  return parseDestination([p.alamat, p.kota].filter(Boolean).join(', ') || null).provinsi
+}
+// Prospek (dalam cakupan user) per area: { provinsi -> id[] }, "-" = area belum terbaca
+async function prospectAreas(user: UserProfile) {
+  const scope = prospectScope(user)
+  const [rows] = await db.query<(RowDataPacket & { id: number; alamat: string | null; kota: string | null })[]>(`SELECT p.id, p.alamat, p.kota FROM prospects p WHERE ${scope.sql}`, scope.params)
+  const map = new Map<string, number[]>()
+  for (const r of rows) {
+    const area = prospectArea(r) ?? '-'
+    map.set(area, [...(map.get(area) ?? []), r.id])
+  }
+  return map
+}
+export async function areaOptions(user: UserProfile) {
+  const map = await prospectAreas(user)
+  return [...map.entries()].filter(([a]) => a !== '-').sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+    .map(([value, ids]) => ({ value, label: areaLabel(value), count: ids.length })).concat(map.has('-') ? [{ value: '-', label: 'Area belum terbaca', count: map.get('-')!.length }] : [])
+}
+// Jenis plastik dikelompokkan per kata pertama: "PP KW" ikut "PP"
+const PLASTIK_GROUP = "UPPER(SUBSTRING_INDEX(TRIM(pp.jenis_plastik), ' ', 1))"
+export async function plasticOptions(user: UserProfile) {
+  const scope = prospectScope(user)
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT ${PLASTIK_GROUP} AS jenis, COUNT(DISTINCT p.id) AS n FROM prospect_products pp JOIN prospects p ON p.id = pp.prospect_id
+     WHERE ${scope.sql} AND TRIM(COALESCE(pp.jenis_plastik, '')) <> '' GROUP BY jenis ORDER BY n DESC, jenis`,
+    scope.params,
+  )
+  return rows.map((r) => ({ value: String(r.jenis), count: Number(r.n) }))
+}
+// Total kebutuhan (kg) per jenis plastik untuk prospek yang lolos filter
+export async function plasticTotals(where: string[], params: (string | number)[], plastik: string | null) {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT ${PLASTIK_GROUP} AS jenis, COALESCE(SUM(pp.qty_kg), 0) AS kg, COUNT(DISTINCT p.id) AS n
+     FROM prospects p JOIN prospect_products pp ON pp.prospect_id = p.id
+     WHERE ${where.join(' AND ')} AND TRIM(COALESCE(pp.jenis_plastik, '')) <> ''${plastik ? ` AND ${PLASTIK_GROUP} = ?` : ''}
+     GROUP BY jenis ORDER BY kg DESC`,
+    plastik ? [...params, plastik] : params,
+  )
+  const [[all]] = await db.query<RowDataPacket[]>(
+    `SELECT COUNT(DISTINCT p.id) AS n FROM prospects p JOIN prospect_products pp ON pp.prospect_id = p.id
+     WHERE ${where.join(' AND ')} AND TRIM(COALESCE(pp.jenis_plastik, '')) <> ''${plastik ? ` AND ${PLASTIK_GROUP} = ?` : ''}`,
+    plastik ? [...params, plastik] : params,
+  )
+  return { rows: rows.map((r) => ({ jenis: String(r.jenis), kg: Number(r.kg), prospek: Number(r.n) })), prospek: Number(all?.n ?? 0) }
+}
+
 // ---- Filter daftar prospek (dipakai daftar, ekspor Excel/CSV & cetak PDF) ----
-export function prospectFilter(user: UserProfile, sp: URLSearchParams) {
+export async function prospectFilter(user: UserProfile, sp: URLSearchParams) {
   const scope = prospectScope(user)
   const where = [scope.sql]
   const params: (string | number)[] = [...scope.params]
@@ -377,7 +436,19 @@ export function prospectFilter(user: UserProfile, sp: URLSearchParams) {
   const followup = sp.get('followup')
   if (followup === 'overdue') where.push("p.next_followup_at < CURDATE() AND p.status NOT IN ('gagal')")
   else if (followup === 'today') where.push("DATE(p.next_followup_at) = CURDATE() AND p.status NOT IN ('gagal')")
-  return { where, params }
+  // Jenis plastik (HD / PP / PE ...): prospek yang punya produk dengan jenis itu
+  const plastik = str(sp.get('plastik'), 40)?.toUpperCase() || null
+  if (plastik) {
+    where.push(`EXISTS (SELECT 1 FROM prospect_products pp WHERE pp.prospect_id = p.id AND ${PLASTIK_GROUP} = ?)`)
+    params.push(plastik)
+  }
+  // Area (provinsi) dari alamat / kota
+  const area = str(sp.get('area'), 80)
+  if (area) {
+    const ids = (await prospectAreas(user)).get(area) ?? []
+    where.push(ids.length ? `p.id IN (${ids.map(Number).join(',')})` : '0 = 1')
+  }
+  return { where, params, plastik }
 }
 
 export function applyStatusFilter(where: string[], params: (string | number)[], status: string | null) {
@@ -398,7 +469,7 @@ export type ProspectExportRow = RowDataPacket & {
 
 // Semua prospek sesuai filter daftar (maks 3000) beserta produknya, urut nama
 export async function prospectExport(user: UserProfile, sp: URLSearchParams) {
-  const { where, params } = prospectFilter(user, sp)
+  const { where, params } = await prospectFilter(user, sp)
   applyStatusFilter(where, params, sp.get('status'))
   const [rows] = await db.query<ProspectExportRow[]>(
     `SELECT p.id, p.nama_usaha, p.sektor, p.alamat, p.kota, p.kontak_nama, p.kontak_jabatan, p.telepon, p.kebutuhan, p.payment, p.kompetitor, p.catatan, p.status,
