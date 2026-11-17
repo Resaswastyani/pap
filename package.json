@@ -18,7 +18,7 @@
     "jose": "^6.2.12",
     "lucide-react": "^1.16.0",
     "mysql2": "^3.24.5",
-    "next": "16.4.2",
+    "next": "16.4.6",
     "pdfjs-dist": "4.10.38",
     "react": "^19",
     "react-dom": "^19",
