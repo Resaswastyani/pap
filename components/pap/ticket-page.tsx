@@ -85,7 +85,7 @@ export function TicketPage({ user, menus, focusId }: { user: UserProfile; menus:
       <div className="pap-page-heading">
         <div>
           <p className="pap-eyebrow">SISTEM · BANTUAN</p>
-          <h1>Tiket Kendala</h1>
+          <h1>Tiket Kendala (IT Support)</h1>
           <span>{handler ? 'Semua laporan kendala dari pengguna: sistem SIMPAP dan IT umum (laptop, jaringan, printer, dll.). Tangani, balas, dan ubah status tiket.' : 'Laporkan kendala ke Staff IT, baik error di SIMPAP maupun kendala IT umum seperti laptop rusak, jaringan, atau printer, lalu pantau tindak lanjutnya di sini.'}</span>
         </div>
         <button className="pap-primary-button" onClick={() => setForm('baru')}><Plus /> Ajukan tiket</button>

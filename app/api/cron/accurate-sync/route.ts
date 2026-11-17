@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { withCronLog } from '@/lib/cron-log'
 import { accurateEnabled } from '@/lib/accurate'
 import { syncAll } from '@/lib/accurate-sync'
 import { refreshCandidateStatus } from '@/lib/logistik'
@@ -8,6 +9,10 @@ export const maxDuration = 60
 // Dipanggil penjadwal (cron-job.org) setiap 15 menit: sinkron customer, faktur, sales order, produk, dan stok dari Accurate.
 // Wajib CRON_SECRET: header "Authorization: Bearer <CRON_SECRET>" atau ?key=<CRON_SECRET>
 export async function GET(request: Request) {
+  return withCronLog('accurate-sync', request, () => run(request))
+}
+
+async function run(request: Request) {
   const secret = process.env.CRON_SECRET
   const given = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || new URL(request.url).searchParams.get('key')
   if (!secret || given !== secret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
