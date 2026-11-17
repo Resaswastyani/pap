@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server'
+import { withCronLog } from '@/lib/cron-log'
 import { createDueReminders } from '@/lib/notifications'
 
 // Dipanggil penjadwal (mis. cron-job.org) SETIAP MENIT agar reminder 15 menit sebelum meeting
 // sampai ke HP walau aplikasi sedang ditutup. Wajib menyertakan CRON_SECRET:
 //   header "Authorization: Bearer <CRON_SECRET>"  atau  ?key=<CRON_SECRET>
 export async function GET(request: Request) {
+  return withCronLog('reminders', request, () => run(request))
+}
+
+async function run(request: Request) {
   const secret = process.env.CRON_SECRET
   const given = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || new URL(request.url).searchParams.get('key')
   if (!secret || given !== secret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { withCronLog } from '@/lib/cron-log'
 import { syncDamageSheet } from '@/lib/damage-log'
 import { syncMaintenanceSheet } from '@/lib/maintenance-sheet'
 import { syncHrSheets } from '@/lib/hrd'
@@ -10,6 +11,10 @@ export const maxDuration = 60
 // Dipanggil penjadwal (cron-job.org) mis. setiap 30 menit: menelusuri folder desain Google Drive bertahap.
 // Wajib CRON_SECRET: header "Authorization: Bearer <CRON_SECRET>" atau ?key=<CRON_SECRET>
 export async function GET(request: Request) {
+  return withCronLog('drive-sync', request, () => run(request))
+}
+
+async function run(request: Request) {
   const secret = process.env.CRON_SECRET
   const given = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || new URL(request.url).searchParams.get('key')
   if (!secret || given !== secret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

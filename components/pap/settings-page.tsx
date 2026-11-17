@@ -1,24 +1,28 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertCircle, Bell, BellOff, Building2, Camera, CheckCircle2, Cloud, Database, ExternalLink, FileSpreadsheet, FolderOpen, KeyRound, Monitor, Moon, Plug, RefreshCw, Server, Sun, Trash2, UserRound } from 'lucide-react'
+import { Activity, AlertCircle, Bell, BellOff, Building2, Camera, CheckCircle2, Clock, Cloud, Copy, Cpu, Database, ExternalLink, FileSpreadsheet, FolderOpen, HardDrive, KeyRound, Monitor, Moon, Play, Plug, RefreshCw, Server, ShieldCheck, Sun, Trash2, UserRound, Wrench } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { avatarImage } from './compress'
 import { subscribePush, unsubscribePush } from './notifications'
 import { api, Field, formatDate, Notice, PasswordInput } from './ui'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
-type Tab = 'akun' | 'perusahaan' | 'integrasi' | 'sistem'
+type Tab = 'akun' | 'perusahaan' | 'integrasi' | 'sistem' | 'it'
 
 const isManagement = (user: UserProfile) => user.role.isAdmin || user.division.code === 'general_manager'
+// Tab IT: Super Admin / admin & divisi Staff IT
+const canSeeIt = (user: UserProfile) => user.role.isAdmin || user.division.code === 'staff_it'
 
 // Menu Pengaturan: Akun saya (semua pengguna); Perusahaan & dokumen, Integrasi, Info sistem (Admin / GM)
 export function SettingsPage({ user, theme, onTheme, onNavigate, onProfileChanged }: { user: UserProfile; theme: ThemeMode; onTheme: (mode: ThemeMode) => void; onNavigate: (menu: string) => void; onProfileChanged?: () => void }) {
   const admin = isManagement(user)
+  const it = canSeeIt(user)
   const [tab, setTab] = useState<Tab>('akun')
   const tabs: [Tab, string, typeof UserRound][] = [
     ['akun', 'Akun saya', UserRound],
     ...(admin ? ([['perusahaan', 'Perusahaan & dokumen', Building2], ['integrasi', 'Integrasi', Plug], ['sistem', 'Info sistem', Server]] as [Tab, string, typeof UserRound][]) : []),
+    ...(it ? ([['it', 'IT', Wrench]] as [Tab, string, typeof UserRound][]) : []),
   ]
   return (
     <>
@@ -38,6 +42,7 @@ export function SettingsPage({ user, theme, onTheme, onNavigate, onProfileChange
       {tab === 'perusahaan' && admin && <CompanyTab />}
       {tab === 'integrasi' && admin && <IntegrationTab onNavigate={onNavigate} />}
       {tab === 'sistem' && admin && <SystemTab />}
+      {tab === 'it' && it && <ItTab />}
     </>
   )
 }
@@ -378,6 +383,180 @@ function SystemTab() {
             <ul className="pap-config-list">
               {(data?.config ?? []).map((c) => <li key={c.label}>{c.ok ? <CheckCircle2 className="pap-ok-icon" /> : <AlertCircle className="pap-text-danger" />}<span>{c.label}</span><b>{c.ok ? 'Aktif' : 'Belum diisi'}</b></li>)}
             </ul>
+          </div>
+        </section>
+      </div>
+    </>
+  )
+}
+
+// ---------------- IT: server, cron, Google Cloud, reCAPTCHA ----------------
+type CronItem = { name: string; label: string; every: number; note: string; url: string; health: 'ok' | 'stale' | 'error' | 'unknown'; last: { at: string; ok: boolean; status: number; ms: number; detail: string | null; manual?: boolean } | null }
+type ItData = {
+  url: string
+  server: { host: string; platform: string; node: string; versi: string | null; lingkungan: string | null; uptime: number; app_uptime: number; cpus: number; load: number[]; mem_total: number; mem_free: number; app_rss: number; app_heap: number; disk: { total: number; free: number } | null; network: { rx: number; tx: number } | null }
+  database: { versi: string; ukuran: number; tabel: number }
+  crons: CronItem[]
+  cron_secret: boolean
+  google: { oauth: boolean; service_account: { email: string | null; project: string | null } | null; drive: { mode: string; email: string } | null; project: string | null }
+  recaptcha: { mode: 'v2' | 'v3' | null; min_score: number | null }
+  accurate: boolean
+}
+const bytes = (n: number | null | undefined) => {
+  if (n === null || n === undefined) return '—'
+  const u = ['B', 'KB', 'MB', 'GB', 'TB']
+  let v = n
+  let i = 0
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
+  return `${v.toLocaleString('id-ID', { maximumFractionDigits: v < 10 ? 1 : 0 })} ${u[i]}`
+}
+const durasi = (sec: number) => {
+  const d = Math.floor(sec / 86400)
+  const h = Math.floor((sec % 86400) / 3600)
+  const m = Math.floor((sec % 3600) / 60)
+  return d ? `${d} hari ${h} jam` : h ? `${h} jam ${m} menit` : `${m} menit`
+}
+const sejak = (iso: string) => {
+  const min = Math.round((Date.now() - Date.parse(iso)) / 60000)
+  return min < 1 ? 'baru saja' : min < 60 ? `${min} menit lalu` : min < 1440 ? `${Math.round(min / 60)} jam lalu` : `${Math.round(min / 1440)} hari lalu`
+}
+const HEALTH: Record<CronItem['health'], [string, string]> = { ok: ['success', 'Normal'], stale: ['warning', 'Terlambat'], error: ['danger', 'Gagal'], unknown: ['neutral', 'Belum tercatat'] }
+const pct = (used: number, total: number) => (total ? Math.round((used / total) * 100) : 0)
+
+function ItLinks({ links }: { links: [string, string][] }) {
+  return <div className="pap-it-links">{links.map(([label, href]) => <a key={href} className="pap-btn" href={href} target="_blank" rel="noreferrer"><ExternalLink /> {label}</a>)}</div>
+}
+
+function ItTab() {
+  const [data, setData] = useState<ItData | null>(null)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState('')
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null)
+  const load = useCallback(() => { api<ItData>('/api/settings/it').then(setData).catch((e) => setError(e.message)) }, [])
+  useEffect(() => { load() }, [load])
+
+  async function act(key: string, json: Record<string, string>) {
+    setBusy(key)
+    setResult(null)
+    try {
+      setResult(await api<{ ok: boolean; message: string }>('/api/settings/it', { method: 'POST', json }))
+      load()
+    } catch (e) {
+      setResult({ ok: false, message: (e as Error).message })
+    } finally {
+      setBusy('')
+    }
+  }
+  const copy = (text: string) => { navigator.clipboard?.writeText(text).then(() => setResult({ ok: true, message: `Disalin: ${text}` })).catch(() => {}) }
+
+  const sv = data?.server
+  const memUsed = sv ? sv.mem_total - sv.mem_free : 0
+  const diskUsed = sv?.disk ? sv.disk.total - sv.disk.free : 0
+  const project = data?.google.project
+  const gcp = (path: string) => `https://console.cloud.google.com/${path}${project ? `${path.includes('?') ? '&' : '?'}project=${encodeURIComponent(project)}` : ''}`
+  const testBtn = (key: string, label: string, target: string) => (
+    <button type="button" className="pap-btn" disabled={!!busy} onClick={() => act(key, { action: 'test', target })}>{busy === key ? <RefreshCw className="pap-spin" /> : <ShieldCheck />} {busy === key ? 'Menguji...' : label}</button>
+  )
+
+  return (
+    <>
+      {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      {result && <Notice kind={result.ok ? 'success' : 'error'} onClose={() => setResult(null)}>{result.message}</Notice>}
+      <div className="pap-stat-grid four">
+        {([
+          ['Memori server', sv ? `${pct(memUsed, sv.mem_total)}%` : '—', sv ? `${bytes(memUsed)} dari ${bytes(sv.mem_total)} terpakai` : '', Cpu],
+          ['Disk', sv?.disk ? `${pct(diskUsed, sv.disk.total)}%` : '—', sv?.disk ? `${bytes(diskUsed)} dari ${bytes(sv.disk.total)}` : 'tidak terbaca', HardDrive],
+          ['Data transfer', sv?.network ? bytes(sv.network.rx + sv.network.tx) : '—', sv?.network ? `↓ ${bytes(sv.network.rx)} · ↑ ${bytes(sv.network.tx)} sejak server menyala` : 'tidak terbaca', Activity],
+          ['Server menyala', sv ? durasi(sv.uptime) : '—', sv ? `aplikasi ${durasi(sv.app_uptime)} · beban ${sv.load[0]}` : '', Clock],
+        ] as [string, string, string, typeof Cpu][]).map(([label, value, note, Icon]) => (
+          <div key={label} className="pap-stat-card"><div><span>{label}</span><strong className="pap-stat-text">{value}</strong><small className="neutral">{note}</small></div><div className="pap-stat-icon stat-1"><Icon /></div></div>
+        ))}
+      </div>
+
+      <div className="pap-settings-grid">
+        <section className="pap-table-card pap-settings-card">
+          <div className="pap-card-head"><div><h2>Server Hostinger (VPS)</h2><p>Sumber daya server tempat SIMPAP berjalan.</p></div><button type="button" className="pap-icon-button" onClick={load} aria-label="Muat ulang" title="Muat ulang"><RefreshCw /></button></div>
+          <div className="pap-settings-body">
+            <dl className="pap-detail-grid">
+              <div><dt>Host</dt><dd>{sv?.host ?? '—'}</dd></div>
+              <div><dt>Sistem operasi</dt><dd>{sv?.platform ?? '—'}</dd></div>
+              <div><dt>CPU · beban 1/5/15 mnt</dt><dd>{sv ? `${sv.cpus} core · ${sv.load.join(' / ')}` : '—'}</dd></div>
+              <div><dt>Memori aplikasi</dt><dd>{sv ? `${bytes(sv.app_rss)} (heap ${bytes(sv.app_heap)})` : '—'}</dd></div>
+              <div><dt>Node.js · versi aplikasi</dt><dd>{sv ? `${sv.node} · ${sv.versi ?? 'lokal'}` : '—'}</dd></div>
+              <div><dt>Database</dt><dd>{data ? `MariaDB ${data.database.versi.split('-')[0]} · ${bytes(data.database.ukuran)} · ${data.database.tabel} tabel` : '—'}</dd></div>
+            </dl>
+            <p className="pap-muted pap-it-note">Kuota data transfer bulanan & tagihan VPS dilihat di hPanel Hostinger; angka di atas dihitung sejak server terakhir menyala.</p>
+            <div className="pap-it-links">
+              {testBtn('db', 'Tes database', 'database')}
+              <a className="pap-btn" href="https://hpanel.hostinger.com/vps" target="_blank" rel="noreferrer"><ExternalLink /> hPanel VPS</a>
+              <a className="pap-btn" href="https://hpanel.hostinger.com/domains" target="_blank" rel="noreferrer"><ExternalLink /> Domain & DNS</a>
+              {data && <a className="pap-btn" href={data.url} target="_blank" rel="noreferrer"><ExternalLink /> Buka situs</a>}
+            </div>
+          </div>
+        </section>
+
+        <section className="pap-table-card pap-settings-card">
+          <div className="pap-card-head"><div><h2>Cronjob</h2><p>Dipanggil otomatis oleh cron-job.org. Status dari panggilan terakhir.</p></div></div>
+          <div className="pap-settings-body">
+            {data && !data.cron_secret && <Notice>CRON_SECRET belum diisi di server; semua cron akan ditolak.</Notice>}
+            <ul className="pap-it-crons">
+              {(data?.crons ?? []).map((c) => {
+                const [tone, text] = HEALTH[c.health]
+                return (
+                  <li key={c.name}>
+                    <div className="pap-it-cron-head">
+                      <strong>{c.label}</strong>
+                      <span className={`pap-status ${tone}`}>{text}</span>
+                    </div>
+                    <small className="pap-muted">{c.note}</small>
+                    <small>{c.last ? <>Terakhir {sejak(c.last.at)} ({formatDate(c.last.at, true)}) · HTTP {c.last.status} · {(c.last.ms / 1000).toFixed(1)} dtk{c.last.manual ? ' · manual' : ''}{c.last.detail ? <> · <span className={c.last.ok ? '' : 'pap-text-danger'}>{c.last.detail}</span></> : null}</> : 'Belum ada panggilan tercatat sejak fitur ini dipasang.'}</small>
+                    {c.last?.status === 401 && <small className="pap-text-danger">Ditolak 401: kunci di cron-job.org tidak sama dengan CRON_SECRET di server.</small>}
+                    <div className="pap-it-cron-actions">
+                      <code title={c.url}>{c.url}</code>
+                      <button type="button" className="pap-icon-button" onClick={() => copy(c.url)} aria-label="Salin URL" title="Salin URL"><Copy /></button>
+                      <button type="button" className="pap-btn" disabled={!!busy} onClick={() => act(`cron-${c.name}`, { action: 'cron', name: c.name })}>{busy === `cron-${c.name}` ? <RefreshCw className="pap-spin" /> : <Play />} {busy === `cron-${c.name}` ? 'Menjalankan...' : 'Jalankan sekarang'}</button>
+                    </div>
+                  </li>
+                )
+              })}
+              {!data && !error && <li className="pap-muted">Memuat...</li>}
+            </ul>
+            <p className="pap-muted pap-it-note">Di cron-job.org pakai URL di atas (bukan alamat lama Vercel / domain yang dialihkan) dan header <code>Authorization: Bearer &lt;CRON_SECRET&gt;</code>.</p>
+            <ItLinks links={[['Dashboard cron-job.org', 'https://console.cron-job.org/jobs']]} />
+          </div>
+        </section>
+
+        <section className="pap-table-card pap-settings-card">
+          <div className="pap-card-head"><div><h2>Google Cloud</h2><p>Akses Google Drive, Sheets & login Google.</p></div></div>
+          <div className="pap-settings-body">
+            <ul className="pap-config-list">
+              <li>{data?.google.drive ? <CheckCircle2 className="pap-ok-icon" /> : <AlertCircle className="pap-text-danger" />}<span>Akun Drive yang dipakai</span><b>{data?.google.drive ? `${data.google.drive.email} (${data.google.drive.mode === 'oauth' ? 'akun Google' : 'service account'})` : 'Belum terhubung'}</b></li>
+              <li>{data?.google.oauth ? <CheckCircle2 className="pap-ok-icon" /> : <AlertCircle className="pap-text-danger" />}<span>OAuth client</span><b>{data?.google.oauth ? 'Aktif' : 'Belum diisi'}</b></li>
+              <li>{data?.google.service_account ? <CheckCircle2 className="pap-ok-icon" /> : <AlertCircle className="pap-text-muted" />}<span>Service account</span><b>{data?.google.service_account?.email ?? 'Tidak dipakai'}</b></li>
+              <li><Cloud className="pap-text-muted" /><span>Project</span><b>{project ?? '—'}</b></li>
+            </ul>
+            <div className="pap-it-links">
+              {testBtn('google', 'Tes koneksi Google', 'google')}
+              <a className="pap-btn" href={gcp('apis/dashboard')} target="_blank" rel="noreferrer"><ExternalLink /> API & kuota</a>
+              <a className="pap-btn" href={gcp('apis/credentials')} target="_blank" rel="noreferrer"><ExternalLink /> Kredensial</a>
+              <a className="pap-btn" href={gcp('apis/library/sheets.googleapis.com')} target="_blank" rel="noreferrer"><ExternalLink /> Sheets API</a>
+              <a className="pap-btn" href={gcp('apis/library/drive.googleapis.com')} target="_blank" rel="noreferrer"><ExternalLink /> Drive API</a>
+              <a className="pap-btn" href={gcp('billing')} target="_blank" rel="noreferrer"><ExternalLink /> Billing</a>
+            </div>
+          </div>
+        </section>
+
+        <section className="pap-table-card pap-settings-card">
+          <div className="pap-card-head"><div><h2>reCAPTCHA login</h2><p>Perlindungan halaman login dari bot.</p></div></div>
+          <div className="pap-settings-body">
+            <ul className="pap-config-list">
+              <li>{data?.recaptcha.mode ? <CheckCircle2 className="pap-ok-icon" /> : <AlertCircle className="pap-text-danger" />}<span>Status</span><b>{data ? (data.recaptcha.mode === 'v2' ? 'Aktif · v2 (kotak "I\'m not a robot")' : data.recaptcha.mode === 'v3' ? `Aktif · v3 (skor min. ${data.recaptcha.min_score})` : 'Nonaktif') : '—'}</b></li>
+              <li><KeyRound className="pap-text-muted" /><span>Domain terdaftar harus mencakup</span><b>{data ? new URL(data.url).hostname : '—'}</b></li>
+            </ul>
+            <div className="pap-it-links">
+              {testBtn('recaptcha', 'Tes kunci reCAPTCHA', 'recaptcha')}
+              <a className="pap-btn" href="https://www.google.com/recaptcha/admin" target="_blank" rel="noreferrer"><ExternalLink /> Konsol reCAPTCHA</a>
+            </div>
           </div>
         </section>
       </div>

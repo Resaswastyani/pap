@@ -6,6 +6,7 @@ import { syncStatus } from '@/lib/accurate-sync'
 import { db } from '@/lib/db'
 import { driveAccount, oauthConfigured } from '@/lib/drive'
 import { isManagement } from '@/lib/users'
+import { appVersion } from '@/lib/it-status'
 
 type Row = RowDataPacket & Record<string, unknown>
 
@@ -78,7 +79,7 @@ export const GET = handle(async () => {
     info: {
       ...counts,
       user_aktif: Number(counts.user_aktif), user_total: Number(counts.user_total), role: Number(counts.role), divisi: Number(counts.divisi), migrasi: Number(counts.migrasi),
-      versi: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
+      versi: await appVersion(),
       lingkungan: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? null,
     },
     config,
