@@ -445,8 +445,8 @@ export function BpjsPage(_props: { user: UserProfile }) {
           <table>
             <thead>
               {prog === 'tk'
-                ? <tr><th>Karyawan</th><th>No. BPJS Ketenagakerjaan</th><th className="pap-num">Upah</th><th className="pap-num">JHT (P / K)</th><th className="pap-num">JKK</th><th className="pap-num">JKM</th><th className="pap-num">JP (P / K)</th><th className="pap-num">Total</th><th>Ditanggung</th>{manage && <th />}</tr>
-                : <tr><th>Karyawan</th><th>No. BPJS Kesehatan</th><th className="pap-num">Upah</th><th className="pap-num">Perusahaan</th><th className="pap-num">Pegawai</th><th className="pap-num">Total</th><th>Ditanggung</th>{manage && <th />}</tr>}
+                ? <tr><th>Karyawan</th><th>No. peserta</th><th className="pap-num">Upah</th><th className="pap-num">JHT (P / K)</th><th className="pap-num">JKK</th><th className="pap-num">JKM</th><th className="pap-num">JP (P / K)</th><th className="pap-num">Total</th>{manage && <th>Aksi</th>}</tr>
+                : <tr><th>Karyawan</th><th>No. peserta</th><th className="pap-num">Upah</th><th className="pap-num">Perusahaan</th><th className="pap-num">Pegawai</th><th className="pap-num">Total</th>{manage && <th>Aksi</th>}</tr>}
             </thead>
             <tbody>
               {paged.items.map((x) => {
@@ -461,20 +461,18 @@ export function BpjsPage(_props: { user: UserProfile }) {
                         <td className="pap-num pap-nowrap">{formatRupiah(x.jht_p)}<div className="pap-cell-sub">{formatRupiah(x.jht_k)}</div></td>
                         <td className="pap-num pap-nowrap">{formatRupiah(x.jkk)}</td><td className="pap-num pap-nowrap">{formatRupiah(x.jkm)}</td>
                         <td className="pap-num pap-nowrap">{formatRupiah(x.jp_p)}<div className="pap-cell-sub">{x.dasar_tk && !x.dasar_jp ? 'usia pensiun' : formatRupiah(x.jp_k)}</div></td>
-                        <td className="pap-num pap-nowrap"><strong>{formatRupiah(x.total_tk)}</strong></td>
-                        <td>{x.tk_ditanggung === 'perusahaan' ? 'Perusahaan' : 'Pegawai'}</td>
+                        <td className="pap-num pap-nowrap"><strong>{formatRupiah(x.total_tk)}</strong>{ikut ? <div className="pap-cell-sub">ditanggung {x.tk_ditanggung === 'perusahaan' ? 'perusahaan' : 'pegawai'}</div> : null}</td>
                       </>
                     ) : (
                       <>
                         <td className="pap-num pap-nowrap">{formatRupiah(x.kes_p)}</td><td className="pap-num pap-nowrap">{formatRupiah(x.kes_k)}</td>
-                        <td className="pap-num pap-nowrap"><strong>{formatRupiah(x.total_kes)}</strong></td>
-                        <td>{x.kes_ditanggung === 'perusahaan' ? 'Perusahaan' : 'Pegawai'}</td>
+                        <td className="pap-num pap-nowrap"><strong>{formatRupiah(x.total_kes)}</strong>{ikut ? <div className="pap-cell-sub">ditanggung {x.kes_ditanggung === 'perusahaan' ? 'perusahaan' : 'pegawai'}</div> : null}</td>
                       </>
                     )}
                     {manage && (
                       <td className="pap-nowrap">
                         {x.payroll_id && (ikut || (prog === 'tk' ? x.no_bpjs_tk : x.no_bpjs_kes)
-                          ? <><button type="button" className="pap-icon-button" title="Ubah" aria-label={`Ubah BPJS ${x.nama}`} onClick={() => setForm(x)}><Pencil /></button><button type="button" className="pap-icon-button" title="Hapus kepesertaan" aria-label={`Hapus BPJS ${x.nama}`} onClick={() => remove(x)}><Trash2 /></button></>
+                          ? <div className="pap-inline-actions"><button type="button" className="pap-icon-button" title="Ubah" aria-label={`Ubah BPJS ${x.nama}`} onClick={() => setForm(x)}><Pencil /></button><button type="button" className="pap-icon-button" title="Hapus kepesertaan" aria-label={`Hapus BPJS ${x.nama}`} onClick={() => remove(x)}><Trash2 /></button></div>
                           : <button type="button" className="pap-link-button" onClick={() => setForm(x)}>Daftarkan</button>)}
                       </td>
                     )}
@@ -485,8 +483,8 @@ export function BpjsPage(_props: { user: UserProfile }) {
             {t && (
               <tfoot>
                 {prog === 'tk'
-                  ? <tr className="pap-total-row"><td colSpan={3}><b>Total {t.peserta_tk} peserta</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.jht_p + t.jht_k)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.jkk)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.jkm)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.jp_p + t.jp_k)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.total_tk)}</b></td><td />{manage && <td />}</tr>
-                  : <tr className="pap-total-row"><td colSpan={3}><b>Total {t.peserta_kes} peserta</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.kes_p)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.kes_k)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.total_kes)}</b></td><td />{manage && <td />}</tr>}
+                  ? <tr className="pap-total-row"><td colSpan={3}><b>Total {t.peserta_tk} peserta</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.jht_p + t.jht_k)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.jkk)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.jkm)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.jp_p + t.jp_k)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.total_tk)}</b></td>{manage && <td />}</tr>
+                  : <tr className="pap-total-row"><td colSpan={3}><b>Total {t.peserta_kes} peserta</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.kes_p)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.kes_k)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.total_kes)}</b></td>{manage && <td />}</tr>}
               </tfoot>
             )}
           </table>
