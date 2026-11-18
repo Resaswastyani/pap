@@ -25,6 +25,8 @@ const SOURCES = [
   { key: 'ga.sheet_url', label: 'Data General Affair (No HP, Langganan, WiFi)', menu: 'Data GA', jenis: 'sheet', sync: '/api/ga/sheet', synced: 'ga.synced_at' },
   { key: 'hrd.training_folder_url', label: 'Folder Training Karyawan', menu: 'Training', jenis: 'folder', sync: null, synced: 'hrd.training_synced' },
   { key: 'hrd.training_schedule_url', label: 'Jadwal Training', menu: 'Training › Jadwal', jenis: 'sheet', sync: null, synced: 'hrd.training_schedule_synced' },
+  { key: 'hrd.tes_papikostik_url', label: 'Hasil Tes Papikostik (Google Form)', menu: 'Karyawan › Hasil tes', jenis: 'sheet', sync: '/api/hrd/tests/sync', synced: 'hrd.tes_synced_at' },
+  { key: 'hrd.tes_iq_url', label: 'Hasil Tes IQ (Google Form)', menu: 'Karyawan › Hasil tes', jenis: 'sheet', sync: '/api/hrd/tests/sync', synced: 'hrd.tes_synced_at' },
 ] as const
 
 // Pengaturan > Integrasi & Info sistem (Admin / GM)

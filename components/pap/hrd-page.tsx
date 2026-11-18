@@ -6,7 +6,7 @@ import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
 import { EmployeeForm } from './employee-form'
 import { EmployeeJobdesk, type Jobdesk } from './jobdesk'
-import { EmployeeAttendance, EmployeeTests, EmployeeTrainings, type Attendance, type EmployeeTest, type TrainingItem } from './employee-extra'
+import { EmployeeAttendance, EmployeeTests, EmployeeTrainings, TestSheetSync, type Attendance, type EmployeeTest, type TrainingItem } from './employee-extra'
 import { PayrollCalc, PayrollEmployees, PayrollSettingsView } from './payroll-page'
 import { api, Field, formatDate, Modal, Notice, Pager, peekQuickAction, usePaged, useQuickAction, confirmDialog } from './ui'
 
@@ -53,14 +53,14 @@ function Tiles({ tiles }: { tiles: { label: string; value: string; note: string;
   )
 }
 
-function SyncBar({ label, syncedAt, canSync, onOpen }: { label: string; syncedAt: string | null; canSync: boolean; onOpen: () => void }) {
+function SyncBar({ label, syncedAt, canSync, onOpen, extra }: { label: string; syncedAt: string | null; canSync: boolean; onOpen: () => void; extra?: React.ReactNode }) {
   return (
     <div className="pap-sync-bar">
       <div className="pap-sync-items">
         <span className="pap-sync-title">Google Drive</span>
         <span className="pap-sync-item">{label}: {syncedAt ? `sinkron ${formatDate(syncedAt, true)}` : 'belum pernah sinkron'}</span>
       </div>
-      <button className="pap-btn" onClick={onOpen}>{canSync ? <RefreshCw /> : <FileSpreadsheet />} {canSync ? 'Sinkron' : 'Sumber data'}</button>
+      <span className="pap-inline-actions">{extra}<button className="pap-btn" onClick={onOpen}>{canSync ? <RefreshCw /> : <FileSpreadsheet />} {canSync ? 'Sinkron' : 'Sumber data'}</button></span>
     </div>
   )
 }
@@ -75,6 +75,7 @@ export function KaryawanPage(_props: { user: UserProfile }) {
   const [status, setStatus] = useState('aktif')
   const [detail, setDetail] = useState<number | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [testsOpen, setTestsOpen] = useState(false)
   const [showAllEnding, setShowAllEnding] = useState(false)
   const [form, setForm] = useState<{ item: Record<string, unknown> | null } | null>(null)
   const load = useCallback(() => api<NonNullable<typeof data>>('/api/hrd/employees').then((r) => { setData(r); setError('') }).catch((e) => setError(e.message)), [])
@@ -104,7 +105,7 @@ export function KaryawanPage(_props: { user: UserProfile }) {
         </div>
         {data?.can.manage && <button className="pap-primary-button" onClick={() => setForm({ item: null })}><Plus /> Tambah karyawan</button>}
       </div>
-      <SyncBar label="Data Karyawan" syncedAt={data?.synced_at ?? null} canSync={!!data?.can.manage} onOpen={() => setSheetOpen(true)} />
+      <SyncBar label="Data Karyawan" syncedAt={data?.synced_at ?? null} canSync={!!data?.can.manage} onOpen={() => setSheetOpen(true)} extra={data?.can.manage ? <button className="pap-btn" onClick={() => setTestsOpen(true)}><FileSpreadsheet /> Hasil tes (Google Form)</button> : null} />
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       <Tiles tiles={[
@@ -185,6 +186,7 @@ export function KaryawanPage(_props: { user: UserProfile }) {
       )}
       {form && <EmployeeForm item={form.item} employees={all} onClose={() => setForm(null)} onSaved={(t) => { setForm(null); setMessage(t); load() }} />}
       {sheetOpen && <HrSheetSync jenis="karyawan" onClose={() => setSheetOpen(false)} onImported={(t) => { setSheetOpen(false); setMessage(t); load() }} />}
+      {testsOpen && <TestSheetSync onClose={() => setTestsOpen(false)} onDone={(t) => setMessage(t)} />}
     </>
   )
 }

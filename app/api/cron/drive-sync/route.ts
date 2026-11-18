@@ -5,6 +5,7 @@ import { syncMaintenanceSheet } from '@/lib/maintenance-sheet'
 import { syncHrSheets } from '@/lib/hrd'
 import { driveEnabled, spreadsheetId, syncDrive } from '@/lib/drive'
 import { loadGaUrl, syncGa } from '@/lib/ga'
+import { syncEmployeeTests } from '@/lib/employee-tests-sync'
 
 export const maxDuration = 60
 
@@ -29,7 +30,9 @@ async function run(request: Request) {
     const hrd = await syncHrSheets().catch((error) => ({ error: (error as Error).message }))
     // Data General Affair (nomor HP, langganan, WiFi)
     const ga = spreadsheetId(await loadGaUrl()) ? await syncGa().catch((error) => ({ error: (error as Error).message })) : null
-    return NextResponse.json({ ok: true, ...result, kerusakan, perawatan, hrd, ga })
+    // Hasil tes Papikostik & IQ (jawaban Google Form)
+    const tes = await syncEmployeeTests().then((r) => r.map((x) => ({ jenis: x.jenis, cocok: x.cocok, error: x.error ?? null }))).catch((error) => ({ error: (error as Error).message }))
+    return NextResponse.json({ ok: true, ...result, kerusakan, perawatan, hrd, ga, tes })
   } catch (error) {
     console.error('[cron/drive-sync]', error)
     return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 500 })

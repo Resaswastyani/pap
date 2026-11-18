@@ -3,7 +3,7 @@ import { fail } from '@/lib/api'
 import { db } from '@/lib/db'
 import { notify } from '@/lib/notifications'
 import { pushToUsers } from '@/lib/push'
-import { openSheet, readRaw, readTab, replaceBlock, trySheet, writeCells, type Sheet } from '@/lib/sheet-write'
+import { openWorkbook, readRaw, readTab, READONLY_EXCEL, replaceBlock, SheetWriteError, trySheet, withWorkbook, writeCells, type Sheet } from '@/lib/sheet-write'
 import { isManagement, type UserProfile } from '@/lib/users'
 
 // ===== Action Plan (Corporate Plan) =====
@@ -562,7 +562,8 @@ async function writeKpis(sheet: Sheet) {
 export async function pushToSheet(label: string, job: (sheet: Sheet) => Promise<unknown>) {
   const url = await sheetUrl()
   if (!url) return null
-  return trySheet(label, async () => job(await openSheet(url)))
+  // Google Sheet atau file Excel (.xlsx) di Drive
+  return trySheet(label, () => withWorkbook(url, true, job))
 }
 export const pushPrograms = (ids: number[] | 'all') => pushToSheet('Program Kerja', async (s) => { await writePrograms(s, ids); await writeKpis(s) })
 export const pushProgress = (entryId: number, programId: number) => pushToSheet('Progress Report', async (s) => { await writeProgressRow(s, entryId); await writePrograms(s, [programId]); await writeKpis(s) })
@@ -594,12 +595,25 @@ export async function removeProgramFromSheet(kode: string) {
 export async function syncFromSheet(userId: number) {
   const url = await sheetUrl()
   if (!url) fail(400, 'Link Google Sheet Action Plan belum diatur.')
-  const sheet = await openSheet(url)
-  const parsed = parseSheetData(await readAllTabs(sheet))
-  const res = await importSheetData(parsed, userId)
-  // Baris program tanpa ID di sheet: diisi ID baru lewat penulisan ulang semua program
-  const warning = await trySheet('tab Program Kerja / Timeline / KPI', async () => { await writePrograms(sheet, 'all'); await writeKpis(sheet) })
-  await markSynced(userId)
-  return { ...res, warning }
+  // Google Sheet atau file Excel (.xlsx) di Drive. Kegagalan membuka / membaca = 400 dengan alasannya (bukan error server)
+  let wb: Awaited<ReturnType<typeof openWorkbook>> | null = null
+  let ok = false
+  try {
+    wb = await openWorkbook(url!)
+    const sheet = wb.sheet
+    const parsed = parseSheetData(await readAllTabs(sheet))
+    const res = await importSheetData(parsed, userId)
+    // Baris program tanpa ID di sheet: diisi ID baru lewat penulisan ulang semua program (file .xlsm hanya dibaca)
+    const warning = wb.readonly ? READONLY_EXCEL : await trySheet('tab Program Kerja / Timeline / KPI', async () => { await writePrograms(sheet, 'all'); await writeKpis(sheet) })
+    await markSynced(userId)
+    ok = true
+    return { ...res, warning, excel: wb.excel }
+  } catch (error) {
+    if (error instanceof SheetWriteError) fail(400, error.message)
+    throw error
+  } finally {
+    // File Excel .xlsx: hasil penulisan disimpan kembali ke file aslinya
+    if (wb) await wb.finish(ok).catch((e) => console.error('[action-plan] simpan file Excel:', (e as Error).message))
+  }
 }
 

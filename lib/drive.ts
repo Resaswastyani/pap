@@ -11,6 +11,8 @@ import { readXlsx } from '@/lib/xlsx-lite'
 const SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
 // Edit spreadsheet (tulis balik Kalender Konten, Rekap Kerusakan, Jadwal Shift, Data Mesin, Lembar Perawatan)
 const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets'
+// Edit file Drive: dipakai untuk menulis balik file Excel (.xlsx) di Drive (dikonversi sementara ke Google Sheet)
+const DRIVE_EDIT_SCOPE = 'https://www.googleapis.com/auth/drive'
 type ServiceAccount = { client_email: string; private_key: string }
 
 function serviceAccount(): ServiceAccount | null {
@@ -82,7 +84,7 @@ export function driveAuthUrl(redirectUri: string, state: string) {
     client_id: client.id,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: `openid email ${SCOPE} ${SHEETS_SCOPE}`,
+    scope: `openid email ${SCOPE} ${SHEETS_SCOPE} ${DRIVE_EDIT_SCOPE}`,
     access_type: 'offline', // agar mendapat refresh token
     prompt: 'consent',
     include_granted_scopes: 'true',
@@ -101,7 +103,7 @@ export async function connectDriveAccount(code: string, redirectUri: string, use
   })
   const json = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(`Login Google gagal: ${json.error_description ?? json.error ?? res.status}`)
-  if (!String(json.scope ?? '').includes(SCOPE)) throw new Error('Izin "Lihat file Google Drive" tidak dicentang. Ulangi dan centang izin tersebut.')
+  if (!String(json.scope ?? '').includes(SCOPE) && !String(json.scope ?? '').split(' ').includes(DRIVE_EDIT_SCOPE)) throw new Error('Izin "Lihat file Google Drive" tidak dicentang. Ulangi dan centang izin tersebut.')
   if (!json.refresh_token) throw new Error('Google tidak memberikan refresh token. Ulangi Hubungkan akun Google.')
   // id_token berisi email akun yang login
   const payload = JSON.parse(Buffer.from(String(json.id_token ?? '').split('.')[1] ?? '', 'base64url').toString('utf8') || '{}')
@@ -160,7 +162,7 @@ async function accessToken() {
     const now = Math.floor(Date.now() / 1000)
     const unsigned = `${b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))}.${b64url(JSON.stringify({
       iss: sa.client_email,
-      scope: `${SCOPE} ${SHEETS_SCOPE}`,
+      scope: `${SCOPE} ${SHEETS_SCOPE} ${DRIVE_EDIT_SCOPE}`,
       aud: 'https://oauth2.googleapis.com/token',
       iat: now,
       exp: now + 3600,
@@ -391,6 +393,13 @@ export async function driveStatus() {
 
 // ---- Google Sheet (dibaca dengan akun Google yang sama dengan Logo & Desain) ----
 export type SheetTab = { title: string; rows: string[][] }
+
+// Link file Drive apa pun (Google Sheet, file Excel "/file/d/<id>", "open?id=<id>") atau id langsung -> id
+export function driveFileId(urlOrId: string) {
+  const m = urlOrId.match(/\/(?:spreadsheets|file|document|presentation)\/d\/([a-zA-Z0-9_-]{20,})/) ?? urlOrId.match(/[?&]id=([a-zA-Z0-9_-]{20,})/)
+  if (m) return m[1]
+  return /^[a-zA-Z0-9_-]{20,}$/.test(urlOrId.trim()) ? urlOrId.trim() : null
+}
 
 // "https://docs.google.com/spreadsheets/d/<id>/edit..." atau id langsung -> id
 export function spreadsheetId(urlOrId: string) {

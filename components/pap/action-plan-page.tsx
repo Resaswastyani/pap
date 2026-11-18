@@ -825,8 +825,8 @@ function SheetSettings({ sheet, onClose, onChanged }: { sheet: { url: string; sy
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       {info && <Notice kind="success" onClose={() => setInfo('')}>{info}</Notice>}
       <div className="pap-form-grid">
-        <Field label="Link Google Sheet" full hint={sheet.syncedAt ? `Sinkron terakhir ${formatDate(sheet.syncedAt, true)}` : 'Belum pernah disinkron'}>
-          <input className="pap-input" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/..." />
+        <Field label="Link Google Drive (Google Sheet / Excel)" full hint={sheet.syncedAt ? `Sinkron terakhir ${formatDate(sheet.syncedAt, true)}` : 'Belum pernah disinkron'}>
+          <input className="pap-input" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/... atau https://drive.google.com/file/d/..." />
         </Field>
         <div className="full pap-inline-actions">
           <button className="pap-primary-button" disabled={busy === 'save' || url === sheet.url} onClick={save}>{busy === 'save' ? 'Menyimpan…' : 'Simpan link'}</button>
@@ -835,7 +835,7 @@ function SheetSettings({ sheet, onClose, onChanged }: { sheet: { url: string; sy
         <div className="full pap-ap-steps">
           <b>Cara menautkan</b>
           <ol>
-            <li>File Excel (.xlsm) di Drive tidak bisa diubah otomatis: buka file di Google Drive › <i>File › Simpan sebagai Google Spreadsheet</i>.</li>
+            <li>Boleh link Google Sheet atau file Excel di Drive. File <b>.xlsx</b> disinkron dua arah (SIMPAP menyimpan perubahan kembali ke file). File ber-makro <b>.xlsm</b> hanya dibaca.</li>
             <li>Bagikan spreadsheet baru sebagai <b>Editor</b> ke akun Google yang terhubung di SIMPAP (Master Data › Hubungkan akun Google).</li>
             <li>Tempel link spreadsheet baru di atas, simpan, lalu klik <b>Sinkron Google Sheet</b>.</li>
           </ol>

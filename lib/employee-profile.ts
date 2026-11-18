@@ -58,7 +58,7 @@ export async function employeeTrainings(employeeId: number) {
 
 export async function employeeTests(employeeId: number) {
   const [rows] = await db.query<Row[]>(
-    `SELECT t.id, t.jenis, t.tanggal, t.hasil, t.skor, t.catatan, t.lampiran_url, u.name AS oleh, t.updated_at
+    `SELECT t.id, t.jenis, t.tanggal, t.hasil, t.skor, t.catatan, t.lampiran_url, t.sumber, u.name AS oleh, t.updated_at
      FROM employee_tests t LEFT JOIN users u ON u.id = t.created_by WHERE t.employee_id = ? ORDER BY FIELD(t.jenis, 'papikostik', 'iq', 'mata'), t.tanggal DESC, t.id DESC`,
     [employeeId],
   )

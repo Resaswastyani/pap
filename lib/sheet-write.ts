@@ -7,7 +7,7 @@
 // (cocok dengan data lama) agar tidak menimpa baris lain bila sheet sudah bergeser. Kegagalan dikembalikan sebagai
 // pesan peringatan (data di SIMPAP tetap tersimpan).
 import { fail } from '@/lib/api'
-import { googleAccessToken, spreadsheetId } from '@/lib/drive'
+import { driveFileId, googleAccessToken, spreadsheetId } from '@/lib/drive'
 
 export class SheetWriteError extends Error {}
 
@@ -52,6 +52,87 @@ async function call<T = Record<string, unknown>>(path: string, init: RequestInit
 }
 
 export type Sheet = { id: string; tabs: { title: string; sheetId: number }[] }
+
+// ---------- File Excel (.xlsx) di Google Drive ----------
+// Sheets API hanya bisa menulis Google Sheet. File Excel ditangani dengan: salin & konversi sementara ke Google Sheet,
+// baca / tulis seperti biasa, lalu (bila ada perubahan) ekspor kembali ke .xlsx menimpa file aslinya, dan salinan dihapus.
+// Butuh izin "edit file Google Drive" pada akun Google yang terhubung.
+const DRIVE = 'https://www.googleapis.com/drive/v3/files'
+const GSHEET = 'application/vnd.google-apps.spreadsheet'
+const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+const XLSM = 'application/vnd.ms-excel.sheet.macroEnabled.12'
+// readonly: file Excel ber-makro (.xlsm) hanya dibaca (menimpanya dengan .xlsx akan menghapus makro)
+export type Workbook = { sheet: Sheet; excel: boolean; readonly: boolean; name: string; finish: (changed: boolean) => Promise<void> }
+export const READONLY_EXCEL = 'File Excel ber-makro (.xlsm) hanya dibaca oleh SIMPAP; perubahan di SIMPAP tidak ditulis ke file ini. Agar dua arah, simpan sebagai .xlsx atau Google Spreadsheet di Drive lalu ganti link-nya.'
+
+async function driveCall(path: string, init: RequestInit = {}, raw = false) {
+  const token = await googleAccessToken().catch((e: Error) => { throw new SheetWriteError(e.message) })
+  const res = await fetch(path.startsWith('http') ? path : `${DRIVE}/${path}`, { ...init, headers: { Authorization: `Bearer ${token}`, ...(init.headers ?? {}) } })
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}))
+    const msg = String(json.error?.message ?? `Google Drive error ${res.status}`)
+    if (res.status === 403 && /insufficient|scope/i.test(msg)) {
+      throw new SheetWriteError('File Excel di Drive perlu izin edit file Google Drive. Admin perlu klik "Hubungkan akun Google" lagi di Master Data dan mencentang semua izin (termasuk lihat, edit, buat & hapus file Google Drive).')
+    }
+    if (res.status === 404) throw new SheetWriteError('File tidak ditemukan atau belum dibagikan ke akun Google yang terhubung.')
+    if (res.status === 403) throw new SheetWriteError('Akun Google yang terhubung tidak punya akses edit ke file ini. Bagikan file sebagai Editor.')
+    throw new SheetWriteError(msg)
+  }
+  return raw ? res : res.json()
+}
+
+// Info file (jenis) dari link Drive apa pun
+export async function driveFileInfo(url: string) {
+  const id = driveFileId(url)
+  if (!id) throw new SheetWriteError('Link file Google Drive tidak valid.')
+  const info = await driveCall(`${encodeURIComponent(id)}?fields=id,name,mimeType&supportsAllDrives=true`) as { id: string; name: string; mimeType: string }
+  if (![GSHEET, XLSX, XLSM].includes(info.mimeType)) throw new SheetWriteError(`File "${info.name}" bukan spreadsheet (Google Sheet / Excel .xlsx / .xlsm).`)
+  return { ...info, excel: info.mimeType !== GSHEET, readonly: info.mimeType === XLSM }
+}
+
+export async function openWorkbook(url: string): Promise<Workbook> {
+  const info = await driveFileInfo(url)
+  if (!info.excel) return { sheet: await openSheet(info.id), excel: false, readonly: false, name: info.name, finish: async () => {} }
+  const copy = await driveCall(`${encodeURIComponent(info.id)}/copy?supportsAllDrives=true&fields=id`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `[SIMPAP sementara] ${info.name}`, mimeType: GSHEET }),
+  }) as { id: string }
+  const drop = () => driveCall(`${encodeURIComponent(copy.id)}?supportsAllDrives=true`, { method: 'DELETE' }, true).catch(() => {})
+  try {
+    const sheet = await openSheet(copy.id)
+    return {
+      sheet, excel: true, readonly: info.readonly, name: info.name,
+      finish: async (changed) => {
+        try {
+          if (!changed || info.readonly) return
+          const exported = await driveCall(`${encodeURIComponent(copy.id)}/export?mimeType=${encodeURIComponent(XLSX)}`, {}, true) as Response
+          const body = Buffer.from(await exported.arrayBuffer())
+          await driveCall(`https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(info.id)}?uploadType=media&supportsAllDrives=true`, {
+            method: 'PATCH', headers: { 'Content-Type': XLSX }, body: new Uint8Array(body),
+          })
+        } finally {
+          await drop()
+        }
+      },
+    }
+  } catch (error) {
+    await drop()
+    throw error
+  }
+}
+
+// Jalankan baca/tulis pada Google Sheet atau file Excel; file Excel disimpan kembali bila write = true
+export async function withWorkbook<T>(url: string, write: boolean, job: (sheet: Sheet, wb: Workbook) => Promise<T>): Promise<T> {
+  const wb = await openWorkbook(url)
+  let ok = false
+  try {
+    const out = await job(wb.sheet, wb)
+    ok = true
+    if (write && wb.readonly) throw new SheetWriteError(READONLY_EXCEL)
+    return out
+  } finally {
+    await wb.finish(ok && write)
+  }
+}
 
 export async function openSheet(url: string): Promise<Sheet> {
   const id = spreadsheetId(url)

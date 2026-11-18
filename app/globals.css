@@ -2468,3 +2468,13 @@ button.pap-ap-gantt-label { cursor:pointer; }
 .pap-emp-test-form { margin:10px 0; padding:12px; border:1px dashed var(--pap-border); border-radius:12px; }
 .pap-emp-test-actions { justify-content:flex-end; margin-top:10px; }
 @media (max-width:640px) { .pap-emp-tiles.three { grid-template-columns:1fr; } }
+
+/* Papikostik: 20 aspek */
+.pap-papi-grid { display:grid; grid-template-columns:repeat(10, minmax(0, 1fr)); gap:4px; margin:6px 0 2px; }
+.pap-papi-cell { display:flex; flex-direction:column; align-items:center; gap:1px; padding:5px 2px; border:1px solid var(--pap-border); border-radius:8px; background:var(--pap-bg); text-align:center; min-width:0; }
+.pap-papi-cell b { font-size:11px; color:var(--pap-muted); }
+.pap-papi-cell span { font-size:15px; font-weight:800; }
+.pap-papi-cell small { font-size:9px; line-height:1.15; color:var(--pap-muted); overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.pap-papi-cell.high { border-color:rgb(112 80 231 / .45); background:rgb(112 80 231 / .08); } .pap-papi-cell.high span { color:#7050e7; }
+.pap-papi-cell.low span { color:var(--pap-muted); }
+@media (max-width:640px) { .pap-papi-grid { grid-template-columns:repeat(5, minmax(0, 1fr)); } }

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { ExternalLink, GraduationCap, Pencil, Plus, Trash2 } from 'lucide-react'
-import { api, confirmDialog, Field, formatDate, Notice } from './ui'
+import { useEffect, useState } from 'react'
+import { ExternalLink, GraduationCap, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { api, confirmDialog, Field, formatDate, Modal, Notice } from './ui'
 
 // ---- Bagian tambahan detail karyawan: kehadiran, training, hasil tes ----
 
@@ -11,7 +11,7 @@ export type Attendance = {
   terlambat_menit: number; pulang_cepat_menit: number; lembur_menit: number; pengajuan: { jenis: string; kali: number; hari: number }[]
 }
 export type TrainingItem = { sumber: 'modul' | 'jadwal'; judul: string; keterangan: string | null; tanggal: string | null; status: string; nilai: number | null }
-export type EmployeeTest = { id: number; jenis: 'papikostik' | 'iq' | 'mata'; tanggal: string | null; hasil: string; skor: number | null; catatan: string | null; lampiran_url: string | null; oleh: string | null }
+export type EmployeeTest = { id: number; jenis: 'papikostik' | 'iq' | 'mata'; tanggal: string | null; hasil: string; skor: number | null; catatan: string | null; lampiran_url: string | null; oleh: string | null; sumber?: string }
 
 const jam = (menit: number) => (menit >= 60 ? `${Math.floor(menit / 60)} jam ${menit % 60} mnt` : `${menit} mnt`)
 const LEAVE: Record<string, string> = { cuti: 'Cuti', izin: 'Izin', sakit: 'Sakit', dayoff: 'Day off', dinas: 'Dinas luar', cuti_khusus: 'Cuti khusus' }
@@ -112,7 +112,7 @@ export function EmployeeTests({ employeeId, items, onChanged }: { employeeId: nu
           const t = latest(j)
           return (
             <div key={j} className={`pap-emp-tile ${t ? 'info' : 'neutral'}`}>
-              <span>{JENIS[j]}</span><strong className="pap-emp-tile-text">{t ? (t.skor !== null ? `${t.skor.toLocaleString('id-ID')} · ${t.hasil}` : t.hasil) : '—'}</strong><small>{t?.tanggal ? formatDate(t.tanggal) : t ? 'tanpa tanggal' : 'belum diisi'}</small>
+              <span>{JENIS[j]}</span><strong className="pap-emp-tile-text">{t ? (t.jenis === 'papikostik' && papiScores(t.hasil) ? papiSummary(papiScores(t.hasil)!) : t.skor !== null ? `${t.skor.toLocaleString('id-ID')} · ${t.hasil}` : t.hasil) : '—'}</strong><small>{t?.tanggal ? formatDate(t.tanggal) : t ? 'tanpa tanggal' : 'belum diisi'}</small>
             </div>
           )
         })}
@@ -123,7 +123,7 @@ export function EmployeeTests({ employeeId, items, onChanged }: { employeeId: nu
           {items.map((t) => (
             <li key={t.id}>
               <div>
-                <strong>{JENIS[t.jenis]}: {t.skor !== null ? `${t.skor.toLocaleString('id-ID')} · ` : ''}{t.hasil}</strong>
+                {t.jenis === 'papikostik' && papiScores(t.hasil) ? <><strong>Papikostik</strong><PapiGrid scores={papiScores(t.hasil)!} /></> : <strong>{JENIS[t.jenis]}: {t.skor !== null ? `${t.skor.toLocaleString('id-ID')} · ` : ''}{t.hasil}</strong>}
                 <small>{[t.tanggal ? formatDate(t.tanggal) : null, t.catatan, t.oleh ? `dicatat ${t.oleh}` : null].filter(Boolean).join(' · ')}</small>
               </div>
               <span className="pap-inline-actions">
@@ -176,5 +176,80 @@ function TestForm({ employeeId, item, onClose, onSaved }: { employeeId: number; 
         <button type="button" className="pap-primary-button" disabled={busy} onClick={save}>{busy ? 'Menyimpan...' : item ? 'Simpan perubahan' : 'Simpan hasil tes'}</button>
       </div>
     </div>
+  )
+}
+
+// ---- Papikostik: 20 aspek PAPI Kostick (skor 0-9) ----
+const PAPI: [string, string, string][] = [
+  ['G', 'Pekerja keras', 'Arah kerja'], ['L', 'Kepemimpinan', 'Kepemimpinan'], ['I', 'Mudah ambil keputusan', 'Kepemimpinan'], ['T', 'Tempo kerja cepat', 'Aktivitas'], ['V', 'Semangat / vigor', 'Aktivitas'],
+  ['S', 'Hubungan sosial', 'Pergaulan'], ['R', 'Berpikir teoritis', 'Gaya kerja'], ['D', 'Teliti / detail', 'Gaya kerja'], ['C', 'Teratur / rapi', 'Gaya kerja'], ['E', 'Kendali emosi', 'Temperamen'],
+  ['N', 'Tuntaskan tugas', 'Arah kerja'], ['A', 'Ingin berprestasi', 'Arah kerja'], ['P', 'Mengatur orang lain', 'Kepemimpinan'], ['X', 'Ingin diperhatikan', 'Sifat sosial'], ['B', 'Ingin diterima kelompok', 'Sifat sosial'],
+  ['O', 'Kedekatan & kasih sayang', 'Sifat sosial'], ['Z', 'Suka perubahan', 'Temperamen'], ['K', 'Agresif / tegas', 'Temperamen'], ['F', 'Dukung atasan', 'Ketaatan'], ['W', 'Butuh aturan & arahan', 'Ketaatan'],
+]
+export function papiScores(text: string) {
+  const m = [...text.matchAll(/\b([GLITVSRDCENAPXBOZKFW])(\d)\b/g)]
+  if (m.length < 20) return null
+  return Object.fromEntries(m.map((x) => [x[1], Number(x[2])])) as Record<string, number>
+}
+// Aspek menonjol (skor >= 7) untuk ringkasan kartu
+const papiSummary = (s: Record<string, number>) => {
+  const top = PAPI.filter(([k]) => s[k] >= 7).sort((a, b) => s[b[0]] - s[a[0]]).slice(0, 3).map(([k, name]) => `${name} (${k}${s[k]})`)
+  return top.length ? `Menonjol: ${top.join(', ')}` : 'Profil seimbang'
+}
+function PapiGrid({ scores }: { scores: Record<string, number> }) {
+  return (
+    <div className="pap-papi-grid">
+      {PAPI.map(([k, name, group]) => (
+        <div key={k} className={`pap-papi-cell ${scores[k] >= 7 ? 'high' : scores[k] <= 2 ? 'low' : ''}`} title={`${group} · ${name}`}>
+          <b>{k}</b><span>{scores[k]}</span><small>{name}</small>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ---- Dialog sinkron hasil tes dari spreadsheet jawaban Google Form ----
+type SyncResult = { jenis: 'papikostik' | 'iq'; jawaban: number; cocok: number; baru: number; tidak_cocok: string[]; error?: string }
+export function TestSheetSync({ onClose, onDone }: { onClose: () => void; onDone: (message: string) => void }) {
+  const [v, setV] = useState({ papikostik: '', iq: '' })
+  const [syncedAt, setSyncedAt] = useState<string | null>(null)
+  const [busy, setBusy] = useState('')
+  const [error, setError] = useState('')
+  const [results, setResults] = useState<SyncResult[] | null>(null)
+  useEffect(() => {
+    api<{ papikostik: string; iq: string; synced_at: string | null }>('/api/hrd/tests/sync').then((r) => { setV({ papikostik: r.papikostik, iq: r.iq }); setSyncedAt(r.synced_at) }).catch((e) => setError(e.message))
+  }, [])
+  async function run() {
+    setBusy('sync')
+    setError('')
+    try {
+      await api('/api/hrd/tests/sync', { method: 'PUT', json: v })
+      const r = await api<{ results: SyncResult[] }>('/api/hrd/tests/sync', { method: 'POST' })
+      setResults(r.results)
+      setSyncedAt(new Date().toISOString())
+      onDone(`Hasil tes disinkron: ${r.results.map((x) => `${x.jenis === 'iq' ? 'Tes IQ' : 'Papikostik'} ${x.cocok} karyawan`).join(', ')}.`)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
+  return (
+    <Modal title="Hasil tes dari Google Form" subtitle="Jawaban form dinilai otomatis lalu dicocokkan ke karyawan (nomor HP, lalu nama lengkap)" wide onClose={onClose}
+      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Tutup</button><button className="pap-primary-button" disabled={!!busy} onClick={run}>{busy ? <RefreshCw className="pap-spin" /> : <RefreshCw />} {busy ? 'Menyinkron...' : 'Simpan link & sinkron'}</button></>}>
+      {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      <div className="pap-form-grid">
+        <Field label="Spreadsheet jawaban Tes Papikostik" full hint="Skor 20 aspek PAPI Kostick (0-9) dari 90 soal."><input className="pap-input" inputMode="url" value={v.papikostik} onChange={(e) => setV({ ...v, papikostik: e.target.value })} placeholder="https://docs.google.com/spreadsheets/d/..." /></Field>
+        <Field label="Spreadsheet jawaban Tes IQ" full hint='Kunci dari tab "Jawaban Responden"; skor IQ = benar x 2 + 42, lulus bila >= 110.'><input className="pap-input" inputMode="url" value={v.iq} onChange={(e) => setV({ ...v, iq: e.target.value })} placeholder="https://docs.google.com/spreadsheets/d/..." /></Field>
+      </div>
+      <p className="pap-muted pap-emp-note">{syncedAt ? `Sinkron terakhir ${formatDate(syncedAt, true)}.` : 'Belum pernah disinkron.'} Disinkron otomatis tiap 30 menit. Jawaban pelamar yang belum jadi karyawan dilewati; setelah datanya masuk Data Karyawan, hasilnya ikut tercocokkan.</p>
+      {results && results.map((r) => (
+        <section key={r.jenis} className="pap-detail-section">
+          <h3>{r.jenis === 'iq' ? 'Tes IQ' : 'Papikostik'}</h3>
+          {r.error ? <Notice>{r.error}</Notice> : <p className="pap-emp-note">{r.jawaban} jawaban · <b>{r.cocok} cocok ke karyawan</b> ({r.baru} baru) · {r.tidak_cocok.length} tidak cocok</p>}
+          {r.tidak_cocok.length > 0 && <details><summary className="pap-muted">Nama yang tidak cocok ({r.tidak_cocok.length})</summary><p className="pap-muted pap-emp-note">{r.tidak_cocok.join(', ')}</p></details>}
+        </section>
+      ))}
+    </Modal>
   )
 }
