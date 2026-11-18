@@ -8,6 +8,7 @@
 // pesan peringatan (data di SIMPAP tetap tersimpan).
 import { fail } from '@/lib/api'
 import { driveFileId, googleAccessToken, spreadsheetId } from '@/lib/drive'
+import { readXlsx } from '@/lib/xlsx-lite'
 
 export class SheetWriteError extends Error {}
 
@@ -51,7 +52,8 @@ async function call<T = Record<string, unknown>>(path: string, init: RequestInit
   return json as T
 }
 
-export type Sheet = { id: string; tabs: { title: string; sheetId: number }[] }
+// local: isi file Excel yang dibaca langsung (hanya baca, tanpa Sheets API)
+export type Sheet = { id: string; tabs: { title: string; sheetId: number }[]; local?: Map<string, string[][]> }
 
 // ---------- File Excel (.xlsx) di Google Drive ----------
 // Sheets API hanya bisa menulis Google Sheet. File Excel ditangani dengan: salin & konversi sementara ke Google Sheet,
@@ -60,7 +62,6 @@ export type Sheet = { id: string; tabs: { title: string; sheetId: number }[] }
 const DRIVE = 'https://www.googleapis.com/drive/v3/files'
 const GSHEET = 'application/vnd.google-apps.spreadsheet'
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-const XLSM = 'application/vnd.ms-excel.sheet.macroEnabled.12'
 // readonly: file Excel ber-makro (.xlsm) hanya dibaca (menimpanya dengan .xlsx akan menghapus makro)
 export type Workbook = { sheet: Sheet; excel: boolean; readonly: boolean; name: string; finish: (changed: boolean) => Promise<void> }
 export const READONLY_EXCEL = 'File Excel ber-makro (.xlsm) hanya dibaca oleh SIMPAP; perubahan di SIMPAP tidak ditulis ke file ini. Agar dua arah, simpan sebagai .xlsx atau Google Spreadsheet di Drive lalu ganti link-nya.'
@@ -86,12 +87,31 @@ export async function driveFileInfo(url: string) {
   const id = driveFileId(url)
   if (!id) throw new SheetWriteError('Link file Google Drive tidak valid.')
   const info = await driveCall(`${encodeURIComponent(id)}?fields=id,name,mimeType&supportsAllDrives=true`) as { id: string; name: string; mimeType: string }
-  if (![GSHEET, XLSX, XLSM].includes(info.mimeType)) throw new SheetWriteError(`File "${info.name}" bukan spreadsheet (Google Sheet / Excel .xlsx / .xlsm).`)
-  return { ...info, excel: info.mimeType !== GSHEET, readonly: info.mimeType === XLSM }
+  // Jenis file dari Drive (huruf kecil/besar bisa berbeda, mis. macroenabled) + ekstensi nama file
+  const mime = info.mimeType.toLowerCase()
+  const ext = info.name.toLowerCase().match(/\.(xlsx|xlsm|xls)$/)?.[1] ?? null
+  const sheet = mime === GSHEET
+  const macro = mime.includes('macroenabled') || ext === 'xlsm'
+  const oldXls = mime === 'application/vnd.ms-excel' || ext === 'xls'
+  const excel = !sheet && (mime === XLSX || macro || oldXls || mime.includes('spreadsheetml') || ext === 'xlsx')
+  if (!sheet && !excel) throw new SheetWriteError(`File "${info.name}" bukan spreadsheet (Google Sheet / Excel .xlsx / .xlsm / .xls).`)
+  // .xlsm (makro) & .xls lama hanya dibaca: menimpanya dengan .xlsx akan mengubah format / menghapus makro
+  return { ...info, excel, readonly: excel && (macro || oldXls) }
 }
 
 export async function openWorkbook(url: string): Promise<Workbook> {
   const info = await driveFileInfo(url)
+  if (info.excel && info.readonly) {
+    const res = await driveCall(`${encodeURIComponent(info.id)}?alt=media&supportsAllDrives=true`, {}, true) as Response
+    let tabs: { title: string; rows: string[][] }[]
+    try {
+      tabs = readXlsx(Buffer.from(await res.arrayBuffer()))
+    } catch {
+      throw new SheetWriteError(`File "${info.name}" tidak bisa dibaca sebagai Excel.`)
+    }
+    const sheet: Sheet = { id: '', tabs: tabs.map((t, i) => ({ title: t.title, sheetId: i })), local: new Map(tabs.map((t) => [t.title, t.rows])) }
+    return { sheet, excel: true, readonly: true, name: info.name, finish: async () => {} }
+  }
   if (!info.excel) return { sheet: await openSheet(info.id), excel: false, readonly: false, name: info.name, finish: async () => {} }
   const copy = await driveCall(`${encodeURIComponent(info.id)}/copy?supportsAllDrives=true&fields=id`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `[SIMPAP sementara] ${info.name}`, mimeType: GSHEET }),
@@ -148,13 +168,25 @@ export function tabOf(sheet: Sheet, title: string) {
 }
 
 // Isi tab (teks seperti tampil). range opsional, mis. "A1:Z40"
+// Baca dari isi file Excel lokal sesuai range "A1:N1100"
+function localRange(sheet: Sheet, title: string, range: string) {
+  const rows = sheet.local!.get(title) ?? []
+  const m = range.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/)
+  if (!m) return rows.map((r) => [...r])
+  const col = (c: string) => [...c].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1
+  const [c1, r1, c2, r2] = [col(m[1]), Number(m[2]) - 1, col(m[3]), Number(m[4]) - 1]
+  return rows.slice(r1, r2 + 1).map((r) => r.slice(c1, c2 + 1).map((c) => String(c ?? '')))
+}
+
 export async function readTab(sheet: Sheet, title: string, range = '') {
+  if (sheet.local) return localRange(sheet, title, range)
   const json = await call<{ values?: unknown[][] }>(`${sheet.id}/values/${encodeURIComponent(`${q(title)}${range ? `!${range}` : ''}`)}`)
   return (json.values ?? []).map((r) => r.map((c) => String(c ?? '')))
 }
 
 // Isi tab sebagai nilai mentah: tanggal = angka seri (bukan teks sesuai locale), persen = pecahan (0.35)
 export async function readRaw(sheet: Sheet, title: string, range = '') {
+  if (sheet.local) return localRange(sheet, title, range)
   const json = await call<{ values?: unknown[][] }>(`${sheet.id}/values/${encodeURIComponent(`${q(title)}${range ? `!${range}` : ''}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`)
   return (json.values ?? []).map((r) => r.map((c) => (c === null || c === undefined ? '' : String(c))))
 }

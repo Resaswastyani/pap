@@ -226,7 +226,8 @@ export function TestSheetSync({ onClose, onDone }: { onClose: () => void; onDone
       await api('/api/hrd/tests/sync', { method: 'PUT', json: v })
       const r = await api<{ results: SyncResult[] }>('/api/hrd/tests/sync', { method: 'POST' })
       setResults(r.results)
-      setSyncedAt(new Date().toISOString())
+      // Waktu sinkron dari server (format WIB "YYYY-MM-DD HH:MM:SS")
+      api<{ synced_at: string | null }>('/api/hrd/tests/sync').then((x) => setSyncedAt(x.synced_at)).catch(() => {})
       onDone(`Hasil tes disinkron: ${r.results.map((x) => `${x.jenis === 'iq' ? 'Tes IQ' : 'Papikostik'} ${x.cocok} karyawan`).join(', ')}.`)
     } catch (e) {
       setError((e as Error).message)

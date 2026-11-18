@@ -27,15 +27,25 @@ const normPhone = (s: string) => {
 }
 const letterOf = (answer: string) => String(answer ?? '').trim().match(/^([a-e])\s*\)/i)?.[1].toUpperCase() ?? null
 
-// Timestamp form: angka seri Excel (45793.42) atau teks "15/05/2025 10:10:05" / "2025-05-15 10:10:05"
-function tanggalOf(ts: string) {
+// Timestamp form: angka seri Excel (45793.42), teks "2025-05-15 10:10:05", atau "a/b/yyyy" yang urutannya mengikuti
+// bahasa spreadsheet (Indonesia: tanggal/bulan, Inggris: bulan/tanggal). monthFirst ditentukan per tab dari seluruh isinya.
+const valid = (y: number, m: number, d: number) => (m >= 1 && m <= 12 && d >= 1 && d <= 31 && y > 2000 ? `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` : null)
+function tanggalOf(ts: string, monthFirst: boolean) {
   const t = String(ts ?? '').trim()
   if (/^\d{5}(\.\d+)?$/.test(t)) return new Date(Date.UTC(1899, 11, 30) + Number(t) * 86400e3).toISOString().slice(0, 10)
   let m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
-  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+  if (m) {
+    const [a, b, y] = [Number(m[1]), Number(m[2]), Number(m[3])]
+    // Bila satu bagian > 12, urutannya pasti; selain itu ikuti urutan tab
+    if (a > 12) return valid(y, b, a)
+    if (b > 12) return valid(y, a, b)
+    return monthFirst ? valid(y, a, b) : valid(y, b, a)
+  }
   m = t.match(/^(\d{4})-(\d{2})-(\d{2})/)
-  return m ? `${m[1]}-${m[2]}-${m[3]}` : null
+  return m ? valid(Number(m[1]), Number(m[2]), Number(m[3])) : null
 }
+// Urutan tanggal tab: bulan/tanggal bila ada nilai bagian kedua > 12 (mis. 9/18/2025)
+const monthFirstOf = (values: string[]) => values.some((v) => Number(String(v).trim().match(/^\d{1,2}\/(\d{1,2})\//)?.[1]) > 12)
 
 type Response = { key: string; tanggal: string | null; nama: string; telp: string | null; bagian: string | null; answers: Map<number, string> }
 
@@ -52,12 +62,13 @@ function responses(tabs: SheetTab[], jenis: string): Response[] {
     const telp = col(/telep|telp|^no\.? ?hp|phone|whatsapp/i)
     const bagian = col(/bagian/i)
     const email = col(/email/i)
+    const monthFirst = monthFirstOf(tab.rows.slice(1).map((r) => String(r[ts] ?? '')))
     for (const r of tab.rows.slice(1)) {
       const name = String(r[nama] ?? '').trim()
       if (!name || /^tes(t)?$/i.test(name)) continue
       out.push({
         key: `${jenis}:${tab.title.slice(0, 40)}:${String(r[ts] ?? '').trim()}:${String(r[email] ?? name).trim().toLowerCase()}`.slice(0, 190),
-        tanggal: tanggalOf(String(r[ts] ?? '')), nama: name, telp: telp >= 0 ? normPhone(String(r[telp] ?? '')) : null, bagian: bagian >= 0 ? String(r[bagian] ?? '').trim() || null : null,
+        tanggal: tanggalOf(String(r[ts] ?? ''), monthFirst), nama: name, telp: telp >= 0 ? normPhone(String(r[telp] ?? '')) : null, bagian: bagian >= 0 ? String(r[bagian] ?? '').trim() || null : null,
         answers: new Map(qcols.map(([n, i]) => [n, String(r[i] ?? '')])),
       })
     }
