@@ -20,9 +20,9 @@ export const POST = handle(async (request: Request) => {
   const v = readCapacityInput(await readJson(request))
   const [[last]] = await db.query<(RowDataPacket & { urut: number | null })[]>('SELECT MAX(urut) AS urut FROM production_capacities')
   const [res] = await db.query<ResultSetHeader>(
-    `INSERT INTO production_capacities (jenis_plastik, lebar_maks_cm, kapasitas_maks_ton, efisiensi_pct, mesin, jumlah_mesin, catatan, urut, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [v.jenis_plastik, v.lebar_maks_cm, v.kapasitas_maks_ton, v.efisiensi_pct, v.mesin, v.jumlah_mesin, v.catatan, Number(last?.urut ?? 0) + 1, user.id],
+    `INSERT INTO production_capacities (jenis_plastik, lebar_min_cm, lebar_maks_cm, kapasitas_maks_ton, efisiensi_pct, mesin, jumlah_mesin, catatan, urut, updated_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [v.jenis_plastik, v.lebar_min_cm, v.lebar_maks_cm, v.kapasitas_maks_ton, v.efisiensi_pct, v.mesin, v.jumlah_mesin, v.catatan, Number(last?.urut ?? 0) + 1, user.id],
   )
   return NextResponse.json({ id: res.insertId })
 })

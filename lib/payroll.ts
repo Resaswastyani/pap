@@ -265,7 +265,7 @@ export function hitungGaji(p: EmployeePayroll, s: PayrollSettings, k: Kehadiran,
   const ikutKes = !!p.no_bpjs_kes
   const umur = ageAt(p.tgl_lahir, range.sampai)
   const ikutJpn = ikutTk && (umur === null || umur < s.usia_pensiun)
-  if (ikutTk && !ikutJpn) catatan.push(`Usia ${umur} ≥ usia pensiun: tanpa JP`)
+  if (ikutTk && !ikutJpn) catatan.push(`Usia ${umur} ≥ usia pensiun: tanpa BPJS Ketenagakerjaan (JP)`)
   const dasarJpn = Math.min(dasarTk, s.max_bpjs_jpn)
   const pct = (base: number, rate: number, ikut: boolean) => (ikut ? round((base * rate) / 100) : 0)
   const pegawai = { jht: pct(dasarTk, s.bpjs_jht_pegawai, ikutTk), jpn: pct(dasarJpn, s.bpjs_jpn_pegawai, ikutJpn), kes: pct(dasarKes, s.bpjs_kes_pegawai, ikutKes) }
@@ -293,8 +293,8 @@ export function hitungGaji(p: EmployeePayroll, s: PayrollSettings, k: Kehadiran,
   if (lain) tambahan.push({ label: 'Pendapatan Lain', nominal: round(lain) })
   if (cuti) tambahan.push({ label: `Cuti Diuangkan ${k.cuti} Hari`, nominal: round(cuti) })
   const potongan: SlipLine[] = []
-  if (potongKes) potongan.push({ label: 'BPJS K Employee', nominal: potongKes })
-  if (potongTk) potongan.push({ label: 'BPJS TK Employee (JHT + JP)', nominal: potongTk })
+  if (potongKes) potongan.push({ label: 'BPJS Kesehatan Employee', nominal: potongKes })
+  if (potongTk) potongan.push({ label: 'BPJS Ketenagakerjaan Employee (JHT + JP)', nominal: potongTk })
   if (potonganLain) potongan.push({ label: 'Potongan Lain', nominal: round(potonganLain) })
   const filtered = tambahan.filter((l) => l.nominal)
   return {

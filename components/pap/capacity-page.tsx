@@ -1,12 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Factory, Gauge, Pencil, Plus, Printer, Trash2 } from 'lucide-react'
+import { CalendarRange, ChevronLeft, ChevronRight, Factory, Gauge, Pencil, Plus, Printer, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { api, Field, formatDate, Modal, Notice, confirmDialog } from './ui'
 
 type Capacity = {
-  id: number; jenis_plastik: string; lebar_maks_cm: number | null; kapasitas_maks_ton: number; efisiensi_pct: number; kapasitas_eff_ton: number
+  id: number; jenis_plastik: string; lebar_min_cm: number | null; lebar_maks_cm: number | null; kapasitas_maks_ton: number; efisiensi_pct: number; kapasitas_eff_ton: number
   mesin: string; jumlah_mesin: number; catatan: string | null; updated_at: string; updated_name: string | null
 }
 type Totals = { maks: number; eff: number; mesin: number; per_jenis: { jenis_plastik: string; maks: number; eff: number; mesin: number }[] }
@@ -15,6 +15,9 @@ type Data = { items: Capacity[]; totals: Totals; info: Info; can: { manage: bool
 
 const num = (n: number | null) => (n === null ? '—' : n.toLocaleString('id-ID', { maximumFractionDigits: 2 }))
 const ton = (n: number) => `${num(n)} Ton`
+// Lebar kerja mesin: "20 – 65 cm", "s/d 65 cm", "min 20 cm"
+const lebar = (min: number | null, maks: number | null) =>
+  min !== null && maks !== null ? `${num(min)} – ${num(maks)} cm` : maks !== null ? `s/d ${num(maks)} cm` : min !== null ? `min ${num(min)} cm` : '—'
 
 // Kapasitas produksi per mesin blow & jenis plastik (dokumen Kapasitas Produksi PAP – Non Mika)
 export function CapacityPage(_props: { user: UserProfile }) {
@@ -79,12 +82,12 @@ export function CapacityPage(_props: { user: UserProfile }) {
       <div className="pap-table-card">
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Jenis plastik</th><th>Lebar maks</th><th>Kapasitas maks</th><th>Kapasitas efektif</th><th>Mesin</th>{data?.can.manage && <th />}</tr></thead>
+            <thead><tr><th>Jenis plastik</th><th>Lebar min – maks</th><th>Kapasitas maks</th><th>Kapasitas efektif</th><th>Mesin</th>{data?.can.manage && <th />}</tr></thead>
             <tbody>
               {data?.items.map((c) => (
                 <tr key={c.id}>
                   <td><div className="pap-cell-title">{c.jenis_plastik}</div>{c.catatan && <div className="pap-cell-sub">{c.catatan}</div>}</td>
-                  <td className="pap-nowrap">{c.lebar_maks_cm === null ? '—' : `${num(c.lebar_maks_cm)} cm`}</td>
+                  <td className="pap-nowrap">{lebar(c.lebar_min_cm, c.lebar_maks_cm)}</td>
                   <td className="pap-nowrap">{ton(c.kapasitas_maks_ton)}</td>
                   <td className="pap-nowrap"><b>{ton(c.kapasitas_eff_ton)}</b> <span className="pap-muted">({num(c.efisiensi_pct)}%)</span></td>
                   <td>{c.jumlah_mesin} {c.mesin}{c.updated_name && <div className="pap-cell-sub">Diubah {c.updated_name} · {formatDate(c.updated_at)}</div>}</td>
@@ -111,6 +114,7 @@ export function CapacityPage(_props: { user: UserProfile }) {
           {!data && !error && <div className="pap-empty">Memuat kapasitas produksi...</div>}
         </div>
       </div>
+      {data && <UsageSection />}
       {info && (info.catatan || info.ttd.length > 0) && (
         <section className="pap-table-card pap-capacity-note">
           {info.catatan && <><h3>Catatan</h3><ul>{info.catatan.split('\n').filter((l) => l.trim()).map((l, i) => <li key={i}>{l.replace(/^[-•]\s*/, '')}</li>)}</ul></>}
@@ -125,7 +129,7 @@ export function CapacityPage(_props: { user: UserProfile }) {
 
 function CapacityForm({ item, jenisList, onClose, onSaved }: { item: Capacity | null; jenisList: string[]; onClose: () => void; onSaved: (text: string) => void }) {
   const [v, setV] = useState({
-    jenis_plastik: item?.jenis_plastik ?? '', lebar_maks_cm: item?.lebar_maks_cm?.toString() ?? '', kapasitas_maks_ton: item?.kapasitas_maks_ton.toString() ?? '',
+    jenis_plastik: item?.jenis_plastik ?? '', lebar_min_cm: item?.lebar_min_cm?.toString() ?? '', lebar_maks_cm: item?.lebar_maks_cm?.toString() ?? '', kapasitas_maks_ton: item?.kapasitas_maks_ton.toString() ?? '',
     efisiensi_pct: item?.efisiensi_pct.toString() ?? '70', mesin: item?.mesin ?? '', jumlah_mesin: item?.jumlah_mesin.toString() ?? '1', catatan: item?.catatan ?? '',
   })
   const [busy, setBusy] = useState(false)
@@ -153,6 +157,7 @@ function CapacityForm({ item, jenisList, onClose, onSaved }: { item: Capacity | 
           <input className="pap-input" list="pap-capacity-jenis" required maxLength={60} value={v.jenis_plastik} onChange={set('jenis_plastik')} placeholder="HD/PE atau PP" />
           <datalist id="pap-capacity-jenis">{[...new Set(['HD/PE', 'PP', ...jenisList])].map((j) => <option key={j} value={j} />)}</datalist>
         </Field>
+        <Field label="Lebar minimal (cm)"><input className="pap-input" inputMode="decimal" value={v.lebar_min_cm} onChange={set('lebar_min_cm')} placeholder="20" /></Field>
         <Field label="Lebar maksimal (cm)"><input className="pap-input" inputMode="decimal" value={v.lebar_maks_cm} onChange={set('lebar_maks_cm')} placeholder="65" /></Field>
         <Field label="Nama mesin" full><input className="pap-input" required maxLength={255} value={v.mesin} onChange={set('mesin')} placeholder="Mesin Blow HD/PE Besar" /></Field>
         <Field label="Jumlah mesin"><input className="pap-input" type="number" min={1} max={50} required value={v.jumlah_mesin} onChange={set('jumlah_mesin')} /></Field>
@@ -188,6 +193,185 @@ function InfoForm({ info, onClose, onSaved }: { info: Info; onClose: () => void;
         <Field label="Tanggal tanda tangan"><input className="pap-input" type="date" value={v.tanggal} onChange={(e) => setV({ ...v, tanggal: e.target.value })} /></Field>
         <Field label="Penanda tangan" hint="Pisahkan dengan koma"><input className="pap-input" value={v.ttd} onChange={(e) => setV({ ...v, ttd: e.target.value })} /></Field>
         <Field label="Catatan" hint="Satu poin per baris" full><textarea className="pap-input" rows={3} maxLength={2000} value={v.catatan} onChange={(e) => setV({ ...v, catatan: e.target.value })} /></Field>
+      </form>
+    </Modal>
+  )
+}
+
+// ---------- Kapasitas terpakai per bulan ----------
+type UsageCell = { terpakai_ton: number; catatan: string | null; updated_name: string | null; updated_at: string }
+type UsageRow = { capacity_id: number; jenis_plastik: string; mesin: string; jumlah_mesin: number; kapasitas_eff_ton: number; bulan: Record<string, UsageCell> }
+type UsageData = { tahun: number; items: UsageRow[]; total: Record<string, { terpakai: number; eff: number; pct: number | null; terisi: number }>; can: { manage: boolean } }
+const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
+const BULAN_PANJANG = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
+const pct = (terpakai: number, eff: number) => (eff ? Math.round((terpakai / eff) * 1000) / 10 : null)
+// Warna pemakaian: > 100% efektif = lewat kapasitas, >= 85% = hampir penuh
+const tone = (p: number | null) => (p === null ? '' : p > 100 ? 'pap-text-danger' : p >= 85 ? 'pap-text-warning' : 'pap-text-success')
+const mesinLabel = (r: UsageRow) => `${r.jumlah_mesin > 1 ? `${r.jumlah_mesin} ` : ''}${r.mesin}`
+
+function UsageSection() {
+  const now = new Date()
+  const current = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const [tahun, setTahun] = useState(now.getFullYear())
+  const [data, setData] = useState<UsageData | null>(null)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [edit, setEdit] = useState<string | null>(null)
+  const load = useCallback(async () => {
+    try {
+      setData(await api<UsageData>(`/api/capacity/usage?tahun=${tahun}`))
+      setError('')
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }, [tahun])
+  useEffect(() => { load() }, [load])
+  const periods = BULAN.map((_, i) => `${tahun}-${String(i + 1).padStart(2, '0')}`)
+  const filled = periods.filter((p) => data?.total[p]?.terisi)
+  const avg = filled.length ? Math.round((filled.reduce((n, p) => n + (data?.total[p].pct ?? 0), 0) / filled.length) * 10) / 10 : null
+  const manage = !!data?.can.manage
+  return (
+    <section className="pap-table-card">
+      <div className="pap-card-head">
+        <div>
+          <h3><CalendarRange className="pap-inline-icon" /> Kapasitas terpakai per bulan</h3>
+          <p className="pap-muted">Ton terpakai tiap mesin dibanding kapasitas efektif{avg !== null ? ` · rata-rata ${num(avg)}% dari ${filled.length} bulan terisi` : ''}.</p>
+        </div>
+        <div className="pap-inline-actions pap-wrap">
+          <div className="pap-month-nav">
+            <button className="pap-icon-button" aria-label="Tahun sebelumnya" onClick={() => setTahun(tahun - 1)}><ChevronLeft /></button>
+            <button className="pap-icon-button" aria-label="Tahun berikutnya" onClick={() => setTahun(tahun + 1)}><ChevronRight /></button>
+            <strong>{tahun}</strong>
+          </div>
+          {manage && !!data?.items.length && <button className="pap-primary-button" onClick={() => setEdit(periods.includes(current) ? current : periods[0])}><Plus /> Isi bulan</button>}
+        </div>
+      </div>
+      {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
+      {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      <div className="pap-table-wrap">
+        <table className="pap-usage-table">
+          <thead>
+            <tr>
+              <th>Mesin</th><th className="pap-num">Efektif</th>
+              {periods.map((p, i) => (
+                <th key={p} className={`pap-num${p === current ? ' pap-usage-now' : ''}`}>
+                  {manage ? <button type="button" className="pap-usage-month" title={`Isi / ubah ${BULAN_PANJANG[i]} ${tahun}`} onClick={() => setEdit(p)}>{BULAN[i]}</button> : BULAN[i]}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data?.items.map((r) => (
+              <tr key={r.capacity_id}>
+                <td data-label="Mesin"><div className="pap-cell-title">{mesinLabel(r)}</div><div className="pap-cell-sub">{r.jenis_plastik}</div></td>
+                <td data-label="Efektif" className="pap-num pap-nowrap">{ton(r.kapasitas_eff_ton)}</td>
+                {periods.map((p, i) => {
+                  const c = r.bulan[p]
+                  const pc = c ? pct(c.terpakai_ton, r.kapasitas_eff_ton) : null
+                  const tip = c ? [c.catatan, c.updated_name && `Diisi ${c.updated_name} · ${formatDate(c.updated_at)}`].filter(Boolean).join(' · ') : undefined
+                  return (
+                    <td key={p} data-label={BULAN_PANJANG[i]} className={`pap-num pap-nowrap${p === current ? ' pap-usage-now' : ''}`} title={tip}>
+                      {c ? <>{num(c.terpakai_ton)}{c.catatan ? '*' : ''}<div className={`pap-cell-sub ${tone(pc)}`}>{pc === null ? '' : `${num(pc)}%`}</div></> : <span className="pap-muted">—</span>}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+            {!!data?.items.length && (
+              <tr className="pap-total-row">
+                <td data-label="Mesin"><b>Total</b></td>
+                <td data-label="Efektif" className="pap-num pap-nowrap"><b>{ton(data.total[periods[0]]?.eff ?? 0)}</b></td>
+                {periods.map((p, i) => {
+                  const t = data.total[p]
+                  return (
+                    <td key={p} data-label={BULAN_PANJANG[i]} className={`pap-num pap-nowrap${p === current ? ' pap-usage-now' : ''}`}>
+                      {t?.terisi ? <><b>{num(t.terpakai)}</b><div className={`pap-cell-sub ${tone(t.pct)}`}>{t.pct === null ? '' : `${num(t.pct)}%`}</div></> : <span className="pap-muted">—</span>}
+                    </td>
+                  )
+                })}
+              </tr>
+            )}
+          </tbody>
+        </table>
+        {data && !data.items.length && <div className="pap-empty">Tambahkan mesin di tabel kapasitas dulu.</div>}
+        {!data && !error && <div className="pap-empty">Memuat kapasitas terpakai...</div>}
+      </div>
+      <p className="pap-muted pap-usage-legend">
+        Angka dalam Ton, persen = terpakai ÷ kapasitas efektif: <span className="pap-text-success">di bawah 85%</span>, <span className="pap-text-warning">85–100%</span>, <span className="pap-text-danger">melebihi kapasitas efektif</span>. Tanda * = ada catatan (arahkan kursor ke angka).
+        {manage ? ' Klik nama bulan untuk mengisi atau mengubah.' : ''}
+      </p>
+      {edit && data && (
+        <UsageForm
+          periode={edit} data={data} periods={periods}
+          onClose={() => setEdit(null)}
+          onSaved={(text) => { setEdit(null); setMessage(text); setTimeout(() => setMessage(''), 5000); load() }}
+        />
+      )}
+    </section>
+  )
+}
+
+type UsageInput = Record<number, { terpakai_ton: string; catatan: string }>
+
+function UsageForm({ periode: initial, data, periods, onClose, onSaved }: { periode: string; data: UsageData; periods: string[]; onClose: () => void; onSaved: (text: string) => void }) {
+  const fill = (p: string): UsageInput => Object.fromEntries(data.items.map((r) => [r.capacity_id, { terpakai_ton: r.bulan[p]?.terpakai_ton.toString() ?? '', catatan: r.bulan[p]?.catatan ?? '' }]))
+  const [periode, setPeriode] = useState(initial)
+  const [v, setV] = useState<UsageInput>(() => fill(initial))
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const label = `${BULAN_PANJANG[Number(periode.slice(5, 7)) - 1]} ${periode.slice(0, 4)}`
+  const ada = data.items.some((r) => r.bulan[periode])
+  const set = (id: number, k: 'terpakai_ton' | 'catatan', val: string) => setV({ ...v, [id]: { ...v[id], [k]: val } })
+  async function save(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      await api('/api/capacity/usage', { method: 'PUT', json: { periode, items: data.items.map((r) => ({ capacity_id: r.capacity_id, ...v[r.capacity_id] })) } })
+      onSaved(`Kapasitas terpakai ${label} disimpan.`)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  async function remove() {
+    if (!(await confirmDialog(`Hapus seluruh isian kapasitas terpakai ${label}?`))) return
+    setBusy(true)
+    try {
+      await api(`/api/capacity/usage?periode=${periode}`, { method: 'DELETE' })
+      onSaved(`Isian kapasitas terpakai ${label} dihapus.`)
+    } catch (err) {
+      setError((err as Error).message)
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal
+      title="Kapasitas terpakai per bulan" onClose={onClose}
+      footer={<>{ada && <button type="button" className="pap-btn danger" onClick={remove} disabled={busy}><Trash2 /> Hapus bulan ini</button>}<span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="capacity-usage" disabled={busy}>{busy ? 'Menyimpan...' : 'Simpan'}</button></>}
+    >
+      <form id="capacity-usage" className="pap-form-grid" onSubmit={save}>
+        {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        <Field label="Bulan" full>
+          <select className="pap-input" value={periode} onChange={(e) => { setPeriode(e.target.value); setV(fill(e.target.value)) }}>
+            {periods.map((p, i) => <option key={p} value={p}>{BULAN_PANJANG[i]} {p.slice(0, 4)}{data.items.some((r) => r.bulan[p]) ? ' · sudah diisi' : ''}</option>)}
+          </select>
+        </Field>
+        {data.items.map((r) => {
+          const raw = v[r.capacity_id]?.terpakai_ton ?? ''
+          const n = Number(raw.replace(',', '.'))
+          const pc = raw.trim() && Number.isFinite(n) ? pct(n, r.kapasitas_eff_ton) : null
+          return (
+            <div className="full pap-form-grid pap-usage-input" key={r.capacity_id}>
+              <Field label={`${mesinLabel(r)} · ${r.jenis_plastik}`} hint={`Efektif ${ton(r.kapasitas_eff_ton)}${pc !== null ? ` · terpakai ${num(pc)}%` : ''}`}>
+                <input className="pap-input" inputMode="decimal" placeholder="Ton terpakai" value={raw} onChange={(e) => set(r.capacity_id, 'terpakai_ton', e.target.value)} />
+              </Field>
+              <Field label="Catatan"><input className="pap-input" maxLength={500} value={v[r.capacity_id]?.catatan ?? ''} onChange={(e) => set(r.capacity_id, 'catatan', e.target.value)} placeholder="Opsional" /></Field>
+            </div>
+          )
+        })}
+        <p className="full pap-muted">Kosongkan ton terpakai untuk menghapus isian mesin itu pada bulan ini.</p>
       </form>
     </Modal>
   )

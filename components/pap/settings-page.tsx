@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Activity, AlertCircle, Bell, BellOff, Building2, Camera, CheckCircle2, Clock, Cloud, Copy, Cpu, Database, ExternalLink, FileSpreadsheet, FolderOpen, HardDrive, KeyRound, Monitor, Moon, Play, Plug, RefreshCw, Server, ShieldCheck, Sun, Trash2, UserRound, Wrench } from 'lucide-react'
+import { menuName } from '@/lib/menus'
 import type { UserProfile } from '@/lib/users'
 import { avatarImage } from './compress'
 import { subscribePush, unsubscribePush } from './notifications'
@@ -334,7 +335,7 @@ function IntegrationTab({ onNavigate }: { onNavigate: (menu: string) => void }) 
               {(data?.sources ?? []).map((s) => (
                 <tr key={s.key}>
                   <td><div className="pap-cell-title">{s.jenis === 'folder' ? <FolderOpen className="pap-inline-icon" /> : <FileSpreadsheet className="pap-inline-icon" />} {s.label}</div><div className="pap-cell-sub">{s.jenis === 'folder' ? 'Folder Drive' : 'Spreadsheet'}</div></td>
-                  <td><button type="button" className="pap-link-button" onClick={() => onNavigate(s.menu)}>{s.menu}</button></td>
+                  <td><button type="button" className="pap-link-button" onClick={() => onNavigate(s.menu)}>{menuName(s.menu)}</button></td>
                   <td className="pap-nowrap">{s.synced_at ? formatDate(s.synced_at, true) : <span className="pap-muted">—</span>}</td>
                   <td>{s.url ? <a href={s.url} target="_blank" rel="noreferrer" className="pap-nowrap">Buka <ExternalLink className="pap-inline-icon" /></a> : <span className="pap-muted">Belum diatur</span>}</td>
                   <td className="pap-nowrap">{s.sync && s.url && <button type="button" className="pap-btn" disabled={busy !== null} onClick={() => sync(s)}><RefreshCw className={busy === s.key ? 'pap-spin' : ''} /> {busy === s.key ? 'Sinkron...' : 'Sinkron'}</button>}</td>

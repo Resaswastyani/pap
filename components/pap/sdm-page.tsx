@@ -363,11 +363,12 @@ function KpiForm({ row, periode, ind, onClose, onSaved }: { row: KpiRow; periode
 // ======================= Laporan BPJS =======================
 type BpjsRow = {
   no: number; nip: string; nama: string; jabatan: string | null; divisi: string | null; no_bpjs_tk: string | null; no_bpjs_kes: string | null
+  payroll_id: number | null; nilai_bpjs_tk: number | null; nilai_bpjs_kes: number | null
   dasar_tk: number; dasar_kes: number; dasar_jp: number; kes_p: number; kes_k: number; jht_p: number; jht_k: number; jkk: number; jkm: number; jp_p: number; jp_k: number
   tk_ditanggung: string; kes_ditanggung: string; total_tk: number; total_kes: number; total: number; beban_perusahaan: number; potongan_pegawai: number; catatan: string[]
 }
 type BpjsRes = {
-  periode: string; dari: string; sampai: string; items: BpjsRow[]; tarif: Record<string, number>
+  periode: string; dari: string; sampai: string; items: BpjsRow[]; tarif: Record<string, number>; can: { manage: boolean }
   total: Record<'peserta_tk' | 'peserta_kes' | 'jht_p' | 'jht_k' | 'jkk' | 'jkm' | 'jp_p' | 'jp_k' | 'kes_p' | 'kes_k' | 'total_tk' | 'total_kes' | 'total' | 'beban_perusahaan' | 'potongan_pegawai' | 'belum_tk' | 'belum_kes', number>
 }
 
@@ -377,12 +378,33 @@ export function BpjsPage(_props: { user: UserProfile }) {
   const [q, setQ] = useState('')
   const [data, setData] = useState<BpjsRes | null>(null)
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [reload, setReload] = useState(0)
+  const [form, setForm] = useState<BpjsRow | 'baru' | null>(null)
   useEffect(() => {
     let alive = true
-    setData(null)
+    if (!reload) setData(null)
     api<BpjsRes>(`/api/hrd/bpjs?periode=${periode}`).then((r) => alive && (setData(r), setError(''))).catch((e) => alive && setError(e.message))
     return () => { alive = false }
-  }, [periode])
+  }, [periode, reload])
+  const manage = !!data?.can?.manage
+  const progLabel = prog === 'tk' ? 'Ketenagakerjaan' : 'Kesehatan'
+  const done = (text: string) => {
+    setForm(null)
+    setMessage(text)
+    setTimeout(() => setMessage(''), 5000)
+    setReload((n) => n + 1)
+  }
+  async function remove(x: BpjsRow) {
+    if (!x.payroll_id) return
+    if (!(await confirmDialog(`Hapus kepesertaan BPJS ${progLabel} ${x.nama}? Nomor dan upah lapor dikosongkan, iurannya tidak dihitung lagi di laporan dan slip gaji.`))) return
+    try {
+      await api(`/api/hrd/bpjs/${x.payroll_id}?program=${prog}`, { method: 'DELETE' })
+      done(`Kepesertaan BPJS ${progLabel} ${x.nama} dihapus.`)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
   const term = q.trim().toLowerCase()
   const rows = (data?.items ?? []).filter((x) => !term || `${x.nama} ${x.nip}`.toLowerCase().includes(term))
   const paged = usePaged(rows, `${periode}-${q}-${prog}`, 50)
@@ -398,31 +420,33 @@ export function BpjsPage(_props: { user: UserProfile }) {
         </div>
         <div className="pap-inline-actions pap-wrap">
           <MonthNav periode={periode} onChange={setPeriode} />
-          <a className="pap-primary-button" href={`/api/hrd/bpjs/xlsx?periode=${periode}`}><Download /> Unduh Excel</a>
+          <a className={manage ? 'pap-btn' : 'pap-primary-button'} href={`/api/hrd/bpjs/xlsx?periode=${periode}`}><Download /> Unduh Excel</a>
+          {manage && <button className="pap-primary-button" onClick={() => setForm('baru')}><Plus /> Daftarkan peserta</button>}
         </div>
       </div>
+      {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       <div className="pap-stat-grid four">
         <div className="pap-stat-card"><div><span>BPJS Ketenagakerjaan</span><strong className="pap-stat-text">{t ? formatRupiah(t.total_tk) : '…'}</strong><small className="neutral">{t ? `${t.peserta_tk} peserta` : ''}</small></div><div className="pap-stat-icon stat-1"><ShieldPlus /></div></div>
         <div className="pap-stat-card"><div><span>BPJS Kesehatan</span><strong className="pap-stat-text">{t ? formatRupiah(t.total_kes) : '…'}</strong><small className="neutral">{t ? `${t.peserta_kes} peserta` : ''}</small></div><div className="pap-stat-icon stat-0"><ShieldPlus /></div></div>
         <div className="pap-stat-card"><div><span>Beban perusahaan / potong gaji</span><strong className="pap-stat-text">{t ? formatRupiah(t.beban_perusahaan) : '…'}</strong><small className="neutral">{t ? `Dipotong dari gaji ${formatRupiah(t.potongan_pegawai)}` : ''}</small></div><div className="pap-stat-icon stat-1"><CheckCircle2 /></div></div>
-        <div className="pap-stat-card"><div><span>Belum terdaftar</span><strong className="pap-stat-text">{t ? `${t.belum_tk} / ${t.belum_kes}` : '…'}</strong><small className="neutral">Tanpa No. BPJS TK / Kesehatan</small></div><div className={`pap-stat-icon ${t && (t.belum_tk || t.belum_kes) ? 'stat-2' : 'stat-0'}`}><AlertTriangle /></div></div>
+        <div className="pap-stat-card"><div><span>Belum terdaftar</span><strong className="pap-stat-text">{t ? `${t.belum_tk} / ${t.belum_kes}` : '…'}</strong><small className="neutral">Tanpa No. BPJS Ketenagakerjaan / Kesehatan</small></div><div className={`pap-stat-icon ${t && (t.belum_tk || t.belum_kes) ? 'stat-2' : 'stat-0'}`}><AlertTriangle /></div></div>
       </div>
       <div className="pap-table-card">
         <div className="pap-card-head">
           <div className="pap-segmented" role="tablist">
-            <button role="tab" aria-selected={prog === 'tk'} className={prog === 'tk' ? 'active' : ''} onClick={() => setProg('tk')}>Ketenagakerjaan</button>
-            <button role="tab" aria-selected={prog === 'kes'} className={prog === 'kes' ? 'active' : ''} onClick={() => setProg('kes')}>Kesehatan</button>
+            <button role="tab" aria-selected={prog === 'tk'} className={prog === 'tk' ? 'active' : ''} onClick={() => setProg('tk')}>BPJS Ketenagakerjaan</button>
+            <button role="tab" aria-selected={prog === 'kes'} className={prog === 'kes' ? 'active' : ''} onClick={() => setProg('kes')}>BPJS Kesehatan</button>
           </div>
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama / NIP..." /></label>
         </div>
-        {data && <div className="pap-filters"><span className="pap-muted">Periode gaji {formatDate(data.dari)} – {formatDate(data.sampai)}. {tr && (prog === 'tk' ? `JHT ${tr.jht_p}% + ${tr.jht_k}%, JKK ${tr.jkk}%, JKM ${tr.jkm}%, JP ${tr.jp_p}% + ${tr.jp_k}% (batas upah JP ${formatRupiah(tr.max_jp)}, usia < ${tr.usia_pensiun}).` : `Kesehatan ${tr.kes_p}% + ${tr.kes_k}% (batas upah ${formatRupiah(tr.max_kes)}).`)}</span></div>}
+        {data && <div className="pap-filters"><span className="pap-muted">Periode gaji {formatDate(data.dari)} – {formatDate(data.sampai)}. {tr && (prog === 'tk' ? `BPJS Ketenagakerjaan: JHT ${tr.jht_p}% + ${tr.jht_k}%, JKK ${tr.jkk}%, JKM ${tr.jkm}%, JP ${tr.jp_p}% + ${tr.jp_k}% (batas upah JP ${formatRupiah(tr.max_jp)}, usia < ${tr.usia_pensiun}).` : `BPJS Kesehatan ${tr.kes_p}% + ${tr.kes_k}% (batas upah ${formatRupiah(tr.max_kes)}).`)}</span></div>}
         <div className="pap-table-wrap">
           <table>
             <thead>
               {prog === 'tk'
-                ? <tr><th>Karyawan</th><th>No. BPJS TK</th><th className="pap-num">Upah</th><th className="pap-num">JHT (P / K)</th><th className="pap-num">JKK</th><th className="pap-num">JKM</th><th className="pap-num">JP (P / K)</th><th className="pap-num">Total</th><th>Ditanggung</th></tr>
-                : <tr><th>Karyawan</th><th>No. BPJS Kesehatan</th><th className="pap-num">Upah</th><th className="pap-num">Perusahaan</th><th className="pap-num">Pegawai</th><th className="pap-num">Total</th><th>Ditanggung</th></tr>}
+                ? <tr><th>Karyawan</th><th>No. peserta</th><th className="pap-num">Upah</th><th className="pap-num">JHT (P / K)</th><th className="pap-num">JKK</th><th className="pap-num">JKM</th><th className="pap-num">JP (P / K)</th><th className="pap-num">Total</th>{manage && <th>Aksi</th>}</tr>
+                : <tr><th>Karyawan</th><th>No. peserta</th><th className="pap-num">Upah</th><th className="pap-num">Perusahaan</th><th className="pap-num">Pegawai</th><th className="pap-num">Total</th>{manage && <th>Aksi</th>}</tr>}
             </thead>
             <tbody>
               {paged.items.map((x) => {
@@ -437,15 +461,20 @@ export function BpjsPage(_props: { user: UserProfile }) {
                         <td className="pap-num pap-nowrap">{formatRupiah(x.jht_p)}<div className="pap-cell-sub">{formatRupiah(x.jht_k)}</div></td>
                         <td className="pap-num pap-nowrap">{formatRupiah(x.jkk)}</td><td className="pap-num pap-nowrap">{formatRupiah(x.jkm)}</td>
                         <td className="pap-num pap-nowrap">{formatRupiah(x.jp_p)}<div className="pap-cell-sub">{x.dasar_tk && !x.dasar_jp ? 'usia pensiun' : formatRupiah(x.jp_k)}</div></td>
-                        <td className="pap-num pap-nowrap"><strong>{formatRupiah(x.total_tk)}</strong></td>
-                        <td>{x.tk_ditanggung === 'perusahaan' ? 'Perusahaan' : 'Pegawai'}</td>
+                        <td className="pap-num pap-nowrap"><strong>{formatRupiah(x.total_tk)}</strong>{ikut ? <div className="pap-cell-sub">ditanggung {x.tk_ditanggung === 'perusahaan' ? 'perusahaan' : 'pegawai'}</div> : null}</td>
                       </>
                     ) : (
                       <>
                         <td className="pap-num pap-nowrap">{formatRupiah(x.kes_p)}</td><td className="pap-num pap-nowrap">{formatRupiah(x.kes_k)}</td>
-                        <td className="pap-num pap-nowrap"><strong>{formatRupiah(x.total_kes)}</strong></td>
-                        <td>{x.kes_ditanggung === 'perusahaan' ? 'Perusahaan' : 'Pegawai'}</td>
+                        <td className="pap-num pap-nowrap"><strong>{formatRupiah(x.total_kes)}</strong>{ikut ? <div className="pap-cell-sub">ditanggung {x.kes_ditanggung === 'perusahaan' ? 'perusahaan' : 'pegawai'}</div> : null}</td>
                       </>
+                    )}
+                    {manage && (
+                      <td className="pap-nowrap">
+                        {x.payroll_id && (ikut || (prog === 'tk' ? x.no_bpjs_tk : x.no_bpjs_kes)
+                          ? <div className="pap-inline-actions"><button type="button" className="pap-icon-button" title="Ubah" aria-label={`Ubah BPJS ${x.nama}`} onClick={() => setForm(x)}><Pencil /></button><button type="button" className="pap-icon-button" title="Hapus kepesertaan" aria-label={`Hapus BPJS ${x.nama}`} onClick={() => remove(x)}><Trash2 /></button></div>
+                          : <button type="button" className="pap-link-button" onClick={() => setForm(x)}>Daftarkan</button>)}
+                      </td>
                     )}
                   </tr>
                 )
@@ -454,8 +483,8 @@ export function BpjsPage(_props: { user: UserProfile }) {
             {t && (
               <tfoot>
                 {prog === 'tk'
-                  ? <tr className="pap-total-row"><td colSpan={3}><b>Total {t.peserta_tk} peserta</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.jht_p + t.jht_k)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.jkk)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.jkm)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.jp_p + t.jp_k)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.total_tk)}</b></td><td /></tr>
-                  : <tr className="pap-total-row"><td colSpan={3}><b>Total {t.peserta_kes} peserta</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.kes_p)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.kes_k)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.total_kes)}</b></td><td /></tr>}
+                  ? <tr className="pap-total-row"><td colSpan={3}><b>Total {t.peserta_tk} peserta</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.jht_p + t.jht_k)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.jkk)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.jkm)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.jp_p + t.jp_k)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.total_tk)}</b></td>{manage && <td />}</tr>
+                  : <tr className="pap-total-row"><td colSpan={3}><b>Total {t.peserta_kes} peserta</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.kes_p)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.kes_k)}</b></td><td className="pap-num pap-nowrap"><b>{formatRupiah(t.total_kes)}</b></td>{manage && <td />}</tr>}
               </tfoot>
             )}
           </table>
@@ -464,7 +493,69 @@ export function BpjsPage(_props: { user: UserProfile }) {
           <Pager {...paged.pager} noun="karyawan" />
         </div>
       </div>
+      {form && data && <BpjsForm prog={prog} row={form === 'baru' ? null : form} items={data.items} onClose={() => setForm(null)} onSaved={done} />}
     </>
+  )
+}
+
+// Daftarkan / ubah kepesertaan satu program BPJS (hanya kolom BPJS di pengaturan gaji yang diubah)
+function BpjsForm({ prog, row, items, onClose, onSaved }: { prog: 'tk' | 'kes'; row: BpjsRow | null; items: BpjsRow[]; onClose: () => void; onSaved: (text: string) => void }) {
+  const label = prog === 'tk' ? 'Ketenagakerjaan' : 'Kesehatan'
+  const noOf = (x: BpjsRow) => (prog === 'tk' ? x.no_bpjs_tk : x.no_bpjs_kes)
+  const belum = items.filter((x) => x.payroll_id && !noOf(x))
+  const [pid, setPid] = useState<number | ''>(row?.payroll_id ?? '')
+  const cur = items.find((x) => x.payroll_id === pid) ?? null
+  const init = (x: BpjsRow | null) => ({
+    no: (x && noOf(x)) ?? '',
+    nilai: (x && (prog === 'tk' ? x.nilai_bpjs_tk : x.nilai_bpjs_kes))?.toString() ?? '',
+    ditanggung: (x && (prog === 'tk' ? x.tk_ditanggung : x.kes_ditanggung)) || 'pegawai',
+  })
+  const [v, setV] = useState(() => init(row))
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const terdaftar = !!(row && noOf(row))
+  async function save(e: React.FormEvent) {
+    e.preventDefault()
+    if (!pid) return setError('Pilih karyawan.')
+    setBusy(true)
+    setError('')
+    try {
+      await api(`/api/hrd/bpjs/${pid}`, { method: 'PATCH', json: { [`no_bpjs_${prog}`]: v.no, [`nilai_bpjs_${prog}`]: v.nilai.replace(/\D/g, ''), [`bpjs_${prog}_ditanggung`]: v.ditanggung } })
+      onSaved(`Kepesertaan BPJS ${label} ${cur?.nama ?? ''} ${terdaftar ? 'diperbarui' : 'didaftarkan'}.`)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal
+      title={`${terdaftar ? 'Ubah' : 'Daftarkan'} BPJS ${label}`} onClose={onClose}
+      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="bpjs-form" disabled={busy}>{busy ? 'Menyimpan...' : 'Simpan'}</button></>}
+    >
+      <form id="bpjs-form" className="pap-form-grid" onSubmit={save}>
+        {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        {row ? (
+          <div className="full"><b>{row.nama}</b><div className="pap-cell-sub">{[row.nip, row.jabatan, row.divisi].filter(Boolean).join(' · ')}</div></div>
+        ) : (
+          <Field label="Karyawan" full hint={belum.length ? `${belum.length} karyawan belum terdaftar BPJS ${label}` : `Semua karyawan sudah terdaftar BPJS ${label}`}>
+            <select className="pap-input" required value={pid} onChange={(e) => { const id = Number(e.target.value) || ''; setPid(id); setV(init(items.find((x) => x.payroll_id === id) ?? null)) }}>
+              <option value="">Pilih karyawan...</option>
+              {belum.map((x) => <option key={x.payroll_id} value={x.payroll_id!}>{x.nama} · {x.nip}</option>)}
+            </select>
+          </Field>
+        )}
+        <Field label={`No. BPJS ${label}`} full><input className="pap-input" required maxLength={40} value={v.no} onChange={(e) => setV({ ...v, no: e.target.value })} placeholder={prog === 'tk' ? '11 digit nomor KPJ' : '13 digit nomor kartu JKN'} /></Field>
+        <Field label="Upah dilaporkan (Rp)" hint="Kosongkan untuk memakai gaji bulanan karyawan"><input className="pap-input" inputMode="numeric" value={v.nilai} onChange={(e) => setV({ ...v, nilai: e.target.value })} placeholder="Gaji bulanan" /></Field>
+        <Field label="Iuran pegawai ditanggung">
+          <select className="pap-input" value={v.ditanggung} onChange={(e) => setV({ ...v, ditanggung: e.target.value })}>
+            <option value="pegawai">Pegawai (potong gaji)</option>
+            <option value="perusahaan">Perusahaan</option>
+          </select>
+        </Field>
+        <p className="full pap-muted">Tersimpan di pengaturan gaji karyawan (Grade & Gaji), jadi slip gaji dan laporan BPJS ikut menyesuaikan.</p>
+      </form>
+    </Modal>
   )
 }
 

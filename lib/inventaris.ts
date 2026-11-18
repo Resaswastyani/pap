@@ -3,16 +3,18 @@ import type { RowDataPacket } from 'mysql2'
 import { fail, int, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canManageGa } from '@/lib/ga'
+import { hitungDepresiasi, type MetodeDepresiasi } from '@/lib/depresiasi'
 import type { UserProfile } from '@/lib/users'
 
 export const INV_KONDISI = { baik: 'Baik', perlu_perbaikan: 'Perlu perbaikan', rusak: 'Rusak', hilang: 'Hilang' } as const
 export type InvKondisi = keyof typeof INV_KONDISI
-export const INV_LOG_JENIS = { tambah: 'Didata', mutasi: 'Mutasi', kondisi: 'Kondisi', perbaikan: 'Perbaikan', catatan: 'Catatan', penghapusan: 'Penghapusan' } as const
+export const INV_LOG_JENIS = { tambah: 'Didata', mutasi: 'Mutasi', kondisi: 'Kondisi', perbaikan: 'Perbaikan', catatan: 'Catatan', penghapusan: 'Penghapusan', service: 'Service' } as const
 export type InvLogJenis = keyof typeof INV_LOG_JENIS
 // Kategori yang disarankan di form (boleh diketik bebas)
 export const INV_KATEGORI = ['Elektronik', 'Komputer & Laptop', 'Furnitur', 'Kendaraan', 'Peralatan Kantor', 'Peralatan Dapur', 'AC & Pendingin', 'Lainnya']
 
-export const canViewInventaris = (user: UserProfile) => user.menus.includes('ga-inventaris')
+// Daftar inventaris tampil di menu Inventaris (kunci ga-data, tab "Inventaris lainnya") dan dipakai menu Jadwal Service Inventaris
+export const canViewInventaris = (user: UserProfile) => ['ga-data', 'ga-inventaris', 'ga-service'].some((k) => user.menus.includes(k as never))
 export const canManageInventaris = canManageGa
 export function requireInventaris(user: UserProfile) {
   if (!canViewInventaris(user)) fail(403, 'Anda tidak punya akses ke menu Inventaris.')
@@ -27,18 +29,28 @@ export const DUE_DAYS = 30
 export const DUE_SQL = `(LEAST(COALESCE(i.pajak_tahunan, '9999-12-31'), COALESCE(i.pajak_lima_tahunan, '9999-12-31'), COALESCE(i.uji_kir, '9999-12-31')) <= CURDATE() + INTERVAL ${DUE_DAYS} DAY)`
 
 export const INV_SELECT = `SELECT i.id, i.kode, i.nama, i.kategori, i.merek, i.nomor_seri, i.jumlah, i.lokasi, i.pemegang_id, u.name AS pemegang_nama, i.pemegang_lain,
-  i.tanggal_beli, i.tahun, i.pajak_tahunan, i.pajak_lima_tahunan, i.uji_kir, i.harga_beli, i.kondisi, i.status, i.catatan, UNIX_TIMESTAMP(i.foto_at) AS foto_versi, i.created_at, i.updated_at,
-  (SELECT MAX(l.tanggal) FROM ga_inventaris_logs l WHERE l.item_id = i.id AND l.jenis = 'perbaikan') AS perbaikan_terakhir
+  i.tanggal_beli, i.tahun, i.pajak_tahunan, i.pajak_lima_tahunan, i.uji_kir, i.harga_beli, i.depresiasi_pct, i.metode_depresiasi, i.kondisi, i.status, i.catatan, UNIX_TIMESTAMP(i.foto_at) AS foto_versi, i.created_at, i.updated_at,
+  (SELECT MAX(l.tanggal) FROM ga_inventaris_logs l WHERE l.item_id = i.id AND l.jenis IN ('perbaikan', 'service')) AS perbaikan_terakhir,
+  (SELECT MIN(s.jadwal) FROM ga_service_schedules s WHERE s.item_id = i.id AND s.aktif = 1) AS service_berikutnya
   FROM ga_inventaris i LEFT JOIN users u ON u.id = i.pemegang_id`
 
-export const LOG_SELECT = `SELECT l.id, l.tanggal, l.jenis, l.keterangan, l.biaya, l.created_at, u.name AS created_name
+export const LOG_SELECT = `SELECT l.id, l.tanggal, l.jenis, l.keterangan, l.biaya, l.vendor, l.schedule_id, l.created_at, u.name AS created_name
   FROM ga_inventaris_logs l JOIN users u ON u.id = l.created_by`
 
 type InvRow = RowDataPacket & {
   id: number; kode: string; nama: string; lokasi: string | null; pemegang_id: number | null; pemegang_nama: string | null; pemegang_lain: string | null
   kondisi: InvKondisi; status: 'aktif' | 'dihapuskan'
 }
-export const serializeInv = (r: RowDataPacket) => ({ ...(r as InvRow), jumlah: Number(r.jumlah ?? 1), harga_beli: r.harga_beli === null ? null : Number(r.harga_beli), foto_versi: r.foto_versi ? String(r.foto_versi) : null })
+export const serializeInv = (r: RowDataPacket) => {
+  const out = {
+    ...(r as InvRow), jumlah: Number(r.jumlah ?? 1), harga_beli: r.harga_beli === null ? null : Number(r.harga_beli), foto_versi: r.foto_versi ? String(r.foto_versi) : null,
+    depresiasi_pct: r.depresiasi_pct === null || r.depresiasi_pct === undefined ? null : Number(r.depresiasi_pct), metode_depresiasi: (r.metode_depresiasi ?? null) as MetodeDepresiasi | null,
+    tanggal_beli: r.tanggal_beli ? String(r.tanggal_beli instanceof Date ? r.tanggal_beli.toISOString() : r.tanggal_beli).slice(0, 10) : null,
+  }
+  // Nilai sekarang (perkiraan nilai jual) seluruh unit; jadwal per tahun dikirim di detail saja
+  const d = hitungDepresiasi(out)
+  return { ...out, depresiasi: d ? { pct: d.pct, metode: d.metode, otomatis: d.otomatis, harga: d.harga, umur_tahun: d.umur_tahun, nilai_sekarang: d.nilai_sekarang, penyusutan_total: d.penyusutan_total, persen_sisa: d.persen_sisa, umur_ekonomis: d.umur_ekonomis } : null }
+}
 export const serializeLog = (r: RowDataPacket) => ({ ...r, biaya: r.biaya === null ? null : Number(r.biaya) })
 
 export async function loadInventaris(id: number) {
@@ -92,13 +104,28 @@ export async function readInventarisInput(body: Record<string, unknown>) {
     pemegangLain: pemegangId ? null : str(body.pemegang_lain, 150) || null,
     tanggalBeli: readDate(body.tanggal_beli, 'Tanggal beli'),
     hargaBeli: readMoney(body.harga_beli, 'Harga beli'),
+    ...readDepresiasi(body),
     catatan: str(body.catatan, 5000) || null,
   }
 }
 
-export async function addInventarisLog(input: { itemId: number; jenis: InvLogJenis; keterangan: string | null; biaya?: number | null; tanggal?: string | null; userId: number }) {
-  await db.query('INSERT INTO ga_inventaris_logs (item_id, tanggal, jenis, keterangan, biaya, created_by) VALUES (?, ?, ?, ?, ?, ?)', [
-    input.itemId, input.tanggal ?? todayWib(), input.jenis, input.keterangan, input.biaya ?? null, input.userId,
+// Depresiasi per tahun: kosong = default kategori; metode garis lurus / saldo menurun
+export function readDepresiasi(body: Record<string, unknown>) {
+  const raw = body.depresiasi_pct
+  let pct: number | null = null
+  if (raw !== undefined && raw !== null && raw !== '') {
+    pct = Number(String(raw).replace(',', '.'))
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) fail(400, 'Depresiasi per tahun harus 0–100%.')
+    pct = Math.round(pct * 100) / 100
+  }
+  const metode = str(body.metode_depresiasi, 20)
+  if (metode && metode !== 'garis_lurus' && metode !== 'saldo_menurun') fail(400, 'Metode depresiasi tidak dikenal.')
+  return { depresiasiPct: pct, metodeDepresiasi: (metode || null) as MetodeDepresiasi | null }
+}
+
+export async function addInventarisLog(input: { itemId: number; jenis: InvLogJenis; keterangan: string | null; biaya?: number | null; tanggal?: string | null; userId: number; scheduleId?: number | null; vendor?: string | null }) {
+  await db.query('INSERT INTO ga_inventaris_logs (item_id, schedule_id, tanggal, jenis, keterangan, biaya, vendor, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [
+    input.itemId, input.scheduleId ?? null, input.tanggal ?? todayWib(), input.jenis, input.keterangan, input.biaya ?? null, input.vendor ?? null, input.userId,
   ])
 }
 

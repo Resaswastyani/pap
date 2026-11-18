@@ -55,10 +55,10 @@ export const POST = handle(async (request: Request) => {
   if (input.kode) await assertKodeFree(input.kode)
   const [res] = await db.query<ResultSetHeader>(
     `INSERT INTO ga_inventaris (kode, nama, kategori, merek, nomor_seri, jumlah, lokasi, pemegang_id, pemegang_lain, tanggal_beli, tahun, pajak_tahunan, pajak_lima_tahunan, uji_kir,
-       harga_beli, kondisi, catatan, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       harga_beli, depresiasi_pct, metode_depresiasi, kondisi, catatan, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [input.kode ?? `TMP-${Date.now()}`, input.nama, input.kategori, input.merek, input.nomorSeri, input.jumlah, input.lokasi, input.pemegangId, input.pemegangLain,
-      input.tanggalBeli, input.tahun, input.pajakTahunan, input.pajakLimaTahunan, input.ujiKir, input.hargaBeli, input.kondisi, input.catatan, user.id],
+      input.tanggalBeli, input.tahun, input.pajakTahunan, input.pajakLimaTahunan, input.ujiKir, input.hargaBeli, input.depresiasiPct, input.metodeDepresiasi, input.kondisi, input.catatan, user.id],
   )
   if (!input.kode) await db.query("UPDATE ga_inventaris SET kode = CONCAT('INV-', LPAD(id, 4, '0')) WHERE id = ?", [res.insertId])
   const item = await loadInventaris(res.insertId)

@@ -11,5 +11,6 @@ export const GET = handle(async (request: Request) => {
   requireBpjs(user)
   const periode = new URL(request.url).searchParams.get('periode') ?? ''
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(periode)) fail(400, 'Periode tidak valid.')
-  return NextResponse.json(await bpjsReport(periode, canManageHr(user)))
+  const manage = canManageHr(user)
+  return NextResponse.json({ ...(await bpjsReport(periode, manage)), can: { manage } })
 })

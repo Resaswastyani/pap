@@ -58,7 +58,9 @@ export const MENU_KEYS = {
   Perizinan: 'perizinan',
   'Data GA': 'ga-data',
   'Pengajuan GA': 'ga-pengajuan',
+  // Menu Inventaris lama: kini tab "Inventaris lainnya" di menu Inventaris (kunci ga-data); kunci tetap untuk tautan lama
   Inventaris: 'ga-inventaris',
+  'Jadwal Service Inventaris': 'ga-service',
   'Belanja ATK & RTK': 'ga-belanja',
   Planning: 'planning',
   Meeting: 'meeting',
@@ -93,7 +95,7 @@ export const MENU_GROUPS: { label: string; items: (keyof typeof MENU_KEYS)[] }[]
   { label: 'Purchasing', items: ['Pengajuan Pembelian', 'PO Pembelian', 'Supplier', 'Harga Bahan', 'Hutang Supplier'] },
   { label: 'Accounting', items: ['Ringkasan Keuangan', 'Kas & Bank', 'Piutang Customer', 'Laporan Keuangan', 'Arus Kas', 'Pajak'] },
   { label: 'SDM', items: ['Karyawan', 'Grade & Gaji', 'Lembur', 'Absensi', 'Training', 'Izin & Cuti', 'KPI Karyawan', 'Laporan BPJS', 'Perizinan'] },
-  { label: 'General Affair', items: ['Data GA', 'Pengajuan GA', 'Inventaris', 'Belanja ATK & RTK'] },
+  { label: 'General Affair', items: ['Data GA', 'Jadwal Service Inventaris', 'Pengajuan GA', 'Belanja ATK & RTK'] },
   { label: 'Kolaborasi', items: ['Planning', 'Meeting'] },
   { label: 'Sistem', items: ['Master Data', 'Manajemen User', 'Manajemen Role'] },
 ]
@@ -101,5 +103,5 @@ export const MENU_GROUPS: { label: string; items: (keyof typeof MENU_KEYS)[] }[]
 export const CONFIGURABLE_MENU_KEYS = MENU_GROUPS.flatMap((g) => g.items.map((label) => MENU_KEYS[label])) as MenuKey[]
 
 // Nama menu yang tampil di layar bila berbeda dari kunci internalnya (kunci tetap dipakai untuk akses, notifikasi & log)
-export const MENU_DISPLAY: Record<string, string> = { 'Tiket Kendala': 'Tiket Kendala (IT Support)', 'Faktur Produksi': 'Faktur Penjualan' }
+export const MENU_DISPLAY: Record<string, string> = { 'Tiket Kendala': 'Tiket Kendala (IT Support)', 'Faktur Produksi': 'Faktur Penjualan', 'Data GA': 'Inventaris' }
 export const menuName = (label: string) => MENU_DISPLAY[label] ?? label

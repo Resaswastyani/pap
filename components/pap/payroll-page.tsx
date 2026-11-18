@@ -84,7 +84,7 @@ export function PayrollEmployees() {
       <Tiles tiles={[
         { label: 'Karyawan berpengaturan gaji', value: `${items.length}`, note: `${items.filter((p) => p.tipe_kalkulasi === 'kehadiran_cutoff').length} dihitung dari kehadiran`, icon: Users, tone: 'stat-1' },
         { label: 'Gaji per jam', value: `${items.filter((p) => p.gaji_per_jam_aktif).length}`, note: 'karyawan memakai tarif per jam', icon: Wallet, tone: 'stat-0' },
-        { label: 'BPJS belum lengkap', value: `${items.filter((p) => manage && (!p.no_bpjs_tk || !p.no_bpjs_kes)).length}`, note: manage ? 'tanpa No. BPJS TK / Kesehatan' : 'hanya terlihat oleh HRD', icon: ShieldCheck, tone: 'stat-2' },
+        { label: 'BPJS belum lengkap', value: `${items.filter((p) => manage && (!p.no_bpjs_tk || !p.no_bpjs_kes)).length}`, note: manage ? 'tanpa No. BPJS Ketenagakerjaan / Kesehatan' : 'hanya terlihat oleh HRD', icon: ShieldCheck, tone: 'stat-2' },
         { label: 'Belum ada pengaturan', value: `${data?.tanpa_pengaturan.length ?? 0}`, note: 'karyawan aktif di Data Karyawan', icon: AlertTriangle, tone: 'stat-3' },
       ]} />
       <div className="pap-table-card">
@@ -274,18 +274,18 @@ export function PayrollSettingsView() {
         <form id="payroll-settings" className="pap-form-grid" onSubmit={save}>
           <h3 className="full">Rate BPJS Perusahaan</h3>
           {num('bpjs_kes_perusahaan', 'BPJS Kesehatan (%)')}
-          {num('bpjs_jht_perusahaan', 'BPJS JHT (%)')}
-          {num('bpjs_jkk', 'BPJS JKK (%)')}
-          {num('bpjs_jkm', 'BPJS JKM (%)')}
-          {num('bpjs_jpn_perusahaan', 'BPJS JPN (%)')}
+          {num('bpjs_jht_perusahaan', 'BPJS Ketenagakerjaan (JHT) (%)')}
+          {num('bpjs_jkk', 'BPJS Ketenagakerjaan (JKK) (%)')}
+          {num('bpjs_jkm', 'BPJS Ketenagakerjaan (JKM) (%)')}
+          {num('bpjs_jpn_perusahaan', 'BPJS Ketenagakerjaan (JP) (%)')}
           {num('usia_pensiun', 'Usia Pensiun', '1')}
           <h3 className="full">Rate BPJS Pegawai</h3>
           {num('bpjs_kes_pegawai', 'BPJS Kesehatan (%)')}
-          {num('bpjs_jht_pegawai', 'BPJS JHT (%)')}
-          {num('bpjs_jpn_pegawai', 'BPJS JPN (%)')}
+          {num('bpjs_jht_pegawai', 'BPJS Ketenagakerjaan (JHT) (%)')}
+          {num('bpjs_jpn_pegawai', 'BPJS Ketenagakerjaan (JP) (%)')}
           <h3 className="full">Maksimum Nilai Yang Diperhitungkan</h3>
           {num('max_bpjs_kes', 'Maksimum BPJS Kesehatan (Rp)')}
-          {num('max_bpjs_jpn', 'Maksimum BPJS JPN (Rp)')}
+          {num('max_bpjs_jpn', 'Maksimum BPJS Ketenagakerjaan (JP) (Rp)')}
           <h3 className="full">Nilai UMR</h3>
           {num('umr', 'Minimum UMR (Rp)')}
           <label className="pap-check full"><input type="checkbox" checked={!!v.lembur_umr} disabled={!manage} onChange={(e) => setV({ ...v, lembur_umr: e.target.checked })} /><span>Lembur berdasarkan UMR (bila nilai pokok lembur karyawan kosong)</span></label>
@@ -436,13 +436,13 @@ export function PayrollCalc() {
             <div><dt>Pendapatan lainnya</dt><dd>{rp(detail.pendapatan_lain)}</dd></div>
             <div><dt>Cuti diuangkan</dt><dd>{rp(detail.cuti_dibayar)}</dd></div>
             <div><dt><strong>Bruto</strong></dt><dd><strong>{rp(detail.bruto)}</strong></dd></div>
-            <div><dt>BPJS JHT pegawai</dt><dd>{rp(detail.bpjs_pegawai.jht)}</dd></div>
-            <div><dt>BPJS JP pegawai</dt><dd>{rp(detail.bpjs_pegawai.jpn)}</dd></div>
+            <div><dt>BPJS Ketenagakerjaan (JHT) pegawai</dt><dd>{rp(detail.bpjs_pegawai.jht)}</dd></div>
+            <div><dt>BPJS Ketenagakerjaan (JP) pegawai</dt><dd>{rp(detail.bpjs_pegawai.jpn)}</dd></div>
             <div><dt>BPJS Kesehatan pegawai</dt><dd>{rp(detail.bpjs_pegawai.kes)}</dd></div>
             <div><dt>Dipotong dari gaji (BPJS)</dt><dd>−{rp(detail.potongan_bpjs)}</dd></div>
             <div><dt>Potongan lain</dt><dd>−{rp(detail.potongan_lain)}</dd></div>
             <div><dt><strong>Diterima</strong></dt><dd><strong>{rp(detail.diterima)}</strong></dd></div>
-            <div><dt>Iuran BPJS perusahaan</dt><dd>{rp(detail.bpjs_perusahaan.total)}<div className="pap-cell-sub">Kes {rp(detail.bpjs_perusahaan.kes)} · JHT {rp(detail.bpjs_perusahaan.jht)} · JKK {rp(detail.bpjs_perusahaan.jkk)} · JKM {rp(detail.bpjs_perusahaan.jkm)} · JP {rp(detail.bpjs_perusahaan.jpn)}</div></dd></div>
+            <div><dt>Iuran BPJS perusahaan</dt><dd>{rp(detail.bpjs_perusahaan.total)}<div className="pap-cell-sub">BPJS Kesehatan {rp(detail.bpjs_perusahaan.kes)} · BPJS Ketenagakerjaan: JHT {rp(detail.bpjs_perusahaan.jht)} · JKK {rp(detail.bpjs_perusahaan.jkk)} · JKM {rp(detail.bpjs_perusahaan.jkm)} · JP {rp(detail.bpjs_perusahaan.jpn)}</div></dd></div>
           </dl>
           {!!detail.catatan.length && <ul className="pap-muted">{detail.catatan.map((c) => <li key={c}>{c}</li>)}</ul>}
           <p className="pap-muted">Perkiraan sebelum PPh 21. Iuran BPJS bagian pegawai yang ditanggung perusahaan tidak memotong gaji dan masuk iuran perusahaan.</p>
