@@ -2444,3 +2444,27 @@ button.pap-ap-gantt-label { cursor:pointer; }
   .pap-ap-chips, .pap-ap-legend, .pap-ap-undated, .pap-ap-pad { padding-left:14px; padding-right:14px; }
   .pap-ap-range { grid-template-columns:minmax(0, 1fr) 72px; }
 }
+
+/* Lampiran laporan kerusakan */
+.pap-damage-files { display:flex; align-items:center; gap:4px; margin-top:6px; font-size:12px; }
+.pap-damage-files svg { width:13px; height:13px; }
+
+/* Detail karyawan: kehadiran, training, hasil tes */
+.pap-emp-year { width:auto; min-width:90px; min-height:34px; font-size:12px; }
+.pap-emp-tiles { display:grid; grid-template-columns:repeat(auto-fill, minmax(118px, 1fr)); gap:8px; margin-bottom:8px; }
+.pap-emp-tiles.three { grid-template-columns:repeat(3, minmax(0, 1fr)); }
+.pap-emp-tile { display:flex; flex-direction:column; gap:2px; padding:10px 12px; border:1px solid var(--pap-border); border-radius:12px; background:var(--pap-bg); min-width:0; }
+.pap-emp-tile span { color:var(--pap-muted); font-size:11px; font-weight:700; }
+.pap-emp-tile strong { font-size:20px; line-height:1.2; }
+.pap-emp-tile strong.pap-emp-tile-text { font-size:14px; overflow-wrap:anywhere; }
+.pap-emp-tile small { color:var(--pap-muted); font-size:11px; }
+.pap-emp-tile.success strong { color:#16a34a; } .pap-emp-tile.danger strong { color:#dc2626; } .pap-emp-tile.warning strong { color:#d97706; } .pap-emp-tile.info strong { color:#7050e7; }
+.pap-emp-note { margin:6px 0 0; font-size:12px; }
+.pap-emp-list { display:flex; flex-direction:column; gap:6px; margin:8px 0 0; padding:0; list-style:none; }
+.pap-emp-list li { display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--pap-border); border-radius:10px; font-size:13px; }
+.pap-emp-list li > svg { width:16px; height:16px; color:var(--pap-muted); flex:none; }
+.pap-emp-list li > div { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.pap-emp-list small { color:var(--pap-muted); font-size:11px; }
+.pap-emp-test-form { margin:10px 0; padding:12px; border:1px dashed var(--pap-border); border-radius:12px; }
+.pap-emp-test-actions { justify-content:flex-end; margin-top:10px; }
+@media (max-width:640px) { .pap-emp-tiles.three { grid-template-columns:1fr; } }

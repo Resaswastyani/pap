@@ -35,7 +35,7 @@ export function FakturPage(_props: { user: UserProfile }) {
       <div className="pap-page-heading">
         <div>
           <p className="pap-eyebrow">PRODUKSI · ACCURATE</p>
-          <h1>Faktur Produksi</h1>
+          <h1>Faktur Penjualan</h1>
           <span>Pesanan (SO) yang produksinya selesai siap dibuatkan faktur penjualan. Faktur dibuat, diubah, dan dihapus langsung di Accurate, lalu bisa dicetak sebagai invoice.</span>
         </div>
       </div>

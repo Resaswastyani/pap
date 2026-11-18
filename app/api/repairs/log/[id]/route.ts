@@ -2,7 +2,7 @@ import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
-import { canSyncDamageLog, damageSheetDelete, damageSheetUpdate, readDamageInput, requireDamageLog, syncDamageSheet, type DamageRow } from '@/lib/damage-log'
+import { canSyncDamageLog, damageSheetDelete, damageSheetUpdate, dropDamageRef, moveDamageRef, newSheetRefKey, readDamageInput, requireDamageLog, syncDamageSheet, type DamageRow } from '@/lib/damage-log'
 import { canHandleRepair } from '@/lib/repairs'
 import { trySheet } from '@/lib/sheet-write'
 import type { UserProfile } from '@/lib/users'
@@ -14,7 +14,7 @@ type Ctx = { params: Promise<{ id: string }> }
 async function editable(user: UserProfile, ctx: Ctx) {
   const id = int((await ctx.params).id) ?? fail(404, 'Data tidak ditemukan.')
   const [[row]] = await db.query<(RowDataPacket & DamageRow & { created_by: number | null })[]>(
-    'SELECT id, source, sheet_tab, sheet_row, no_laporan, tanggal, mesin, mesin_key, komponen, kerusakan, tindakan, keterangan, created_by FROM machine_damage_logs WHERE id = ?',
+    'SELECT id, source, sheet_tab, sheet_row, no_laporan, tanggal, mesin, mesin_key, komponen, kerusakan, tindakan, keterangan, created_by, ref_key FROM machine_damage_logs WHERE id = ?',
     [id],
   )
   if (!row) fail(404, 'Data tidak ditemukan.')
@@ -35,8 +35,12 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
   )
   // Tulis ke spreadsheet (isian form yang belum ada di sheet ditambahkan sebagai baris baru), lalu sinkron ulang
   const warning = await trySheet('rekap kerusakan', async () => {
-    await damageSheetUpdate(old, v)
-    if (old.source !== 'sheet') await db.query('DELETE FROM machine_damage_logs WHERE id = ?', [old.id])
+    const added = await damageSheetUpdate(old, v)
+    if (old.source !== 'sheet') {
+      // Isian form masuk spreadsheet: lampirannya ikut ke baris spreadsheet baru
+      if (added && old.ref_key) await moveDamageRef(old.ref_key, newSheetRefKey(added.tab, added.no))
+      await db.query('DELETE FROM machine_damage_logs WHERE id = ?', [old.id])
+    }
     await syncDamageSheet()
   })
   return NextResponse.json({ ok: true, warning })
@@ -47,6 +51,7 @@ export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   requireDamageLog(user)
   const old = await editable(user, ctx)
   await db.query('DELETE FROM machine_damage_logs WHERE id = ?', [old.id])
+  await dropDamageRef(old.ref_key ?? null)
   const warning = old.source === 'sheet'
     ? await trySheet('rekap kerusakan', async () => {
       await damageSheetDelete(old)

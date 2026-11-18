@@ -37,7 +37,8 @@ export const GET = handle(async () => {
   const [divisi] = await db.query<Row[]>('SELECT DISTINCT divisi FROM employees WHERE divisi IS NOT NULL AND tgl_berhenti IS NULL ORDER BY divisi')
   return NextResponse.json({
     items: rows.map((r) => ({ ...r, dari_drive: !!r.dari_drive, wajib: !!r.wajib, aktif: !!r.aktif, video: Number(r.video), dokumen: Number(r.dokumen), peserta: Number(r.peserta), selesai: Number(r.selesai) })),
-    divisi: divisi.map((d) => d.divisi),
+    // Operator Produksi selalu tersedia sebagai sasaran (jabatan operator di divisi Produksi)
+    divisi: [...new Set([...divisi.map((d) => String(d.divisi)), 'Operator Produksi'])].sort((a, b) => a.localeCompare(b)),
     folderUrl: manage ? folderUrl : null,
     sync: await loadTrainingSync(),
     warning,

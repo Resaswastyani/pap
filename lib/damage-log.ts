@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 // Rekap kerusakan mesin dari spreadsheet "Laporan Kerusakan Mesin" di Google Drive (dibaca dengan akun Google yang terhubung
 // di Master Data > Logo & Desain, sama seperti Jadwal Shift) + isian Form Laporan Kerusakan Mesin dari aplikasi.
 // Format tab REKAP KERUSAKAN: NO | TANGGAL | MESIN | Komponen | KERUSAKAN | KETERANGAN (opsional: TINDAKAN, seperti tab FORM KERUSAKAN).
@@ -138,12 +139,15 @@ export async function importDamageEntries(entries: DamageEntry[]) {
   try {
     await conn.beginTransaction()
     await conn.query("DELETE FROM machine_damage_logs WHERE source = 'sheet'")
+    const keys = damageRefKeys(entries)
     for (let i = 0; i < entries.length; i += 500) {
       await conn.query(
-        `INSERT INTO machine_damage_logs (source, sheet_tab, sheet_row, no_laporan, tanggal, mesin, mesin_key, komponen, kerusakan, tindakan, keterangan) VALUES ?`,
-        [entries.slice(i, i + 500).map((e) => ['sheet', e.sheet_tab.slice(0, 120), e.sheet_row, e.no_laporan, e.tanggal, e.mesin?.slice(0, 150) ?? null, machineKey(e.mesin), e.komponen?.slice(0, 150) ?? null, e.kerusakan, e.tindakan, e.keterangan])],
+        `INSERT INTO machine_damage_logs (source, sheet_tab, sheet_row, no_laporan, tanggal, mesin, mesin_key, komponen, kerusakan, tindakan, keterangan, ref_key) VALUES ?`,
+        [entries.slice(i, i + 500).map((e, k) => ['sheet', e.sheet_tab.slice(0, 120), e.sheet_row, e.no_laporan, e.tanggal, e.mesin?.slice(0, 150) ?? null, machineKey(e.mesin), e.komponen?.slice(0, 150) ?? null, e.kerusakan, e.tindakan, e.keterangan, keys[i + k]])],
       )
     }
+    // Kunci lampiran untuk setiap baris (lampiran lama tetap menempel walau id baris berubah)
+    if (keys.length) await conn.query('INSERT IGNORE INTO damage_attachment_refs (ref_key) VALUES ?', [keys.map((k) => [k])])
     await conn.query("INSERT INTO app_settings (`key`, value) VALUES ('kerusakan_mesin.synced_at', NOW()) ON DUPLICATE KEY UPDATE value = NOW()")
     await conn.commit()
   } catch (error) {
@@ -155,9 +159,53 @@ export async function importDamageEntries(entries: DamageEntry[]) {
   return { baris: entries.length, laporan: new Set(entries.map((e) => e.no_laporan).filter(Boolean)).size }
 }
 
+// ---------- Kunci lampiran laporan kerusakan ----------
+// Baris spreadsheet: no laporan + urutan baris di laporan itu (tetap walau isi kerusakan / tindakan / nama tab diubah).
+// Baris tanpa no laporan: tab + tanggal + mesin + isi kerusakan.
+const sheetNoKey = (no: number, index: number) => `no:${no}#${index}`
+export function damageRefKeys(entries: Pick<DamageEntry, 'no_laporan' | 'tanggal' | 'mesin' | 'kerusakan'>[]) {
+  const seen = new Map<string, number>()
+  return entries.map((e) => {
+    if (e.no_laporan) {
+      const base = String(e.no_laporan)
+      const index = seen.get(base) ?? 0
+      seen.set(base, index + 1)
+      return sheetNoKey(e.no_laporan, index)
+    }
+    const hash = createHash('sha1').update(norm(e.kerusakan ?? '')).digest('hex').slice(0, 16)
+    return `row:${e.tanggal ?? ''}|${machineKey(e.mesin) ?? ''}|${hash}`
+  })
+}
+export const appRefKey = (id: number) => `app:${id}`
+export const newSheetRefKey = (_tab: string, no: number) => sheetNoKey(no, 0)
+
+export async function ensureDamageRef(refKey: string) {
+  await db.query('INSERT IGNORE INTO damage_attachment_refs (ref_key) VALUES (?)', [refKey])
+  const [[row]] = await db.query<(RowDataPacket & { id: number })[]>('SELECT id FROM damage_attachment_refs WHERE ref_key = ?', [refKey])
+  return row?.id ?? null
+}
+// Laporan form yang pindah menjadi baris spreadsheet: lampirannya ikut pindah ke kunci baru
+export async function moveDamageRef(fromKey: string, toKey: string) {
+  if (fromKey === toKey) return
+  const [res] = await db.query<import('mysql2').ResultSetHeader>(
+    'UPDATE IGNORE damage_attachment_refs SET ref_key = ? WHERE ref_key = ?', [toKey, fromKey],
+  )
+  if (!res.affectedRows) await ensureDamageRef(toKey)
+}
+// Lampiran laporan yang dihapus ikut dihapus
+export async function dropDamageRef(refKey: string | null) {
+  if (!refKey) return
+  const [[row]] = await db.query<(RowDataPacket & { id: number })[]>('SELECT id FROM damage_attachment_refs WHERE ref_key = ?', [refKey])
+  if (!row) return
+  await db.query("DELETE FROM note_attachments WHERE owner_type = 'damage_log' AND owner_id = ?", [row.id])
+  await db.query('DELETE FROM damage_attachment_refs WHERE id = ?', [row.id])
+}
+
 // ---------- Daftar & form ----------
 export const DAMAGE_SELECT = `SELECT d.id, d.source, d.sheet_row, d.no_laporan, d.tanggal, d.mesin, d.mesin_key, d.komponen, d.kerusakan, d.tindakan, d.keterangan,
-  d.created_by, u.name AS created_name, d.created_at FROM machine_damage_logs d LEFT JOIN users u ON u.id = d.created_by`
+  d.created_by, u.name AS created_name, d.created_at, d.ref_key, r.id AS ref_id,
+  (SELECT COUNT(*) FROM note_attachments a WHERE a.owner_type = 'damage_log' AND a.owner_id = r.id) AS lampiran
+  FROM machine_damage_logs d LEFT JOIN users u ON u.id = d.created_by LEFT JOIN damage_attachment_refs r ON r.ref_key = d.ref_key`
 
 // Filter daftar/cetak: ?q= &mesin=<mesin_key> &komponen= &dari=YYYY-MM-DD &sampai=YYYY-MM-DD &tahun=YYYY
 export function damageFilter(params: URLSearchParams) {
@@ -202,7 +250,7 @@ export async function syncDamageSheet() {
 // Laporan baru ditambahkan sebagai baris di tab REKAP; ubah / hapus menulis ke baris asalnya (termasuk baris lanjutannya).
 // Setelah menulis, rekap disinkron ulang dari sheet sehingga data SIMPAP = isi spreadsheet.
 export type DamageRow = {
-  id: number; source: string; sheet_tab: string | null; sheet_row: number | null; no_laporan: number | null; tanggal: string | null
+  id: number; source: string; sheet_tab: string | null; sheet_row: number | null; no_laporan: number | null; tanggal: string | null; ref_key?: string | null
   mesin: string | null; mesin_key: string | null; komponen: string | null; kerusakan: string | null; tindakan: string | null; keterangan: string | null
 }
 export type DamageInput = ReturnType<typeof readDamageInput>
@@ -245,6 +293,7 @@ export async function damageSheetCreate(v: DamageInput) {
   put(cols.tindakan, v.tindakan)
   put(cols.keterangan, cols.tindakan < 0 ? [v.tindakan, v.keterangan].filter(Boolean).join('\n') : v.keterangan)
   await appendRow(sheet, title, values)
+  return { tab: title, no: lastNo + 1 }
 }
 
 export async function damageSheetUpdate(old: DamageRow, v: DamageInput) {

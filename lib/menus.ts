@@ -46,6 +46,8 @@ export const MENU_KEYS = {
   Pajak: 'pajak',
   'Formulasi Produk': 'formulasi',
   Karyawan: 'karyawan',
+  // Jobdesk: menu sendiri di SDM, hak aksesnya mengikuti menu Karyawan
+  Jobdesk: 'karyawan',
   Absensi: 'absensi',
   'Grade & Gaji': 'grade-gaji',
   Lembur: 'lembur',
@@ -99,5 +101,5 @@ export const MENU_GROUPS: { label: string; items: (keyof typeof MENU_KEYS)[] }[]
 export const CONFIGURABLE_MENU_KEYS = MENU_GROUPS.flatMap((g) => g.items.map((label) => MENU_KEYS[label])) as MenuKey[]
 
 // Nama menu yang tampil di layar bila berbeda dari kunci internalnya (kunci tetap dipakai untuk akses, notifikasi & log)
-export const MENU_DISPLAY: Record<string, string> = { 'Tiket Kendala': 'Tiket Kendala (IT Support)' }
+export const MENU_DISPLAY: Record<string, string> = { 'Tiket Kendala': 'Tiket Kendala (IT Support)', 'Faktur Produksi': 'Faktur Penjualan' }
 export const menuName = (label: string) => MENU_DISPLAY[label] ?? label

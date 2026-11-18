@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { deleteEmployee, loadEmployeeRow, readEmployeeInput, updateEmployee } from '@/lib/employees'
 import { canManageHr, canViewEmployees, canViewPayroll } from '@/lib/hrd'
 import { jobdeskOfNip } from '@/lib/jobdesk'
+import { employeeAttendance, employeeTests, employeeTrainings } from '@/lib/employee-profile'
 
 type Row = RowDataPacket & Record<string, unknown>
 type Ctx = { params: Promise<{ id: string }> }
@@ -15,7 +16,7 @@ const PRIVATE = ['no_id', 'tipe_id', 'tgl_akhir_id', 'alamat_id', 'alamat_tingga
   'jumlah_anak', 'tgl_lahir', 'tempat_lahir', 'golongan_darah', 'kontak_darurat', 'hp_darurat']
 
 // Detail karyawan: profil, atasan & bawahan, grade operator & gaji (bila boleh melihat penggajian)
-export const GET = handle(async (_request: Request, ctx: Ctx) => {
+export const GET = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
   if (!canViewEmployees(user)) fail(403, 'Anda tidak punya akses ke menu Karyawan.')
   const id = int((await ctx.params).id) ?? fail(404, 'Karyawan tidak ditemukan.')
@@ -38,7 +39,11 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
       delete gaji.no_rek_lain
     }
   }
-  return NextResponse.json({ item, bawahan, grade, gaji, jobdesk: await jobdeskOfNip(String(e.nip)), can: { manage, payroll: canViewPayroll(user) } })
+  // Rekap absensi & izin per tahun (?tahun=), riwayat training, hasil tes (HRD)
+  const tahunParam = Number(new URL(request.url).searchParams.get('tahun'))
+  const tahun = Number.isInteger(tahunParam) && tahunParam > 2000 ? tahunParam : new Date(Date.now() + 7 * 3600e3).getUTCFullYear()
+  const [absensi, training, tes] = await Promise.all([employeeAttendance(String(e.nip), tahun), employeeTrainings(id), manage ? employeeTests(id) : Promise.resolve(null)])
+  return NextResponse.json({ item, bawahan, grade, gaji, jobdesk: await jobdeskOfNip(String(e.nip)), absensi, training, tes, can: { manage, payroll: canViewPayroll(user) } })
 })
 
 const employeeId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Karyawan tidak ditemukan.')

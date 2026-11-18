@@ -57,6 +57,14 @@ export async function noteAccess(owner: NoteOwner, id: number, user: UserProfile
     if (!row) fail(404, 'Pengajuan pembelian tidak ditemukan.')
     return { canAdd: row.requested_by === user.id || canManageTeknik(user) || canProcessPurchase(user) }
   }
+  if (owner === 'damage_log') {
+    // Foto / video / dokumen laporan kerusakan (rekap): semua yang punya menu Kerusakan Mesin
+    const { requireDamageLog } = await import('@/lib/damage-log')
+    requireDamageLog(user)
+    const [[row]] = await db.query<RowDataPacket[]>('SELECT id FROM damage_attachment_refs WHERE id = ?', [id])
+    if (!row) fail(404, 'Laporan kerusakan tidak ditemukan.')
+    return { canAdd: true }
+  }
   if (owner === 'ticket') {
     // Screenshot kendala: pelapor & penangan tiket (Super Admin / Staff IT)
     const { canHandleTickets, loadTicket, requireTickets } = await import('@/lib/tickets')

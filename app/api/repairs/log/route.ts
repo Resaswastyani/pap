@@ -4,7 +4,7 @@ import { fail, handle, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { createPr, loadPr, readPrInput } from '@/lib/purchase-requests'
 import { canRequestPurchase } from '@/lib/teknik'
-import { canSyncDamageLog, DAMAGE_SELECT, damageFilter, machineLabel, readDamageInput, requireDamageLog, damageSheetCreate, syncDamageSheet } from '@/lib/damage-log'
+import { appRefKey, canSyncDamageLog, DAMAGE_SELECT, damageFilter, ensureDamageRef, machineLabel, moveDamageRef, newSheetRefKey, readDamageInput, requireDamageLog, damageSheetCreate, syncDamageSheet } from '@/lib/damage-log'
 import { canHandleRepair } from '@/lib/repairs'
 import { trySheet } from '@/lib/sheet-write'
 
@@ -52,7 +52,7 @@ export const GET = handle(async (request: Request) => {
   const [[synced]] = await db.query<Row[]>("SELECT value FROM app_settings WHERE `key` = 'kerusakan_mesin.synced_at'")
 
   return NextResponse.json({
-    items: items.map((r) => ({ ...r, mesin_label: r.mesin_key ? machineLabel(String(r.mesin_key)) : r.mesin, editable: r.source === 'app' ? r.created_by === user.id || canHandleRepair(user) : canSyncDamageLog(user) })),
+    items: items.map((r) => ({ ...r, lampiran: Number(r.lampiran ?? 0), mesin_label: r.mesin_key ? machineLabel(String(r.mesin_key)) : r.mesin, editable: r.source === 'app' ? r.created_by === user.id || canHandleRepair(user) : canSyncDamageLog(user) })),
     stats: {
       baris: Number(total.baris), laporan: Number(total.laporan), tahun_ini: Number(total.tahun_ini), bulan_ini: Number(total.bulan_ini), mesin: Number(total.mesin), terakhir: total.terakhir,
       per_mesin: perMesin.map((m) => ({ key: m.mesin_key, label: machineLabel(String(m.mesin_key)), jumlah: Number(m.jumlah), terakhir: m.terakhir })),
@@ -97,13 +97,21 @@ export const POST = handle(async (request: Request) => {
     `INSERT INTO machine_damage_logs (source, tanggal, mesin, mesin_key, komponen, kerusakan, tindakan, keterangan, created_by) VALUES ('app', ?, ?, ?, ?, ?, ?, ?, ?)`,
     [v.tanggal, v.mesin, v.mesin_key, v.komponen, v.kerusakan, v.tindakan, v.keterangan, user.id],
   )
+  // Kunci lampiran isian form; bila berhasil masuk spreadsheet, kunci pindah ke baris spreadsheetnya
+  let refKey = appRefKey(res.insertId)
+  await db.query('UPDATE machine_damage_logs SET ref_key = ? WHERE id = ?', [refKey, res.insertId])
+  await ensureDamageRef(refKey)
   // Laporan ikut ditambahkan ke tab REKAP spreadsheet; setelah sinkron ulang laporan ini menjadi baris spreadsheet
   const warning = await trySheet('rekap kerusakan', async () => {
-    await damageSheetCreate(v)
+    const added = await damageSheetCreate(v)
+    const sheetKey = newSheetRefKey(added.tab, added.no)
+    await moveDamageRef(refKey, sheetKey)
+    refKey = sheetKey
     await db.query('DELETE FROM machine_damage_logs WHERE id = ?', [res.insertId])
     await syncDamageSheet()
   })
+  const refId = await ensureDamageRef(refKey)
   const prId = pr ? await createPr(pr, user) : null
   const prNomor = prId ? (await loadPr(prId)).nomor : null
-  return NextResponse.json({ id: res.insertId, warning, pengajuan: prId ? { id: prId, nomor: prNomor } : null }, { status: 201 })
+  return NextResponse.json({ id: res.insertId, ref_id: refId, warning, pengajuan: prId ? { id: prId, nomor: prNomor } : null }, { status: 201 })
 })

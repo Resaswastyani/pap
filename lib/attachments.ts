@@ -19,9 +19,10 @@ const OWNERS = {
   purchase_request: { table: 'note_attachments', fk: 'owner_id', type: 'purchase_request' },
   repair: { table: 'note_attachments', fk: 'owner_id', type: 'repair' },
   ticket: { table: 'note_attachments', fk: 'owner_id', type: 'ticket' },
+  damage_log: { table: 'note_attachments', fk: 'owner_id', type: 'damage_log' },
 } as const
 export type AttachmentOwner = keyof typeof OWNERS
-export const NOTE_OWNERS = ['activity', 'request_log', 'stage', 'job', 'repair', 'maintenance_log', 'purchase_request', 'ticket'] as const
+export const NOTE_OWNERS = ['activity', 'request_log', 'stage', 'job', 'repair', 'maintenance_log', 'purchase_request', 'ticket', 'damage_log'] as const
 export type NoteOwner = (typeof NOTE_OWNERS)[number]
 export const isNoteOwner = (value: string): value is NoteOwner => (NOTE_OWNERS as readonly string[]).includes(value)
 
@@ -71,7 +72,7 @@ export async function addAttachment(owner: AttachmentOwner, ownerId: number, for
   const typeVal = o.type ? [o.type] : []
   const fileValue = form.get('file')
   if (fileValue instanceof File && fileValue.size) {
-    const file = validAttachmentFile(fileValue, owner === 'prospect')
+    const file = validAttachmentFile(fileValue, owner === 'prospect' || owner === 'damage_log')
     await db.query(`INSERT INTO ${o.table} (${cols}${o.fk}, kind, name, mime, size, data, uploaded_by) VALUES (${o.type ? '?, ' : ''}?, 'file', ?, ?, ?, ?, ?)`, [
       ...typeVal, ownerId, file.name.slice(0, 255), (file.type || 'application/octet-stream').slice(0, 150), file.size, Buffer.from(await file.arrayBuffer()), userId,
     ])

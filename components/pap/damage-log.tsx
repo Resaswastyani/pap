@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { ClipboardList, ExternalLink, FileSpreadsheet, Pencil, Plus, Printer, RefreshCw, Search, Trash2, Wrench } from 'lucide-react'
+import { ClipboardList, ExternalLink, FileSpreadsheet, Paperclip, Pencil, Plus, Printer, RefreshCw, Search, Trash2, Wrench } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
+import { AttachmentInput, AttachmentPanel, emptyAttachments, pendingCount, uploadNoteAttachments, type PendingAttachments } from './attachments'
 import { BarList, ColumnChart } from './charts'
 import { RepairPage } from './repair-page'
 import { api, Field, formatDate, Modal, Notice, Pager, peekQuickAction, usePaged, useQuickAction, useQuickActionWatch } from './ui'
@@ -27,7 +28,7 @@ export function KerusakanMesinPage({ user, focusId }: { user: UserProfile; focus
 type Damage = {
   id: number; source: 'sheet' | 'app'; sheet_row: number | null; no_laporan: number | null; tanggal: string | null; mesin: string | null; mesin_key: string | null
   mesin_label: string | null; komponen: string | null; kerusakan: string | null; tindakan: string | null; keterangan: string | null
-  created_name: string | null; editable: boolean
+  created_name: string | null; editable: boolean; ref_id: number | null; lampiran: number
 }
 type Data = {
   items: Damage[]
@@ -51,7 +52,7 @@ function lastMonths(count: number) {
   })
 }
 
-export function DamageLogView({ user: _user }: { user: UserProfile }) {
+export function DamageLogView({ user }: { user: UserProfile }) {
   const [data, setData] = useState<Data | null>(null)
   const [q, setQ] = useState('')
   const [query, setQuery] = useState('')
@@ -62,6 +63,7 @@ export function DamageLogView({ user: _user }: { user: UserProfile }) {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [form, setForm] = useState<Damage | 'new' | null>(null)
+  const [files, setFiles] = useState<Damage | null>(null)
   useQuickAction('form-kerusakan', () => setForm('new'))
   const [sheetOpen, setSheetOpen] = useState(false)
 
@@ -205,7 +207,8 @@ export function DamageLogView({ user: _user }: { user: UserProfile }) {
                   <td className="pap-damage-text">{d.kerusakan ?? '—'}</td>
                   {hasTindakan && <td className="pap-damage-text">{d.tindakan ?? '—'}</td>}
                   <td className="pap-damage-text">{d.keterangan ?? '—'}</td>
-                  <td className="pap-nowrap">{d.source === 'sheet' ? <span className="pap-status info">Drive{d.no_laporan ? ` · No ${d.no_laporan}` : ''}</span> : <span className="pap-status success">Form{d.created_name ? ` · ${d.created_name}` : ''}</span>}</td>
+                  <td className="pap-nowrap">{d.source === 'sheet' ? <span className="pap-status info">Drive{d.no_laporan ? ` · No ${d.no_laporan}` : ''}</span> : <span className="pap-status success">Form{d.created_name ? ` · ${d.created_name}` : ''}</span>}
+                    {d.ref_id && (d.lampiran > 0 || d.editable) ? <button type="button" className="pap-link-button pap-damage-files" onClick={() => setFiles(d)} title="Lampiran file / link / foto / video"><Paperclip /> {d.lampiran > 0 ? `${d.lampiran} lampiran` : 'Lampiran'}</button> : null}</td>
                   <td className="pap-nowrap">
                     {d.editable && (
                       <span className="pap-inline-actions">
@@ -231,9 +234,15 @@ export function DamageLogView({ user: _user }: { user: UserProfile }) {
           used={data?.options.components ?? []}
           spareparts={data?.spareparts ?? []}
           canPurchase={!!data?.can.purchase}
+          user={user}
           onClose={() => setForm(null)}
           onSaved={(text, warning) => { setForm(null); setMessage(text); if (warning) setError(warning); load() }}
         />
+      )}
+      {files?.ref_id && (
+        <Modal title="Lampiran laporan kerusakan" subtitle={[files.mesin_label ?? files.mesin, files.tanggal ? formatDate(files.tanggal) : null, files.komponen].filter(Boolean).join(' · ')} onClose={() => { setFiles(null); load() }}>
+          <AttachmentPanel title="File, link, foto & video" basePath={`/api/notes/damage_log/${files.ref_id}/attachments`} fileBase="/api/notes/attachments" canAdd currentUserId={user.id} isAdmin={user.role.isAdmin} allowVideo />
+        </Modal>
       )}
       {sheetOpen && <DamageSheetSync onClose={() => setSheetOpen(false)} onImported={(text) => { setSheetOpen(false); setMessage(text); load() }} />}
     </>
@@ -254,8 +263,8 @@ function matchSheetMachines(mesin: string, names: string[]) {
 type BuyRow = { item_id: string; nama: string; jumlah: string; satuan: string; spesifikasi: string }
 const emptyBuy = (): BuyRow => ({ item_id: '', nama: '', jumlah: '', satuan: 'pcs', spesifikasi: '' })
 
-function DamageForm({ item, machines, parts, used, spareparts, canPurchase, onClose, onSaved }: {
-  item: Damage | null; machines: string[]; parts: SheetPart[]; used: string[]; spareparts: Sparepart[]; canPurchase: boolean
+function DamageForm({ item, machines, parts, used, spareparts, canPurchase, user, onClose, onSaved }: {
+  item: Damage | null; machines: string[]; parts: SheetPart[]; used: string[]; spareparts: Sparepart[]; canPurchase: boolean; user: UserProfile
   onClose: () => void; onSaved: (text: string, warning?: string | null) => void
 }) {
   const today = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
@@ -265,6 +274,7 @@ function DamageForm({ item, machines, parts, used, spareparts, canPurchase, onCl
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [pending, setPending] = useState<PendingAttachments>(emptyAttachments)
   const set = (k: keyof typeof v) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value })
   // Komponen dari Lembar Perawatan: mesin yang cocok dengan nama mesin tampil paling atas
   const sheetMachines = [...new Set(parts.map((p) => p.mesin))]
@@ -290,8 +300,11 @@ function DamageForm({ item, machines, parts, used, spareparts, canPurchase, onCl
     setError('')
     try {
       const json = item || !buyFilled.length ? v : { ...v, beli: { ...buyMeta, items: buyFilled.map((r) => ({ item_id: r.item_id || null, nama: r.nama, jumlah: r.jumlah, satuan: r.satuan, spesifikasi: r.spesifikasi })) } }
-      const res = await api<{ warning?: string | null; pengajuan?: { id: number; nomor: string } | null }>(item ? `/api/repairs/log/${item.id}` : '/api/repairs/log', { method: item ? 'PUT' : 'POST', json })
-      onSaved(item ? 'Laporan kerusakan diperbarui (juga di spreadsheet).' : `Laporan kerusakan disimpan (juga di spreadsheet).${res.pengajuan ? ` Pengajuan pembelian ${res.pengajuan.nomor} otomatis dikirim ke Purchasing.` : ''}`, res.warning)
+      const res = await api<{ ref_id?: number | null; warning?: string | null; pengajuan?: { id: number; nomor: string } | null }>(item ? `/api/repairs/log/${item.id}` : '/api/repairs/log', { method: item ? 'PUT' : 'POST', json })
+      // Lampiran form baru diunggah setelah laporan tersimpan
+      const failed = !item && res.ref_id && pendingCount(pending) ? await uploadNoteAttachments('damage_log', res.ref_id, pending) : []
+      const warning = [res.warning, failed.length ? `Sebagian lampiran gagal diunggah: ${failed.join(' ')}` : null].filter(Boolean).join(' ') || null
+      onSaved(item ? 'Laporan kerusakan diperbarui (juga di spreadsheet).' : `Laporan kerusakan disimpan (juga di spreadsheet).${res.pengajuan ? ` Pengajuan pembelian ${res.pengajuan.nomor} otomatis dikirim ke Purchasing.` : ''}`, warning)
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -339,7 +352,9 @@ function DamageForm({ item, machines, parts, used, spareparts, canPurchase, onCl
         <Field label="Kerusakan" full><textarea className="pap-input" rows={3} value={v.kerusakan} onChange={set('kerusakan')} placeholder="Gejala / kerusakan yang terjadi" /></Field>
         <Field label="Tindakan" full><textarea className="pap-input" rows={3} value={v.tindakan} onChange={set('tindakan')} placeholder="Perbaikan yang dilakukan" /></Field>
         <Field label="Keterangan" full><textarea className="pap-input" rows={2} value={v.keterangan} onChange={set('keterangan')} placeholder="Sparepart, catatan lain" /></Field>
+        {!item && <Field label="Lampiran (opsional)" full hint="Foto / video kerusakan, file, atau link Google Drive."><AttachmentInput value={pending} onChange={setPending} allowVideo /></Field>}
       </div>
+      {item?.ref_id ? <AttachmentPanel title="Lampiran: file, link, foto & video (opsional)" basePath={`/api/notes/damage_log/${item.ref_id}/attachments`} fileBase="/api/notes/attachments" canAdd currentUserId={user.id} isAdmin={user.role.isAdmin} allowVideo /> : null}
       {!item && canPurchase && (
         <section className="pap-detail-section pap-damage-buy">
           <div className="pap-section-head">
