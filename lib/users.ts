@@ -77,6 +77,8 @@ export async function toProfile(user: UserRow): Promise<UserProfile> {
     for (const [menu, permission] of Object.entries(PERMISSION_MENUS)) if (permissions.includes(permission as PermissionCode)) allowed.add(menu)
     allowed.add('data-terhapus')
     allowed.add('tiket')
+    // Action Plan terbuka untuk semua; isi dibatasi per akun (lihat lib/action-plan.ts apScope)
+    allowed.add('action-plan')
     menus = ALL_MENU_KEYS.filter((key) => allowed.has(key))
   }
   return {

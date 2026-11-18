@@ -72,6 +72,12 @@ export async function readTab(sheet: Sheet, title: string, range = '') {
   return (json.values ?? []).map((r) => r.map((c) => String(c ?? '')))
 }
 
+// Isi tab sebagai nilai mentah: tanggal = angka seri (bukan teks sesuai locale), persen = pecahan (0.35)
+export async function readRaw(sheet: Sheet, title: string, range = '') {
+  const json = await call<{ values?: unknown[][] }>(`${sheet.id}/values/${encodeURIComponent(`${q(title)}${range ? `!${range}` : ''}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`)
+  return (json.values ?? []).map((r) => r.map((c) => (c === null || c === undefined ? '' : String(c))))
+}
+
 // Isi tab sebagai rumus (sel berumus diawali "="), mis. untuk tidak menimpa kolom hitungan saat menulis
 export async function readFormulas(sheet: Sheet, title: string, range = '') {
   const json = await call<{ values?: unknown[][] }>(`${sheet.id}/values/${encodeURIComponent(`${q(title)}${range ? `!${range}` : ''}`)}?valueRenderOption=FORMULA`)

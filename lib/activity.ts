@@ -166,6 +166,8 @@ const RESOURCES: Record<string, Resource> = {
   // Purchasing: data Accurate (kunci accurate_id), dicatat dari isian form
   faktur: { module: 'Faktur Produksi', noun: 'faktur penjualan' },
   'logistik/shipments': { module: 'Pengiriman', noun: 'pengiriman', table: 'shipments' },
+  'action-plan': { module: 'Action Plan', noun: 'program kerja', table: 'action_programs' },
+  'action-plan/issues': { module: 'Action Plan', noun: 'issue action plan', table: 'action_issues' },
   'logistik/expeditions': { module: 'Ekspedisi', noun: 'ekspedisi', table: 'expeditions' },
   'hrd/payroll': { module: 'Grade & Gaji', noun: 'pengaturan gaji', table: 'employee_payrolls' },
   'hrd/jobdesks': { module: 'Jobdesk', noun: 'jobdesk', table: 'job_descriptions' },
@@ -312,6 +314,16 @@ function planFor(method: string, path: string): Plan | null {
     return { ...base, action: 'create', table: 'shipments', describe: (l, f) => (f.action === 'pengaturan' ? `Mengubah standar waktu pengiriman (toleransi ${f.hari ?? 0} hari, dipantau sejak ${f.mulai ?? '-'})` : `Membuat pengiriman ${l} untuk ${f.customer_name ?? ''}`) }
   if (res === 'logistik/shipments' && isId(a) && method === 'PATCH')
     return { ...base, action: 'update', always: true, table: 'shipments', id: a, describe: (l, f) => `Mengubah status pengiriman ${l} menjadi ${String(f.status ?? '').replace('_', ' ')}${f.no_resi ? ` (resi ${f.no_resi})` : ''}` }
+  if (res === 'action-plan' && isId(a) && b === 'progress')
+    return { ...base, action: 'update', always: true, table: 'action_programs', id: a, describe: (l, f) => `Update progress Action Plan ${l} menjadi ${f.progress ?? '-'}%${f.status ? ` (${f.status})` : ''}` }
+  if (res === 'action-plan' && isId(a) && b === 'status')
+    return { ...base, action: 'update', always: true, table: 'action_programs', id: a, describe: (l, f) => (f.action === 'cancel' ? `Membatalkan program Action Plan ${l}: ${f.reason ?? ''}` : `Mengaktifkan kembali program Action Plan ${l}`) }
+  if (res === 'action-plan' && a === 'sheet')
+    return { ...base, action: method === 'POST' ? 'sync' : 'update', describe: () => (method === 'POST' ? 'Menyinkronkan Action Plan dengan Google Sheet' : 'Mengganti link Google Sheet Action Plan') }
+  if (res === 'action-plan' && a === 'import')
+    return { ...base, action: 'import', describe: () => 'Mengimpor Action Plan dari file Excel' }
+  if (res === 'action-plan' && a === 'kpi')
+    return { ...base, action: 'update', describe: () => 'Mengubah KPI Action Plan' }
   if (res === 'logistik/shipments' && a === 'sync')
     return { ...base, action: 'sync', describe: () => 'Menyinkronkan status SO & faktur dari Accurate (Pengiriman)' }
   if (res === 'logistik/expeditions' && a === 'sync')

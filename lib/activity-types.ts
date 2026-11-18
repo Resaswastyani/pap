@@ -17,7 +17,7 @@ export const ACTIVITY_ACTIONS = {
 export type ActivityAction = keyof typeof ACTIVITY_ACTIONS
 
 export const ACTIVITY_MODULES = [
-  'Autentikasi', 'Manajemen User', 'Manajemen Role', 'Planning', 'Meeting', 'Prospek', 'Jadwal Visit',
+  'Autentikasi', 'Manajemen User', 'Manajemen Role', 'Planning', 'Meeting', 'Action Plan', 'Prospek', 'Jadwal Visit',
   'Request Sample', 'Request Desain', 'Quotation', 'Dokumen Order', 'HPP', 'Repeat Order', 'Customer', 'Data Produk', 'Master Data',
   'Rencana Produksi', 'Kapasitas Produksi', 'Faktur Produksi', 'Pengiriman', 'Ekspedisi', 'Karyawan', 'Jobdesk', 'Training', 'Izin & Cuti', 'KPI Karyawan', 'Perizinan', 'Accounting', 'Grade & Gaji', 'Jadwal Shift', 'Data Mesin', 'Perawatan Mesin', 'SOP Mesin', 'Sparepart & Peralatan', 'Pengajuan Pembelian', 'Data GA', 'Pengajuan GA', 'Supplier', 'PO Pembelian', 'Harga Bahan', 'Catatan', 'Accurate', 'Data Terhapus',
 ] as const
