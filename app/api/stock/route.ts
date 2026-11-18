@@ -3,15 +3,13 @@ import { NextResponse } from 'next/server'
 import { handle, pageParams, requireUser, str } from '@/lib/api'
 import { requireMenu } from '@/lib/customers'
 import { db } from '@/lib/db'
+import { canManageStock, STOCK_CATEGORY_GROUPS } from '@/lib/stock'
 
 // Stok barang dari Accurate (salinan; diperbarui oleh sinkronisasi). Pengelompokan menurut kategori barang di Accurate:
 //   ?jenis=bahan     bahan baku     : kategori Biji Plastik, Roll Mika
 //   ?jenis=pembantu  bahan pembantu : kategori Tinta, Solven, Box Mika
 //   ?jenis=jadi      barang jadi    : barang yang dicentang "Diproduksi"
-const CATEGORY_GROUPS = {
-  bahan: ['BIJI PLASTIK', 'ROLL MIKA'],
-  pembantu: ['TINTA', 'SOLVEN', 'SOLVENT', 'BOX MIKA'],
-}
+const CATEGORY_GROUPS = STOCK_CATEGORY_GROUPS
 const inCategories = (list: string[]) => `UPPER(TRIM(i.category)) IN (${list.map((c) => db.escape(c)).join(', ')})`
 
 export const GET = handle(async (request: Request) => {
@@ -31,7 +29,7 @@ export const GET = handle(async (request: Request) => {
 
   const { page, pageSize, offset } = pageParams(params)
   const [items] = await db.query<RowDataPacket[]>(
-    `SELECT i.accurate_id, i.item_no, i.name, i.item_type, i.category, i.unit, i.quantity, i.quantity_on_hand, i.min_quantity, i.synced_at
+    `SELECT i.accurate_id, i.item_no, i.name, i.item_type, i.category, i.unit, i.quantity, i.quantity_on_hand, i.min_quantity, i.vendor_price, i.unit_cost, i.synced_at
      FROM accurate_items i WHERE ${where.join(' AND ')} ORDER BY (COALESCE(i.quantity_on_hand, i.quantity) <= 0), i.name LIMIT ? OFFSET ?`,
     [...args, pageSize, offset],
   )
@@ -40,14 +38,21 @@ export const GET = handle(async (request: Request) => {
     `SELECT DISTINCT category FROM accurate_items i WHERE category IS NOT NULL AND suspended = 0 AND ${jenisWhere} ORDER BY category`,
   )
   const [[summary]] = await db.query<RowDataPacket[]>(
-    `SELECT COUNT(*) AS total, SUM(min_quantity > 0 AND COALESCE(quantity_on_hand, quantity) <= min_quantity) AS low, SUM(COALESCE(quantity_on_hand, quantity) <= 0) AS empty, MAX(synced_at) AS synced_at
+    `SELECT COUNT(*) AS total, SUM(min_quantity > 0 AND COALESCE(quantity_on_hand, quantity) <= min_quantity) AS low, SUM(COALESCE(quantity_on_hand, quantity) <= 0) AS empty, MAX(synced_at) AS synced_at,
+       SUM(GREATEST(COALESCE(quantity_on_hand, quantity, 0), 0) * COALESCE(unit_cost, 0)) AS nilai
      FROM accurate_items i WHERE i.suspended = 0 AND i.item_type = 'INVENTORY' AND ${jenisWhere}`,
   )
   const n = (v: unknown) => (v === null || v === undefined ? null : Number(v))
   return NextResponse.json({
-    items: items.map((row) => ({ ...row, quantity: n(row.quantity), quantity_on_hand: n(row.quantity_on_hand), min_quantity: n(row.min_quantity) })),
+    // Nilai = stok fisik x harga pokok rata-rata Accurate (stok minus dihitung 0)
+    items: items.map((row) => {
+      const fisik = n(row.quantity_on_hand) ?? n(row.quantity)
+      const cost = n(row.unit_cost)
+      return { ...row, quantity: n(row.quantity), quantity_on_hand: n(row.quantity_on_hand), min_quantity: n(row.min_quantity), vendor_price: n(row.vendor_price), unit_cost: cost, nilai: cost !== null && fisik !== null ? Math.max(fisik, 0) * cost : null }
+    }),
     total: Number(count), page, pageSize,
     categories: categories.map((c) => c.category),
-    summary: { total: Number(summary.total ?? 0), low: Number(summary.low ?? 0), empty: Number(summary.empty ?? 0), synced_at: summary.synced_at },
+    summary: { total: Number(summary.total ?? 0), low: Number(summary.low ?? 0), empty: Number(summary.empty ?? 0), synced_at: summary.synced_at, nilai: Number(summary.nilai ?? 0) },
+    can: { manage: canManageStock(user) && jenis !== 'pembantu' },
   })
 })

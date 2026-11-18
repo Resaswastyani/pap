@@ -1,13 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Boxes, PackageX, Search } from 'lucide-react'
+import { AlertTriangle, Boxes, Pencil, PackageX, Plus, Search, Trash2, Wallet } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatNumber } from './accurate'
-import { api, formatDate, Notice, Pager } from './ui'
+import { api, confirmDialog, Field, formatDate, Modal, Notice, Pager } from './ui'
 
-type StockItem = { accurate_id: number; item_no: string | null; name: string; item_type: string | null; category: string | null; unit: string | null; quantity: number | null; quantity_on_hand: number | null; min_quantity: number | null; synced_at: string }
-type Summary = { total: number; low: number; empty: number; synced_at: string | null }
+type StockItem = { accurate_id: number; item_no: string | null; name: string; item_type: string | null; category: string | null; unit: string | null; quantity: number | null; quantity_on_hand: number | null; min_quantity: number | null; vendor_price: number | null; unit_cost: number | null; nilai: number | null; synced_at: string }
+type Summary = { total: number; low: number; empty: number; synced_at: string | null; nilai: number }
+const rupiah = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `Rp ${Math.round(v).toLocaleString('id-ID')}`)
 
 // Status memakai stok fisik; bila fisik ada tapi semua sudah dipesan, tandai 'Terpesan'
 function stockState(item: StockItem) {
@@ -30,7 +31,10 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
   const meta = JENIS[jenis]
   const [items, setItems] = useState<StockItem[]>([])
   const [categories, setCategories] = useState<string[]>([])
-  const [summary, setSummary] = useState<Summary>({ total: 0, low: 0, empty: 0, synced_at: null })
+  const [summary, setSummary] = useState<Summary>({ total: 0, low: 0, empty: 0, synced_at: null, nilai: 0 })
+  const [canManage, setCanManage] = useState(false)
+  const [form, setForm] = useState<StockItem | 'baru' | null>(null)
+  const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [q, setQ] = useState('')
@@ -49,7 +53,8 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
       if (category) params.set('category', category)
       if (low) params.set('low', '1')
       if (inventoryOnly) params.set('type', 'inventory')
-      const res = await api<{ items: StockItem[]; total: number; categories: string[]; summary: Summary }>(`/api/stock?${params}`)
+      const res = await api<{ items: StockItem[]; total: number; categories: string[]; summary: Summary; can?: { manage: boolean } }>(`/api/stock?${params}`)
+      setCanManage(!!res.can?.manage && jenis !== 'pembantu')
       setItems(res.items)
       setTotal(res.total)
       setCategories(res.categories)
@@ -61,6 +66,16 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
       setLoading(false)
     }
   }, [q, category, low, inventoryOnly, page, size, jenis])
+  async function remove(item: StockItem) {
+    if (!(await confirmDialog({ title: 'Hapus barang', message: `Hapus ${item.name} dari Accurate? Barang yang sudah dipakai transaksi tidak dihapus tetapi dinonaktifkan.`, confirmLabel: 'Ya, hapus', tone: 'danger' }))) return
+    try {
+      const res = await api<{ deleted: boolean; name: string }>(`/api/stock/items/${item.accurate_id}`, { method: 'DELETE' })
+      setMessage(res.deleted ? `${res.name} dihapus dari Accurate.` : `${res.name} sudah dipakai transaksi, jadi dinonaktifkan di Accurate.`)
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
   // Filter berubah -> kembali ke halaman 1
   useEffect(() => setPage(1), [q, category, low, inventoryOnly])
 
@@ -69,10 +84,11 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
     return () => clearTimeout(timer)
   }, [load, q])
 
-  const stats: [string, number, string, typeof Boxes, string, () => void][] = [
+  const stats: [string, number | string, string, typeof Boxes, string, () => void][] = [
     [`Jenis ${meta.noun}`, summary.total, summary.synced_at ? `Data per ${formatDate(summary.synced_at, true)}` : 'Belum sinkron', Boxes, 'stat-1', () => setLow(false)],
     ['Stok menipis', summary.low, 'Di bawah stok minimum', AlertTriangle, 'stat-2', () => setLow(true)],
     ['Stok habis', summary.empty, 'Stok fisik 0 atau minus', PackageX, 'stat-2', () => setLow(false)],
+    ['Nilai stok', rupiah(summary.nilai), 'Stok fisik x harga pokok rata-rata', Wallet, 'stat-0', () => setLow(false)],
   ]
 
   return (
@@ -83,9 +99,11 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
           <h1>{meta.title}</h1>
           <span>{meta.desc}</span>
         </div>
+        {canManage && <button className="pap-primary-button" onClick={() => setForm('baru')}><Plus /> Tambah {meta.noun}</button>}
       </div>
+      {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       <AccurateSyncBar entities={['item', 'stock']} canSync={user.menus.includes('stok')} onSynced={load} />
-      <div className="pap-stat-grid">
+      <div className="pap-stat-grid four">
         {stats.map(([label, value, note, Icon, tone, onClick]) => (
           <button key={label} className="pap-stat-card pap-stat-button" onClick={onClick}>
             <div><span>{label}</span><strong>{value}</strong><small className="neutral">{note}</small></div>
@@ -107,7 +125,7 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Barang</th><th>Kategori</th><th className="pap-num">Stok fisik</th><th className="pap-num">Tersedia dijual</th><th className="pap-num">Minimum</th><th>Status</th></tr></thead>
+            <thead><tr><th>Barang</th><th>Kategori</th><th className="pap-num">Stok fisik</th><th className="pap-num">Tersedia dijual</th><th className="pap-num">Minimum</th><th className="pap-num">Harga pokok</th><th className="pap-num">Nilai stok</th><th>Status</th>{canManage && <th aria-label="Aksi" />}</tr></thead>
             <tbody>
               {items.map((item) => {
                 const state = stockState(item)
@@ -118,7 +136,17 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
                     <td className="pap-num pap-nowrap"><strong>{formatNumber(item.quantity_on_hand)}</strong> {item.unit ?? ''}</td>
                     <td className="pap-num pap-nowrap">{formatNumber(item.quantity)} {item.unit ?? ''}</td>
                     <td className="pap-num pap-nowrap">{item.min_quantity ? `${formatNumber(item.min_quantity)} ${item.unit ?? ''}` : '—'}</td>
+                    <td className="pap-num pap-nowrap">{item.unit_cost ? `${rupiah(item.unit_cost)}/${item.unit ?? 'unit'}` : '—'}</td>
+                    <td className="pap-num pap-nowrap"><strong>{item.nilai ? rupiah(item.nilai) : '—'}</strong></td>
                     <td><span className={`pap-status ${state.tone}`}>{state.label}</span></td>
+                    {canManage && (
+                      <td className="pap-nowrap">
+                        <span className="pap-inline-actions">
+                          <button className="pap-icon-button" onClick={() => setForm(item)} aria-label={`Ubah ${item.name}`} title="Ubah"><Pencil /></button>
+                          <button className="pap-icon-button" onClick={() => remove(item)} aria-label={`Hapus ${item.name}`} title="Hapus"><Trash2 /></button>
+                        </span>
+                      </td>
+                    )}
                   </tr>
                 )
               })}
@@ -129,6 +157,60 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
           <Pager page={page} pageSize={size} total={total} onPage={setPage} onPageSize={(v) => { setSize(v); setPage(1) }} noun={meta.noun} />
         </div>
       </div>
+      {form && jenis !== 'pembantu' && <StockItemForm jenis={jenis} item={form === 'baru' ? null : form} onClose={() => setForm(null)} onSaved={(t) => { setForm(null); setMessage(t); load() }} />}
     </>
+  )
+}
+
+// Form tambah / ubah barang stok: disimpan langsung ke Barang & Jasa Accurate
+function StockItemForm({ jenis, item, onClose, onSaved }: { jenis: 'bahan' | 'jadi'; item: StockItem | null; onClose: () => void; onSaved: (message: string) => void }) {
+  const [v, setV] = useState({ no: item?.item_no ?? '', name: item?.name ?? '', category: item?.category ?? '', unit: item?.unit ?? (jenis === 'bahan' ? 'kg' : 'pcs'), vendor_price: item?.vendor_price ? String(item.vendor_price) : '', min_quantity: item?.min_quantity ? String(item.min_quantity) : '' })
+  const [categories, setCategories] = useState<string[]>([])
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const set = (k: keyof typeof v) => (e: { target: { value: string } }) => setV((cur) => ({ ...cur, [k]: e.target.value }))
+  useEffect(() => {
+    api<{ categories: string[] }>(`/api/stock/items?jenis=${jenis}`).then((r) => setCategories(r.categories)).catch(() => {})
+    // Isian ubah diambil langsung dari Accurate agar yang diubah adalah data terbaru
+    if (item) api<{ item: Record<string, unknown> }>(`/api/stock/items/${item.accurate_id}`).then(({ item: d }) => setV({
+      no: String(d.no ?? ''), name: String(d.name ?? ''), category: String(d.category ?? ''), unit: String(d.unit ?? ''),
+      vendor_price: d.vendor_price === '' || d.vendor_price === null || d.vendor_price === 0 ? '' : String(d.vendor_price), min_quantity: d.min_quantity === '' || d.min_quantity === null || d.min_quantity === 0 ? '' : String(d.min_quantity),
+    })).catch((e) => setError(e.message))
+  }, [item, jenis])
+  async function save() {
+    setBusy(true)
+    setError('')
+    try {
+      const res = await api<{ item: { name: string; no: string } }>(item ? `/api/stock/items/${item.accurate_id}` : '/api/stock/items', { method: item ? 'PATCH' : 'POST', json: { ...v, jenis } })
+      onSaved(`${res.item.name} (${res.item.no}) ${item ? 'diperbarui' : 'ditambahkan'} di Accurate.`)
+    } catch (e) {
+      setError((e as Error).message)
+      setBusy(false)
+    }
+  }
+  const noun = jenis === 'bahan' ? 'bahan baku' : 'barang jadi'
+  return (
+    <Modal title={item ? `Ubah ${noun}` : `Tambah ${noun}`} subtitle="Disimpan langsung ke Barang & Jasa di Accurate Online" onClose={onClose}
+      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" disabled={busy} onClick={save}>{busy ? 'Menyimpan ke Accurate...' : 'Simpan'}</button></>}>
+      {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      <div className="pap-form-grid">
+        <Field label="Nama barang *" full><input className="pap-input" maxLength={255} value={v.name} onChange={set('name')} placeholder={jenis === 'bahan' ? 'mis. Biji PP Lotte' : 'mis. Kantong PP 16x25'} /></Field>
+        <Field label="Kode barang" hint={item ? '' : 'Kosongkan agar dibuat otomatis oleh Accurate'}><input className="pap-input" maxLength={50} value={v.no} onChange={set('no')} /></Field>
+        <Field label={jenis === 'bahan' ? 'Kategori *' : 'Kategori'}>
+          {jenis === 'bahan' ? (
+            <select className="pap-select" value={v.category} onChange={set('category')}>
+              <option value="">— Pilih kategori —</option>
+              {[...new Set([...categories, ...(v.category ? [v.category] : [])])].map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          ) : (
+            <><input className="pap-input" list="pap-stock-categories" maxLength={150} value={v.category} onChange={set('category')} /><datalist id="pap-stock-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist></>
+          )}
+        </Field>
+        <Field label="Satuan *"><input className="pap-input" maxLength={40} value={v.unit} onChange={set('unit')} placeholder="kg / roll / pcs" /></Field>
+        <Field label="Stok minimum"><input className="pap-input pap-num" inputMode="decimal" value={v.min_quantity} onChange={set('min_quantity')} placeholder="0" /></Field>
+        <Field label="Harga beli (Rp)" hint="Harga beli default di Accurate"><input className="pap-input pap-num" inputMode="decimal" value={v.vendor_price} onChange={set('vendor_price')} placeholder="0" /></Field>
+      </div>
+      <p className="pap-muted">Jumlah stok tidak diubah di sini: stok bertambah / berkurang lewat transaksi di Accurate (penerimaan barang, pemakaian, hasil produksi, penyesuaian persediaan).{jenis === 'jadi' ? ' Barang baru otomatis ditandai "Diproduksi".' : ' Barang baru otomatis ditandai "Bahan Baku".'}</p>
+    </Modal>
   )
 }

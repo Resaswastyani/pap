@@ -26,6 +26,8 @@ export const MATERIAL_WHERE = `it.item_type IN ('INVENTORY', 'NON_INVENTORY') AN
 export type MaterialInput = {
   no: string | null; name: string; type: MaterialType; category: string | null; unit: string; vendor_price: number | null
   min_quantity: number | null; bahan_baku: boolean; suspended: boolean
+  // Barang jadi (menu Stok Barang Jadi): dicentang "Diproduksi" di Accurate
+  diproduksi?: boolean
 }
 
 const num = (v: unknown, label: string) => {
@@ -46,6 +48,7 @@ export function readMaterialInput(body: Record<string, unknown>): MaterialInput 
     no: str(body.no, 50) || null, name, type, category: str(body.category, 150) || null, unit,
     vendor_price: num(body.vendor_price, 'Harga beli'), min_quantity: num(body.min_quantity, 'Stok minimum'),
     bahan_baku: body.bahan_baku !== false, suspended: body.suspended === true,
+    ...(body.diproduksi === true ? { diproduksi: true, bahan_baku: false } : {}),
   }
 }
 
@@ -61,6 +64,7 @@ function itemForm(v: MaterialInput, id?: number) {
     vendorPrice: v.vendor_price ?? (id ? 0 : null),
     minimumQuantity: v.min_quantity ?? (id ? 0 : null),
     materialProduced: v.type === 'INVENTORY' ? v.bahan_baku : null,
+    ...(v.diproduksi ? { itemProduced: true } : {}),
     suspended: v.suspended,
   }
 }
@@ -73,12 +77,12 @@ const nameOf = (v: unknown) => (v && typeof v === 'object' ? s((v as Detail).nam
 export async function refreshItem(id: number) {
   const d = (await send<Detail>('/api/item/detail.do', { params: { id } })).d
   await db.query(
-    `INSERT INTO accurate_items (accurate_id, item_no, name, item_type, category, unit, min_quantity, vendor_price, suspended, item_produced, material_produced, last_update)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO accurate_items (accurate_id, item_no, name, item_type, category, unit, min_quantity, vendor_price, unit_cost, suspended, item_produced, material_produced, last_update)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE item_no = VALUES(item_no), name = VALUES(name), item_type = VALUES(item_type), category = VALUES(category), unit = VALUES(unit),
-       min_quantity = VALUES(min_quantity), vendor_price = VALUES(vendor_price), suspended = VALUES(suspended), item_produced = VALUES(item_produced),
+       min_quantity = VALUES(min_quantity), vendor_price = VALUES(vendor_price), unit_cost = VALUES(unit_cost), suspended = VALUES(suspended), item_produced = VALUES(item_produced),
        material_produced = VALUES(material_produced), last_update = VALUES(last_update), detail_synced_update = VALUES(last_update), synced_at = NOW()`,
-    [id, s(d.no, 80), s(d.name) ?? '(tanpa nama)', s(d.itemType, 40), nameOf(d.itemCategory), nameOf(d.unit1), d.minimumQuantity ?? null, d.vendorPrice ?? null,
+    [id, s(d.no, 80), s(d.name) ?? '(tanpa nama)', s(d.itemType, 40), nameOf(d.itemCategory), nameOf(d.unit1), d.minimumQuantity ?? null, d.vendorPrice ?? null, d.balanceUnitCost ?? null,
       d.suspended === true ? 1 : 0, d.itemProduced === true ? 1 : 0, d.materialProduced === true ? 1 : 0, s(d.lastUpdate, 20)],
   )
   return d
@@ -89,7 +93,7 @@ export async function materialForEdit(id: number) {
   const d = (await send<Detail>('/api/item/detail.do', { params: { id } })).d
   return {
     id, no: s(d.no) ?? '', name: s(d.name) ?? '', type: (s(d.itemType) ?? 'INVENTORY') as string, category: nameOf(d.itemCategory) ?? '', unit: nameOf(d.unit1) ?? '',
-    vendor_price: d.vendorPrice ?? '', min_quantity: d.minimumQuantity ?? '', bahan_baku: d.materialProduced === true, suspended: d.suspended === true,
+    vendor_price: d.vendorPrice ?? '', min_quantity: d.minimumQuantity ?? '', bahan_baku: d.materialProduced === true, diproduksi: d.itemProduced === true, suspended: d.suspended === true,
   }
 }
 

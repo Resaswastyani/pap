@@ -59,7 +59,7 @@ const FIELDS: Record<ListEntity, string> = {
   'sales-order': 'id,number,transDate,shipDate,customer,totalAmount,statusName,description,toAddress,lastUpdate',
   customer: 'id,customerNo,name,email,mobilePhone,workPhone,billStreet,billCity,billProvince,billZipCode,npwpNo,suspended,category,notes,lastUpdate',
   'sales-invoice': 'id,number,transDate,dueDate,customer,totalAmount,subTotal,cashDiscount,tax1Amount,inclusiveTax,primeOwing,statusName,invoiceDp,lastUpdate',
-  item: 'id,no,name,itemType,itemCategory,unit1,availableToSell,balance,quantity,minimumQuantity,vendorPrice,suspended,lastUpdate',
+  item: 'id,no,name,itemType,itemCategory,unit1,availableToSell,balance,quantity,minimumQuantity,vendorPrice,balanceUnitCost,suspended,lastUpdate',
   stock: '', // list-stock memakai field bawaan: id, no, name, quantity
   'manufacture-order': 'id,number,name,transDate,statusName,portion,lastUpdate',
   'finished-good-slip': 'id,number,transDate,description,workOrder,lastUpdate',
@@ -113,14 +113,14 @@ async function saveInvoices(rows: Row[]) {
 async function saveItems(rows: Row[]) {
   if (!rows.length) return
   await db.query(
-    `INSERT INTO accurate_items (accurate_id, item_no, name, item_type, category, unit, quantity, min_quantity, vendor_price, suspended, last_update)
+    `INSERT INTO accurate_items (accurate_id, item_no, name, item_type, category, unit, quantity, min_quantity, vendor_price, unit_cost, suspended, last_update)
      VALUES ?
      ON DUPLICATE KEY UPDATE item_no = VALUES(item_no), name = VALUES(name), item_type = VALUES(item_type), category = VALUES(category),
-       unit = VALUES(unit), quantity = VALUES(quantity), min_quantity = VALUES(min_quantity), vendor_price = VALUES(vendor_price), suspended = VALUES(suspended),
+       unit = VALUES(unit), quantity = VALUES(quantity), min_quantity = VALUES(min_quantity), vendor_price = VALUES(vendor_price), unit_cost = VALUES(unit_cost), suspended = VALUES(suspended),
        last_update = VALUES(last_update), synced_at = NOW()`,
     [rows.map((row) => [
       num(row.id), str(row.no, 80), str(row.name) ?? '(tanpa nama)', str(row.itemType, 40), nameOf(row.itemCategory), nameOf(row.unit1),
-      num(row.availableToSell ?? row.balance ?? row.quantity), num(row.minimumQuantity), num(row.vendorPrice), row.suspended === true ? 1 : 0, str(row.lastUpdate, 20),
+      num(row.availableToSell ?? row.balance ?? row.quantity), num(row.minimumQuantity), num(row.vendorPrice), num(row.balanceUnitCost), row.suspended === true ? 1 : 0, str(row.lastUpdate, 20),
     ])],
   )
 }

@@ -108,17 +108,50 @@ export function scorePapi(answers: Map<number, string>) {
 // Ringkasan disimpan di kolom hasil: "G7 L4 I7 ..." (urutan baku PAPI)
 export const papiText = (score: Record<string, number>) => PAPI_ORDER.map((a) => `${a}${score[a]}`).join(' ')
 
+// Jarak ketik (Levenshtein) untuk toleransi salah ketik nama
+function editDistance(x: string, y: string) {
+  const d = Array.from({ length: x.length + 1 }, (_, i) => [i, ...Array(y.length).fill(0)])
+  for (let j = 1; j <= y.length; j++) d[0][j] = j
+  for (let i = 1; i <= x.length; i++) for (let j = 1; j <= y.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (x[i - 1] === y[j - 1] ? 0 : 1))
+  return d[x.length][y.length]
+}
+const tokens = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z\s]/g, ' ').split(/\s+/).filter((t) => t.length >= 2)
+
+// Pencocokan jawaban form ke karyawan, berurutan:
+// 1) nomor HP sama; 2) nama lengkap sama; 3) semua kata nama yang lebih pendek ada di nama yang lain (min. 2 kata,
+//    mis. "Ady Prasetyo" = "ADY PRASETYO NUGROHO"); 4) salah ketik kecil (<= 2 huruf, nama >= 10 huruf).
+// Langkah 3-4 hanya dipakai bila kandidatnya tepat satu karyawan.
 async function employeeMatcher() {
   const [rows] = await db.query<Row[]>('SELECT id, nama, handphone FROM employees')
   const byPhone = new Map<string, number>()
   const byName = new Map<string, number | null>()
+  const list = rows.map((e) => ({ id: Number(e.id), key: normName(String(e.nama)), toks: tokens(String(e.nama)) }))
   for (const e of rows) {
     const p = normPhone(String(e.handphone ?? ''))
     if (p) byPhone.set(p, Number(e.id))
     const n = normName(String(e.nama))
     byName.set(n, byName.has(n) ? null : Number(e.id)) // nama kembar tidak dicocokkan otomatis
   }
-  return (r: Response) => (r.telp && byPhone.get(r.telp)) || byName.get(normName(r.nama)) || null
+  const unique = (ids: number[]) => (new Set(ids).size === 1 ? ids[0] : null)
+  return (r: Response) => {
+    if (r.telp && byPhone.get(r.telp)) return byPhone.get(r.telp)!
+    const key = normName(r.nama)
+    const exact = byName.get(key)
+    if (exact) return exact
+    if (exact === null) return null
+    const toks = tokens(r.nama)
+    if (toks.length >= 2) {
+      const sub = list.filter((e) => e.toks.length >= 2 && (toks.every((t) => e.toks.includes(t)) || e.toks.every((t) => toks.includes(t))))
+      const hit = unique(sub.map((e) => e.id))
+      if (hit) return hit
+      if (sub.length > 1) return null
+    }
+    if (key.length >= 10) {
+      const near = list.filter((e) => Math.abs(e.key.length - key.length) <= 2 && editDistance(e.key, key) <= 2)
+      return unique(near.map((e) => e.id))
+    }
+    return null
+  }
 }
 
 export async function loadTestSheetUrls() {
