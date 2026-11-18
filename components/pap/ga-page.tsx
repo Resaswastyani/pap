@@ -1,12 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, ExternalLink, FileSpreadsheet, FileText, Layers, Plus, Printer, RefreshCw, Search, ShoppingBag, Smartphone, Trash2, Wallet, Wifi, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ExternalLink, FileSpreadsheet, FileText, Package, Plus, Printer, RefreshCw, Search, ShoppingBag, Smartphone, Trash2, Wallet, Wifi, X } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
+import { InventarisPage } from './inventaris-page'
 import { api, askReason, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged, confirmDialog } from './ui'
 
-// General Affair: Data GA (nomor HP, langganan, WiFi, lainnya; dua arah dengan spreadsheet GA) & Pengajuan Pembelian GA
+// General Affair: menu Inventaris (kunci "Data GA": nomor HP, langganan, WiFi dua arah dengan spreadsheet GA, dan tab
+// "Inventaris lainnya" = daftar barang inventaris) & Pengajuan Pembelian GA
 
 type Pay = Record<string, boolean>
 type Phone = { id: number; no: number | null; nomor: string; ket: string | null; masa_aktif: string | null; provider: string | null; pembayaran: Pay }
@@ -81,11 +83,12 @@ function PayChips({ pay, year, onToggle, busy }: { pay: Pay; year: number; onTog
 // ================================================================
 // DATA GA
 // ================================================================
-export function GaDataPage(_props: { user: UserProfile }) {
+export function GaDataPage({ user, focusId }: { user: UserProfile; focusId?: number | null }) {
   const [data, setData] = useState<GaData | null>(null)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
-  const [tab, setTab] = useState<Jenis>('hp')
+  // Tab "lainnya" = Inventaris lainnya (daftar barang inventaris, dulu menu Inventaris)
+  const [tab, setTab] = useState<Jenis>(focusId ? 'lainnya' : 'hp')
   const [q, setQ] = useState('')
   const [year, setYear] = useState(() => Number(todayIso().slice(0, 4)))
   const [form, setForm] = useState<{ jenis: Jenis; item: Phone | Sub | Wifi | Other | null } | null>(null)
@@ -154,7 +157,6 @@ export function GaDataPage(_props: { user: UserProfile }) {
   const dueSoon = [
     ...subsAktif.filter((s) => s.jatuh_tempo && daysUntil(s.jatuh_tempo) <= 30),
     ...(data?.hp ?? []).filter((p) => p.masa_aktif && daysUntil(p.masa_aktif) <= 30),
-    ...(data?.lainnya ?? []).filter((o) => !/tidak|non|berhenti|mati/i.test(o.status ?? '') && o.jatuh_tempo && daysUntil(o.jatuh_tempo) <= 30),
   ]
   const wifiBelum = (data?.wifi ?? []).filter((w) => nowKey() in w.pembayaran && !w.pembayaran[nowKey()])
   const hpBelum = (data?.hp ?? []).filter((p) => nowKey() in p.pembayaran && !p.pembayaran[nowKey()])
@@ -164,11 +166,12 @@ export function GaDataPage(_props: { user: UserProfile }) {
     <>
       <div className="pap-page-heading">
         <div>
-          <p className="pap-eyebrow">GENERAL AFFAIR · GOOGLE DRIVE</p>
-          <h1>Data GA</h1>
-          <span>Nomor HP kantor, langganan aplikasi, WiFi, dan data GA lainnya (listrik, air, sewa, asuransi, ...) dari spreadsheet GA. Perubahan di sini langsung ditulis ke spreadsheet; perubahan di spreadsheet ikut masuk otomatis.</span>
+          <p className="pap-eyebrow">GENERAL AFFAIR</p>
+          <h1>Inventaris</h1>
+          <span>Nomor HP kantor, langganan aplikasi, dan WiFi (dua arah dengan spreadsheet GA), serta inventaris lainnya: aset dan barang kantor beserta lokasi, pemegang, kondisi, riwayat, harga, dan depresiasinya.</span>
         </div>
       </div>
+      {tab !== 'lainnya' && <>
       <div className="pap-sync-bar">
         <div className="pap-sync-items">
           <span className="pap-sync-title">Google Drive</span>
@@ -187,17 +190,19 @@ export function GaDataPage(_props: { user: UserProfile }) {
         { label: 'Nomor HP', value: `${data?.hp.length ?? 0}`, note: hpBelum.length ? `${hpBelum.length} belum bayar bulan ini` : 'Semua sudah bayar bulan ini', icon: Smartphone, tone: hpBelum.length ? 'stat-2' : 'stat-0', active: tab === 'hp', onClick: () => setTab('hp') },
         { label: 'Langganan aktif', value: `${subsAktif.length}`, note: `±${formatRupiah(Math.round(perBulan))} / bulan`, icon: Wallet, tone: 'stat-1', active: tab === 'langganan', onClick: () => setTab('langganan') },
         { label: 'WiFi', value: `${data?.wifi.length ?? 0}`, note: wifiBelum.length ? `${wifiBelum.length} tagihan bulan ini belum dibayar` : 'Tagihan bulan ini beres', icon: Wifi, tone: wifiBelum.length ? 'stat-2' : 'stat-0', active: tab === 'wifi', onClick: () => setTab('wifi') },
-        { label: 'Jatuh tempo ≤ 30 hari', value: `${dueSoon.length}`, note: 'langganan, masa aktif nomor & lainnya', icon: AlertTriangle, tone: dueSoon.length ? 'stat-2' : 'stat-3' },
+        { label: 'Jatuh tempo ≤ 30 hari', value: `${dueSoon.length}`, note: 'langganan & masa aktif nomor', icon: AlertTriangle, tone: dueSoon.length ? 'stat-2' : 'stat-3' },
       ]} />
-      <div className="pap-segmented pap-page-tabs" role="tablist" aria-label="Data GA">
+      </>}
+      <div className="pap-segmented pap-page-tabs" role="tablist" aria-label="Inventaris">
         <button role="tab" aria-selected={tab === 'hp'} className={tab === 'hp' ? 'active' : ''} onClick={() => setTab('hp')}><Smartphone /> Nomor HP</button>
         <button role="tab" aria-selected={tab === 'langganan'} className={tab === 'langganan' ? 'active' : ''} onClick={() => setTab('langganan')}><Wallet /> Langganan</button>
         <button role="tab" aria-selected={tab === 'wifi'} className={tab === 'wifi' ? 'active' : ''} onClick={() => setTab('wifi')}><Wifi /> WiFi</button>
-        <button role="tab" aria-selected={tab === 'lainnya'} className={tab === 'lainnya' ? 'active' : ''} onClick={() => setTab('lainnya')}><Layers /> Lainnya</button>
+        <button role="tab" aria-selected={tab === 'lainnya'} className={tab === 'lainnya' ? 'active' : ''} onClick={() => setTab('lainnya')}><Package /> Inventaris lainnya</button>
       </div>
+      {tab === 'lainnya' ? <InventarisPage user={user} focusId={focusId} embedded /> : <>
       <div className="pap-table-card">
         <div className="pap-card-head">
-          <div><h2>{tab === 'hp' ? 'Nomor HP kantor' : tab === 'langganan' ? 'Langganan aplikasi & layanan' : tab === 'wifi' ? 'WiFi kantor' : 'Data GA lainnya'}</h2><p>{shown.length} {label}{tab === 'hp' || tab === 'wifi' ? ' · klik bulan untuk menandai sudah / belum dibayar' : tab === 'lainnya' ? ' · tab "Lainnya" di spreadsheet GA' : ''}</p></div>
+          <div><h2>{tab === 'hp' ? 'Nomor HP kantor' : tab === 'langganan' ? 'Langganan aplikasi & layanan' : tab === 'wifi' ? 'WiFi kantor' : 'Data GA lainnya'}</h2><p>{shown.length} {label}{tab === 'hp' || tab === 'wifi' ? ' · klik bulan untuk menandai sudah / belum dibayar' : ''}</p></div>
           {manage && <button className="pap-primary-button" onClick={() => setForm({ jenis: tab, item: null })}><Plus /> Tambah {label}</button>}
         </div>
         <div className="pap-filters">
@@ -255,27 +260,13 @@ export function GaDataPage(_props: { user: UserProfile }) {
                 ))}
               </tbody>
             </>}
-            {tab === 'lainnya' && <>
-              <thead><tr><th>Item</th><th>Vendor / no. pelanggan</th><th className="pap-num">Biaya</th><th>Jatuh tempo</th><th>Penanggung jawab</th>{manage && <th className="pap-actions-col">Aksi</th>}</tr></thead>
-              <tbody>
-                {(paged.items as Other[]).map((o) => (
-                  <tr key={o.id}>
-                    <td><div className="pap-cell-title">{o.nama}</div><div className="pap-cell-sub">{[o.kategori, o.status].filter(Boolean).join(' · ')}{o.catatan ? ` · ${o.catatan}` : ''}</div></td>
-                    <td>{o.vendor ?? '—'}<div className="pap-cell-sub">{o.no_pelanggan ?? ''}</div></td>
-                    <td className="pap-num pap-nowrap">{rp(o.biaya)}<div className="pap-cell-sub">{o.siklus ?? ''}</div></td>
-                    <td><DueBadge date={o.jatuh_tempo} /></td>
-                    <td>{o.penanggung_jawab ?? '—'}</td>
-                    {manage && <td><RowActions label={o.nama} onEdit={() => setForm({ jenis: 'lainnya', item: o })} onDelete={() => remove('lainnya', o.id, o.nama)} /></td>}
-                  </tr>
-                ))}
-              </tbody>
-            </>}
           </table>
-          {data && !shown.length && <div className="pap-empty">{term ? `Tidak ada ${label} yang cocok.` : tab === 'lainnya' ? `Belum ada data lainnya.${manage ? ' Klik "Tambah data lainnya": tab "Lainnya" dibuat otomatis di spreadsheet GA.' : ''}` : `Belum ada data ${label}.${manage ? ' Klik "Sinkron" untuk mengambil dari spreadsheet GA.' : ''}`}</div>}
+          {data && !shown.length && <div className="pap-empty">{term ? `Tidak ada ${label} yang cocok.` : `Belum ada data ${label}.${manage ? ' Klik "Sinkron" untuk mengambil dari spreadsheet GA.' : ''}`}</div>}
           {!data && !error && <div className="pap-empty">Memuat data GA...</div>}
           <Pager {...paged.pager} noun={label} />
         </div>
       </div>
+      </>}
       {form && <GaForm jenis={form.jenis} item={form.item} onClose={() => setForm(null)} onSaved={(t) => { setForm(null); setMessage(t); load() }}
         onDelete={form.item ? async () => { const it = form.item as { id: number; nomor?: string; nama?: string }; if (await remove(form.jenis, it.id, it.nomor ?? it.nama ?? 'data')) setForm(null) } : undefined} />}
       {sheetOpen && <GaSheetDialog manage={manage} onClose={() => setSheetOpen(false)} onSynced={(t) => { setSheetOpen(false); setMessage(t); load() }} />}

@@ -19,9 +19,9 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
   const { user, id } = await guard(ctx)
   const v = readCapacityInput(await readJson(request))
   const [res] = await db.query<ResultSetHeader>(
-    `UPDATE production_capacities SET jenis_plastik = ?, lebar_maks_cm = ?, kapasitas_maks_ton = ?, efisiensi_pct = ?, mesin = ?, jumlah_mesin = ?, catatan = ?, updated_by = ?
+    `UPDATE production_capacities SET jenis_plastik = ?, lebar_min_cm = ?, lebar_maks_cm = ?, kapasitas_maks_ton = ?, efisiensi_pct = ?, mesin = ?, jumlah_mesin = ?, catatan = ?, updated_by = ?
      WHERE id = ?`,
-    [v.jenis_plastik, v.lebar_maks_cm, v.kapasitas_maks_ton, v.efisiensi_pct, v.mesin, v.jumlah_mesin, v.catatan, user.id, id],
+    [v.jenis_plastik, v.lebar_min_cm, v.lebar_maks_cm, v.kapasitas_maks_ton, v.efisiensi_pct, v.mesin, v.jumlah_mesin, v.catatan, user.id, id],
   )
   if (!res.affectedRows) fail(404, 'Data kapasitas tidak ditemukan.')
   return NextResponse.json({ ok: true })

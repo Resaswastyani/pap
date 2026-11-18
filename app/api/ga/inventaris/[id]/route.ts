@@ -6,6 +6,8 @@ import {
   addInventarisLog, assertKodeFree, canManageInventaris, INV_KONDISI, loadInventaris, LOG_SELECT, readInventarisInput, requireInventaris,
   requireInventarisManage, serializeLog,
 } from '@/lib/inventaris'
+import { hitungDepresiasi } from '@/lib/depresiasi'
+import { canViewService, listSchedules } from '@/lib/ga-service'
 import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -17,7 +19,10 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
   requireInventaris(user)
   const item = await loadInventaris(await itemId(ctx))
   const [logs] = await db.query<RowDataPacket[]>(`${LOG_SELECT} WHERE l.item_id = ? ORDER BY l.tanggal DESC, l.id DESC LIMIT 300`, [item.id])
-  return NextResponse.json({ item, logs: logs.map(serializeLog), can: { manage: canManageInventaris(user) } })
+  return NextResponse.json({
+    item, logs: logs.map(serializeLog), depresiasi: hitungDepresiasi(item), services: await listSchedules({ itemId: item.id, includeInactive: true }),
+    can: { manage: canManageInventaris(user), service: canViewService(user) },
+  })
 })
 
 // Ubah data barang (perubahan lokasi / pemegang / kondisi otomatis masuk riwayat),
@@ -46,9 +51,9 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   if (kode !== item.kode) await assertKodeFree(kode, item.id)
   await db.query(
     `UPDATE ga_inventaris SET kode = ?, nama = ?, kategori = ?, merek = ?, nomor_seri = ?, jumlah = ?, lokasi = ?, pemegang_id = ?, pemegang_lain = ?,
-       tanggal_beli = ?, tahun = ?, pajak_tahunan = ?, pajak_lima_tahunan = ?, uji_kir = ?, harga_beli = ?, kondisi = ?, catatan = ? WHERE id = ?`,
+       tanggal_beli = ?, tahun = ?, pajak_tahunan = ?, pajak_lima_tahunan = ?, uji_kir = ?, harga_beli = ?, depresiasi_pct = ?, metode_depresiasi = ?, kondisi = ?, catatan = ? WHERE id = ?`,
     [kode, input.nama, input.kategori, input.merek, input.nomorSeri, input.jumlah, input.lokasi, input.pemegangId, input.pemegangLain,
-      input.tanggalBeli, input.tahun, input.pajakTahunan, input.pajakLimaTahunan, input.ujiKir, input.hargaBeli, input.kondisi, input.catatan, item.id],
+      input.tanggalBeli, input.tahun, input.pajakTahunan, input.pajakLimaTahunan, input.ujiKir, input.hargaBeli, input.depresiasiPct, input.metodeDepresiasi, input.kondisi, input.catatan, item.id],
   )
   const after = await loadInventaris(item.id)
   const holder = (r: typeof item) => r.pemegang_nama ?? r.pemegang_lain ?? null

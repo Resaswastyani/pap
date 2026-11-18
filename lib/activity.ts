@@ -170,6 +170,7 @@ const RESOURCES: Record<string, Resource> = {
   'action-plan/issues': { module: 'Action Plan', noun: 'issue action plan', table: 'action_issues' },
   'logistik/expeditions': { module: 'Ekspedisi', noun: 'ekspedisi', table: 'expeditions' },
   'hrd/payroll': { module: 'Grade & Gaji', noun: 'pengaturan gaji', table: 'employee_payrolls' },
+  'hrd/bpjs': { module: 'Laporan BPJS', noun: 'kepesertaan BPJS', table: 'employee_payrolls' },
   'hrd/jobdesks': { module: 'Jobdesk', noun: 'jobdesk', table: 'job_descriptions' },
   'hrd/training': { module: 'Training', noun: 'modul training', table: 'training_modules' },
   'hrd/leaves': { module: 'Izin & Cuti', noun: 'pengajuan izin', table: 'leave_requests' },
@@ -206,6 +207,7 @@ const RESOURCES: Record<string, Resource> = {
   'ga/sheet': { module: 'Data GA', noun: 'sinkron spreadsheet GA' },
   'ga/requests': { module: 'Pengajuan GA', noun: 'pengajuan pembelian GA', table: 'ga_purchase_requests' },
   'ga/inventaris': { module: 'Inventaris', noun: 'barang inventaris', table: 'ga_inventaris' },
+  'ga/service': { module: 'Jadwal Service Inventaris', noun: 'jadwal service', table: 'ga_service_schedules' },
   'ga/belanja': { module: 'Belanja ATK & RTK', noun: 'catatan belanja', table: 'ga_belanja' },
   'purchase-requests': { module: 'Pengajuan Pembelian', noun: 'pengajuan pembelian', table: 'purchase_requests' },
   vendors: { module: 'Pengajuan Pembelian', noun: 'supplier' },
@@ -300,6 +302,11 @@ function planFor(method: string, path: string): Plan | null {
     return { ...base, action: 'update', always: true, table: 'leave_requests', id: a, describe: (l, f) => `${f.action === 'setujui' ? 'Menyetujui' : f.action === 'tolak' ? 'Menolak' : 'Membatalkan'} pengajuan ${l}${f.catatan ? ` (${f.catatan})` : ''}` }
   if (res === 'hrd/kpi' && !a && method === 'PUT')
     return { ...base, action: 'update', always: true, describe: (_l, f) => `Mengisi penilaian KPI karyawan NIP ${f.nip ?? ''} periode ${f.periode ?? ''}` }
+  if (res === 'hrd/bpjs' && isId(a))
+    return {
+      ...base, action: method === 'DELETE' ? 'delete' : 'update', always: true, table: r.table, id: a,
+      describe: (l, _f, c) => (method === 'DELETE' ? `Menghapus kepesertaan BPJS ${l}` : `Mengubah kepesertaan BPJS ${l}${changed(c)}`),
+    }
   if (res === 'hrd/payroll' && a === 'settings')
     return { ...base, action: 'update', always: true, describe: () => 'Mengubah pengaturan payroll' }
   if (res === 'accounting/cash' && !a)
@@ -353,6 +360,10 @@ function planFor(method: string, path: string): Plan | null {
     return { ...base, action: 'import', skip: (f) => f.mode !== 'import', describe: (_l, f) => `Mengunggah jadwal shift dari file${f.file ? ` ${f.file}` : ''}` }
   if (res === 'shift-schedule' && a === 'sheet')
     return { ...base, action: method === 'PUT' ? 'update' : 'sync', describe: () => (method === 'PUT' ? 'Mengganti link spreadsheet Jadwal Shift' : 'Menyinkronkan Jadwal Shift dari Google Sheet') }
+  if (res === 'ga/service' && isId(a) && b === 'selesai')
+    return { ...base, action: 'update', always: true, table: r.table, id: a, describe: (l, f) => `Mencatat service selesai ${l}${f.tanggal ? ` tanggal ${f.tanggal}` : ''}${f.biaya ? ` (biaya Rp ${Number(String(f.biaya).replace(/\D/g, '')).toLocaleString('id-ID')})` : ''}` }
+  if (res === 'capacity' && a === 'usage')
+    return { ...base, action: method === 'DELETE' ? 'delete' : 'update', entityType: 'kapasitas terpakai', always: true, describe: (_l, f) => (method === 'DELETE' ? 'Menghapus isian kapasitas terpakai satu bulan' : `Mengisi kapasitas terpakai periode ${f.periode ?? ''}`) }
   if (res === 'capacity' && !a && method === 'PUT')
     return { ...base, action: 'update', describe: () => 'Mengubah keterangan dokumen Kapasitas Produksi' }
   if (res === 'sop' && !a)

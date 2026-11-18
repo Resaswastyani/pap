@@ -2444,3 +2444,27 @@ button.pap-ap-gantt-label { cursor:pointer; }
   .pap-ap-chips, .pap-ap-legend, .pap-ap-undated, .pap-ap-pad { padding-left:14px; padding-right:14px; }
   .pap-ap-range { grid-template-columns:minmax(0, 1fr) 72px; }
 }
+
+/* Kapasitas terpakai per bulan */
+.pap-usage-table th, .pap-usage-table td { padding-left:8px; padding-right:8px; }
+.pap-usage-table .pap-usage-now { background:rgb(124 92 252 / .06); }
+.pap-usage-month { border:0; background:none; padding:2px 4px; margin:-2px -4px; border-radius:6px; font:inherit; color:#7050e7; cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; }
+.pap-usage-month:hover { background:rgb(124 92 252 / .12); }
+.pap-usage-legend { margin:10px 16px 14px; font-size:12px; }
+.pap-usage-input { gap:10px; padding-top:10px; border-top:1px solid var(--pap-border, #ecebf3); }
+.pap-sheet-usage th, .pap-sheet-usage td { padding:5px 4px; font-size:10.5px; text-align:right; } .pap-sheet-usage th:first-child, .pap-sheet-usage td:first-child { text-align:left; }
+
+/* Inventaris: tab "Inventaris lainnya", harga & depresiasi, jadwal service */
+.pap-inv-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+.pap-inv-price-summary { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; padding:16px; border-bottom:1px solid var(--pap-border); }
+.pap-inv-price-summary > div { display:flex; flex-direction:column; gap:2px; }
+.pap-inv-price-summary span { font-size:12px; color:var(--pap-muted); }
+.pap-inv-price-summary strong { font-size:18px; }
+.pap-inv-price-summary small { font-size:11.5px; color:var(--pap-muted); }
+.pap-inv-dep-bar { width:96px; height:4px; margin:4px 0 0 auto; border-radius:4px; background:rgb(124 92 252 / .12); overflow:hidden; }
+.pap-inv-dep-bar span { display:block; height:100%; background:var(--pap-purple); }
+.pap-detail-section-head { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+.pap-detail-section-head h3 { margin:0; }
+.pap-row-current td { background:rgb(124 92 252 / .06); }
+.pap-row-current .pap-status { margin-left:6px; }
+.pap-svc-filters { display:flex; gap:8px; flex-wrap:wrap; }

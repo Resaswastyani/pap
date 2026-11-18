@@ -1,8 +1,10 @@
 // Laporan BPJS per bulan (Guidance HR "pelaporan BPJS"): iuran BPJS Ketenagakerjaan (JHT, JKK, JKM, JP) & Kesehatan per karyawan,
 // dari perhitungan gaji yang sama dengan menu Grade & Gaji (dasar upah, batas upah, usia pensiun, ditanggung pegawai / perusahaan).
-import { fail } from '@/lib/api'
+import type { ResultSetHeader, RowDataPacket } from 'mysql2'
+import { fail, str } from '@/lib/api'
+import { db } from '@/lib/db'
 import { tglId } from '@/lib/attendance-report'
-import { hitungPeriode, listPayrolls } from '@/lib/payroll'
+import { DITANGGUNG, hitungPeriode, listPayrolls } from '@/lib/payroll'
 import { periodeLabel } from '@/lib/payroll-report'
 import type { UserProfile } from '@/lib/users'
 import { colName, writeXlsx, type XlsxCell, type XlsxSheet, type XlsxStyle } from '@/lib/xlsx-write'
@@ -14,7 +16,7 @@ export function requireBpjs(user: UserProfile) {
 // withNumbers: nomor kepesertaan BPJS (data pribadi) hanya untuk HRD / management
 export async function bpjsReport(periode: string, withNumbers: boolean) {
   const data = await hitungPeriode(periode)
-  const nomor = new Map((await listPayrolls()).map((p) => [p.nip, { tk: p.no_bpjs_tk, kes: p.no_bpjs_kes }]))
+  const nomor = new Map((await listPayrolls()).map((p) => [p.nip, { id: p.id, tk: p.no_bpjs_tk, kes: p.no_bpjs_kes, nilai_tk: p.nilai_bpjs_tk, nilai_kes: p.nilai_bpjs_kes }]))
   const items = data.slips.map((s, i) => {
     const b = s.bpjs_rincian
     const tk = b.jht_p + b.jht_k + b.jkk + b.jkm + b.jp_p + b.jp_k
@@ -22,6 +24,9 @@ export async function bpjsReport(periode: string, withNumbers: boolean) {
     const no = nomor.get(s.nip)
     return {
       no: i + 1, nip: s.nip, nama: s.nama, jabatan: s.jabatan, divisi: s.divisi,
+      // Untuk form ubah kepesertaan (HRD saja): id pengaturan gaji + upah lapor manual (kosong = gaji bulanan)
+      payroll_id: withNumbers ? no?.id ?? null : null,
+      nilai_bpjs_tk: withNumbers ? no?.nilai_tk ?? null : null, nilai_bpjs_kes: withNumbers ? no?.nilai_kes ?? null : null,
       no_bpjs_tk: withNumbers ? no?.tk ?? null : no?.tk ? 'terdaftar' : null, no_bpjs_kes: withNumbers ? no?.kes ?? null : no?.kes ? 'terdaftar' : null,
       ...b, total_tk: tk, total_kes: kes, total: tk + kes,
       // Beban perusahaan = bagian perusahaan + bagian pegawai yang ditanggung perusahaan; potongan gaji = sisanya
@@ -82,12 +87,12 @@ export async function bpjsXlsx(periode: string, withNumbers: boolean) {
   const label = (text: string): XlsxCell[] => [{ v: text, s: 'total-label' }, ...Array(4).fill({ v: null, s: 'total-label' })]
 
   const tkSheet = build(`LAPORAN IURAN BPJS KETENAGAKERJAAN · ${periodeLabel(periode).toUpperCase()}`, [
-    { label: 'DATA KARYAWAN', style: 'h-id', cols: ['No', 'NIP', 'Nama', 'Jabatan', 'No. BPJS TK'] },
+    { label: 'DATA KARYAWAN', style: 'h-id', cols: ['No', 'NIP', 'Nama', 'Jabatan', 'No. BPJS Ketenagakerjaan'] },
     { label: 'DASAR', style: 'h-hadir', cols: ['Upah dilaporkan'] },
-    { label: 'JAMINAN HARI TUA (JHT)', style: 'h-plus', cols: [`Perusahaan ${tr.jht_p}%`, `Pegawai ${tr.jht_k}%`] },
-    { label: 'JKK & JKM', style: 'h-plus', cols: [`JKK ${tr.jkk}%`, `JKM ${tr.jkm}%`] },
-    { label: 'JAMINAN PENSIUN (JP)', style: 'h-minus', cols: ['Dasar JP', `Perusahaan ${tr.jp_p}%`, `Pegawai ${tr.jp_k}%`] },
-    { label: 'TOTAL', style: 'h-thp', cols: ['Total iuran TK'] },
+    { label: 'BPJS KETENAGAKERJAAN · JAMINAN HARI TUA (JHT)', style: 'h-plus', cols: [`Perusahaan ${tr.jht_p}%`, `Pegawai ${tr.jht_k}%`] },
+    { label: 'BPJS KETENAGAKERJAAN · JKK & JKM', style: 'h-plus', cols: [`JKK ${tr.jkk}%`, `JKM ${tr.jkm}%`] },
+    { label: 'BPJS KETENAGAKERJAAN · JAMINAN PENSIUN (JP)', style: 'h-minus', cols: ['Dasar JP', `Perusahaan ${tr.jp_p}%`, `Pegawai ${tr.jp_k}%`] },
+    { label: 'TOTAL', style: 'h-thp', cols: ['Total iuran BPJS Ketenagakerjaan'] },
     { label: 'KET.', style: 'h-misc', cols: ['Ditanggung'] },
   ], tk.map((x, i) => {
     const z = i % 2 === 1
@@ -101,7 +106,7 @@ export async function bpjsXlsx(periode: string, withNumbers: boolean) {
     { label: 'DATA KARYAWAN', style: 'h-id', cols: ['No', 'NIP', 'Nama', 'Jabatan', 'No. BPJS Kesehatan'] },
     { label: 'DASAR', style: 'h-hadir', cols: ['Upah dilaporkan'] },
     { label: 'IURAN', style: 'h-plus', cols: [`Perusahaan ${tr.kes_p}%`, `Pegawai ${tr.kes_k}%`] },
-    { label: 'TOTAL', style: 'h-thp', cols: ['Total iuran Kesehatan'] },
+    { label: 'TOTAL', style: 'h-thp', cols: ['Total iuran BPJS Kesehatan'] },
     { label: 'KET.', style: 'h-misc', cols: ['Ditanggung'] },
   ], kes.map((x, i) => {
     const z = i % 2 === 1
@@ -123,7 +128,7 @@ export async function bpjsXlsx(periode: string, withNumbers: boolean) {
         [{ v: 'KARYAWAN BELUM TERDAFTAR BPJS', s: 'title2' }],
         [{ v: `${belum.length} karyawan belum lengkap BPJS-nya per ${periodeLabel(periode)}. Lengkapi di Grade & Gaji › data gaji karyawan.`, s: 'note' }],
         [],
-        [...['No', 'NIP', 'Nama', 'Jabatan'].map((v) => ({ v, s: 'h-id' as XlsxStyle })), { v: 'BPJS TK', s: 'h-minus' }, { v: 'BPJS Kesehatan', s: 'h-minus' }, { v: 'Catatan', s: 'h-misc' }],
+        [...['No', 'NIP', 'Nama', 'Jabatan'].map((v) => ({ v, s: 'h-id' as XlsxStyle })), { v: 'BPJS Ketenagakerjaan', s: 'h-minus' }, { v: 'BPJS Kesehatan', s: 'h-minus' }, { v: 'Catatan', s: 'h-misc' }],
         ...belum.map((x, i) => {
           const z = i % 2 === 1
           return [mid(i + 1, z), mid(x.nip, z), txt(x.nama, z), txt(x.jabatan, z), status(!!x.dasar_tk, z), status(!!x.dasar_kes, z), txt(x.catatan.join('; ') || null, z)]
@@ -132,4 +137,66 @@ export async function bpjsXlsx(periode: string, withNumbers: boolean) {
     })
   }
   return { filename: `Laporan_BPJS_${periode}.xlsx`, buffer: writeXlsx(sheets) }
+}
+
+// ---------- Kepesertaan BPJS (tambah / ubah / hapus) ----------
+// Hanya menyentuh kolom BPJS di employee_payrolls (pengaturan gaji lain tetap), jadi perhitungan Grade & Gaji ikut berubah.
+const PROGRAM = { tk: 'Ketenagakerjaan', kes: 'Kesehatan' } as const
+type Program = keyof typeof PROGRAM
+
+async function payrollRow(id: number) {
+  const [[row]] = await db.query<RowDataPacket[]>(
+    'SELECT p.id, p.nip, COALESCE(e.nama, p.nip) AS nama FROM employee_payrolls p LEFT JOIN employees e ON e.nip = p.nip WHERE p.id = ?', [id],
+  )
+  return row ?? fail(404, 'Karyawan belum punya pengaturan gaji. Tambahkan dulu di Grade & Gaji.')
+}
+
+const money = (v: unknown, label: string) => {
+  if (v === null || v === undefined || v === '') return null
+  const x = Number(String(v).replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.'))
+  if (!Number.isFinite(x) || x < 0) fail(400, `${label} harus angka 0 atau lebih.`)
+  return Math.round(x)
+}
+
+// Body: no_bpjs_tk, nilai_bpjs_tk, bpjs_tk_ditanggung (dan pasangan _kes); hanya kunci yang dikirim yang diubah
+export async function saveBpjs(id: number, body: Record<string, unknown>, userId: number) {
+  const row = await payrollRow(id)
+  const set: Record<string, unknown> = {}
+  for (const p of Object.keys(PROGRAM) as Program[]) {
+    if (`no_bpjs_${p}` in body) {
+      const no = str(body[`no_bpjs_${p}`], 40).replace(/\s+/g, '')
+      if (no && !/^[0-9A-Za-z.-]{5,40}$/.test(no)) fail(400, `Nomor BPJS ${PROGRAM[p]} tidak valid.`)
+      set[`no_bpjs_${p}`] = no || null
+    }
+    if (`nilai_bpjs_${p}` in body) set[`nilai_bpjs_${p}`] = money(body[`nilai_bpjs_${p}`], `Upah dilaporkan BPJS ${PROGRAM[p]}`)
+    if (`bpjs_${p}_ditanggung` in body) {
+      const d = str(body[`bpjs_${p}_ditanggung`], 12)
+      if (!(d in DITANGGUNG)) fail(400, 'Pilihan BPJS ditanggung tidak dikenal.')
+      set[`bpjs_${p}_ditanggung`] = d
+    }
+  }
+  if (!Object.keys(set).length) fail(400, 'Tidak ada data BPJS yang diubah.')
+  // Nomor yang sama tidak boleh dipakai dua karyawan
+  for (const p of Object.keys(PROGRAM) as Program[]) {
+    const no = set[`no_bpjs_${p}`]
+    if (!no) continue
+    const [[dup]] = await db.query<RowDataPacket[]>(
+      `SELECT COALESCE(e.nama, p.nip) AS nama FROM employee_payrolls p LEFT JOIN employees e ON e.nip = p.nip WHERE p.no_bpjs_${p} = ? AND p.id <> ? LIMIT 1`, [no, id],
+    )
+    if (dup) fail(400, `Nomor BPJS ${PROGRAM[p]} ${no} sudah dipakai ${dup.nama}.`)
+  }
+  const keys = Object.keys(set)
+  await db.query(`UPDATE employee_payrolls SET ${keys.map((k) => `${k} = ?`).join(', ')}, updated_by = ? WHERE id = ?`, [...keys.map((k) => set[k]), userId, id])
+  return { nama: String(row.nama) }
+}
+
+// Hapus kepesertaan: kosongkan nomor & upah lapor program itu (karyawan tidak lagi dihitung iurannya)
+export async function removeBpjs(id: number, program: string, userId: number) {
+  const row = await payrollRow(id)
+  const list: Program[] = program === 'semua' ? ['tk', 'kes'] : program in PROGRAM ? [program as Program] : fail(400, 'Program BPJS tidak dikenal.')
+  const [res] = await db.query<ResultSetHeader>(
+    `UPDATE employee_payrolls SET ${list.map((p) => `no_bpjs_${p} = NULL, nilai_bpjs_${p} = NULL`).join(', ')}, updated_by = ? WHERE id = ?`, [userId, id],
+  )
+  if (!res.affectedRows) fail(404, 'Pengaturan gaji tidak ditemukan.')
+  return { nama: String(row.nama), program: list.map((p) => PROGRAM[p]).join(' & ') }
 }

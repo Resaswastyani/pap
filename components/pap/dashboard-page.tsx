@@ -259,7 +259,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
           <section key="ga-tagihan" data-title="Tagihan &amp; langganan" className="pap-table-card pap-dash-card wide">
             <div className="pap-card-head">
               <div><h2>Tagihan &amp; langganan {formatDate(`${d.ga.bulan}-01`).replace(/^\d+\s/, '')}</h2><p>{d.ga.ringkasan.belum ? `${d.ga.ringkasan.belum} belum dibayar${d.ga.ringkasan.nominal_belum ? ` · ${formatRupiah(d.ga.ringkasan.nominal_belum)}` : ''}${d.ga.ringkasan.lewat ? ` · ${d.ga.ringkasan.lewat} lewat jatuh tempo` : ''}` : 'Semua tagihan bulan ini sudah dibayar'} · {d.ga.ringkasan.lunas} sudah dibayar</p></div>
-              <button className="pap-btn" onClick={() => onNavigate('Data GA')}>Data GA</button>
+              <button className="pap-btn" onClick={() => onNavigate('Data GA')}>Inventaris</button>
             </div>
             {d.ga.tagihan.length ? (
               <ul className="pap-dash-agenda">

@@ -1,28 +1,34 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Archive, CalendarClock, Camera, ClipboardList, FileSpreadsheet, Package, Pencil, Plus, Search, Trash2, UserX, Wallet, Wrench } from 'lucide-react'
+import { AlertTriangle, Archive, CalendarClock, Camera, CheckCircle2, ClipboardList, FileSpreadsheet, List, Package, Pencil, Plus, Search, Trash2, TrendingDown, UserX, Wrench } from 'lucide-react'
+import { defaultPct, METODE_DEPRESIASI, type Depresiasi, type MetodeDepresiasi } from '@/lib/depresiasi'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { compressImage } from './compress'
+import { SERVICE_TONE, ServiceDoneForm, ServiceForm, type Schedule } from './ga-service-page'
 import { api, askReason, confirmDialog, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged } from './ui'
 
 type Kondisi = 'baik' | 'perlu_perbaikan' | 'rusak' | 'hilang'
-type LogJenis = 'tambah' | 'mutasi' | 'kondisi' | 'perbaikan' | 'catatan' | 'penghapusan'
+type LogJenis = 'tambah' | 'mutasi' | 'kondisi' | 'perbaikan' | 'catatan' | 'penghapusan' | 'service'
 type Item = {
   id: number; kode: string; nama: string; kategori: string | null; merek: string | null; nomor_seri: string | null; jumlah: number; lokasi: string | null
   tahun: number | null; pajak_tahunan: string | null; pajak_lima_tahunan: string | null; uji_kir: string | null
   pemegang_id: number | null; pemegang_nama: string | null; pemegang_lain: string | null; tanggal_beli: string | null; harga_beli: number | null
   kondisi: Kondisi; status: 'aktif' | 'dihapuskan'; catatan: string | null; foto_versi: string | null; perbaikan_terakhir: string | null
+  depresiasi_pct: number | null; metode_depresiasi: MetodeDepresiasi | null; service_berikutnya: string | null
+  depresiasi: Omit<Depresiasi, 'jadwal'> | null
 }
-type Log = { id: number; tanggal: string; jenis: LogJenis; keterangan: string | null; biaya: number | null; created_at: string; created_name: string }
+type Log = { id: number; tanggal: string; jenis: LogJenis; keterangan: string | null; biaya: number | null; vendor: string | null; created_at: string; created_name: string }
 type Summary = { total: number; unit: number; nilai: number; bermasalah: number; tanpa_pemegang: number; jatuh_tempo: number }
-type Person = { id: number; name: string; division_name: string }
+export type Person = { id: number; name: string; division_name: string }
 
 const KONDISI_LABEL: Record<Kondisi, string> = { baik: 'Baik', perlu_perbaikan: 'Perlu perbaikan', rusak: 'Rusak', hilang: 'Hilang' }
 const KONDISI_TONE: Record<Kondisi, string> = { baik: 'success', perlu_perbaikan: 'warning', rusak: 'danger', hilang: 'danger' }
-const LOG_LABEL: Record<LogJenis, string> = { tambah: 'Didata', mutasi: 'Mutasi', kondisi: 'Kondisi', perbaikan: 'Perbaikan', catatan: 'Catatan', penghapusan: 'Penghapusan' }
-const LOG_TONE: Record<LogJenis, string> = { tambah: 'neutral', mutasi: 'info', kondisi: 'warning', perbaikan: 'warning', catatan: 'neutral', penghapusan: 'danger' }
+const LOG_LABEL: Record<LogJenis, string> = { tambah: 'Didata', mutasi: 'Mutasi', kondisi: 'Kondisi', perbaikan: 'Perbaikan', catatan: 'Catatan', penghapusan: 'Penghapusan', service: 'Service' }
+const LOG_TONE: Record<LogJenis, string> = { tambah: 'neutral', mutasi: 'info', kondisi: 'warning', perbaikan: 'warning', catatan: 'neutral', penghapusan: 'danger', service: 'success' }
+const pctText = (n: number) => `${n.toLocaleString('id-ID', { maximumFractionDigits: 2 })}%`
+const umurText = (t: number) => (t < 1 ? `${Math.round(t * 12)} bln` : `${t.toLocaleString('id-ID', { maximumFractionDigits: 1 })} th`)
 const holder = (i: Item) => i.pemegang_nama ?? i.pemegang_lain
 const fotoUrl = (i: Item) => `/api/ga/inventaris/${i.id}/foto?v=${i.foto_versi}`
 const today = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
@@ -37,7 +43,9 @@ function DueBadge({ date }: { date: string }) {
 }
 const nearestDue = (i: Item) => VEHICLE_DATES.flatMap(([k, l]) => (i[k] ? [{ label: l as string, date: i[k] as string }] : [])).sort((a, b) => a.date.localeCompare(b.date))[0]
 
-export function InventarisPage({ focusId }: { user: UserProfile; focusId?: number | null }) {
+// embedded = tampil sebagai tab "Inventaris lainnya" di menu Inventaris (tanpa judul halaman sendiri)
+export function InventarisPage({ focusId, embedded = false }: { user: UserProfile; focusId?: number | null; embedded?: boolean }) {
+  const [view, setView] = useState<'daftar' | 'harga'>('daftar')
   const [items, setItems] = useState<Item[]>([])
   const [summary, setSummary] = useState<Summary | null>(null)
   const [categories, setCategories] = useState<string[]>([])
@@ -100,16 +108,27 @@ export function InventarisPage({ focusId }: { user: UserProfile; focusId?: numbe
     { label: 'Tanpa pemegang', value: String(summary.tanpa_pemegang), note: 'belum ada penanggung jawab', icon: UserX, tone: 'stat-1', active: kondisi === 'kosong', onClick: () => toggle('kosong') },
   ] : []
 
+  const actions = can.manage && <div className="pap-inline-actions pap-wrap"><button className="pap-btn" onClick={() => setImporting(true)}><FileSpreadsheet /> Impor dari Excel</button><button className="pap-primary-button" onClick={() => setForm('new')}><Plus /> Tambah barang</button></div>
   return (
     <>
-      <div className="pap-page-heading">
-        <div>
-          <p className="pap-eyebrow">GENERAL AFFAIR</p>
-          <h1>Inventaris</h1>
-          <span>Daftar aset dan barang inventaris kantor: lokasi, pemegang, kondisi, serta riwayat mutasi dan perbaikan.</span>
+      {embedded ? (
+        <div className="pap-inv-toolbar">
+          <div className="pap-segmented" role="tablist" aria-label="Tampilan inventaris">
+            <button role="tab" aria-selected={view === 'daftar'} className={view === 'daftar' ? 'active' : ''} onClick={() => setView('daftar')}><List /> Daftar barang</button>
+            <button role="tab" aria-selected={view === 'harga'} className={view === 'harga' ? 'active' : ''} onClick={() => setView('harga')}><TrendingDown /> Harga & depresiasi</button>
+          </div>
+          {actions}
         </div>
-        {can.manage && <div className="pap-inline-actions"><button className="pap-btn" onClick={() => setImporting(true)}><FileSpreadsheet /> Impor dari Excel</button><button className="pap-primary-button" onClick={() => setForm('new')}><Plus /> Tambah barang</button></div>}
-      </div>
+      ) : (
+        <div className="pap-page-heading">
+          <div>
+            <p className="pap-eyebrow">GENERAL AFFAIR</p>
+            <h1>Inventaris</h1>
+            <span>Daftar aset dan barang inventaris kantor: lokasi, pemegang, kondisi, serta riwayat mutasi dan perbaikan.</span>
+          </div>
+          {actions}
+        </div>
+      )}
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       {summary && (
         <div className="pap-stat-grid four">
@@ -141,6 +160,7 @@ export function InventarisPage({ focusId }: { user: UserProfile; focusId?: numbe
           </select>
         </div>
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        {view === 'harga' ? <PriceTable items={items} loading={loading} manage={can.manage} onOpen={setDetailId} onEdit={setForm} /> : <>
         <div className="pap-table-wrap">
           <table>
             <thead><tr><th>Barang</th><th>Kategori</th><th className="pap-num">Jumlah</th><th>Lokasi</th><th>Pemegang</th><th>Kondisi</th><th>Harga beli / pajak</th><th className="pap-actions-col">Aksi</th></tr></thead>
@@ -157,7 +177,7 @@ export function InventarisPage({ focusId }: { user: UserProfile; focusId?: numbe
                   <td className="pap-num">{i.jumlah}</td>
                   <td>{i.lokasi ?? '—'}</td>
                   <td>{holder(i) ?? <span className="pap-muted">Belum ada</span>}</td>
-                  <td><span className={`pap-status ${KONDISI_TONE[i.kondisi]}`}>{KONDISI_LABEL[i.kondisi]}</span>{i.status === 'dihapuskan' && <div><span className="pap-status neutral">Dihapuskan</span></div>}</td>
+                  <td><span className={`pap-status ${KONDISI_TONE[i.kondisi]}`}>{KONDISI_LABEL[i.kondisi]}</span>{i.status === 'dihapuskan' && <div><span className="pap-status neutral">Dihapuskan</span></div>}{i.service_berikutnya && <div className="pap-cell-sub pap-nowrap"><Wrench className="pap-inline-icon" /> Service {formatDate(i.service_berikutnya)}{daysTo(i.service_berikutnya) < 0 ? ' (lewat)' : ''}</div>}</td>
                   <td className="pap-nowrap">{(() => { const due = nearestDue(i); return due ? <><div>{due.label} {formatDate(due.date)}</div><DueBadge date={due.date} /></> : <>{i.harga_beli !== null ? formatRupiah(i.harga_beli) : '—'}{i.tanggal_beli && <div className="pap-cell-sub">{formatDate(i.tanggal_beli)}</div>}</> })()}</td>
                   <td className="pap-actions-cell"><RowActions label={i.nama} onView={() => setDetailId(i.id)} onEdit={can.manage ? () => setForm(i) : undefined} /></td>
                 </tr>
@@ -168,6 +188,7 @@ export function InventarisPage({ focusId }: { user: UserProfile; focusId?: numbe
           {loading && !items.length && <div className="pap-empty">Memuat data...</div>}
         </div>
         <Pager {...paged.pager} noun="barang" />
+        </>}
       </div>
       {form && <ItemForm initial={form === 'new' ? null : form} categories={categories} locations={locations} people={people} onClose={() => setForm(null)} onSaved={(text, id) => { setForm(null); flash(text); if (id) setDetailId(id) }} />}
       {importing && <ImportDialog onClose={() => setImporting(false)} onDone={(text) => { setImporting(false); flash(text) }} />}
@@ -242,6 +263,7 @@ function ItemForm({ initial, categories, locations, people, onClose, onSaved }: 
     lokasi: initial?.lokasi ?? '', pemegang_id: initial?.pemegang_id ? String(initial.pemegang_id) : '', pemegang_lain: initial?.pemegang_lain ?? '',
     tanggal_beli: initial?.tanggal_beli?.slice(0, 10) ?? '', harga_beli: initial?.harga_beli !== null && initial?.harga_beli !== undefined ? String(initial.harga_beli) : '',
     kondisi: initial?.kondisi ?? 'baik', catatan: initial?.catatan ?? '',
+    depresiasi_pct: initial?.depresiasi_pct !== null && initial?.depresiasi_pct !== undefined ? String(initial.depresiasi_pct) : '', metode_depresiasi: initial?.metode_depresiasi ?? 'garis_lurus',
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -292,6 +314,12 @@ function ItemForm({ initial, categories, locations, people, onClose, onSaved }: 
         {!values.pemegang_id && <Field label="Nama pemegang lain (opsional)"><input className="pap-input" maxLength={150} value={values.pemegang_lain} onChange={set('pemegang_lain')} placeholder="Mis. Satpam, Driver, Ruang bersama" /></Field>}
         <Field label="Tanggal beli (opsional)"><input className="pap-input" type="date" max={today()} value={values.tanggal_beli} onChange={set('tanggal_beli')} /></Field>
         <Field label="Harga beli (Rp, opsional)"><input className="pap-input" type="number" min={0} step={1} inputMode="numeric" value={values.harga_beli} onChange={set('harga_beli')} placeholder="0" /></Field>
+        <Field label="Depresiasi per tahun (%)" hint={`Kosongkan untuk default kategori (${pctText(defaultPct(values.kategori))} per tahun)`}><input className="pap-input" inputMode="decimal" value={values.depresiasi_pct} onChange={set('depresiasi_pct')} placeholder={String(defaultPct(values.kategori))} /></Field>
+        <Field label="Metode depresiasi" hint={values.metode_depresiasi === 'saldo_menurun' ? 'Turun persen dari nilai sisa tahun sebelumnya' : 'Turun persen yang sama dari harga beli tiap tahun'}>
+          <select className="pap-select" value={values.metode_depresiasi} onChange={set('metode_depresiasi')}>
+            {Object.entries(METODE_DEPRESIASI).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+        </Field>
         <Field label="Kondisi">
           <select className="pap-select" value={values.kondisi} onChange={set('kondisi')}>
             {Object.entries(KONDISI_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
@@ -303,19 +331,26 @@ function ItemForm({ initial, categories, locations, people, onClose, onSaved }: 
   )
 }
 
-function ItemDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose: () => void; onEdit: (i: Item) => void; onChanged: (text: string) => void }) {
+export function ItemDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose: () => void; onEdit?: (i: Item) => void; onChanged: (text: string) => void }) {
   const [item, setItem] = useState<Item | null>(null)
   const [logs, setLogs] = useState<Log[]>([])
-  const [can, setCan] = useState({ manage: false })
+  const [dep, setDep] = useState<Depresiasi | null>(null)
+  const [services, setServices] = useState<Schedule[]>([])
+  const [svcForm, setSvcForm] = useState<Schedule | 'new' | null>(null)
+  const [svcDone, setSvcDone] = useState<Schedule | null>(null)
+  const [people, setPeople] = useState<Person[]>([])
+  const [can, setCan] = useState({ manage: false, service: false })
   const [entry, setEntry] = useState<{ jenis: 'perbaikan' | 'catatan'; tanggal: string; keterangan: string; biaya: string; kondisi: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const photoInput = useRef<HTMLInputElement>(null)
   const load = useCallback(async () => {
     try {
-      const res = await api<{ item: Item; logs: Log[]; can: { manage: boolean } }>(`/api/ga/inventaris/${id}`)
+      const res = await api<{ item: Item; logs: Log[]; depresiasi: Depresiasi | null; services: Schedule[]; can: { manage: boolean; service: boolean } }>(`/api/ga/inventaris/${id}`)
       setItem(res.item)
       setLogs(res.logs)
+      setDep(res.depresiasi)
+      setServices(res.services)
       setCan(res.can)
     } catch (e) {
       setError((e as Error).message)
@@ -359,7 +394,7 @@ function ItemDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose: (
           ? <button className="pap-btn" disabled={busy} onClick={async () => { const a = await askReason({ title: 'Hapuskan dari inventaris', label: 'Alasan (dijual, rusak berat, hilang, ...)', confirmLabel: 'Hapuskan' }); if (a) run(() => api(`/api/ga/inventaris/${id}`, { method: 'PATCH', json: { status: 'dihapuskan', alasan: a } }), 'Barang dihapuskan dari inventaris.') }}><Archive /> Hapuskan</button>
           : <button className="pap-btn" disabled={busy} onClick={() => run(() => api(`/api/ga/inventaris/${id}`, { method: 'PATCH', json: { status: 'aktif' } }), 'Barang diaktifkan kembali.')}>Aktifkan kembali</button>)}
         <span className="pap-spacer" />
-        {can.manage && <button className="pap-btn" onClick={() => onEdit(item)}><Pencil /> Ubah data</button>}
+        {can.manage && onEdit && <button className="pap-btn" onClick={() => onEdit(item)}><Pencil /> Ubah data</button>}
         <button className="pap-btn" onClick={onClose}>Tutup</button>
       </>}
     >
@@ -389,8 +424,9 @@ function ItemDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose: (
             <div key={k}><dt>{l}</dt><dd>{item[k] ? <>{formatDate(item[k]!)} <DueBadge date={item[k]!} /></> : '—'}</dd></div>
           ))}
           <div><dt>Tanggal beli</dt><dd>{item.tanggal_beli ? formatDate(item.tanggal_beli) : '—'}</dd></div>
-          <div><dt>Harga beli</dt><dd>{item.harga_beli !== null ? formatRupiah(item.harga_beli) : '—'}</dd></div>
-          <div><dt>Perbaikan terakhir</dt><dd>{item.perbaikan_terakhir ? formatDate(item.perbaikan_terakhir) : '—'}</dd></div>
+          <div><dt>Harga beli</dt><dd>{item.harga_beli !== null ? <>{formatRupiah(item.harga_beli)}{item.jumlah > 1 && <span className="pap-muted"> / unit</span>}</> : '—'}</dd></div>
+          <div><dt>Nilai sekarang (perkiraan)</dt><dd>{dep ? <>{formatRupiah(dep.nilai_sekarang)} <span className="pap-muted">({pctText(dep.persen_sisa)})</span></> : '—'}</dd></div>
+          <div><dt>Service / perbaikan terakhir</dt><dd>{item.perbaikan_terakhir ? formatDate(item.perbaikan_terakhir) : '—'}</dd></div>
           {item.catatan && <div className="full"><dt>Catatan</dt><dd className="pap-prewrap">{item.catatan}</dd></div>}
         </dl>
       </div>
@@ -420,6 +456,57 @@ function ItemDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose: (
       )}
 
       <section className="pap-detail-section">
+        <div className="pap-detail-section-head">
+          <h3>Jadwal service ({services.filter((s) => s.aktif).length} aktif)</h3>
+          {can.manage && can.service && active && <button className="pap-btn" onClick={async () => { if (!people.length) setPeople((await api<{ users: Person[] }>('/api/ga/service')).users); setSvcForm('new') }}><CalendarClock /> Tambah jadwal</button>}
+        </div>
+        {services.length ? (
+          <div className="pap-table-wrap bordered">
+            <table>
+              <thead><tr><th>Service</th><th>Jadwal</th><th>Terakhir</th>{can.manage && can.service && <th className="pap-actions-col">Aksi</th>}</tr></thead>
+              <tbody>
+                {services.map((s) => (
+                  <tr key={s.id}>
+                    <td><div className="pap-cell-title">{s.nama}</div><div className="pap-cell-sub">{s.interval_bulan ? `Tiap ${s.interval_bulan} bulan` : 'Sekali'}{s.vendor ? ` · ${s.vendor}` : ''}{s.pic ? ` · PIC ${s.pic}` : ''}</div></td>
+                    <td className="pap-nowrap">{s.aktif ? formatDate(s.jadwal) : '—'}<div><span className={`pap-status ${SERVICE_TONE[s.status]}`}>{s.status === 'terlambat' ? `lewat ${-s.sisa_hari} hari` : s.status === 'segera' ? (s.sisa_hari === 0 ? 'hari ini' : `${s.sisa_hari} hari lagi`) : s.status === 'selesai' ? 'Selesai' : 'Terjadwal'}</span></div></td>
+                    <td className="pap-nowrap">{s.terakhir ? formatDate(s.terakhir) : '—'}<div className="pap-cell-sub">{s.jumlah_service}× · {formatRupiah(s.total_biaya)}</div></td>
+                    {can.manage && can.service && <td className="pap-nowrap">{s.aktif && active && <button className="pap-btn" onClick={() => setSvcDone(s)}><CheckCircle2 /> Catat service</button>}</td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="pap-muted">{can.service ? 'Belum ada jadwal service untuk barang ini.' : 'Belum ada jadwal service. Jadwal diatur di menu Jadwal Service Inventaris.'}</p>}
+      </section>
+
+      {dep && (
+        <section className="pap-detail-section">
+          <h3>Depresiasi per tahun</h3>
+          <p className="pap-muted">{METODE_DEPRESIASI[dep.metode]} {pctText(dep.pct)} per tahun{dep.otomatis ? ' (default kategori)' : ''} dari harga {formatRupiah(dep.harga)}{item.jumlah > 1 ? ` (${item.jumlah} unit)` : ''} · umur {umurText(dep.umur_tahun)}{dep.umur_ekonomis ? ` · nilai habis setelah ${dep.umur_ekonomis.toLocaleString('id-ID')} tahun` : ''}.</p>
+          <div className="pap-table-wrap bordered">
+            <table>
+              <thead><tr><th>Tahun ke</th><th>Per tanggal</th><th className="pap-num">Nilai awal</th><th className="pap-num">Penyusutan</th><th className="pap-num">Nilai akhir</th></tr></thead>
+              <tbody>
+                {dep.jadwal.map((r) => {
+                  const now = r.tahun_ke === Math.floor(dep.umur_tahun) + 1
+                  return (
+                    <tr key={r.tahun_ke} className={now ? 'pap-row-current' : ''}>
+                      <td>{r.tahun_ke}{now && <span className="pap-status info">berjalan</span>}</td>
+                      <td className="pap-nowrap">{formatDate(r.tanggal)}</td>
+                      <td className="pap-num pap-nowrap">{formatRupiah(r.nilai_awal)}</td>
+                      <td className="pap-num pap-nowrap">−{formatRupiah(r.penyusutan)}</td>
+                      <td className="pap-num pap-nowrap"><b>{formatRupiah(r.nilai_akhir)}</b></td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+      {!dep && <p className="pap-muted">Isi harga beli dan tanggal beli untuk melihat depresiasi dan perkiraan nilai jual barang ini.</p>}
+
+      <section className="pap-detail-section">
         <h3>Riwayat ({logs.length})</h3>
         <div className="pap-table-wrap bordered">
           <table>
@@ -429,7 +516,7 @@ function ItemDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose: (
                 <tr key={l.id}>
                   <td className="pap-nowrap">{formatDate(l.tanggal)}</td>
                   <td><span className={`pap-status ${LOG_TONE[l.jenis]}`}>{LOG_LABEL[l.jenis]}</span></td>
-                  <td>{l.keterangan}<div className="pap-cell-sub">{l.created_name}</div></td>
+                  <td>{l.keterangan}<div className="pap-cell-sub">{[l.vendor, l.created_name].filter(Boolean).join(' · ')}</div></td>
                   <td className="pap-num pap-nowrap">{l.biaya !== null ? formatRupiah(l.biaya) : ''}</td>
                 </tr>
               ))}
@@ -438,6 +525,57 @@ function ItemDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose: (
           {!logs.length && <div className="pap-empty">Belum ada riwayat.</div>}
         </div>
       </section>
+      {svcForm && (
+        <ServiceForm
+          initial={svcForm === 'new' ? null : svcForm} items={[{ id: item.id, kode: item.kode, nama: item.nama, kategori: item.kategori, lokasi: item.lokasi, nomor_seri: item.nomor_seri }]} people={people} fixedItemId={item.id}
+          onClose={() => setSvcForm(null)} onSaved={(text) => { setSvcForm(null); load(); onChanged(text) }}
+        />
+      )}
+      {svcDone && <ServiceDoneForm schedule={svcDone} onClose={() => setSvcDone(null)} onSaved={(text) => { setSvcDone(null); load(); onChanged(text) }} />}
     </Modal>
+  )
+}
+
+// Tabel harga barang & depresiasi: harga beli, penyusutan sampai hari ini, dan perkiraan nilai jual sekarang
+function PriceTable({ items, loading, manage, onOpen, onEdit }: { items: Item[]; loading: boolean; manage: boolean; onOpen: (id: number) => void; onEdit: (i: Item) => void }) {
+  const paged = usePaged(items, `harga-${items.length}`)
+  const withDep = items.filter((i) => i.depresiasi)
+  const sum = (k: 'harga' | 'nilai_sekarang' | 'penyusutan_total') => withDep.reduce((n, i) => n + (i.depresiasi?.[k] ?? 0), 0)
+  const harga = sum('harga')
+  const nilai = sum('nilai_sekarang')
+  const kurang = items.length - withDep.length
+  return (
+    <>
+      <div className="pap-inv-price-summary">
+        <div><span>Total harga beli</span><strong>{formatRupiah(harga)}</strong></div>
+        <div><span>Akumulasi depresiasi</span><strong className="pap-text-danger">−{formatRupiah(sum('penyusutan_total'))}</strong></div>
+        <div><span>Perkiraan nilai sekarang</span><strong>{formatRupiah(nilai)}</strong><small>{harga ? `${pctText(Math.round((nilai / harga) * 1000) / 10)} dari harga beli` : ''}</small></div>
+        {kurang > 0 && <div><span>Belum bisa dihitung</span><strong>{kurang} barang</strong><small>harga / tanggal beli belum diisi</small></div>}
+      </div>
+      <div className="pap-table-wrap">
+        <table>
+          <thead><tr><th>Barang</th><th>Tanggal beli</th><th className="pap-num">Harga beli</th><th>Depresiasi / th</th><th className="pap-num">Umur</th><th className="pap-num">Akumulasi depresiasi</th><th className="pap-num">Nilai sekarang</th>{manage && <th className="pap-actions-col">Aksi</th>}</tr></thead>
+          <tbody>
+            {paged.items.map((i) => {
+              const d = i.depresiasi
+              return (
+                <tr key={i.id} className="pap-row-link" onClick={() => onOpen(i.id)}>
+                  <td><div className="pap-cell-title">{i.nama}</div><div className="pap-cell-sub">{[i.kode, i.kategori, i.jumlah > 1 ? `${i.jumlah} unit` : null].filter(Boolean).join(' · ')}</div></td>
+                  <td className="pap-nowrap">{i.tanggal_beli ? formatDate(i.tanggal_beli) : <span className="pap-muted">—</span>}</td>
+                  <td className="pap-num pap-nowrap">{i.harga_beli !== null ? <>{formatRupiah(i.harga_beli * i.jumlah)}{i.jumlah > 1 && <div className="pap-cell-sub">{formatRupiah(i.harga_beli)} / unit</div>}</> : <span className="pap-muted">—</span>}</td>
+                  <td className="pap-nowrap">{pctText(d?.pct ?? i.depresiasi_pct ?? defaultPct(i.kategori))}<div className="pap-cell-sub">{METODE_DEPRESIASI[i.metode_depresiasi ?? 'garis_lurus']}{i.depresiasi_pct === null ? ' · default' : ''}</div></td>
+                  <td className="pap-num pap-nowrap">{d ? umurText(d.umur_tahun) : '—'}</td>
+                  <td className="pap-num pap-nowrap">{d ? `−${formatRupiah(d.penyusutan_total)}` : '—'}</td>
+                  <td className="pap-num pap-nowrap">{d ? <><b>{formatRupiah(d.nilai_sekarang)}</b><div className="pap-inv-dep-bar" title={`${pctText(d.persen_sisa)} dari harga beli`}><span style={{ width: `${Math.min(100, d.persen_sisa)}%` }} /></div></> : <span className="pap-muted">Lengkapi harga & tanggal beli</span>}</td>
+                  {manage && <td className="pap-actions-cell"><RowActions label={i.nama} onEdit={() => onEdit(i)} /></td>}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+        {!loading && !items.length && <div className="pap-empty">Tidak ada barang yang cocok dengan filter.</div>}
+      </div>
+      <Pager {...paged.pager} noun="barang" />
+    </>
   )
 }
