@@ -136,7 +136,7 @@ export function QuotationPage({ user, focusId }: { user: UserProfile; focusId?: 
                   <td className="pap-num">{rupiah(x.total)}</td>
                   <td>{x.created_name}</td>
                   <td><div className="pap-detail-badges"><Badge s={x.status} /><ApprovalBadge q={x} show={approvalRequired} /></div></td>
-                  <td className="pap-actions-cell"><RowActions label={x.nomor} onView={() => { setAutoEdit(false); setDetailId(x.id) }} onEdit={canWrite && x.status === 'draft' ? () => { setAutoEdit(true); setDetailId(x.id) } : undefined} /></td>
+                  <td className="pap-actions-cell"><RowActions label={x.nomor} onView={() => { setAutoEdit(false); setDetailId(x.id) }} onEdit={canWrite && x.status !== 'batal' ? () => { setAutoEdit(true); setDetailId(x.id) } : undefined} /></td>
                 </tr>
               ))}
             </tbody>
@@ -378,8 +378,8 @@ function QuotationDetail({ id, userName, autoEdit = false, onClose, onChanged, o
       // Dibuka dari tombol Ubah di daftar: langsung ke form bila masih draft & boleh diubah
       if (autoEdit && !editOpened.current) {
         editOpened.current = true
-        if (res.item.status === 'draft' && res.canEdit) onEdit({ ...res.item, items: res.items })
-        else setError('Penawaran ini tidak bisa diubah (hanya draft milik Anda).')
+        if (res.canEdit) void confirmEdit(res.item).then((ok) => ok && onEdit({ ...res.item, items: res.items }))
+        else setError('Penawaran yang dibatalkan tidak bisa diubah. Buat revisi baru bila perlu.')
       }
     } catch (e) {
       setError((e as Error).message)
@@ -449,7 +449,7 @@ function QuotationDetail({ id, userName, autoEdit = false, onClose, onChanged, o
         {['draft', 'dikirim'].includes(item.status) && canWrite && <button className="pap-btn danger" disabled={busy} onClick={() => status('batal', true)}><Ban /> Batalkan</button>}
         <span className="pap-spacer" />
         {canWrite && <button className="pap-btn" onClick={() => onCopy(full)}><Copy /> Buat revisi</button>}
-        {item.status === 'draft' && canEdit && <button className="pap-btn" onClick={() => onEdit(full)}><Pencil /> Edit</button>}
+        {canEdit && <button className="pap-btn" onClick={async () => (await confirmEdit(item)) && onEdit(full)}><Pencil /> Edit</button>}
         <a className="pap-btn" href={links.word}><FileDown /> Word</a>
         <button type="button" className="pap-primary-button" onClick={() => setPreview('penawaran')}><Eye /> Pratinjau & cetak</button>
       </>}
@@ -671,4 +671,14 @@ function DocPreview({ id, nomor, initial, hasOrder, onClose }: { id: number; nom
       <p className="pap-muted pap-doc-hint">Di dialog cetak pilih <b>Simpan sebagai PDF</b> untuk mendapatkan file PDF. Di HP, bila tombol cetak tidak muncul, pakai <b>Buka tab baru</b>.</p>
     </Modal>
   )
+}
+
+// Edit penawaran yang sudah dikirim / diterima / ditolak: konfirmasi dulu (isi dokumen berubah, TTD digital tidak berlaku)
+async function confirmEdit(q: Pick<Quotation, 'status' | 'nomor'>) {
+  if (q.status === 'draft') return true
+  return confirmDialog({
+    title: `Ubah penawaran ${q.nomor}?`,
+    message: `Penawaran ini berstatus ${STATUS_LABEL[q.status as Status].toLowerCase()}. Perubahan langsung mengganti isi dokumen yang mungkin sudah diterima customer, dan tanda tangan digitalnya otomatis tidak berlaku (perlu ditandatangani ulang).\n\nUntuk perubahan harga / produk ke customer, sebaiknya pakai "Buat revisi" agar riwayat penawaran tetap tercatat.`,
+    confirmLabel: 'Tetap ubah', tone: 'primary',
+  })
 }
