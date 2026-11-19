@@ -70,6 +70,11 @@ const SOURCES: Source[] = [
     hit: (r) => ({ title: `${r.nomor} · ${r.keperluan ?? ''}`, sub: r.status, target: { pageId: r.id } }),
   },
   {
+    menu: 'kendala-customer', page: 'Kendala Customer',
+    sql: () => [`SELECT c.id, c.nomor, c.judul, c.customer_nama, c.status FROM customer_complaints c WHERE ${like(['c.nomor', 'c.judul', 'c.customer_nama', 'c.produk', 'c.referensi'])} ORDER BY c.id DESC`, []],
+    hit: (r) => ({ title: `${r.nomor} · ${r.customer_nama}`, sub: `${r.judul} · ${r.status}`, target: { pageId: r.id } }),
+  },
+  {
     menu: 'data-mesin', page: 'Data Mesin',
     sql: () => [`SELECT m.id, m.kode, m.nama, m.tahap FROM machines m WHERE ${like(['m.kode', 'm.nama'])} ORDER BY m.nama`, []],
     hit: (r) => ({ title: r.nama, sub: [r.kode, r.tahap].filter(Boolean).join(' · ') || null, query: r.nama }),

@@ -65,6 +65,13 @@ export async function noteAccess(owner: NoteOwner, id: number, user: UserProfile
     if (!row) fail(404, 'Laporan kerusakan tidak ditemukan.')
     return { canAdd: true }
   }
+  if (owner === 'complaint') {
+    // Foto / video / dokumen keluhan customer: semua yang punya menu boleh lihat; tambah oleh pelapor, PIC, lead, GM / admin
+    const { canProcess, loadComplaint, requireComplaints } = await import('@/lib/complaints')
+    requireComplaints(user)
+    const c = await loadComplaint(id)
+    return { canAdd: canProcess(user, c) }
+  }
   if (owner === 'ticket') {
     // Screenshot kendala: pelapor & penangan tiket (Super Admin / Staff IT)
     const { canHandleTickets, loadTicket, requireTickets } = await import('@/lib/tickets')

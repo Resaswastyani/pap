@@ -17,6 +17,7 @@ export const MENU_KEYS = {
   Quotation: 'quotation',
   'Tabel HPP': 'hpp',
   'Repeat Order': 'repeat-order',
+  'Kendala Customer': 'kendala-customer',
   'Dokumen Order': 'dokumen-order',
   'KPI Marketing': 'kpi',
   'Kalender Konten': 'konten',
@@ -90,7 +91,7 @@ export const PERMISSION_MENUS: Partial<Record<MenuKey, string>> = {
 // Tidak termasuk Pengaturan (selalu terbuka) serta menu yang disembunyikan (Tabel HPP, Pembayaran).
 export const MENU_GROUPS: { label: string; items: (keyof typeof MENU_KEYS)[] }[] = [
   { label: 'Ringkasan', items: ['Dashboard', 'Monitoring'] },
-  { label: 'Marketing', items: ['Prospek', 'Jadwal Visit', 'Request Sample', 'Request Desain', 'Customer', 'Order Bulanan', 'Repeat Order', 'Data Produk', 'Quotation', 'Dokumen Order', 'Kalender Konten', 'KPI Marketing'] },
+  { label: 'Marketing', items: ['Prospek', 'Jadwal Visit', 'Request Sample', 'Request Desain', 'Customer', 'Order Bulanan', 'Repeat Order', 'Kendala Customer', 'Data Produk', 'Quotation', 'Dokumen Order', 'Kalender Konten', 'KPI Marketing'] },
   { label: 'Produksi', items: ['Rencana Produksi', 'Kapasitas Produksi', 'Hasil Produksi', 'Faktur Produksi', 'Formulasi Produk', 'Jadwal Shift', 'Stok'] },
   { label: 'Logistik', items: ['Pengiriman', 'Ekspedisi'] },
   { label: 'Teknik', items: ['Data Mesin', 'Kerusakan Mesin', 'Perawatan Mesin', 'SOP Mesin', 'Sparepart & Peralatan'] },
