@@ -7,6 +7,7 @@ import { rupiah } from '@/lib/hpp-calc'
 import { DocForm, useHppData } from './hpp-page'
 import { ProspectSelect, waLink, type ProspectOption } from './marketing'
 import { PaymentForm } from './payment-page'
+import { QuotationSignatures } from './quotation-signature'
 import { CustomerSelect, type CustomerOption } from './product-page'
 import { api, askReason, Field, formatDate, Modal, Notice, Pager, usePaged, RowActions, confirmDialog, FreshBadge } from './ui'
 
@@ -40,7 +41,7 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number | null }) {
+export function QuotationPage({ user, focusId }: { user: UserProfile; focusId?: number | null }) {
   const [items, setItems] = useState<Quotation[]>([])
   const [summary, setSummary] = useState<Partial<Record<Status, { n: number; total: number }>>>({})
   const [pendingApproval, setPendingApproval] = useState(0)
@@ -148,6 +149,7 @@ export function QuotationPage({ focusId }: { user: UserProfile; focusId?: number
       {detailId && (
         <QuotationDetail
           id={detailId}
+          userName={user.name}
           autoEdit={autoEdit}
           onClose={() => setDetailId(null)}
           onChanged={flash}
@@ -346,8 +348,8 @@ function DocTemplateModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
 }
 
 // ---------------- Detail penawaran ----------------
-function QuotationDetail({ id, autoEdit = false, onClose, onChanged, onEdit, onCopy, onDeleted }: {
-  id: number; autoEdit?: boolean; onClose: () => void; onChanged: (m: string) => void
+function QuotationDetail({ id, userName, autoEdit = false, onClose, onChanged, onEdit, onCopy, onDeleted }: {
+  id: number; userName: string; autoEdit?: boolean; onClose: () => void; onChanged: (m: string) => void
   onEdit: (q: Quotation & { items: Item[] }) => void; onCopy: (q: Quotation & { items: Item[] }) => void; onDeleted: () => void
 }) {
   const [item, setItem] = useState<Quotation | null>(null)
@@ -500,6 +502,7 @@ function QuotationDetail({ id, autoEdit = false, onClose, onChanged, onEdit, onC
       )}
       {item.status === 'diterima' && <OrderPanel item={item} canWrite={canWrite} onSaved={async (t) => { await load(); onChanged(t) }} />}
       {item.alasan && <Notice>Alasan {STATUS_LABEL[item.status].toLowerCase()}: {item.alasan}</Notice>}
+      <QuotationSignatures quote={{ id: item.id, nomor: item.nomor, kepada: item.kepada, kontak: item.kontak ?? null, total: item.total, status: item.status }} userName={userName} onChanged={onChanged} />
 
       <dl className="pap-detail-grid">
         <div><dt>Kepada</dt><dd>{item.kepada}{item.kontak ? ` · up. ${item.kontak}` : ''}</dd></div>
