@@ -129,7 +129,7 @@ async function loadBoms(lines: Line[]) {
 }
 
 // Harga bahan: harga acuan SIMPAP > (harga pokok rata-rata Accurate | harga beli terakhir PO) [+ PPN 11%]
-async function materialInfo(ids: number[]) {
+export async function materialInfo(ids: number[]) {
   const info = new Map<number, { item_no: string | null; name: string; unit: string | null; category: string | null; stok: number | null; rata: number | null; po: number | null; po_tanggal: string | null; acuan: number | null; acuan_catatan: string | null; acuan_at: string | null }>()
   if (!ids.length) return info
   const [[items], [pos], [overrides]] = await Promise.all([

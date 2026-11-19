@@ -5,6 +5,7 @@ import { AlertTriangle, Boxes, Download, FlaskConical, Pencil, Scale, Search, Tr
 import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
 import { BarList, ColumnChart, type ColumnDatum } from './charts'
+import { ProjectionView } from './material-projection'
 import { api, formatDate, Modal, Notice, Pager, usePaged } from './ui'
 
 // Analisis Bahan Baku: kebutuhan bahan (HD, HD KW, PE, PP, Kalsium, bahan pendukung) dari BOM Accurate,
@@ -62,7 +63,30 @@ function presets(today: string): { key: string; label: string; from: string; to:
   ]
 }
 
+// Menu Analisis Bahan Baku: tab "Riset & proyeksi" (simulasi baru, disimpan) dan "Analisis data produksi" (dari data yang ada)
 export function MaterialAnalysisPage(_props: { user: UserProfile }) {
+  const [view, setView] = useState<'riset' | 'data'>('riset')
+  return (
+    <>
+      <div className="pap-page-heading">
+        <div>
+          <p className="pap-eyebrow">PRODUKSI · ANALISIS</p>
+          <h1>Analisis Bahan Baku</h1>
+          <span>{view === 'riset'
+            ? 'Riset & proyeksi kebutuhan bahan baku (HD, HD KW, PE, PP, Kalsium) dan bahan pendukung: tentukan produk, jumlah, komposisi, dan harga, lalu lihat nilai Rupiah, HPP bahan, dan GPF.'
+            : 'Kebutuhan bahan dari data produksi yang sudah ada (realisasi MP, rencana, atau pesanan) lewat BOM Accurate, lengkap dengan nilai Rupiah, HPP bahan, nilai jual, dan GPF.'}</span>
+        </div>
+      </div>
+      <div className="pap-segmented pap-page-tabs" role="tablist" aria-label="Bagian analisis bahan baku">
+        <button role="tab" aria-selected={view === 'riset'} className={view === 'riset' ? 'active' : ''} onClick={() => setView('riset')}>Riset & proyeksi</button>
+        <button role="tab" aria-selected={view === 'data'} className={view === 'data' ? 'active' : ''} onClick={() => setView('data')}>Analisis data produksi</button>
+      </div>
+      {view === 'riset' ? <ProjectionView /> : <DataAnalysisView />}
+    </>
+  )
+}
+
+function DataAnalysisView() {
   const today = todayWib()
   const [sumber, setSumber] = useState<Sumber>('realisasi')
   const [from, setFrom] = useState(monthStart(today))
@@ -109,15 +133,6 @@ export function MaterialAnalysisPage(_props: { user: UserProfile }) {
 
   return (
     <>
-      <div className="pap-page-heading">
-        <div>
-          <p className="pap-eyebrow">PRODUKSI · ANALISIS</p>
-          <h1>Analisis Bahan Baku</h1>
-          <span>Kebutuhan bahan baku (HD, HD KW, PE, PP, Kalsium) dan bahan pendukung dari formula produksi (BOM) Accurate, lengkap dengan nilai Rupiah, HPP bahan, nilai jual, dan GPF (laba kotor).</span>
-        </div>
-        <a className="pap-primary-button pap-ma-export" href={`/api/production/analisis-bahan/export?${query}`} download><Download /> Unduh Excel</a>
-      </div>
-
       <section className="pap-table-card pap-ma-controls" aria-label="Pengaturan analisis">
         <div className="pap-ma-control">
           <span className="pap-ma-label">Sumber data</span>
@@ -145,6 +160,7 @@ export function MaterialAnalysisPage(_props: { user: UserProfile }) {
           </select>
           <label className="pap-ma-check"><input type="checkbox" checked={ppn} onChange={(e) => setPpn(e.target.checked)} /> Tambah PPN 11%</label>
           <small className="pap-muted">Harga acuan yang diisi di tab "Harga bahan" selalu diutamakan.</small>
+          <a className="pap-btn pap-ma-export" href={`/api/production/analisis-bahan/export?${query}`} download><Download /> Unduh Excel</a>
         </div>
       </section>
 
