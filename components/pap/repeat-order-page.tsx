@@ -8,7 +8,9 @@ import { formatRupiah } from './accurate'
 import { nowInput, toInputDateTime, VisitForm, WaButton, type MarketingUser } from './marketing'
 import { AttachmentInput, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
 import { CycleField, cycleText, type CycleInfo } from './customer-cycle'
-import { api, formatDate, Modal, Notice, Pager } from './ui'
+import { api, formatDate, Modal, Notice, Pager, RowActions } from './ui'
+import { CustomerForm, type Customer } from './customer-page'
+import { PERMISSIONS } from '@/lib/permissions'
 
 type Status = 'waktunya' | 'berisiko' | 'nonaktif' | 'aman'
 const STATUS_LABEL: Record<Status, string> = { waktunya: 'Waktunya order', berisiko: 'Berisiko berhenti', nonaktif: 'Pelanggan pasif', aman: 'Aman' }
@@ -51,6 +53,18 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
+  // Ubah data customer (disimpan ke Accurate): sama dengan hak edit di menu Customer
+  const canEditCustomer = user.role.isAdmin || user.division.code.startsWith('marketing') || user.permissions.includes(PERMISSIONS.customerManage)
+  const [editing, setEditing] = useState<Customer | null>(null)
+  const [editError, setEditError] = useState('')
+  async function openEdit(id: number) {
+    setEditError('')
+    try {
+      setEditing((await api<{ item: Customer }>(`/api/customers/${id}`)).item)
+    } catch (e) {
+      setEditError((e as Error).message)
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -134,7 +148,7 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Customer</th><th>Riwayat order</th><th>Perkiraan order</th><th>PIC</th><th>Follow-up</th><th>Status</th></tr></thead>
+            <thead><tr><th>Customer</th><th>Riwayat order</th><th>Perkiraan order</th><th>PIC</th><th>Follow-up</th><th>Status</th><th aria-label="Aksi" /></tr></thead>
             <tbody>
               {items.map((r) => (
                 <tr key={r.id} className="pap-row-link" onClick={() => setDetailId(r.id)}>
@@ -144,6 +158,7 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
                   <td>{r.maintenance_name ?? <span className="pap-muted">Belum ada</span>}</td>
                   <td className={r.next_followup_at && r.next_followup_at.slice(0, 10) <= nowInput().slice(0, 10) ? 'pap-followup overdue' : ''}>{r.last_followup_at ? <><div className="pap-nowrap">Terakhir {formatDate(r.last_followup_at)}</div><div className="pap-cell-sub">{r.last_followup_via}{r.next_followup_at ? ` · berikutnya ${formatDate(r.next_followup_at, true)}` : ''}</div></> : <>{r.next_followup_at ? <div className="pap-nowrap">Jadwal {formatDate(r.next_followup_at, true)}</div> : '—'}<div className="pap-cell-sub">Belum pernah difollow-up</div></>}</td>
                   <td><span className={`pap-status ${STATUS_TONE[r.status]}`}>{STATUS_LABEL[r.status]}</span></td>
+                  <td className="pap-actions-cell"><RowActions label={r.name} onView={() => setDetailId(r.id)} onEdit={canEditCustomer ? () => openEdit(r.id) : undefined} /></td>
                 </tr>
               ))}
             </tbody>
@@ -154,6 +169,8 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
         <Pager page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(v) => { setSize(v); setPage(1) }} />
       </div>
       {detailId && <RepeatDetail id={detailId} user={user} users={users} onClose={() => setDetailId(null)} onChanged={flash} />}
+      {editError && <Notice onClose={() => setEditError('')}>{editError}</Notice>}
+      {editing && <CustomerForm initial={editing} onClose={() => setEditing(null)} onSaved={(text) => { setEditing(null); flash(text) }} />}
     </>
   )
 }

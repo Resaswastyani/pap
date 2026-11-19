@@ -10,7 +10,7 @@ import { CycleField, cycleText, type CycleInfo } from './customer-cycle'
 import { api, Field, formatDate, Modal, Notice, Pager, RowActions, FreshBadge } from './ui'
 
 type CrmStatus = 'pelanggan' | 'pembeli' | 'prospek' | 'pelanggan_nonaktif' | 'pembeli_nonaktif'
-type Customer = CycleInfo & {
+export type Customer = CycleInfo & {
   created_at?: string | null
   id: number
   accurate_id: number | null
@@ -186,7 +186,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
   )
 }
 
-function CustomerForm({ initial, onClose, onSaved }: { initial: Customer | null; onClose: () => void; onSaved: (message: string, id?: number) => void }) {
+export function CustomerForm({ initial, onClose, onSaved }: { initial: Customer | null; onClose: () => void; onSaved: (message: string, id?: number) => void }) {
   const [values, setValues] = useState({
     name: initial?.name ?? '',
     email: initial?.email ?? '',
