@@ -2602,3 +2602,12 @@ button.pap-ap-gantt-label { cursor:pointer; }
 .pap-tp-year .pap-select { width:auto; min-width:0; height:auto; min-height:0; padding:0 6px 0 12px; border:0; border-left:1px solid var(--pap-border); border-right:1px solid var(--pap-border); border-radius:0; background-color:transparent; font-weight:700; color:var(--pap-text); box-shadow:none; }
 .pap-tp-year .pap-select:focus { outline:none; background-color:rgb(124 92 252 / .06); }
 @media (max-width:640px) { .pap-tp-year { width:auto; } }
+
+/* Pengaturan IT: penyedia PAP AI */
+.pap-it-ai { display:flex; flex-direction:column; gap:10px; margin:0; padding:0; list-style:none; }
+.pap-it-ai > li { display:flex; flex-direction:column; gap:8px; padding:12px; border:1px solid var(--pap-border); border-radius:12px; }
+.pap-it-ai-head { display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:13px; }
+.pap-it-ai-head svg { width:16px; height:16px; }
+.pap-it-ai-head .pap-status { margin-left:auto; }
+.pap-it-ai-form { display:flex; flex-direction:column; gap:8px; }
+.pap-it-ai-form .pap-inline-actions { justify-content:flex-end; }

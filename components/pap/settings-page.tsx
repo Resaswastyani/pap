@@ -405,6 +405,7 @@ type ItData = {
   google: { oauth: boolean; service_account: { email: string | null; project: string | null } | null; drive: { mode: string; email: string } | null; project: string | null }
   recaptcha: { mode: 'v2' | 'v3' | null; min_score: number | null }
   accurate: boolean
+  ai?: { provider: string; label: string; model: string; configured: boolean; source: 'env' | 'pengaturan' | null }[]
 }
 const bytes = (n: number | null | undefined) => {
   if (n === null || n === undefined) return '—'
@@ -566,6 +567,17 @@ function ItTab() {
         </section>
 
         <section className="pap-table-card pap-settings-card">
+          <div className="pap-card-head"><div><h2>PAP AI</h2><p>Model dipilih otomatis: analisis data ke Claude, pertanyaan ringan ke Gemini; bila satu gagal, pindah ke yang lain.</p></div></div>
+          <div className="pap-settings-body">
+            <ul className="pap-it-ai">
+              {(data?.ai ?? []).map((a) => <AiProviderRow key={a.provider} info={a} busy={busy} onAct={act} />)}
+            </ul>
+            <p className="pap-muted pap-it-note">Kunci API disimpan terenkripsi di server dan tidak pernah ditampilkan lagi. Biaya dihitung per pemakaian oleh masing-masing penyedia.</p>
+            <ItLinks links={[['Kunci Claude (Anthropic)', 'https://console.anthropic.com/settings/keys'], ['Kunci ChatGPT (OpenAI)', 'https://platform.openai.com/api-keys'], ['Kunci Gemini (Google)', 'https://aistudio.google.com/app/apikey']]} />
+          </div>
+        </section>
+
+        <section className="pap-table-card pap-settings-card">
           <div className="pap-card-head"><div><h2>reCAPTCHA login</h2><p>Perlindungan halaman login dari bot.</p></div></div>
           <div className="pap-settings-body">
             <ul className="pap-config-list">
@@ -580,5 +592,44 @@ function ItTab() {
         </section>
       </div>
     </>
+  )
+}
+
+// Satu baris penyedia AI: status, kunci (isi / hapus), model, tes koneksi
+function AiProviderRow({ info, busy, onAct }: { info: NonNullable<ItData['ai']>[number]; busy: string; onAct: (key: string, json: Record<string, string>) => Promise<void> }) {
+  const [editing, setEditing] = useState(false)
+  const [key, setKey] = useState('')
+  const [model, setModel] = useState(info.model)
+  const id = `ai-${info.provider}`
+  async function save(clear = false) {
+    await onAct(`${id}-save`, { action: 'ai', provider: info.provider, ...(clear ? { key: '' } : key ? { key } : {}), model })
+    setKey('')
+    setEditing(false)
+  }
+  return (
+    <li>
+      <div className="pap-it-ai-head">
+        {info.configured ? <CheckCircle2 className="pap-ok-icon" /> : <AlertCircle className="pap-text-muted" />}
+        <strong>{info.label}</strong>
+        <span className="pap-muted">{info.model}</span>
+        <span className={`pap-status ${info.configured ? 'success' : 'neutral'}`}>{info.configured ? (info.source === 'env' ? 'Aktif (server)' : 'Aktif') : 'Belum diisi'}</span>
+      </div>
+      {editing ? (
+        <div className="pap-it-ai-form">
+          {info.source !== 'env' && <input className="pap-input" type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={info.configured ? 'Kunci baru (kosongkan bila tetap)' : 'Tempel kunci API'} aria-label={`Kunci API ${info.label}`} />}
+          <input className="pap-input" value={model} onChange={(e) => setModel(e.target.value)} placeholder="Nama model" aria-label={`Model ${info.label}`} />
+          <div className="pap-inline-actions">
+            <button type="button" className="pap-btn" onClick={() => setEditing(false)}>Batal</button>
+            {info.configured && info.source !== 'env' && <button type="button" className="pap-btn danger" disabled={!!busy} onClick={() => save(true)}>Hapus kunci</button>}
+            <button type="button" className="pap-primary-button" disabled={!!busy} onClick={() => save()}>Simpan</button>
+          </div>
+        </div>
+      ) : (
+        <div className="pap-inline-actions">
+          <button type="button" className="pap-btn" onClick={() => setEditing(true)}><KeyRound /> {info.configured ? 'Ubah' : 'Isi kunci'}</button>
+          {info.configured && <button type="button" className="pap-btn" disabled={!!busy} onClick={() => onAct(id, { action: 'test', target: id })}>{busy === id ? <RefreshCw className="pap-spin" /> : <ShieldCheck />} Tes</button>}
+        </div>
+      )}
+    </li>
   )
 }

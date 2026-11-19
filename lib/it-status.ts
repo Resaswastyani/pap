@@ -1,6 +1,7 @@
 import os from 'node:os'
 import { readFile, statfs } from 'node:fs/promises'
 import { accurateEnabled } from '@/lib/accurate'
+import { aiKey, aiModel, aiStatus, type AiProvider } from '@/lib/ai-providers'
 import { cronStatus } from '@/lib/cron-log'
 import { db } from '@/lib/db'
 import { driveAccount, googleAccessToken, oauthConfigured } from '@/lib/drive'
@@ -92,6 +93,7 @@ export async function itStatus() {
     },
     recaptcha: { mode: recaptcha, min_score: recaptcha === 'v3' ? Number(process.env.RECAPTCHA_MIN_SCORE || 0.5) : null },
     accurate: accurateEnabled(),
+    ai: await aiStatus(),
   }
 }
 
@@ -122,6 +124,37 @@ export async function testGoogle() {
   return {
     ok: true,
     message: `Google Drive terhubung sebagai ${body.user?.emailAddress ?? account.email}. Penyimpanan terpakai ${gb(q?.usage)}${q?.limit ? ` dari ${gb(q.limit)}` : ''}.`,
+  }
+}
+
+// Tes kunci AI: permintaan kecil "jawab OK" ke penyedia (tanpa data perusahaan)
+export async function testAi(p: AiProvider) {
+  const key = await aiKey(p)
+  if (!key) return { ok: false, message: 'Kunci API belum diisi.' }
+  const model = await aiModel(p)
+  const started = Date.now()
+  try {
+    if (p === 'claude') {
+      const { default: Anthropic } = await import('@anthropic-ai/sdk')
+      const client = new Anthropic({ apiKey: key, timeout: 30_000, maxRetries: 0 })
+      const res = await client.messages.create({ model, max_tokens: 1024, output_config: { effort: 'low' }, messages: [{ role: 'user', content: 'Balas satu kata: OK' }] })
+      if (res.stop_reason === 'refusal') return { ok: false, message: 'Claude menolak permintaan tes.' }
+    } else if (p === 'openai') {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: 'Balas satu kata: OK' }] }), signal: AbortSignal.timeout(30_000),
+      })
+      if (!res.ok) { const j = await res.json().catch(() => ({})); return { ok: false, message: `ChatGPT menolak: ${(j as { error?: { message?: string } }).error?.message ?? res.status}` } }
+    } else {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Balas satu kata: OK' }] }] }), signal: AbortSignal.timeout(30_000),
+      })
+      if (!res.ok) { const j = await res.json().catch(() => ({})); return { ok: false, message: `Gemini menolak: ${(j as { error?: { message?: string } }).error?.message ?? res.status}` } }
+    }
+    return { ok: true, message: `${p === 'claude' ? 'Claude' : p === 'openai' ? 'ChatGPT' : 'Gemini'} (${model}) terhubung, menjawab dalam ${((Date.now() - started) / 1000).toFixed(1)} detik.` }
+  } catch (e) {
+    return { ok: false, message: (e as Error).message.slice(0, 300) }
   }
 }
 

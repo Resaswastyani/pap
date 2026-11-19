@@ -1,19 +1,21 @@
+import Anthropic from '@anthropic-ai/sdk'
 import type { RowDataPacket } from 'mysql2'
 import { ACCOUNTING_MENUS, AGING, bsSummary, bsAmounts, cashAccounts, forecast, isDate, payables, plAmounts, plSummary, plTrend, receivables, todayWib } from '@/lib/accounting'
 import { fail } from '@/lib/api'
 import { CRM_CASE, CRM_INACTIVE_DAYS, CRM_STATUS, CYCLE_PASSIVE_FACTOR, CYCLE_PASSIVE_MIN_DAYS, PASSIVE_DAYS_SQL } from '@/lib/customers'
+import { aiKey, aiModel, PROVIDERS, providerOrder, type AiProvider } from '@/lib/ai-providers'
 import { db } from '@/lib/db'
 import { prospectScope } from '@/lib/marketing'
 import { SECTORS, sectorSql } from '@/lib/sectors'
 import type { UserProfile } from '@/lib/users'
 
-// PAP AI: asisten analisis data SIMPAP memakai Gemini (function calling).
+// PAP AI: asisten analisis data SIMPAP memakai Gemini, Claude, atau ChatGPT (function calling), dipilih otomatis per pertanyaan.
 // Model tidak pernah menyentuh database langsung: ia hanya memanggil alat analisis di bawah ini (semuanya baca saja),
 // dan setiap alat hanya tersedia bila user punya menu yang sesuai.
 
 export type ChatMessage = { role: 'user' | 'model'; text: string }
 export type AiChart = { jenis: 'bar' | 'line' | 'hbar'; judul: string; label: string[]; seri: { nama: string; data: number[] }[]; format: 'rupiah' | 'angka' | 'persen'; catatan?: string }
-export type AiReply = { reply: string; charts: AiChart[]; sources: string[] }
+export type AiReply = { reply: string; charts: AiChart[]; sources: string[]; model?: string }
 
 type Row = RowDataPacket & Record<string, unknown>
 type Args = Record<string, unknown>
@@ -278,39 +280,8 @@ Aturan:
 - Boleh memakai tabel markdown sederhana (maks 10 baris). Jangan menulis JSON; rumus Excel atau contoh teks boleh bila diminta.`
 }
 
-// ---------- Gemini ----------
-type Part = { text?: string; functionCall?: { id?: string; name: string; args?: Args }; functionResponse?: unknown; thought?: boolean; thoughtSignature?: string }
-type Content = { role: 'user' | 'model'; parts: Part[] }
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
-export const aiEnabled = () => !!process.env.GEMINI_API_KEY
-
-type GeminiJson = { candidates?: { content?: Content; finishReason?: string }[]; error?: { message?: string; code?: number } }
-// Model utama sesekali penuh (503 "high demand"): coba ulang sekali, lalu pakai model cadangan
-async function gemini(models: string[], body: unknown) {
-  // Model penuh -> langsung pindah ke model cadangan; model utama diulang sekali di akhir bila cadangan juga gagal
-  const attempts = [...new Set(models), models[0]]
-  let status = 0
-  for (const [i, model] of attempts.entries()) {
-    if (i === attempts.length - 1 && i > 0) await new Promise((r) => setTimeout(r, 800))
-    const started = Date.now()
-    const res = await fetch(`${GEMINI_URL}/${model}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY! },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(40_000),
-    }).catch((e: Error) => fail(504, e.name === 'TimeoutError' ? 'PAP AI terlalu lama menjawab. Coba lagi atau persempit pertanyaannya.' : 'PAP AI gagal menghubungi layanan AI. Coba lagi.'))
-    const json = (await res.json().catch(() => ({}))) as GeminiJson
-    if (res.ok) {
-      console.log(`[ai] ${model} ${Date.now() - started} ms`)
-      return json.candidates?.[0]?.content ?? { role: 'model' as const, parts: [] }
-    }
-    status = res.status
-    console.error('Gemini error', model, res.status, json.error?.message)
-    if (![429, 500, 503].includes(res.status)) break
-  }
-  return fail(status === 429 ? 429 : 502, status === 429 ? 'PAP AI sedang sibuk (batas pemakaian tercapai). Coba lagi sebentar lagi.' : 'Layanan AI sedang padat. Coba lagi beberapa saat lagi.')
-}
-
+// ---------- Mesin percakapan: alat dipakai bersama oleh Gemini, Claude, dan ChatGPT ----------
+type Run = { user: UserProfile; tools: Tool[]; charts: AiChart[]; sources: Set<string> }
 const toolCache = globalThis as unknown as { papAiToolCache?: Map<string, { at: number; value: unknown }> }
 const TOOL_TTL = 120_000
 async function runTool(tool: Tool, args: Args, user: UserProfile) {
@@ -323,59 +294,201 @@ async function runTool(tool: Tool, args: Args, user: UserProfile) {
   if (cache.size > 300) cache.delete(cache.keys().next().value!)
   return value
 }
+// Jalankan satu panggilan alat (atau buat_grafik) dan kembalikan hasilnya untuk model
+async function execCall(run: Run, name: string, args: Args): Promise<unknown> {
+  if (name === CHART_TOOL.name) {
+    const chart = run.charts.length < 3 ? readChart(args) : null
+    if (chart) run.charts.push(chart)
+    return chart ? { ok: true, info: 'Grafik ditampilkan ke pengguna.' } : { ok: false, error: 'Data grafik tidak valid atau sudah 3 grafik.' }
+  }
+  const tool = run.tools.find((t) => t.name === name)
+  if (!tool) return { error: 'Alat tidak tersedia untuk pengguna ini.' }
+  try {
+    const result = await runTool(tool, args ?? {}, run.user)
+    run.sources.add(tool.label)
+    return result
+  } catch (e) {
+    return { error: `Data gagal diambil: ${(e as Error).message}`.slice(0, 300) }
+  }
+}
+// Skema alat gaya Gemini (OBJECT/STRING) -> JSON Schema standar (object/string) untuk Claude & ChatGPT
+function jsonSchema(s?: Schema): Record<string, unknown> {
+  if (!s) return { type: 'object', properties: {} }
+  const out: Record<string, unknown> = { type: s.type.toLowerCase() }
+  if (s.description) out.description = s.description
+  if (s.enum) out.enum = s.enum
+  if (s.items) out.items = jsonSchema(s.items)
+  if (s.properties) out.properties = Object.fromEntries(Object.entries(s.properties).map(([k, v]) => [k, jsonSchema(v)]))
+  if (s.required) out.required = s.required
+  return out
+}
+const allDeclarations = (tools: Tool[]) => [...tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })), CHART_TOOL as { name: string; description: string; parameters?: Schema }]
+const TOO_LONG = 'Analisis terlalu panjang untuk diselesaikan sekaligus. Coba persempit pertanyaannya (mis. satu sektor atau satu periode).'
+const EMPTY = 'Maaf, PAP AI belum bisa menjawab pertanyaan itu. Coba tanyakan dengan kalimat lain.'
+// Kesalahan penyedia: router mencoba penyedia berikutnya
+class ProviderError extends Error {}
 
-export async function askAssistant(user: UserProfile, history: ChatMessage[]): Promise<AiReply> {
-  if (!aiEnabled()) fail(503, 'PAP AI belum dikonfigurasi (GEMINI_API_KEY belum diset).')
-  const tools = TOOLS.filter((t) => t.allowed(user))
-  const models = [process.env.GEMINI_MODEL || 'gemini-3.5-flash', process.env.GEMINI_FALLBACK_MODEL || 'gemini-3-flash-preview']
+// ---------- Gemini ----------
+type Part = { text?: string; functionCall?: { id?: string; name: string; args?: Args }; functionResponse?: unknown; thought?: boolean; thoughtSignature?: string }
+type Content = { role: 'user' | 'model'; parts: Part[] }
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
+type GeminiJson = { candidates?: { content?: Content; finishReason?: string }[]; error?: { message?: string; code?: number } }
+
+// Model penuh -> langsung pindah ke model cadangan
+async function gemini(apiKey: string, models: string[], body: unknown) {
+  for (const model of [...new Set(models)]) {
+    const started = Date.now()
+    const res = await fetch(`${GEMINI_URL}/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(40_000),
+    }).catch((e: Error) => { throw new ProviderError(e.name === 'TimeoutError' ? 'Gemini terlalu lama menjawab.' : 'Gemini tidak bisa dihubungi.') })
+    const json = (await res.json().catch(() => ({}))) as GeminiJson
+    if (res.ok) {
+      console.log(`[ai] gemini ${model} ${Date.now() - started} ms`)
+      return json.candidates?.[0]?.content ?? { role: 'model' as const, parts: [] }
+    }
+    console.error('Gemini error', model, res.status, json.error?.message)
+    if (![429, 500, 503].includes(res.status)) break
+  }
+  throw new ProviderError('Gemini sedang padat atau menolak permintaan.')
+}
+
+async function askGemini(run: Run, history: ChatMessage[], system: string) {
+  const apiKey = (await aiKey('gemini'))!
+  const models = [await aiModel('gemini'), process.env.GEMINI_FALLBACK_MODEL || 'gemini-3-flash-preview']
   const contents: Content[] = history.map((m) => ({ role: m.role, parts: [{ text: m.text }] }))
-  const charts: AiChart[] = []
-  const sources = new Set<string>()
-  const declarations = [...tools.map((t) => ({ name: t.name, description: t.description, ...(t.parameters ? { parameters: t.parameters } : {}) })), CHART_TOOL]
-
+  const declarations = allDeclarations(run.tools).map((d) => ({ name: d.name, description: d.description, ...(d.parameters ? { parameters: d.parameters } : {}) }))
   for (let round = 0; round < 6; round++) {
-    const content = await gemini(models, {
-      systemInstruction: { parts: [{ text: systemPrompt(user, tools) }] },
+    const content = await gemini(apiKey, models, {
+      systemInstruction: { parts: [{ text: system }] },
       contents,
       tools: [{ functionDeclarations: declarations }],
       generationConfig: { temperature: 0.3, maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: 'low' } },
     })
     const parts = content.parts ?? []
     const calls = parts.filter((p) => p.functionCall)
-    if (!calls.length) {
-      const reply = parts.filter((p) => p.text && !p.thought).map((p) => p.text).join('').trim()
-      return { reply: reply || 'Maaf, PAP AI belum bisa menjawab pertanyaan itu. Coba tanyakan dengan kalimat lain.', charts, sources: [...sources] }
-    }
-    // Kembalikan isi model apa adanya (termasuk thoughtSignature) lalu kirim hasil setiap alat
+    if (!calls.length) return parts.filter((p) => p.text && !p.thought).map((p) => p.text).join('').trim() || EMPTY
+    // Kembalikan isi model apa adanya (termasuk thoughtSignature), lalu hasil semua alat (paralel)
     contents.push({ role: 'model', parts })
-    // Semua alat yang diminta dalam satu putaran dijalankan bersamaan (urutan jawaban tetap sama)
-    const toolStart = Date.now()
-    const responses: Part[] = await Promise.all(calls.map(async ({ functionCall: call }) => {
-      const name = call!.name
-      const args = call!.args ?? {}
-      let result: unknown
-      if (name === CHART_TOOL.name) {
-        const chart = charts.length < 3 ? readChart(args) : null
-        if (chart) charts.push(chart)
-        result = chart ? { ok: true, info: 'Grafik ditampilkan ke pengguna.' } : { ok: false, error: 'Data grafik tidak valid atau sudah 3 grafik.' }
-      } else {
-        const tool = tools.find((t) => t.name === name)
-        if (!tool) result = { error: 'Alat tidak tersedia untuk pengguna ini.' }
-        else {
-          try {
-            result = await runTool(tool, args, user)
-            sources.add(tool.label)
-          } catch (e) {
-            result = { error: `Data gagal diambil: ${(e as Error).message}`.slice(0, 300) }
-          }
-        }
-      }
-      return { functionResponse: { ...(call!.id ? { id: call!.id } : {}), name, response: { result } } }
-    }))
-    console.log(`[ai] putaran ${round + 1}: ${calls.length} alat (${calls.map((c) => c.functionCall!.name).join(', ')}) ${Date.now() - toolStart} ms`)
+    const responses: Part[] = await Promise.all(calls.map(async ({ functionCall: call }) => ({
+      functionResponse: { ...(call!.id ? { id: call!.id } : {}), name: call!.name, response: { result: await execCall(run, call!.name, call!.args ?? {}) } },
+    })))
     contents.push({ role: 'user', parts: responses })
   }
-  return { reply: 'Analisis terlalu panjang untuk diselesaikan sekaligus. Coba persempit pertanyaannya (mis. satu sektor atau satu periode).', charts, sources: [...sources] }
+  return TOO_LONG
+}
+
+// ---------- Claude (Anthropic SDK, manual loop: alat SIMPAP dipakai bersama penyedia lain) ----------
+async function askClaude(run: Run, history: ChatMessage[], system: string) {
+  const client = new Anthropic({ apiKey: (await aiKey('claude'))!, timeout: 90_000, maxRetries: 1 })
+  const model = await aiModel('claude')
+  const tools: Anthropic.Beta.BetaTool[] = allDeclarations(run.tools).map((d) => ({ name: d.name, description: d.description, input_schema: jsonSchema(d.parameters) as Anthropic.Beta.BetaTool.InputSchema }))
+  const messages: Anthropic.Beta.BetaMessageParam[] = history.map((m) => ({ role: m.role === 'model' ? 'assistant' : 'user', content: m.text }))
+  for (let round = 0; round < 8; round++) {
+    const started = Date.now()
+    let res: Anthropic.Beta.BetaMessage
+    try {
+      res = await client.beta.messages.create({
+        model,
+        max_tokens: 16000,
+        // Prompt sistem stabil per hari -> di-cache (lebih cepat & murah untuk pertanyaan berikutnya)
+        system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+        tools,
+        messages,
+        output_config: { effort: 'medium' },
+        // Bila Claude menolak karena kebijakan keamanan, server langsung meneruskan ke model cadangan
+        betas: ['server-side-fallback-2026-07-01'],
+        fallbacks: 'default',
+      })
+    } catch (error) {
+      if (error instanceof Anthropic.AuthenticationError) throw new ProviderError('Kunci API Claude ditolak.')
+      if (error instanceof Anthropic.RateLimitError) throw new ProviderError('Claude sedang sibuk (batas pemakaian).')
+      if (error instanceof Anthropic.APIError) throw new ProviderError(`Claude error ${error.status ?? ''}`.trim())
+      throw new ProviderError('Claude tidak bisa dihubungi.')
+    }
+    console.log(`[ai] claude ${res.model} ${Date.now() - started} ms (${res.stop_reason})`)
+    if (res.stop_reason === 'refusal') throw new ProviderError('Claude tidak menjawab pertanyaan ini.')
+    const calls = res.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === 'tool_use')
+    if (res.stop_reason !== 'tool_use' || !calls.length) {
+      if (res.stop_reason === 'pause_turn') { messages.push({ role: 'assistant', content: res.content }); continue }
+      return res.content.filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text').map((b) => b.text).join('').trim() || EMPTY
+    }
+    // Isi jawaban dikembalikan utuh (termasuk blok thinking), lalu semua hasil alat dalam SATU pesan user
+    messages.push({ role: 'assistant', content: res.content })
+    const results: Anthropic.Beta.BetaToolResultBlockParam[] = await Promise.all(calls.map(async (c) => ({
+      type: 'tool_result' as const, tool_use_id: c.id, content: JSON.stringify(await execCall(run, c.name, (c.input ?? {}) as Args)),
+    })))
+    messages.push({ role: 'user', content: results })
+  }
+  return TOO_LONG
+}
+
+// ---------- ChatGPT (OpenAI Chat Completions, REST) ----------
+type OaiMessage = { role: 'system' | 'user' | 'assistant' | 'tool'; content: string | null; tool_calls?: { id: string; type: 'function'; function: { name: string; arguments: string } }[]; tool_call_id?: string }
+async function askOpenAI(run: Run, history: ChatMessage[], system: string) {
+  const apiKey = (await aiKey('openai'))!
+  const model = await aiModel('openai')
+  const tools = allDeclarations(run.tools).map((d) => ({ type: 'function', function: { name: d.name, description: d.description, parameters: jsonSchema(d.parameters) } }))
+  const messages: OaiMessage[] = [{ role: 'system', content: system }, ...history.map((m) => ({ role: m.role === 'model' ? 'assistant' as const : 'user' as const, content: m.text }))]
+  for (let round = 0; round < 8; round++) {
+    const started = Date.now()
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, messages, tools }),
+      signal: AbortSignal.timeout(90_000),
+    }).catch(() => { throw new ProviderError('ChatGPT tidak bisa dihubungi.') })
+    const json = (await res.json().catch(() => ({}))) as { choices?: { message?: OaiMessage; finish_reason?: string }[]; error?: { message?: string } }
+    if (!res.ok) {
+      console.error('OpenAI error', model, res.status, json.error?.message)
+      throw new ProviderError(res.status === 401 ? 'Kunci API ChatGPT ditolak.' : `ChatGPT error ${res.status}`)
+    }
+    console.log(`[ai] openai ${model} ${Date.now() - started} ms`)
+    const msg = json.choices?.[0]?.message
+    if (!msg) throw new ProviderError('ChatGPT tidak mengembalikan jawaban.')
+    if (!msg.tool_calls?.length) return (msg.content ?? '').trim() || EMPTY
+    messages.push({ role: 'assistant', content: msg.content ?? null, tool_calls: msg.tool_calls })
+    const results = await Promise.all(msg.tool_calls.map(async (c) => {
+      let args: Args = {}
+      try { args = JSON.parse(c.function.arguments || '{}') } catch { /* argumen rusak: jalankan dengan default */ }
+      return { role: 'tool' as const, tool_call_id: c.id, content: JSON.stringify(await execCall(run, c.function.name, args)) }
+    }))
+    messages.push(...results)
+  }
+  return TOO_LONG
+}
+
+// ---------- Router: pilih model otomatis, pindah ke penyedia lain bila gagal ----------
+const ASK: Record<AiProvider, (run: Run, history: ChatMessage[], system: string) => Promise<string>> = { gemini: askGemini, claude: askClaude, openai: askOpenAI }
+
+export async function aiEnabled() {
+  return (await Promise.all((['gemini', 'claude', 'openai'] as AiProvider[]).map((p) => aiKey(p)))).some(Boolean)
+}
+
+export async function askAssistant(user: UserProfile, history: ChatMessage[]): Promise<AiReply> {
+  const question = history[history.length - 1]?.text ?? ''
+  const order = await providerOrder(question)
+  if (!order.length) fail(503, 'PAP AI belum dikonfigurasi. Isi kunci API Gemini / Claude / ChatGPT di Pengaturan > IT.')
+  const tools = TOOLS.filter((t) => t.allowed(user))
+  const system = systemPrompt(user, tools)
+  const errors: string[] = []
+  for (const provider of order) {
+    // Grafik & sumber dimulai bersih untuk tiap penyedia agar tidak tercampur saat pindah
+    const run: Run = { user, tools, charts: [], sources: new Set() }
+    const started = Date.now()
+    try {
+      const reply = await ASK[provider](run, history, system)
+      console.log(`[ai] dijawab ${provider} dalam ${Date.now() - started} ms`)
+      return { reply, charts: run.charts, sources: [...run.sources], model: `${PROVIDERS[provider].label} · ${await aiModel(provider)}` }
+    } catch (error) {
+      if (!(error instanceof ProviderError)) throw error
+      console.error(`[ai] ${provider} gagal, coba penyedia berikutnya:`, error.message)
+      errors.push(`${PROVIDERS[provider].label}: ${error.message}`)
+    }
+  }
+  return fail(502, `PAP AI sedang tidak bisa menjawab (${errors.join('; ')}). Coba lagi beberapa saat lagi.`)
 }
 
 // Menu yang memberi akses data untuk saran pertanyaan di panel
