@@ -2,6 +2,7 @@
 // Satu template dipakai halaman cetak (/cetak/quotation/[id] -> PDF lewat dialog cetak)
 // dan ekspor Word (/api/quotations/[id]/word). Tata letak memakai tabel agar tampil sama di browser dan Microsoft Word.
 import { loadSettings } from '@/lib/hpp'
+import { validSignatures, type QuotationSignature } from '@/lib/quotation-signature'
 import { loadQuotation, loadQuotationItems, QUOTATION_APPROVAL_REQUIRED, requireQuotation } from '@/lib/quotations'
 import type { UserProfile } from '@/lib/users'
 
@@ -14,6 +15,7 @@ const tanggal = (value: string) => {
   const [y, m, d] = value.slice(0, 10).split('-').map(Number)
   return `${d} ${MONTHS[m - 1]} ${y}`
 }
+const signedAt = (v: string) => { const [d, t] = v.split(' '); return `${tanggal(d)}${t ? ` ${t.slice(0, 5)} WIB` : ''}` }
 const rp = (v: number, digits = 0) => `Rp ${v.toLocaleString('id-ID', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`
 const esc = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 
@@ -23,22 +25,32 @@ type Quotation = Awaited<ReturnType<typeof loadQuotation>>
 export async function loadQuotationDocument(id: number, user: UserProfile, jenis: DocJenis) {
   requireQuotation(user)
   const q = await loadQuotation(id, user)
-  if (jenis !== 'penawaran' && !q.order_nomor) return { q, items: [], doc: {} as Record<string, string>, missingOrder: true }
+  if (jenis !== 'penawaran' && !q.order_nomor) return { q, items: [], doc: {} as Record<string, string>, signatures: {} as Awaited<ReturnType<typeof validSignatures>>, missingOrder: true }
   const [items, doc] = await Promise.all([loadQuotationItems(q.id), loadSettings('doc.')])
-  return { q, items, doc, missingOrder: false }
+  // Tanda tangan digital yang masih sah (isi penawaran tidak berubah sejak ditandatangani)
+  const signatures = await validSignatures(q.id, q, items)
+  return { q, items, doc, signatures, missingOrder: false }
 }
 
 export const documentNomor = (q: Quotation, jenis: DocJenis) => String(jenis === 'order' ? q.order_nomor : jenis === 'proforma' ? q.proforma_nomor : q.nomor)
 
-export function quotationDocumentHtml({ q, items, doc }: Awaited<ReturnType<typeof loadQuotationDocument>>, jenis: DocJenis, logoSrc: string) {
-  const penandatangan = doc.penandatangan || q.created_name
+export function quotationDocumentHtml({ q, items, doc, signatures }: Awaited<ReturnType<typeof loadQuotationDocument>>, jenis: DocJenis, logoSrc: string) {
+  const ttdPerusahaan = signatures.perusahaan
+  const ttdCustomer = signatures.customer
+  const penandatangan = ttdPerusahaan?.nama || doc.penandatangan || q.created_name
+  // Alamat untuk gambar tanda tangan (Word butuh URL lengkap) & link verifikasi publik yang tercetak di dokumen
+  const appUrl = (process.env.APP_URL ?? '').replace(/\/$/, '')
+  const origin = logoSrc.replace(/\/logo-pap\.png$/, '')
+  const verifyBase = appUrl || origin
   const perusahaan = doc.nama || 'PT. Pandawa Amerta Packindo'
   const tanggalDok = jenis === 'penawaran' ? q.tanggal : String(q.order_at ?? q.tanggal)
   const ongkir = jenis === 'penawaran' ? 0 : Number(q.ongkir ?? 0)
   const grand = q.total + ongkir
   const dp = q.dp_persen ? Math.round((grand * q.dp_persen) / 100) : null
   const tagihan = jenis === 'proforma' ? (q.terbayar > 0 ? Math.max(0, grand - q.terbayar) : dp ?? grand) : null
-  const sign = (title: string, name: string, org: string) => `<td><p>${esc(title)}</p><div class="space">&nbsp;</div><p><b>${esc(name)}</b></p><p>${esc(org)}</p></td>`
+  const sign = (title: string, name: string, org: string, ttd?: QuotationSignature) => ttd
+    ? `<td><p>${esc(title)}</p><div class="sig"><img src="${esc(`${origin}/api/ttd/${ttd.token}`)}" alt="Tanda tangan ${esc(ttd.nama)}" height="72"></div><p><b>${esc(ttd.nama)}</b></p>${ttd.jabatan ? `<p>${esc(ttd.jabatan)}</p>` : ''}<p>${esc(org)}</p><p class="sig-note">Ditandatangani secara digital ${esc(signedAt(ttd.signed_at))}<br>Verifikasi: ${esc(`${verifyBase}/verifikasi/ttd/${ttd.token}`)}</p></td>`
+    : `<td><p>${esc(title)}</p><div class="space">&nbsp;</div><p><b>${esc(name)}</b></p><p>${esc(org)}</p></td>`
   const total = (label: string, value: string, grandRow = false) => `<tr${grandRow ? ' class="grand"' : ''}><td colspan="4" class="r">${esc(label)}</td><td class="r">${esc(value)}</td></tr>`
   const pembuka = {
     penawaran: 'Bersama ini kami sampaikan penawaran harga produk kemasan plastik sebagai berikut:',
@@ -88,8 +100,8 @@ ${rekening ? `<h3>Pembayaran ke</h3><p class="pre">${esc(rekening)}</p>` : ''}
 ${jenis === 'penawaran' ? '<br><p>Demikian surat penawaran harga ini kami sampaikan. Atas perhatian dan kesempatan yang diberikan, kami mengucapkan terima kasih. Besar harapan kami dapat menjalin kerja sama yang baik, dan kami menantikan kabar baik dari Bapak/Ibu.</p></br>' : ''}
 ${jenis === 'proforma' ? '<p>Mohon lakukan pembayaran ke rekening di atas dan kirimkan bukti transfer kepada kami.</p>' : ''}
 <table class="pap-sheet-sign"><tbody><tr>
-  ${jenis === 'order' ? sign('Disetujui pemesan,', q.kontak || '(.........................)', q.kepada) : '<td>&nbsp;</td>'}
-  ${sign('Hormat kami,', penandatangan, perusahaan)}
+  ${jenis === 'order' ? sign('Disetujui pemesan,', ttdCustomer?.nama || q.kontak || '(.........................)', q.kepada, ttdCustomer) : jenis === 'penawaran' && ttdCustomer ? sign('Disetujui,', ttdCustomer.nama, q.kepada, ttdCustomer) : '<td>&nbsp;</td>'}
+  ${sign('Hormat kami,', penandatangan, perusahaan, ttdPerusahaan)}
 </tr></tbody></table>
 </div>`
 }
@@ -123,4 +135,7 @@ h3 { margin: 10pt 0 2pt; font-size: 10.5pt; }
 .pap-sheet-sign td { width: 50%; text-align: center; vertical-align: top; }
 .pap-sheet-sign p { margin: 0; }
 .pap-sheet-sign .space { height: 60pt; }
+.pap-sheet-sign .sig { height: 60pt; }
+.pap-sheet-sign .sig img { height: 56pt; width: auto; }
+.pap-sheet-sign .sig-note { margin-top: 3pt; color: #667; font-size: 7pt; }
 `

@@ -2602,3 +2602,90 @@ button.pap-ap-gantt-label { cursor:pointer; }
 .pap-tp-year .pap-select { width:auto; min-width:0; height:auto; min-height:0; padding:0 6px 0 12px; border:0; border-left:1px solid var(--pap-border); border-right:1px solid var(--pap-border); border-radius:0; background-color:transparent; font-weight:700; color:var(--pap-text); box-shadow:none; }
 .pap-tp-year .pap-select:focus { outline:none; background-color:rgb(124 92 252 / .06); }
 @media (max-width:640px) { .pap-tp-year { width:auto; } }
+
+/* Kelas bantu (checkbox dengan label, tombol tautan berikon) */
+.pap-ma-check { display:inline-flex; align-items:center; gap:8px; font-size:12px; font-weight:600; cursor:pointer; }
+.pap-ma-check input { width:16px; height:16px; accent-color:#7c5cfc; }
+.pap-shift-edit { display:inline-flex; align-items:center; gap:4px; }
+.pap-shift-edit svg { width:12px; height:12px; }
+
+/* ---------- Tanda tangan digital penawaran ---------- */
+.pap-sheet-sign .sig { display:flex; align-items:flex-end; justify-content:center; height:72px; }
+.pap-sheet-sign .sig img { max-width:220px; height:68px; width:auto; object-fit:contain; }
+.pap-sheet-sign .sig-note { margin-top:4px !important; color:#667; font-size:8px; line-height:1.35; word-break:break-all; }
+.pap-sig-panel { display:flex; flex-direction:column; gap:12px; margin:14px 0; padding:16px; border:1px solid var(--pap-border); border-radius:14px; background:linear-gradient(180deg, rgb(124 92 252 / .05), transparent 70%); }
+.pap-sig-head strong { display:flex; align-items:center; gap:8px; font-size:14px; }
+.pap-sig-head strong svg { width:17px; height:17px; color:#7c5cfc; }
+.pap-sig-head p { margin:4px 0 0; font-size:12px; line-height:1.5; }
+.pap-sig-slots { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.pap-sig-slot { display:flex; flex-direction:column; gap:10px; min-width:0; padding:14px; border:1px solid var(--pap-border); border-radius:12px; background:var(--pap-surface); }
+.pap-sig-slot.kosong { border-style:dashed; }
+.pap-sig-slot.sah { border-color:rgb(29 185 138 / .45); }
+.pap-sig-slot.berubah { border-color:rgb(245 158 11 / .55); }
+.pap-sig-slot-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+.pap-sig-slot-head b { display:block; font-size:13px; }
+.pap-sig-slot-head small { color:var(--pap-muted); font-size:11px; }
+.pap-sig-chip { display:inline-flex; flex:none; align-items:center; gap:4px; padding:3px 9px; border-radius:999px; font-size:10px; font-weight:800; }
+.pap-sig-chip svg { width:13px; height:13px; }
+.pap-sig-chip.sah { background:rgb(29 185 138 / .14); color:#0f8f6a; }
+.pap-sig-chip.berubah { background:rgb(245 158 11 / .16); color:#a86400; }
+.pap-sig-image { display:grid; place-items:center; height:96px; border-radius:10px; background:repeating-linear-gradient(0deg, transparent 0 23px, rgb(124 92 252 / .06) 23px 24px), #fff; }
+.pap-sig-image img { max-width:90%; max-height:84px; object-fit:contain; }
+.pap-sig-slot.berubah .pap-sig-image img { opacity:.35; filter:grayscale(1); }
+.pap-sig-meta { display:flex; flex-direction:column; gap:2px; min-width:0; font-size:12px; }
+.pap-sig-meta span, .pap-sig-meta small { color:var(--pap-muted); }
+.pap-sig-meta small { font-size:11px; }
+.pap-sig-code { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing:.04em; }
+.pap-sig-warn { margin:0; padding:8px 10px; border-radius:8px; background:rgb(245 158 11 / .1); color:#8a5300; font-size:11px; line-height:1.45; }
+.pap-sig-actions { display:flex; flex-wrap:wrap; gap:6px; }
+.pap-sig-actions .pap-btn, .pap-sig-actions .pap-primary-button { display:inline-flex; align-items:center; gap:5px; min-height:32px; padding:0 10px; font-size:11px; text-decoration:none; }
+.pap-sig-actions svg { width:13px; height:13px; }
+.pap-sig-empty { display:flex; flex:1; flex-direction:column; align-items:center; justify-content:center; gap:8px; padding:10px 6px; text-align:center; }
+.pap-sig-empty > svg { width:26px; height:26px; color:#7c5cfc; opacity:.7; }
+.pap-sig-empty p { margin:0; color:var(--pap-muted); font-size:12px; line-height:1.5; }
+.pap-sig-empty .pap-primary-button, .pap-sig-empty .pap-btn { display:inline-flex; align-items:center; gap:6px; }
+.pap-sig-empty svg { width:15px; height:15px; }
+.pap-sig-history ul { margin:6px 0 0; padding-left:18px; color:var(--pap-muted); font-size:11px; line-height:1.6; }
+.pap-sig-form { display:flex; flex-direction:column; gap:14px; }
+.pap-sig-handover { margin:0; padding:10px 12px; border-radius:10px; background:rgb(29 185 138 / .1); color:#0f6f53; font-size:12px; line-height:1.5; }
+.pap-sig-pad-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.pap-sig-pad-head > span { font-size:12px; font-weight:700; }
+.pap-sig-consent { display:flex; align-items:flex-start; gap:10px; padding:12px; border:1px solid var(--pap-border); border-radius:12px; font-size:12px; line-height:1.5; cursor:pointer; }
+.pap-sig-consent input { flex:none; width:18px; height:18px; margin-top:1px; accent-color:#7c5cfc; }
+.pap-sigpad { display:flex; flex-direction:column; gap:8px; }
+.pap-sigpad-area { position:relative; height:220px; border:1.5px dashed rgb(124 92 252 / .45); border-radius:14px; background:#fff; overflow:hidden; }
+.pap-sigpad-area canvas { position:relative; z-index:2; display:block; width:100%; height:100%; touch-action:none; cursor:crosshair; }
+.pap-sigpad.disabled canvas { cursor:not-allowed; }
+.pap-sigpad-line { position:absolute; z-index:1; left:24px; right:24px; bottom:46px; border-bottom:1.5px solid #c9cbe0; }
+.pap-sigpad-line span { position:absolute; left:-2px; bottom:2px; color:#9aa0b4; font-size:16px; }
+.pap-sigpad-hint { position:absolute; z-index:1; inset:0; display:grid; place-items:center; padding-bottom:30px; color:#b3b7cc; font-size:15px; font-style:italic; pointer-events:none; }
+.pap-sigpad-tools { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.pap-sigpad-tools .pap-btn { display:inline-flex; align-items:center; gap:5px; min-height:34px; font-size:12px; }
+.pap-sigpad-tools svg { width:14px; height:14px; }
+.pap-verify { display:grid; place-items:center; min-height:100vh; min-height:100dvh; padding:24px 16px; background:#eef0f4; color:#1b1d2e; font-family:inherit; }
+.pap-verify-card { width:min(520px,100%); padding:28px 26px 22px; border:1px solid #e6e8ef; border-radius:20px; background:#fff; box-shadow:0 24px 60px rgb(20 33 90 / .1); text-align:center; }
+.pap-verify-logo { height:44px; margin-bottom:18px; }
+.pap-verify-badge { display:grid; place-items:center; width:64px; height:64px; margin:0 auto 12px; border-radius:50%; font-size:30px; font-weight:800; color:#fff; }
+.pap-verify-badge.sah { background:#1db98a; box-shadow:0 0 0 8px rgb(29 185 138 / .15); }
+.pap-verify-badge.berubah, .pap-verify-badge.dicabut { background:#f59e0b; box-shadow:0 0 0 8px rgb(245 158 11 / .15); }
+.pap-verify-badge.invalid { background:#9aa0b4; box-shadow:0 0 0 8px rgb(154 160 180 / .18); }
+.pap-verify-card h1 { margin:6px 0 6px; font-size:21px; letter-spacing:-.02em; }
+.pap-verify-text { margin:0 0 18px; color:#5f6478; font-size:13px; line-height:1.6; }
+.pap-verify-dl { display:flex; flex-direction:column; gap:0; margin:0 0 18px; border:1px solid #e6e8ef; border-radius:14px; text-align:left; }
+.pap-verify-dl > div { display:grid; grid-template-columns:150px minmax(0,1fr); gap:10px; padding:10px 14px; border-top:1px solid #eef0f4; font-size:13px; }
+.pap-verify-dl > div:first-child { border-top:0; }
+.pap-verify-dl dt { color:#6b7085; }
+.pap-verify-dl dd { margin:0; font-weight:600; overflow-wrap:anywhere; }
+.pap-verify-foot { margin:0; color:#9aa0b4; font-size:11px; }
+@media (max-width:760px) {
+  .pap-sig-slots { grid-template-columns:1fr; }
+  .pap-sigpad-area { height:200px; }
+}
+@media (max-width:480px) {
+  .pap-sig-panel { padding:12px; }
+  .pap-sigpad-area { height:180px; }
+  .pap-verify-dl > div { grid-template-columns:1fr; gap:2px; }
+  .pap-sigpad-tools .pap-spacer { display:none; }
+  .pap-sigpad-tools .pap-btn { flex:1 1 auto; justify-content:center; }
+}
+@media print { .pap-sig-panel { display:none; } }
