@@ -1392,6 +1392,23 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-due small.late { color:#d14343; }
 @media (min-width:901px) { .pap-shift-row.pap-plan-row { grid-template-columns:160px 120px 140px minmax(140px,1fr) auto; } }
 .pap-card-head .pap-segmented { flex:none; }
+.pap-plan-head-actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.pap-plan-source { align-self:flex-start; }
+.pap-plan-source button { display:inline-flex; align-items:center; gap:6px; }
+.pap-plan-source svg { width:14px; height:14px; }
+.pap-plan-picked { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--pap-border); border-radius:12px; }
+.pap-plan-picked div, .pap-plan-results button { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.pap-plan-picked small, .pap-plan-results small { color:var(--pap-muted); font-size:11px; }
+.pap-plan-results { display:flex; flex-direction:column; max-height:240px; overflow:auto; border:1px solid var(--pap-border); border-radius:12px; }
+.pap-plan-results button { padding:9px 12px; border:0; border-bottom:1px solid var(--pap-border); background:transparent; color:var(--pap-text); font-size:12px; text-align:left; cursor:pointer; }
+.pap-plan-results button:hover, .pap-plan-results button:focus-visible { background:rgb(124 92 252 / .08); }
+.pap-plan-results p { margin:0; padding:10px 12px; font-size:12px; }
+.pap-plan-shifts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.pap-plan-shift { display:flex; flex-direction:column; gap:6px; padding:10px; border:1px dashed var(--pap-border); border-radius:12px; }
+.pap-plan-shift.on { border-style:solid; }
+.pap-plan-shift > button { align-self:flex-start; border:0; cursor:pointer; }
+.pap-plan-shift:not(.on) > button { opacity:.55; }
+@media (max-width:640px) { .pap-plan-shifts { grid-template-columns:1fr; } .pap-plan-head-actions { width:100%; } .pap-plan-head-actions .pap-primary-button { flex:1; justify-content:center; } }
 @media (max-width:800px) { .pap-card-head .pap-segmented { align-self:stretch; } .pap-card-head .pap-segmented button { flex:1; } }
 .pap-shift-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; padding:0 20px 14px; }
 .pap-shift-sum { display:flex; flex-direction:column; gap:2px; min-width:0; padding:10px 12px; border:1px solid var(--pap-border); border-radius:12px; }

@@ -1,19 +1,22 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CalendarClock, CalendarDays, ClipboardList, Pencil, Plus, Search, Trash2, Wallet } from 'lucide-react'
+import { AlertTriangle, CalendarClock, CalendarDays, ClipboardList, Package, Plus, Search, ShoppingCart, Wallet } from 'lucide-react'
 import { AccurateSyncBar, formatNumber, formatRupiah } from './accurate'
-import { api, formatDate, Modal, Notice, Pager, usePaged } from './ui'
+import { api, confirmDialog, formatDate, Modal, Notice, Pager, RowActions, usePaged } from './ui'
 
-// Rencana Produksi ke depan: pesanan (SO Accurate, barang "Diproduksi") dijadwalkan ke tanggal + Shift 1/2/3
+// Rencana Produksi ke depan (CRUD): tanggal + Shift 1/2/3 + produk (dari pesanan atau produk Accurate) + jumlah + nilai
 
-type PlanShift = { id: number; tanggal: string; shift: number; quantity: number; nilai: number | null; catatan: string | null }
-type PlanJob = {
-  id: number; so_number: string | null; so_date: string | null; due_date: string | null; item_name: string; item_no: string | null; customer: string | null
-  quantity: number; unit: string | null; unit_price: number | null; nilai: number | null; prioritas: string; so_status: string | null
-  shifts: PlanShift[]; terjadwal: number
+type Entry = {
+  id: number; tanggal: string; shift: number; sumber: 'pesanan' | 'produk'; job_id: number | null; item_accurate_id: number | null; item_no: string | null; item_name: string
+  customer_name: string | null; so_number: string | null; due_date: string | null; quantity: number; unit: string | null; unit_price: number | null; nilai: number | null; catatan: string | null
 }
-type PlanRes = { today: string; jobs: PlanJob[]; can: { plan: boolean } }
+type Job = {
+  id: number; so_number: string | null; so_date: string | null; due_date: string | null; item_accurate_id: number | null; item_name: string; item_no: string | null; customer: string | null
+  quantity: number; unit: string | null; unit_price: number | null; nilai: number | null; prioritas: string; terjadwal: number
+}
+type PlanRes = { today: string; entries: Entry[]; jobs: Job[]; can: { plan: boolean } }
+type Product = { id: number; item_no: string | null; name: string; unit: string | null; price: number | null; price_source: string | null }
 
 const RANGES = [7, 14, 30] as const
 const DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
@@ -28,16 +31,24 @@ const addDays = (ymd: string, n: number) => {
 const dayDiff = (a: string, b: string) => Math.round((Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 864e5)
 const dayLabel = (ymd: string, today: string) => {
   const d = dayDiff(ymd, today)
-  const name = DAYS[new Date(`${ymd}T00:00:00Z`).getUTCDay()]
-  return `${d === 0 ? 'Hari ini · ' : d === 1 ? 'Besok · ' : ''}${name}, ${formatDate(ymd)}`
+  return `${d === 0 ? 'Hari ini · ' : d === 1 ? 'Besok · ' : ''}${DAYS[new Date(`${ymd}T00:00:00Z`).getUTCDay()]}, ${formatDate(ymd)}`
 }
 // Jumlah per satuan (kg dan Pcs tidak dicampur)
-const sumByUnit = (list: { quantity: number; unit: string | null }[]) => {
+const unitText = (list: { quantity: number; unit: string | null }[]) => {
   const m = new Map<string, number>()
   for (const x of list) m.set(x.unit ?? '', (m.get(x.unit ?? '') ?? 0) + x.quantity)
-  return [...m.entries()].sort((a, b) => b[1] - a[1])
+  return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([u, v]) => qty(v, u)).join(' + ') || '—'
 }
-const unitText = (list: { quantity: number; unit: string | null }[]) => sumByUnit(list).map(([u, v]) => qty(v, u)).join(' + ') || '—'
+const round2 = (v: number) => Math.round(v * 100) / 100
+function useDebounced<T>(value: T, ms = 300) {
+  const [v, setV] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms)
+    return () => clearTimeout(t)
+  }, [value, ms])
+  return v
+}
+const toNum = (v: string) => (v.trim() === '' ? 0 : Number(v.replace(',', '.')) || 0)
 
 function DueBadge({ due, today }: { due: string | null; today: string }) {
   if (!due) return <span className="pap-muted">—</span>
@@ -45,18 +56,21 @@ function DueBadge({ due, today }: { due: string | null; today: string }) {
   return (
     <span className="pap-due">
       {formatDate(due)}
-      <small className={d < 0 ? 'late' : d <= 3 ? 'soon' : ''}>{d < 0 ? `Terlambat ${-d} hari` : d === 0 ? 'Kirim hari ini' : `H-${d}`}</small>
+      <small className={d < 0 ? 'late' : d <= 3 ? 'soon' : ''}>{d < 0 ? `Lewat ${-d} hari` : d === 0 ? 'Kirim hari ini' : `H-${d}`}</small>
     </span>
   )
 }
 
+type FormState = { mode: 'baru'; job?: Job } | { mode: 'ubah'; entry: Entry }
+
 export function ForwardPlanView() {
   const [data, setData] = useState<PlanRes | null>(null)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [days, setDays] = useState<number>(14)
   const [shiftFilter, setShiftFilter] = useState(0)
   const [q, setQ] = useState('')
-  const [editing, setEditing] = useState<PlanJob | null>(null)
+  const [form, setForm] = useState<FormState | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -71,41 +85,54 @@ export function ForwardPlanView() {
   const today = data?.today ?? new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
   const end = addDays(today, days - 1)
   const query = q.trim().toLowerCase()
-  const jobs = useMemo(() => (data?.jobs ?? []).filter((j) => !query || [j.item_name, j.item_no, j.customer, j.so_number].some((v) => v?.toLowerCase().includes(query))), [data, query])
-
-  // Jadwal di rentang hari ini .. +N hari, dikelompokkan per tanggal
-  const scheduled = useMemo(() => jobs.flatMap((job) => job.shifts.filter((s) => s.tanggal >= today && s.tanggal <= end && (!shiftFilter || s.shift === shiftFilter)).map((s) => ({ job, s }))), [jobs, today, end, shiftFilter])
-  const byDate = useMemo(() => {
-    const m = new Map<string, typeof scheduled>()
-    for (const x of [...scheduled].sort((a, b) => a.s.tanggal.localeCompare(b.s.tanggal) || a.s.shift - b.s.shift)) m.set(x.s.tanggal, [...(m.get(x.s.tanggal) ?? []), x])
-    return [...m.entries()]
-  }, [scheduled])
-  // Belum (lengkap) dijadwalkan: sisa = pesanan - jadwal ke depan & yang sudah lewat
-  const pending = useMemo(() => jobs.filter((j) => j.quantity - j.terjadwal > 1e-6), [jobs])
-  const paged = usePaged(pending, [query, days])
-
-  const allJobs = data?.jobs ?? []
-  // Mendesak: tanggal kirim <= 3 hari lagi dan belum seluruhnya dijadwalkan
-  const late = allJobs.filter((j) => j.due_date && dayDiff(j.due_date, today) <= 3 && j.quantity - j.terjadwal > 1e-6).length
-  const totalValue = allJobs.reduce((a, j) => a + (j.nilai ?? 0), 0)
-  const rangeValue = scheduled.reduce((a, x) => a + (x.s.nilai ?? 0), 0)
-  const perShift = [1, 2, 3].map((shift) => {
-    const list = jobs.flatMap((job) => job.shifts.filter((s) => s.shift === shift && s.tanggal >= today && s.tanggal <= end).map((s) => ({ quantity: s.quantity, unit: job.unit, nilai: s.nilai ?? 0 })))
-    return { shift, n: list.length, text: unitText(list), nilai: list.reduce((a, x) => a + x.nilai, 0) }
-  })
+  const match = (...values: (string | null)[]) => !query || values.some((v) => v?.toLowerCase().includes(query))
   const can = data?.can.plan ?? false
 
+  const entries = useMemo(() => (data?.entries ?? []).filter((e) => e.tanggal <= end && (!shiftFilter || e.shift === shiftFilter) && match(e.item_name, e.item_no, e.customer_name, e.so_number, e.catatan)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, end, shiftFilter, query])
+  const byDate = useMemo(() => {
+    const m = new Map<string, Entry[]>()
+    for (const e of entries) m.set(e.tanggal, [...(m.get(e.tanggal) ?? []), e])
+    return [...m.entries()]
+  }, [entries])
+  const pending = useMemo(() => (data?.jobs ?? []).filter((j) => j.quantity - j.terjadwal > 1e-6 && match(j.item_name, j.item_no, j.customer, j.so_number)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, query])
+  const paged = usePaged(pending, [query])
+
+  const allJobs = data?.jobs ?? []
+  const allPending = allJobs.filter((j) => j.quantity - j.terjadwal > 1e-6)
+  const urgent = allPending.filter((j) => j.due_date && dayDiff(j.due_date, today) <= 3).length
+  const inRange = (data?.entries ?? []).filter((e) => e.tanggal <= end)
+  const rangeValue = inRange.reduce((a, e) => a + (e.nilai ?? 0), 0)
+  const perShift = [1, 2, 3].map((shift) => {
+    const list = inRange.filter((e) => e.shift === shift)
+    return { shift, n: list.length, text: unitText(list), nilai: list.reduce((a, e) => a + (e.nilai ?? 0), 0) }
+  })
   const tiles: [string, string, typeof ClipboardList, string, string][] = [
-    ['Pesanan perlu diproduksi', `${allJobs.length}`, ClipboardList, 'stat-1', `Nilai ${shortRupiah(totalValue)}`],
-    ['Belum dijadwalkan', `${allJobs.filter((j) => j.quantity - j.terjadwal > 1e-6).length}`, AlertTriangle, late ? 'stat-2' : 'stat-0', late ? `${late} kirim ≤ 3 hari lagi` : 'Tidak ada yang mendesak'],
-    [`Terjadwal ${days} hari`, unitText(scheduled.map((x) => ({ quantity: x.s.quantity, unit: x.job.unit }))), CalendarClock, 'stat-2', `${scheduled.length} jadwal shift · s.d. ${formatDate(end)}`],
-    [`Nilai rencana ${days} hari`, shortRupiah(rangeValue), Wallet, 'stat-2', 'Jumlah × harga jual pesanan'],
+    [`Rencana ${days} hari`, `${inRange.length}`, ClipboardList, 'stat-1', `s.d. ${formatDate(end)}`],
+    [`Jumlah ${days} hari`, unitText(inRange), CalendarClock, 'stat-1', `${new Set(inRange.map((e) => e.tanggal)).size} hari produksi`],
+    [`Nilai rencana ${days} hari`, shortRupiah(rangeValue), Wallet, 'stat-0', 'Jumlah × harga per satuan'],
+    ['Pesanan belum direncanakan', `${allPending.length}`, AlertTriangle, urgent ? 'stat-2' : 'stat-0', urgent ? `${urgent} kirim ≤ 3 hari lagi` : 'Tidak ada yang mendesak'],
   ]
+
+  async function remove(e: Entry) {
+    if (!(await confirmDialog({ title: 'Hapus rencana produksi?', message: `${dayLabel(e.tanggal, today)} · Shift ${e.shift}\n${e.item_name} · ${qty(e.quantity, e.unit)}\n\nData dipindah ke Data Terhapus dan bisa dipulihkan.`, confirmLabel: 'Hapus', tone: 'danger' }))) return
+    try {
+      await api(`/api/production/rencana/${e.id}`, { method: 'DELETE' })
+      setNotice('Rencana produksi dihapus.')
+      load()
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
 
   return (
     <>
       <AccurateSyncBar entities={['sales-order', 'sales-order-items']} canSync onSynced={load} />
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      {notice && <Notice kind="success" onClose={() => setNotice('')}>{notice}</Notice>}
       <div className="pap-stat-grid four">
         {tiles.map(([label, value, Icon, tone, note]) => (
           <div key={label} className="pap-stat-card">
@@ -116,10 +143,13 @@ export function ForwardPlanView() {
       </div>
 
       <div className="pap-table-card">
-        <div className="pap-card-head">
-          <div><h2>Jadwal produksi</h2><p>Mulai hari ini sampai {days} hari ke depan · per tanggal dan shift. Nilai = jumlah × harga jual pesanan.</p></div>
-          <div className="pap-segmented" role="tablist" aria-label="Rentang hari">
-            {RANGES.map((r) => <button key={r} role="tab" aria-selected={days === r} className={days === r ? 'active' : ''} onClick={() => setDays(r)}>{r} hari</button>)}
+        <div className="pap-card-head pap-plan-card-head">
+          <div><h2>Jadwal rencana produksi</h2><p>Mulai hari ini sampai {days} hari ke depan, per tanggal dan shift.</p></div>
+          <div className="pap-plan-head-actions">
+            <div className="pap-segmented" role="tablist" aria-label="Rentang hari">
+              {RANGES.map((r) => <button key={r} role="tab" aria-selected={days === r} className={days === r ? 'active' : ''} onClick={() => setDays(r)}>{r} hari</button>)}
+            </div>
+            {can && <button className="pap-primary-button" onClick={() => setForm({ mode: 'baru' })}><Plus /> Rencana baru</button>}
           </div>
         </div>
         <div className="pap-filters">
@@ -133,7 +163,7 @@ export function ForwardPlanView() {
             <div key={s.shift} className={`pap-shift-sum s${s.shift}`}>
               <span className="pap-shift-tag">Shift {s.shift}</span>
               <strong>{s.text}</strong>
-              <small>{s.n} jadwal · {formatRupiah(s.nilai)}</small>
+              <small>{s.n} rencana · {formatRupiah(s.nilai)}</small>
             </div>
           ))}
         </div>
@@ -146,36 +176,36 @@ export function ForwardPlanView() {
                   <td colSpan={can ? 7 : 6}>
                     <div className="pap-plan-title">
                       <span><CalendarDays className="pap-inline-icon" /> <b>{dayLabel(tanggal, today)}</b></span>
-                      <span className="pap-cell-sub">{list.length} jadwal · {unitText(list.map((x) => ({ quantity: x.s.quantity, unit: x.job.unit })))} · {formatRupiah(list.reduce((a, x) => a + (x.s.nilai ?? 0), 0))}</span>
+                      <span className="pap-cell-sub">{list.length} rencana · {unitText(list)} · {formatRupiah(list.reduce((a, e) => a + (e.nilai ?? 0), 0))}</span>
                     </div>
                   </td>
                 </tr>,
-                ...list.map(({ job, s }) => (
-                  <tr key={`s${s.id}`}>
-                    <td><span className={`pap-shift-chip s${s.shift}`}><b>Shift {s.shift}</b></span>{s.catatan && <div className="pap-cell-sub">{s.catatan}</div>}</td>
-                    <td><div className="pap-cell-title pap-plan-item">{job.item_name}</div><div className="pap-cell-sub">{job.item_no ?? ''}{job.prioritas === 'tinggi' ? ' · Prioritas tinggi' : ''}</div></td>
-                    <td><div>{job.customer ?? '—'}</div><div className="pap-cell-sub">{job.so_number ?? ''}</div></td>
-                    <td className="pap-num pap-nowrap"><strong>{qty(s.quantity, job.unit)}</strong><div className="pap-cell-sub">dari {qty(job.quantity, job.unit)}</div></td>
-                    <td className="pap-num pap-nowrap"><strong>{formatRupiah(s.nilai)}</strong>{job.unit_price !== null && <div className="pap-cell-sub">@ {formatRupiah(job.unit_price)}</div>}</td>
-                    <td className="pap-nowrap"><DueBadge due={job.due_date} today={today} /></td>
-                    {can && <td><button type="button" className="pap-link-button pap-shift-edit" onClick={() => setEditing(job)}><Pencil /> Ubah</button></td>}
+                ...list.map((e) => (
+                  <tr key={e.id}>
+                    <td><span className={`pap-shift-chip s${e.shift}`}><b>Shift {e.shift}</b></span>{e.catatan && <div className="pap-cell-sub">{e.catatan}</div>}</td>
+                    <td><div className="pap-cell-title pap-plan-item">{e.item_name}</div><div className="pap-cell-sub">{[e.item_no, e.sumber === 'pesanan' ? 'dari pesanan' : 'dari produk Accurate'].filter(Boolean).join(' · ')}</div></td>
+                    <td><div>{e.customer_name ?? '—'}</div>{e.so_number && <div className="pap-cell-sub">{e.so_number}</div>}</td>
+                    <td className="pap-num pap-nowrap"><strong>{qty(e.quantity, e.unit)}</strong></td>
+                    <td className="pap-num pap-nowrap"><strong>{formatRupiah(e.nilai)}</strong>{e.unit_price !== null && <div className="pap-cell-sub">@ {formatRupiah(e.unit_price)}</div>}</td>
+                    <td className="pap-nowrap"><DueBadge due={e.due_date} today={today} /></td>
+                    {can && <td><RowActions label={e.item_name} onEdit={() => setForm({ mode: 'ubah', entry: e })} onDelete={() => remove(e)} /></td>}
                   </tr>
                 )),
               ])}
             </tbody>
           </table>
-          {data && !byDate.length && <div className="pap-empty">Belum ada jadwal produksi dari hari ini sampai {formatDate(end)}{shiftFilter ? ` untuk Shift ${shiftFilter}` : ''}.{can ? ' Jadwalkan pesanan di daftar "Belum dijadwalkan" di bawah.' : ''}</div>}
+          {data && !byDate.length && <div className="pap-empty">Belum ada rencana produksi dari hari ini sampai {formatDate(end)}{shiftFilter ? ` untuk Shift ${shiftFilter}` : ''}.{can ? ' Klik "Rencana baru" atau rencanakan pesanan di bawah.' : ''}</div>}
           {!data && !error && <div className="pap-empty">Memuat rencana produksi...</div>}
         </div>
       </div>
 
       <div className="pap-table-card pap-plan-pending">
         <div className="pap-card-head">
-          <div><h2>Belum dijadwalkan</h2><p>Pesanan Accurate (barang diproduksi) dengan tanggal kirim mulai hari ini yang belum seluruhnya punya jadwal. Urut tanggal kirim terdekat.</p></div>
+          <div><h2>Pesanan belum direncanakan</h2><p>Pesanan Accurate (barang diproduksi) dengan tanggal kirim mulai hari ini yang belum seluruhnya punya rencana. Urut tanggal kirim terdekat.</p></div>
         </div>
         <div className="pap-table-wrap">
           <table className="pap-plan-table">
-            <thead><tr><th>Produk</th><th>Customer / SO</th><th>Tanggal kirim</th><th className="pap-num">Pesanan</th><th className="pap-num">Belum dijadwalkan</th><th className="pap-num">Nilai pesanan</th>{can && <th aria-label="Aksi" />}</tr></thead>
+            <thead><tr><th>Produk</th><th>Customer / SO</th><th>Tanggal kirim</th><th className="pap-num">Pesanan</th><th className="pap-num">Belum direncanakan</th><th className="pap-num">Nilai pesanan</th>{can && <th aria-label="Aksi" />}</tr></thead>
             <tbody>
               {paged.items.map((job) => (
                 <tr key={job.id}>
@@ -183,60 +213,99 @@ export function ForwardPlanView() {
                   <td><div>{job.customer ?? '—'}</div><div className="pap-cell-sub">{job.so_number ?? ''}{job.so_date ? ` · ${formatDate(job.so_date)}` : ''}</div></td>
                   <td className="pap-nowrap"><DueBadge due={job.due_date} today={today} /></td>
                   <td className="pap-num pap-nowrap">{qty(job.quantity, job.unit)}</td>
-                  <td className="pap-num pap-nowrap"><strong>{qty(job.quantity - job.terjadwal, job.unit)}</strong>{job.terjadwal > 0 && <div className="pap-cell-sub">{qty(job.terjadwal, job.unit)} terjadwal</div>}</td>
+                  <td className="pap-num pap-nowrap"><strong>{qty(job.quantity - job.terjadwal, job.unit)}</strong>{job.terjadwal > 0 && <div className="pap-cell-sub">{qty(job.terjadwal, job.unit)} direncanakan</div>}</td>
                   <td className="pap-num pap-nowrap">{formatRupiah(job.nilai)}</td>
-                  {can && <td><button type="button" className="pap-primary-button pap-plan-btn" onClick={() => setEditing(job)}><CalendarClock /> Jadwalkan</button></td>}
+                  {can && <td><button type="button" className="pap-primary-button pap-plan-btn" onClick={() => setForm({ mode: 'baru', job })}><CalendarClock /> Rencanakan</button></td>}
                 </tr>
               ))}
             </tbody>
           </table>
-          {data && !pending.length && <div className="pap-empty">{query ? 'Tidak ada pesanan yang cocok.' : 'Tidak ada pesanan dengan tanggal kirim mulai hari ini yang belum dijadwalkan.'}</div>}
+          {data && !pending.length && <div className="pap-empty">{query ? 'Tidak ada pesanan yang cocok.' : 'Tidak ada pesanan dengan tanggal kirim mulai hari ini yang belum direncanakan.'}</div>}
           <Pager {...paged.pager} noun="pesanan" />
         </div>
       </div>
-      {editing && <JobPlanModal job={editing} today={today} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
+      {form && data && (
+        <PlanForm state={form} today={today} jobs={data.jobs} onClose={() => setForm(null)}
+          onSaved={(msg) => { setForm(null); setNotice(msg); load() }} />
+      )}
     </>
   )
 }
 
-type Draft = { tanggal: string; shift: string; quantity: string; catatan: string }
-const toNum = (v: string) => (v.trim() === '' ? 0 : Number(v.replace(',', '.')) || 0)
-const round2 = (v: number) => Math.round(v * 100) / 100
-
-// Form jadwal satu pesanan: tanggal produksi, shift yang mengerjakan, jumlah, regu/catatan
-function JobPlanModal({ job, today, onClose, onSaved }: { job: PlanJob; today: string; onClose: () => void; onSaved: () => void }) {
-  const unit = job.unit ?? ''
-  const [rows, setRows] = useState<Draft[]>(() =>
-    job.shifts.length
-      ? job.shifts.map((s) => ({ tanggal: s.tanggal, shift: String(s.shift), quantity: String(s.quantity), catatan: s.catatan ?? '' }))
-      : [{ tanggal: today, shift: '1', quantity: String(round2(job.quantity)), catatan: '' }],
-  )
+// Form tambah / ubah rencana: sumber produk (pesanan / produk Accurate), tanggal, shift, jumlah, harga, catatan
+function PlanForm({ state, today, jobs, onClose, onSaved }: { state: FormState; today: string; jobs: Job[]; onClose: () => void; onSaved: (msg: string) => void }) {
+  const edit = state.mode === 'ubah' ? state.entry : null
+  const preJob = state.mode === 'baru' ? state.job : undefined
+  const [sumber, setSumber] = useState<'pesanan' | 'produk'>(edit?.sumber ?? (preJob ? 'pesanan' : jobs.length ? 'pesanan' : 'produk'))
+  const [jobId, setJobId] = useState<number | null>(edit?.job_id ?? preJob?.id ?? null)
+  const [jobFilter, setJobFilter] = useState('')
+  const [product, setProduct] = useState<Product | null>(edit && edit.sumber === 'produk' && edit.item_accurate_id
+    ? { id: edit.item_accurate_id, item_no: edit.item_no, name: edit.item_name, unit: edit.unit, price: edit.unit_price, price_source: null } : null)
+  const [productQ, setProductQ] = useState('')
+  const productQuery = useDebounced(productQ)
+  const [products, setProducts] = useState<Product[]>([])
+  const [searching, setSearching] = useState(false)
+  const [tanggal, setTanggal] = useState(edit?.tanggal ?? today)
+  const [shifts, setShifts] = useState<Record<number, string>>(() => {
+    if (edit) return { [edit.shift]: String(edit.quantity) }
+    const sisa = preJob ? round2(preJob.quantity - preJob.terjadwal) : ''
+    return { 1: String(sisa) }
+  })
+  const [price, setPrice] = useState(edit?.unit_price !== null && edit?.unit_price !== undefined ? String(edit.unit_price) : '')
+  const [customer, setCustomer] = useState(edit?.sumber === 'produk' ? edit.customer_name ?? '' : '')
+  const [unit, setUnit] = useState(edit?.sumber === 'produk' ? edit.unit ?? '' : '')
+  const [catatan, setCatatan] = useState(edit?.catatan ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const update = (i: number, patch: Partial<Draft>) => setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)))
-  const total = rows.reduce((a, r) => a + toNum(r.quantity), 0)
-  const sisa = job.quantity - total
-  const nilai = job.unit_price === null ? null : total * job.unit_price
-  const afterDue = job.due_date ? rows.some((r) => r.tanggal > job.due_date!) : false
 
-  function splitEven() {
-    const tanggal = rows[0]?.tanggal && rows[0].tanggal >= today ? rows[0].tanggal : today
-    const part = Math.floor((job.quantity / 3) * 100) / 100
-    setRows([1, 2, 3].map((s) => ({ tanggal, shift: String(s), quantity: String(s === 3 ? round2(job.quantity - part * 2) : part), catatan: '' })))
+  const job = jobs.find((j) => j.id === jobId)
+  useEffect(() => {
+    if (sumber !== 'produk') return
+    let alive = true
+    setSearching(true)
+    api<{ items: Product[] }>(`/api/production/rencana/produk?q=${encodeURIComponent(productQuery)}`)
+      .then((r) => alive && setProducts(r.items)).catch(() => alive && setProducts([])).finally(() => alive && setSearching(false))
+    return () => { alive = false }
+  }, [sumber, productQuery])
+
+  const shownJobs = jobs.filter((j) => j.id === jobId || !jobFilter.trim() || [j.item_name, j.item_no, j.customer, j.so_number].some((v) => v?.toLowerCase().includes(jobFilter.trim().toLowerCase())))
+  const defaultPrice = sumber === 'pesanan' ? job?.unit_price ?? (edit?.sumber === 'pesanan' ? edit.unit_price : null) ?? null : product?.price ?? null
+  const unitShown = sumber === 'pesanan' ? job?.unit ?? edit?.unit ?? '' : unit || product?.unit || ''
+  const effPrice = price.trim() ? toNum(price) : defaultPrice
+  const selectedShifts = Object.keys(shifts).map(Number).sort()
+  const total = selectedShifts.reduce((a, s) => a + toNum(shifts[s] ?? ''), 0)
+  const afterDue = sumber === 'pesanan' && job?.due_date && tanggal > job.due_date
+
+  function toggleShift(s: number) {
+    if (edit) return setShifts({ [s]: shifts[selectedShifts[0]] ?? '' })
+    if (shifts[s] !== undefined) {
+      if (selectedShifts.length === 1) return
+      const next = { ...shifts }
+      delete next[s]
+      setShifts(next)
+    } else setShifts({ ...shifts, [s]: '' })
   }
-  function addRow() {
-    const last = rows[rows.length - 1]
-    const next = last ? (Number(last.shift) < 3 ? { tanggal: last.tanggal, shift: String(Number(last.shift) + 1) } : { tanggal: addDays(last.tanggal, 1), shift: '1' }) : { tanggal: today, shift: '1' }
-    setRows([...rows, { ...next, quantity: sisa > 0 ? String(round2(sisa)) : '', catatan: '' }])
+  function splitEven() {
+    const base = sumber === 'pesanan' && job ? job.quantity - job.terjadwal + (edit?.quantity ?? 0) : total
+    if (!base) return
+    const part = Math.floor((base / 3) * 100) / 100
+    setShifts({ 1: String(part), 2: String(part), 3: String(round2(base - part * 2)) })
   }
 
   async function save(e: React.FormEvent) {
     e.preventDefault()
-    setBusy(true)
     setError('')
+    if (sumber === 'pesanan' && !jobId) return setError('Pilih pesanan yang akan diproduksi.')
+    if (sumber === 'produk' && !product) return setError('Pilih produk Accurate yang akan diproduksi.')
+    setBusy(true)
+    const body = {
+      sumber, job_id: sumber === 'pesanan' ? jobId : null, item_accurate_id: sumber === 'produk' ? product?.id : null,
+      tanggal, unit_price: price.trim() ? toNum(price) : null, customer_name: customer, unit, catatan,
+      ...(edit ? { shift: selectedShifts[0], quantity: toNum(shifts[selectedShifts[0]] ?? '') } : { rows: selectedShifts.map((s) => ({ shift: s, quantity: toNum(shifts[s] ?? '') })) }),
+    }
     try {
-      await api(`/api/production/rencana/${job.id}`, { method: 'PUT', json: { rows: rows.map((r) => ({ tanggal: r.tanggal, shift: Number(r.shift), quantity: toNum(r.quantity), catatan: r.catatan })) } })
-      onSaved()
+      await api(edit ? `/api/production/rencana/${edit.id}` : '/api/production/rencana', { method: edit ? 'PUT' : 'POST', json: body })
+      onSaved(edit ? 'Rencana produksi diperbarui.' : `${selectedShifts.length} rencana produksi ditambahkan.`)
     } catch (err) {
       setError((err as Error).message)
       setBusy(false)
@@ -244,48 +313,95 @@ function JobPlanModal({ job, today, onClose, onSaved }: { job: PlanJob; today: s
   }
 
   return (
-    <Modal title="Jadwalkan produksi" subtitle={`${job.so_number ?? ''} · ${job.item_name}`} wide onClose={onClose}
+    <Modal title={edit ? 'Ubah rencana produksi' : 'Rencana produksi baru'} subtitle="Pilih produk dari pesanan atau dari daftar produk Accurate" wide onClose={onClose}
       footer={<>
         <div className="pap-shift-total">
-          <span>Dijadwalkan <b>{qty(total, unit)}</b> dari {qty(job.quantity, unit)}{sisa > 1e-6 ? ` · sisa ${qty(sisa, unit)}` : sisa < -1e-6 ? ` · lebih ${qty(-sisa, unit)}` : ''}</span>
-          <span>Nilai <b>{formatRupiah(nilai)}</b></span>
+          <span>Jumlah <b>{qty(total, unitShown)}</b></span>
+          <span>Nilai <b>{effPrice !== null ? formatRupiah(total * effPrice) : '—'}</b></span>
         </div>
         <span className="pap-spacer" />
         <button type="button" className="pap-btn" onClick={onClose}>Batal</button>
-        <button className="pap-primary-button" form="pap-plan-form" disabled={busy}>{busy ? 'Menyimpan...' : 'Simpan jadwal'}</button>
+        <button className="pap-primary-button" form="pap-plan-form" disabled={busy}>{busy ? 'Menyimpan...' : edit ? 'Simpan perubahan' : 'Simpan rencana'}</button>
       </>}>
       <form id="pap-plan-form" className="pap-shift-form" onSubmit={save}>
         {error && <Notice onClose={() => setError('')}>{error}</Notice>}
-        <div className="pap-shift-info">
-          <span>Customer <b>{job.customer ?? '—'}</b></span>
-          <span>Pesanan <b>{qty(job.quantity, unit)}</b></span>
-          <span>Tanggal kirim <b>{job.due_date ? formatDate(job.due_date) : '—'}</b></span>
-          <span>Harga jual <b>{job.unit_price !== null ? `${formatRupiah(job.unit_price)}/${unit || 'satuan'}` : '—'}</b></span>
+        <div className="pap-segmented pap-plan-source" role="radiogroup" aria-label="Sumber produk">
+          <button type="button" role="radio" aria-checked={sumber === 'pesanan'} className={sumber === 'pesanan' ? 'active' : ''} onClick={() => setSumber('pesanan')}><ShoppingCart /> Dari pesanan</button>
+          <button type="button" role="radio" aria-checked={sumber === 'produk'} className={sumber === 'produk' ? 'active' : ''} onClick={() => setSumber('produk')}><Package /> Dari produk Accurate</button>
         </div>
-        {afterDue && <Notice kind="error">Ada jadwal setelah tanggal kirim {formatDate(job.due_date)}. Pastikan pengiriman masih terkejar.</Notice>}
-        <div className="pap-shift-rows">
-          {rows.map((r, i) => (
-            <div key={i} className="pap-shift-row pap-plan-row">
-              <label><span>Tanggal produksi *</span><input className="pap-input" type="date" required min={job.shifts.some((s) => s.tanggal === r.tanggal) ? undefined : today} value={r.tanggal} onChange={(e) => update(i, { tanggal: e.target.value })} /></label>
-              <label><span>Shift *</span>
-                <select className="pap-select" value={r.shift} onChange={(e) => update(i, { shift: e.target.value })}>
-                  <option value="1">Shift 1</option><option value="2">Shift 2</option><option value="3">Shift 3</option>
-                </select>
-              </label>
-              <label><span>Jumlah{unit ? ` (${unit})` : ''} *</span><input className="pap-input" inputMode="decimal" required value={r.quantity} onChange={(e) => update(i, { quantity: e.target.value.replace(/[^\d.,]/g, '') })} placeholder="0" /></label>
-              <label className="pap-shift-note"><span>Regu / operator / mesin</span><input className="pap-input" maxLength={255} value={r.catatan} onChange={(e) => update(i, { catatan: e.target.value })} placeholder="opsional" /></label>
-              <div className="pap-shift-row-end">
-                <span className="pap-shift-row-value">{job.unit_price !== null ? formatRupiah(toNum(r.quantity) * job.unit_price) : '—'}</span>
-                <button type="button" className="pap-icon-button" aria-label={`Hapus baris ${i + 1}`} onClick={() => setRows(rows.filter((_, j) => j !== i))}><Trash2 /></button>
+
+        {sumber === 'pesanan' ? (
+          <div className="pap-field">
+            <span>Pesanan *</span>
+            <input className="pap-input" value={jobFilter} onChange={(e) => setJobFilter(e.target.value)} placeholder="Saring: produk, customer, nomor SO..." />
+            <select className="pap-select" value={jobId ?? ''} onChange={(e) => setJobId(e.target.value ? Number(e.target.value) : null)} required>
+              <option value="">— Pilih pesanan ({shownJobs.length}) —</option>
+              {edit?.sumber === 'pesanan' && edit.job_id && !jobs.some((j) => j.id === edit.job_id) && <option value={edit.job_id}>{edit.so_number} · {edit.item_name} (pesanan lama)</option>}
+              {shownJobs.map((j) => (
+                <option key={j.id} value={j.id}>{[j.so_number, j.item_name, j.customer, j.due_date ? `kirim ${formatDate(j.due_date)}` : null, `sisa ${qty(round2(j.quantity - j.terjadwal), j.unit)}`].filter(Boolean).join(' · ')}</option>
+              ))}
+            </select>
+            {job && (
+              <div className="pap-shift-info">
+                <span>Customer <b>{job.customer ?? '—'}</b></span>
+                <span>Pesanan <b>{qty(job.quantity, job.unit)}</b></span>
+                <span>Sudah direncanakan <b>{qty(job.terjadwal, job.unit)}</b></span>
+                <span>Kirim <b>{job.due_date ? formatDate(job.due_date) : '—'}</b></span>
+                <span>Harga jual <b>{job.unit_price !== null ? formatRupiah(job.unit_price) : '—'}</b></span>
               </div>
+            )}
+            {!jobs.length && <small className="pap-muted">Tidak ada pesanan terbuka dengan tanggal kirim mulai hari ini. Pakai "Dari produk Accurate".</small>}
+          </div>
+        ) : (
+          <div className="pap-field">
+            <span>Produk Accurate *</span>
+            {product ? (
+              <div className="pap-plan-picked">
+                <div><b>{product.name}</b><small>{[product.item_no, product.unit, product.price !== null ? `${formatRupiah(product.price)}${product.price_source ? ` (${product.price_source})` : ''}` : null].filter(Boolean).join(' · ')}</small></div>
+                <button type="button" className="pap-btn" onClick={() => setProduct(null)}>Ganti</button>
+              </div>
+            ) : (
+              <>
+                <label className="pap-filter-search"><Search /><input value={productQ} onChange={(e) => setProductQ(e.target.value)} placeholder="Cari nama / kode produk..." autoFocus /></label>
+                <div className="pap-plan-results" role="listbox" aria-label="Hasil pencarian produk">
+                  {products.map((p) => (
+                    <button type="button" role="option" aria-selected={false} key={p.id} onClick={() => { setProduct(p); setUnit(p.unit ?? '') }}>
+                      <b>{p.name}</b><small>{[p.item_no, p.unit, p.price !== null ? formatRupiah(p.price) : null].filter(Boolean).join(' · ')}</small>
+                    </button>
+                  ))}
+                  {!searching && !products.length && <p className="pap-muted">Produk tidak ditemukan.</p>}
+                  {searching && !products.length && <p className="pap-muted">Mencari...</p>}
+                </div>
+              </>
+            )}
+            <div className="pap-form-grid">
+              <label className="pap-field"><span>Customer (opsional)</span><input className="pap-input" maxLength={255} value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="mis. stok / nama customer" /></label>
+              <label className="pap-field"><span>Satuan</span><input className="pap-input" maxLength={40} value={unit} onChange={(e) => setUnit(e.target.value)} placeholder={product?.unit ?? 'kg'} /></label>
             </div>
-          ))}
-          {!rows.length && <p className="pap-muted">Tidak ada jadwal. Simpan untuk mengosongkan jadwal pesanan ini.</p>}
+          </div>
+        )}
+
+        <div className="pap-form-grid">
+          <label className="pap-field"><span>Tanggal produksi *</span><input className="pap-input" type="date" required min={edit && edit.tanggal < today ? edit.tanggal : today} value={tanggal} onChange={(e) => setTanggal(e.target.value)} /></label>
+          <label className="pap-field"><span>Harga per {unitShown || 'satuan'} (Rp)</span><input className="pap-input" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d.,]/g, ''))} placeholder={defaultPrice !== null ? `${Math.round(defaultPrice)} (bawaan)` : 'isi harga'} /></label>
         </div>
-        <div className="pap-inline-actions">
-          <button type="button" className="pap-btn" onClick={addRow} disabled={rows.length >= 60}><Plus /> Tambah jadwal</button>
-          <button type="button" className="pap-btn" onClick={splitEven}>Bagi rata 3 shift</button>
+        {afterDue && <Notice>Tanggal produksi setelah tanggal kirim pesanan ({formatDate(job?.due_date)}). Pastikan pengiriman masih terkejar.</Notice>}
+
+        <div className="pap-field">
+          <span>Shift & jumlah *{!edit && <small className="pap-muted"> (boleh lebih dari satu shift)</small>}</span>
+          <div className="pap-plan-shifts">
+            {[1, 2, 3].map((s) => (
+              <div key={s} className={`pap-plan-shift ${shifts[s] !== undefined ? 'on' : ''}`}>
+                <button type="button" className={`pap-shift-chip s${s}`} aria-pressed={shifts[s] !== undefined} onClick={() => toggleShift(s)}><b>Shift {s}</b></button>
+                {shifts[s] !== undefined
+                  ? <input className="pap-input" inputMode="decimal" required aria-label={`Jumlah Shift ${s}`} value={shifts[s]} onChange={(e) => setShifts({ ...shifts, [s]: e.target.value.replace(/[^\d.,]/g, '') })} placeholder={`0 ${unitShown}`} />
+                  : <small className="pap-muted">{edit ? 'klik untuk pindah' : 'klik untuk tambah'}</small>}
+              </div>
+            ))}
+          </div>
+          {!edit && <div className="pap-inline-actions"><button type="button" className="pap-btn" onClick={splitEven}>Bagi rata 3 shift</button></div>}
         </div>
+        <label className="pap-field"><span>Regu / operator / mesin (opsional)</span><input className="pap-input" maxLength={255} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="mis. Regu A · Mesin Blow 2" /></label>
       </form>
     </Modal>
   )

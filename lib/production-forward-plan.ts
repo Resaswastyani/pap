@@ -4,114 +4,173 @@ import { db } from '@/lib/db'
 import { canManageProduction, PRODUCTION_SO_MAX_AGE_DAYS } from '@/lib/production'
 import { isLeadOf, type UserProfile } from '@/lib/users'
 
-// Rencana Produksi ke depan: pesanan Accurate (barang "Diproduksi") yang belum terproses dijadwalkan
-// ke tanggal produksi & Shift 1/2/3, dengan jumlah dan nilai (jumlah x harga jual pesanan).
-// Diatur PPIC / GM / Kepala Produksi; yang lain hanya melihat.
+// Rencana Produksi ke depan (CRUD): tanggal + Shift 1/2/3 + produk + jumlah + nilai.
+// Produk diambil dari pesanan Accurate yang belum terproses, atau langsung dari produk Accurate (barang "Diproduksi").
+// Diatur PPIC / GM / Kepala Produksi; yang lain hanya melihat. Data Accurate tidak diubah.
 export const SHIFTS = [1, 2, 3] as const
 export const canPlanProduction = (user: UserProfile) => canManageProduction(user) || isLeadOf(user, 'produksi')
 
 type Row = RowDataPacket & Record<string, unknown>
 const num = (v: unknown) => (v === null || v === undefined ? null : Number(v))
 
-// Pesanan yang masih harus diproduksi: SO belum terproses, job tidak selesai/batal, SO dibuat N hari terakhir
-const OPEN = `so.status <> 'Terproses' AND j.status NOT IN ('selesai', 'batal') AND so.trans_date >= CURDATE() - INTERVAL ${Number(PRODUCTION_SO_MAX_AGE_DAYS)} DAY`
-
 export const todayWib = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
 
-// Hanya pesanan yang tanggal kirimnya hari ini atau ke depan (yang sudah lewat tidak direncanakan lagi),
-// kecuali pesanan yang masih punya jadwal produksi mulai hari ini.
-export async function loadForwardPlan() {
-  const today = todayWib()
-  const [jobs] = await db.query<Row[]>(
-    `SELECT j.id, j.so_number, DATE_FORMAT(so.trans_date, '%Y-%m-%d') AS so_date, DATE_FORMAT(j.due_date, '%Y-%m-%d') AS due_date, j.item_name, i.item_no,
-       j.quantity, j.unit, j.prioritas, so.status AS so_status, soi.unit_price, c.name AS customer
-     FROM production_jobs j
-     JOIN accurate_sales_orders so ON so.accurate_id = j.so_accurate_id
-     LEFT JOIN accurate_sales_order_items soi ON soi.so_accurate_id = j.so_accurate_id AND soi.line_id = j.line_id
-     LEFT JOIN accurate_items i ON i.accurate_id = j.item_accurate_id
-     LEFT JOIN customers c ON c.id = j.customer_id
-     WHERE ${OPEN}
-       AND (j.due_date IS NULL OR j.due_date >= ? OR EXISTS (SELECT 1 FROM production_job_shifts f WHERE f.job_id = j.id AND f.tanggal >= ?))
-     ORDER BY j.due_date IS NULL, j.due_date, j.prioritas = 'tinggi' DESC, j.id
-     LIMIT 1000`,
-    [today, today],
-  )
-  const ids = jobs.map((j) => Number(j.id))
-  const [shifts] = ids.length
-    ? await db.query<Row[]>(
-      `SELECT id, job_id, DATE_FORMAT(tanggal, '%Y-%m-%d') AS tanggal, shift, quantity, catatan FROM production_job_shifts
-       WHERE job_id IN (?) ORDER BY tanggal, shift, id`,
-      [ids],
-    )
-    : [[] as Row[]]
-  return jobs.map((j) => {
-    const price = num(j.unit_price)
-    const quantity = num(j.quantity) ?? 0
-    const list = shifts.filter((s) => s.job_id === j.id).map((s) => {
-      const q = Number(s.quantity)
-      return { id: Number(s.id), tanggal: String(s.tanggal), shift: Number(s.shift), quantity: q, nilai: price === null ? null : q * price, catatan: (s.catatan as string) || null }
-    })
-    return {
-      id: Number(j.id), so_number: j.so_number as string | null, so_date: j.so_date as string | null, due_date: j.due_date as string | null,
-      item_name: String(j.item_name), item_no: (j.item_no as string) ?? null, customer: (j.customer as string) ?? null,
-      quantity, unit: (j.unit as string) ?? null, unit_price: price, nilai: price === null ? null : quantity * price,
-      prioritas: String(j.prioritas), so_status: (j.so_status as string) ?? null,
-      shifts: list, terjadwal: list.reduce((a, s) => a + s.quantity, 0),
-    }
-  })
-}
+// Pesanan yang masih harus diproduksi: SO belum terproses, job tidak selesai/batal, SO dibuat N hari terakhir
+const OPEN = `so.status <> 'Terproses' AND j.status NOT IN ('selesai', 'batal') AND so.trans_date >= CURDATE() - INTERVAL ${Number(PRODUCTION_SO_MAX_AGE_DAYS)} DAY`
+const JOB_SELECT = `SELECT j.id, j.so_number, DATE_FORMAT(so.trans_date, '%Y-%m-%d') AS so_date, DATE_FORMAT(j.due_date, '%Y-%m-%d') AS due_date,
+    j.item_accurate_id, j.item_name, i.item_no, j.quantity, j.unit, j.prioritas, soi.unit_price, c.name AS customer
+  FROM production_jobs j
+  JOIN accurate_sales_orders so ON so.accurate_id = j.so_accurate_id
+  LEFT JOIN accurate_sales_order_items soi ON soi.so_accurate_id = j.so_accurate_id AND soi.line_id = j.line_id
+  LEFT JOIN accurate_items i ON i.accurate_id = j.item_accurate_id
+  LEFT JOIN customers c ON c.id = j.customer_id`
 
-// Validasi isian form: [{ tanggal, shift, quantity, catatan? }]
-export function readPlanRows(body: unknown) {
-  const raw = (body as { rows?: unknown })?.rows
-  const list: unknown[] = Array.isArray(raw) ? raw : fail(400, 'Data jadwal tidak valid.')
-  if (list.length > 60) fail(400, 'Maksimal 60 baris jadwal per pesanan.')
-  return list.map((item, i) => {
-    const r = (item ?? {}) as Record<string, unknown>
-    const tanggal = str(r.tanggal, 10)
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal) || Number.isNaN(Date.parse(tanggal))) fail(400, `Baris ${i + 1}: isi tanggal produksi.`)
-    const shift = Number(r.shift)
-    if (!SHIFTS.includes(shift as 1)) fail(400, `Baris ${i + 1}: pilih Shift 1, 2, atau 3.`)
-    const quantity = Number(r.quantity)
-    if (!Number.isFinite(quantity) || quantity <= 0 || quantity > 1e12) fail(400, `Baris ${i + 1}: jumlah harus lebih dari 0.`)
-    return { tanggal, shift, quantity, catatan: str(r.catatan, 255) || null }
-  })
-}
-
-export async function loadOpenJob(id: number) {
-  const [[job]] = await db.query<Row[]>(
-    `SELECT j.id, j.so_number, j.item_name, j.unit FROM production_jobs j JOIN accurate_sales_orders so ON so.accurate_id = j.so_accurate_id WHERE j.id = ?`,
-    [id],
-  )
-  return job ?? fail(404, 'Pesanan produksi tidak ditemukan.')
-}
-
-// Simpan jadwal satu pesanan (menggantikan jadwal sebelumnya). Jadwal yang tanggalnya sudah lewat tetap disimpan apa adanya;
-// jadwal baru tidak boleh sebelum hari ini.
-export async function saveJobPlan(jobId: number, rows: ReturnType<typeof readPlanRows>, userId: number) {
-  const today = todayWib()
-  const [old] = await db.query<Row[]>("SELECT DATE_FORMAT(tanggal, '%Y-%m-%d') AS tanggal, shift, quantity FROM production_job_shifts WHERE job_id = ?", [jobId])
-  const oldKeys = new Set(old.map((o) => `${o.tanggal}|${o.shift}|${Number(o.quantity)}`))
-  rows.forEach((r, i) => {
-    if (r.tanggal < today && !oldKeys.has(`${r.tanggal}|${r.shift}|${r.quantity}`)) fail(400, `Baris ${i + 1}: tanggal rencana tidak boleh sebelum hari ini.`)
-  })
-  const conn = await db.getConnection()
-  try {
-    await conn.beginTransaction()
-    await conn.query('DELETE FROM production_job_shifts WHERE job_id = ?', [jobId])
-    if (rows.length) {
-      await conn.query(
-        'INSERT INTO production_job_shifts (job_id, tanggal, shift, quantity, catatan, created_by, updated_by) VALUES ?',
-        [rows.map((r) => [jobId, r.tanggal, r.shift, r.quantity, r.catatan, userId, userId])],
-      )
-    }
-    // Status job ikut: ada jadwal = dijadwalkan, kosong = menunggu (job yang sudah berjalan dibiarkan)
-    await conn.query("UPDATE production_jobs SET status = IF(?, 'dijadwalkan', 'menunggu'), updated_by = ? WHERE id = ? AND status IN ('menunggu', 'dijadwalkan')", [rows.length > 0, userId, jobId])
-    await conn.commit()
-  } catch (e) {
-    await conn.rollback()
-    throw e
-  } finally {
-    conn.release()
+const serializeEntry = (e: Row) => {
+  const quantity = Number(e.quantity)
+  const price = num(e.unit_price)
+  return {
+    id: Number(e.id), tanggal: String(e.tanggal), shift: Number(e.shift), sumber: String(e.sumber) as 'pesanan' | 'produk', job_id: num(e.job_id),
+    item_accurate_id: num(e.item_accurate_id), item_no: (e.item_no as string) ?? null, item_name: String(e.item_name),
+    customer_name: (e.customer_name as string) ?? null, so_number: (e.so_number as string) ?? null, due_date: (e.due_date as string) ?? null,
+    quantity, unit: (e.unit as string) ?? null, unit_price: price, nilai: price === null ? null : quantity * price, catatan: (e.catatan as string) || null,
   }
 }
+
+// Data halaman: rencana mulai hari ini + pesanan (tanggal kirim hari ini / ke depan) beserta jumlah yang sudah direncanakan
+export async function loadForwardPlan() {
+  const today = todayWib()
+  const [[entries], [jobs]] = await Promise.all([
+    db.query<Row[]>(
+      `SELECT e.*, DATE_FORMAT(e.tanggal, '%Y-%m-%d') AS tanggal, DATE_FORMAT(j.due_date, '%Y-%m-%d') AS due_date
+       FROM production_plan_entries e LEFT JOIN production_jobs j ON j.id = e.job_id
+       WHERE e.tanggal >= ? ORDER BY e.tanggal, e.shift, e.id LIMIT 3000`,
+      [today],
+    ),
+    db.query<Row[]>(
+      `${JOB_SELECT}
+       WHERE ${OPEN} AND (j.due_date IS NULL OR j.due_date >= ? OR EXISTS (SELECT 1 FROM production_plan_entries f WHERE f.job_id = j.id AND f.tanggal >= ?))
+       ORDER BY j.due_date IS NULL, j.due_date, j.prioritas = 'tinggi' DESC, j.id LIMIT 1000`,
+      [today, today],
+    ),
+  ])
+  const ids = jobs.map((j) => Number(j.id))
+  const [planned] = ids.length
+    ? await db.query<Row[]>('SELECT job_id, SUM(quantity) AS qty FROM production_plan_entries WHERE job_id IN (?) GROUP BY job_id', [ids])
+    : [[] as Row[]]
+  const plannedBy = new Map(planned.map((p) => [Number(p.job_id), Number(p.qty)]))
+  return {
+    today,
+    entries: entries.map(serializeEntry),
+    jobs: jobs.map((j) => {
+      const price = num(j.unit_price)
+      const quantity = num(j.quantity) ?? 0
+      return {
+        id: Number(j.id), so_number: (j.so_number as string) ?? null, so_date: (j.so_date as string) ?? null, due_date: (j.due_date as string) ?? null,
+        item_accurate_id: num(j.item_accurate_id), item_name: String(j.item_name), item_no: (j.item_no as string) ?? null, customer: (j.customer as string) ?? null,
+        quantity, unit: (j.unit as string) ?? null, unit_price: price, nilai: price === null ? null : quantity * price, prioritas: String(j.prioritas),
+        terjadwal: plannedBy.get(Number(j.id)) ?? 0,
+      }
+    }),
+  }
+}
+
+// Cari produk Accurate (barang "Diproduksi"); harga bawaan = harga jual terakhir di pesanan, kalau belum ada harga pokok
+export async function searchPlanProducts(q: string) {
+  const like = `%${q}%`
+  const [rows] = await db.query<Row[]>(
+    `SELECT i.accurate_id, i.item_no, i.name, i.unit, NULLIF(i.unit_cost, 0) AS unit_cost,
+       (SELECT soi.unit_price FROM accurate_sales_order_items soi JOIN accurate_sales_orders so ON so.accurate_id = soi.so_accurate_id
+        WHERE soi.item_accurate_id = i.accurate_id AND soi.unit_price > 0 ORDER BY so.trans_date DESC, so.accurate_id DESC LIMIT 1) AS last_price
+     FROM accurate_items i
+     WHERE i.item_produced = 1 AND i.suspended = 0 ${q ? 'AND (i.name LIKE ? OR i.item_no LIKE ?)' : ''}
+     ORDER BY i.name LIMIT 30`,
+    q ? [like, like] : [],
+  )
+  return rows.map((r) => ({
+    id: Number(r.accurate_id), item_no: (r.item_no as string) ?? null, name: String(r.name), unit: (r.unit as string) ?? null,
+    price: num(r.last_price) ?? num(r.unit_cost), price_source: r.last_price !== null ? 'harga jual terakhir' : r.unit_cost !== null ? 'harga pokok' : null,
+  }))
+}
+
+type EntryInput = {
+  tanggal: string; shift: number; quantity: number; sumber: 'pesanan' | 'produk'; job_id: number | null; item_accurate_id: number | null
+  item_no: string | null; item_name: string; customer_name: string | null; so_number: string | null; unit: string | null; unit_price: number | null; catatan: string | null
+}
+
+const readDate = (v: unknown) => {
+  const t = str(v, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(t) || Number.isNaN(Date.parse(t))) fail(400, 'Isi tanggal rencana produksi.')
+  return t
+}
+const readShift = (v: unknown, label = '') => {
+  const s = Number(v)
+  if (!SHIFTS.includes(s as 1)) fail(400, `${label}Pilih Shift 1, 2, atau 3.`)
+  return s
+}
+const readQty = (v: unknown, label = '') => {
+  const q = Number(v)
+  if (!Number.isFinite(q) || q <= 0 || q > 1e12) fail(400, `${label}Jumlah harus lebih dari 0.`)
+  return q
+}
+
+// Isian form -> data rencana. Produk & customer diambil dari pesanan / produk Accurate di server (bukan dari browser).
+// rows: [{ shift, quantity }] untuk membuat beberapa shift sekaligus (hanya saat tambah).
+export async function readEntry(body: Record<string, unknown>) {
+  const sumber = body.sumber === 'pesanan' ? 'pesanan' : 'produk'
+  const tanggal = readDate(body.tanggal)
+  const priceRaw = body.unit_price
+  let unitPrice = priceRaw === null || priceRaw === undefined || priceRaw === '' ? null : Number(priceRaw)
+  if (unitPrice !== null && (!Number.isFinite(unitPrice) || unitPrice < 0 || unitPrice > 1e13)) fail(400, 'Harga per satuan tidak valid.')
+  const base: Omit<EntryInput, 'tanggal' | 'shift' | 'quantity' | 'unit_price'> = sumber === 'pesanan'
+    ? await (async () => {
+      const id = Number(body.job_id)
+      const [[j]] = await db.query<Row[]>(`${JOB_SELECT} WHERE j.id = ?`, [Number.isInteger(id) ? id : 0])
+      if (!j) fail(400, 'Pilih pesanan yang akan diproduksi.')
+      if (unitPrice === null) unitPrice = num(j.unit_price)
+      return {
+        sumber, job_id: Number(j.id), item_accurate_id: num(j.item_accurate_id), item_no: (j.item_no as string) ?? null, item_name: String(j.item_name),
+        customer_name: (j.customer as string) ?? null, so_number: (j.so_number as string) ?? null, unit: (j.unit as string) ?? null, catatan: str(body.catatan, 255) || null,
+      }
+    })()
+    : await (async () => {
+      const id = Number(body.item_accurate_id)
+      const [[p]] = await db.query<Row[]>('SELECT accurate_id, item_no, name, unit FROM accurate_items WHERE accurate_id = ?', [Number.isInteger(id) ? id : 0])
+      if (!p) fail(400, 'Pilih produk Accurate yang akan diproduksi.')
+      if (unitPrice === null) unitPrice = (await searchPlanProducts(String(p.item_no ?? p.name))).find((x) => x.id === Number(p.accurate_id))?.price ?? null
+      return {
+        sumber, job_id: null, item_accurate_id: Number(p.accurate_id), item_no: (p.item_no as string) ?? null, item_name: String(p.name),
+        customer_name: str(body.customer_name, 255) || null, so_number: null, unit: str(body.unit, 40) || (p.unit as string) || null, catatan: str(body.catatan, 255) || null,
+      }
+    })()
+  const rows = Array.isArray(body.rows) && body.rows.length
+    ? (body.rows as unknown[]).slice(0, 3).map((r, i) => {
+      const x = (r ?? {}) as Record<string, unknown>
+      return { shift: readShift(x.shift, `Baris ${i + 1}: `), quantity: readQty(x.quantity, `Baris ${i + 1}: `) }
+    })
+    : [{ shift: readShift(body.shift), quantity: readQty(body.quantity) }]
+  return rows.map((r): EntryInput => ({ ...base, tanggal, shift: r.shift, quantity: r.quantity, unit_price: unitPrice }))
+}
+
+// Status pesanan ikut rencana: ada rencana = dijadwalkan, tidak ada = menunggu (yang sudah berjalan dibiarkan)
+export async function refreshJobStatus(jobIds: (number | null)[], userId: number) {
+  for (const id of new Set(jobIds.filter((x): x is number => !!x))) {
+    await db.query(
+      `UPDATE production_jobs SET status = IF(EXISTS (SELECT 1 FROM production_plan_entries e WHERE e.job_id = ?), 'dijadwalkan', 'menunggu'), updated_by = ?
+       WHERE id = ? AND status IN ('menunggu', 'dijadwalkan')`,
+      [id, userId, id],
+    )
+  }
+}
+
+export async function loadEntry(id: number) {
+  const [[e]] = await db.query<Row[]>("SELECT *, DATE_FORMAT(tanggal, '%Y-%m-%d') AS tanggal FROM production_plan_entries WHERE id = ?", [id])
+  return e ? serializeEntry(e) : fail(404, 'Rencana produksi tidak ditemukan.')
+}
+
+export const entryLabel = (e: { tanggal: string; shift: number; item_name: string; quantity: number; unit: string | null }) =>
+  `${e.tanggal} Shift ${e.shift} · ${e.item_name} ${e.quantity.toLocaleString('id-ID')}${e.unit ? ` ${e.unit}` : ''}`
+
+export const entryColumns = (e: EntryInput) => ({
+  tanggal: e.tanggal, shift: e.shift, sumber: e.sumber, job_id: e.job_id, item_accurate_id: e.item_accurate_id, item_no: e.item_no, item_name: e.item_name,
+  customer_name: e.customer_name, so_number: e.so_number, quantity: e.quantity, unit: e.unit, unit_price: e.unit_price, catatan: e.catatan,
+})
