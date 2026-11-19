@@ -186,7 +186,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
   )
 }
 
-export function CustomerForm({ initial, onClose, onSaved }: { initial: Customer | null; onClose: () => void; onSaved: (message: string, id?: number) => void }) {
+export function CustomerForm({ initial, onClose, onSaved, extra }: { initial: Customer | null; onClose: () => void; onSaved: (message: string, id?: number) => void; extra?: React.ReactNode }) {
   const [values, setValues] = useState({
     name: initial?.name ?? '',
     email: initial?.email ?? '',
@@ -232,6 +232,7 @@ export function CustomerForm({ initial, onClose, onSaved }: { initial: Customer 
     >
       <form id="customer-form" className="pap-form-grid" onSubmit={submit}>
         {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
+        {extra}
         <Field label="Nama customer" full><input className="pap-input" required maxLength={255} value={values.name} onChange={set('name')} /></Field>
         <Field label="Email"><input className="pap-input" type="email" maxLength={255} value={values.email} onChange={set('email')} /></Field>
         <Field label="No. HP"><input className="pap-input" maxLength={80} value={values.mobile_phone} onChange={set('mobile_phone')} /></Field>

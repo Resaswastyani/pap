@@ -56,10 +56,14 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
   // Ubah data customer (disimpan ke Accurate): sama dengan hak edit di menu Customer
   const canEditCustomer = user.role.isAdmin || user.division.code.startsWith('marketing') || user.permissions.includes(PERMISSIONS.customerManage)
   const [editing, setEditing] = useState<Customer | null>(null)
+  const [editRow, setEditRow] = useState<Row | null>(null)
+  // Ganti PIC: Marketing, Lead, GM, admin (sama dengan server)
+  const canAssignPic = canEditCustomer || user.division.code === 'general_manager'
   const [editError, setEditError] = useState('')
   async function openEdit(id: number) {
     setEditError('')
     try {
+      setEditRow(items.find((r) => r.id === id) ?? null)
       setEditing((await api<{ item: Customer }>(`/api/customers/${id}`)).item)
     } catch (e) {
       setEditError((e as Error).message)
@@ -170,7 +174,8 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
       </div>
       {detailId && <RepeatDetail id={detailId} user={user} users={users} onClose={() => setDetailId(null)} onChanged={flash} />}
       {editError && <Notice onClose={() => setEditError('')}>{editError}</Notice>}
-      {editing && <CustomerForm initial={editing} onClose={() => setEditing(null)} onSaved={(text) => { setEditing(null); flash(text) }} />}
+      {editing && <CustomerForm initial={editing} onClose={() => { setEditing(null); load() }} onSaved={(text) => { setEditing(null); flash(text) }}
+        extra={canAssignPic && editRow ? <PicField customerId={editRow.id} value={editRow.maintenance_to} users={users} /> : null} />}
     </>
   )
 }
@@ -296,5 +301,33 @@ function RepeatDetail({ id, user, users, onClose, onChanged }: { id: number; use
         />
       )}
     </>
+  )
+}
+
+// PIC Marketing Maintenance di form Ubah: tersimpan langsung saat dipilih (terpisah dari data customer Accurate)
+function PicField({ customerId, value, users }: { customerId: number; value: number | null; users: MarketingUser[] }) {
+  const [pic, setPic] = useState(value ? String(value) : '')
+  const [state, setState] = useState<{ busy: boolean; msg: string; ok: boolean }>({ busy: false, msg: '', ok: true })
+  async function change(v: string) {
+    setPic(v)
+    setState({ busy: true, msg: '', ok: true })
+    try {
+      await api(`/api/repeat-order/${customerId}`, { method: 'POST', json: { maintenance_to: v || null } })
+      setState({ busy: false, msg: 'PIC tersimpan.', ok: true })
+    } catch (e) {
+      setState({ busy: false, msg: (e as Error).message, ok: false })
+    }
+  }
+  return (
+    <div className="full">
+      <label className="pap-field">
+        <span>PIC Marketing Maintenance</span>
+        <select className="pap-select" value={pic} disabled={state.busy} onChange={(e) => change(e.target.value)}>
+          <option value="">Belum ada PIC</option>
+          {users.map((u) => <option key={u.id} value={u.id}>{u.name} · {u.division_name}</option>)}
+        </select>
+        <small className={state.ok ? 'pap-muted' : 'pap-text-danger'}>{state.busy ? 'Menyimpan...' : state.msg || 'Tersimpan langsung saat dipilih (PIC di SIMPAP, bukan di Accurate).'}</small>
+      </label>
+    </div>
   )
 }

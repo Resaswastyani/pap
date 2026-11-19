@@ -6,8 +6,11 @@ import { db } from '@/lib/db'
 import { ACTIVITY_TYPES, canSupervise, logActivity, parseDateTime, requireMarketingUser } from '@/lib/marketing'
 import { notify } from '@/lib/notifications'
 import { pushToUsers } from '@/lib/push'
-import { canEditCycle } from '@/lib/customers'
+import { canEditCycle, canManageCustomer } from '@/lib/customers'
 import { loadRepeatCustomer, requireRepeatOrder } from '@/lib/repeat-order'
+
+// Ganti PIC Marketing Maintenance: Lead / GM / admin, serta tim Marketing & pengelola customer (Repeat Order terbuka untuk semua Marketing)
+const canAssignPic = (user: Parameters<typeof canSupervise>[0]) => canSupervise(user) || canManageCustomer(user)
 
 type Ctx = { params: Promise<{ id: string }> }
 const customerId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Customer tidak ditemukan.')
@@ -27,7 +30,7 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
     'SELECT number, trans_date, total_amount, status FROM accurate_sales_invoices WHERE customer_accurate_id = ? ORDER BY trans_date DESC LIMIT 12',
     [item.accurate_id],
   )
-  return NextResponse.json({ item, activities: notes, invoices: invoices.map((i) => ({ ...i, total_amount: Number(i.total_amount ?? 0) })), canAssign: canSupervise(user), canEditCycle: canEditCycle(user) })
+  return NextResponse.json({ item, activities: notes, invoices: invoices.map((i) => ({ ...i, total_amount: Number(i.total_amount ?? 0) })), canAssign: canAssignPic(user), canEditCycle: canEditCycle(user) })
 })
 
 // Catat follow-up customer (WA/telepon/visit/...) + jadwal follow-up berikutnya, atau ganti PIC (Lead/GM)
@@ -38,7 +41,7 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   const body = await readJson(request)
 
   if (body.maintenance_to !== undefined) {
-    if (!canSupervise(user)) fail(403, 'Hanya Lead / GM yang dapat mengganti PIC customer.')
+    if (!canAssignPic(user)) fail(403, 'Hanya Marketing, Lead, GM, atau admin yang dapat mengganti PIC customer.')
     const pic = await requireMarketingUser(body.maintenance_to, 'PIC')
     await db.query('UPDATE customers SET maintenance_to = ? WHERE id = ?', [pic?.id ?? null, item.id])
     await logActivity(db, { customerId: item.id, userId: user.id, jenis: 'handover', hasil: pic ? `PIC Marketing Maintenance: ${pic.name}` : 'PIC dikosongkan' })
