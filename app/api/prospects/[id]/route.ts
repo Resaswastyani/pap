@@ -5,7 +5,7 @@ import { withNoteAttachments } from '@/lib/attachments'
 import { db } from '@/lib/db'
 import {
   canEditProspect, canFollowUpProspect, canSupervise, loadProspect, loadProspectProducts, readProspectProducts, saveProspectProducts, logActivity, parseDateTime, PROSPECT_STATUS, readProspectInput, requireMarketing,
-  requireMarketingUser, serializeVisit, VISIT_SELECT, type ProspectStatus,
+  readSalesIds, requireMarketingUser, saveProspectSales, serializeVisit, VISIT_SELECT, type ProspectStatus,
 } from '@/lib/marketing'
 import { notify } from '@/lib/notifications'
 import { pushToUsers } from '@/lib/push'
@@ -53,14 +53,26 @@ export const PATCH = handle(async (request: Request, { params }: Ctx) => {
     }
   }
 
-  if (body.assigned_to !== undefined) {
-    if (!canSupervise(user) && int(body.assigned_to) !== user.id) fail(403, 'Hanya Lead / Marketing Digital yang dapat membagikan prospek ke sales lain.')
-    const sales = await requireMarketingUser(body.assigned_to, 'Sales')
-    if ((sales?.id ?? null) !== prospect.assigned_to) {
-      sets.push('assigned_to = ?')
-      values.push(sales?.id ?? null)
-      notes.push(sales ? `Diserahkan ke sales ${sales.name}` : 'Sales dikosongkan')
-      if (sales && sales.id !== user.id) toNotify.push({ userId: sales.id, type: 'prospek_baru', title: `Prospek baru untuk Anda: ${prospect.nama_usaha}` })
+  // Sales prospek (bisa lebih dari satu): sales_ids = daftar baru, urutan pertama = sales utama.
+  // assigned_to tunggal (cara lama) = mengganti sales utama, sales lain tetap.
+  let salesBody = body.sales_ids
+  if (salesBody === undefined && body.assigned_to !== undefined) {
+    const others = prospect.sales_ids.filter((sid: number) => sid !== prospect.assigned_to && sid !== int(body.assigned_to))
+    salesBody = body.assigned_to ? [body.assigned_to, ...others] : others
+  }
+  const picked = await readSalesIds(salesBody)
+  if (picked) {
+    const before: number[] = prospect.sales_ids
+    const after = picked.map((s) => s.id)
+    if (!canSupervise(user) && (after.some((sid) => !before.includes(sid) && sid !== user.id) || before.some((sid) => !after.includes(sid) && sid !== user.id))) {
+      fail(403, 'Hanya Lead / Marketing Digital yang dapat membagikan prospek ke sales lain.')
+    }
+    if (after.join(',') !== before.join(',')) {
+      await saveProspectSales(prospect.id, after)
+      const added = picked.filter((s) => !before.includes(s.id))
+      const removed = before.filter((sid) => !after.includes(sid))
+      notes.push(after.length ? `Sales: ${picked.map((s) => s.name).join(', ')}${added.length ? ` (ditambah ${added.map((s) => s.name).join(', ')})` : ''}${removed.length ? ` (${removed.length} sales dilepas)` : ''}` : 'Sales dikosongkan')
+      for (const s of added) if (s.id !== user.id) toNotify.push({ userId: s.id, type: 'prospek_baru', title: `Prospek baru untuk Anda: ${prospect.nama_usaha}` })
     }
   }
 

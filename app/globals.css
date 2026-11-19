@@ -2502,3 +2502,12 @@ button.pap-ap-gantt-label { cursor:pointer; }
 .pap-row-current td { background:rgb(124 92 252 / .06); }
 .pap-row-current .pap-status { margin-left:6px; }
 .pap-svc-filters { display:flex; gap:8px; flex-wrap:wrap; }
+
+/* Prospek: pilih lebih dari satu sales */
+.pap-sales-picker { display:flex; flex-direction:column; gap:8px; }
+.pap-sales-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.pap-sales-chip { display:inline-flex; align-items:center; gap:4px; padding:4px 6px 4px 10px; border-radius:999px; background:rgb(124 92 252 / .1); color:var(--pap-text); font-size:12.5px; font-weight:600; }
+.pap-sales-chip.main { background:rgb(124 92 252 / .18); }
+.pap-sales-chip small { font-size:10.5px; font-weight:700; color:#7050e7; text-transform:uppercase; letter-spacing:.03em; }
+.pap-sales-chip button { border:0; background:none; width:20px; height:20px; border-radius:50%; color:var(--pap-muted); cursor:pointer; font-size:14px; line-height:1; }
+.pap-sales-chip button:hover { background:rgb(124 92 252 / .2); color:var(--pap-text); }

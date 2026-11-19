@@ -50,10 +50,37 @@ export function requireMarketing(user: UserProfile, menu: 'prospek' | 'visit') {
 // Semua marketing melihat seluruh prospek (dan bisa follow-up); di luar marketing hanya prospek yang terkait dirinya
 export function prospectScope(user: UserProfile, alias = 'p') {
   if (canSupervise(user) || isMarketing(user)) return { sql: '1 = 1', params: [] as number[] }
-  return { sql: `(${alias}.assigned_to = ? OR ${alias}.maintenance_to = ? OR ${alias}.created_by = ?)`, params: [user.id, user.id, user.id] }
+  return { sql: `(${alias}.assigned_to = ? OR ${alias}.maintenance_to = ? OR ${alias}.created_by = ? OR ${salesOf(alias)})`, params: [user.id, user.id, user.id, user.id] }
 }
 
-export const PROSPECT_SELECT = `SELECT p.*, ua.name AS assigned_name, um.name AS maintenance_name, uc.name AS created_name,
+// Prospek bisa dipegang lebih dari satu sales (prospect_sales); assigned_to = sales utama (urutan pertama)
+export const salesOf = (alias = 'p') => `EXISTS (SELECT 1 FROM prospect_sales ps WHERE ps.prospect_id = ${alias}.id AND ps.user_id = ?)`
+const SALES_COLUMNS = `(SELECT GROUP_CONCAT(ps.user_id ORDER BY ps.urut, ps.created_at) FROM prospect_sales ps WHERE ps.prospect_id = p.id) AS sales_ids,
+  (SELECT GROUP_CONCAT(us.name ORDER BY ps.urut, ps.created_at SEPARATOR ', ') FROM prospect_sales ps JOIN users us ON us.id = ps.user_id WHERE ps.prospect_id = p.id) AS sales_names`
+// sales_ids "3,7" -> [3, 7]; prospek lama tanpa baris prospect_sales memakai assigned_to
+export function withSales<T extends RowDataPacket>(r: T) {
+  const ids = String(r.sales_ids ?? '').split(',').map(Number).filter(Boolean)
+  return { ...r, sales_ids: ids.length ? ids : r.assigned_to ? [Number(r.assigned_to)] : [], sales_names: r.sales_names ?? r.assigned_name ?? null } as T & { sales_ids: number[]; sales_names: string | null }
+}
+
+// Simpan daftar sales prospek (urutan pertama = sales utama di assigned_to)
+export async function saveProspectSales(prospectId: number, ids: number[], conn: { query: typeof db.query } = db) {
+  await conn.query('DELETE FROM prospect_sales WHERE prospect_id = ?', [prospectId])
+  if (ids.length) await conn.query('INSERT INTO prospect_sales (prospect_id, user_id, urut) VALUES ?', [ids.map((id, i) => [prospectId, id, i])])
+  await conn.query('UPDATE prospects SET assigned_to = ? WHERE id = ?', [ids[0] ?? null, prospectId])
+}
+
+// sales_ids dari body (array / "3,7"); tiap id harus user aktif divisi Marketing. undefined = tidak dikirim.
+export async function readSalesIds(value: unknown) {
+  if (value === undefined) return undefined
+  const raw = Array.isArray(value) ? value : String(value ?? '').split(',')
+  const ids = [...new Set(raw.map((v) => int(v)).filter((v): v is number => !!v))].slice(0, 10)
+  const users: { id: number; name: string }[] = []
+  for (const id of ids) users.push((await requireMarketingUser(id, 'Sales'))!)
+  return users
+}
+
+export const PROSPECT_SELECT = `SELECT p.*, ua.name AS assigned_name, um.name AS maintenance_name, uc.name AS created_name, ${SALES_COLUMNS},
   c.name AS customer_name, c.customer_no,
   (SELECT COUNT(*) FROM marketing_activities a WHERE a.prospect_id = p.id) AS activity_count,
   (SELECT MIN(v.jadwal) FROM visits v WHERE v.prospect_id = p.id AND v.status = 'terjadwal' AND v.jadwal >= NOW() - INTERVAL 1 DAY) AS next_visit
@@ -66,15 +93,15 @@ export const PROSPECT_SELECT = `SELECT p.*, ua.name AS assigned_name, um.name AS
 export async function loadProspect(id: number, user: UserProfile) {
   const scope = prospectScope(user)
   const [rows] = await db.query<RowDataPacket[]>(`${PROSPECT_SELECT} WHERE p.id = ? AND ${scope.sql} LIMIT 1`, [id, ...scope.params])
-  return rows[0] ?? fail(404, 'Prospek tidak ditemukan atau bukan milik Anda.')
+  return withSales(rows[0] ?? fail(404, 'Prospek tidak ditemukan atau bukan milik Anda.'))
 }
 
 // Staff hanya boleh mengubah prospek miliknya; supervisor semua
-export const canEditProspect = (user: UserProfile, p: { assigned_to: number | null; maintenance_to: number | null; created_by: number }) =>
-  canSupervise(user) || [p.assigned_to, p.maintenance_to, p.created_by].includes(user.id)
+export const canEditProspect = (user: UserProfile, p: { assigned_to: number | null; maintenance_to: number | null; created_by: number; sales_ids?: number[] }) =>
+  canSupervise(user) || [p.assigned_to, p.maintenance_to, p.created_by].includes(user.id) || !!p.sales_ids?.includes(user.id)
 
 // Follow-up boleh dicatat semua marketing untuk prospek mana pun (mengubah data prospek tetap pemilik / supervisor)
-export const canFollowUpProspect = (user: UserProfile, p: { assigned_to: number | null; maintenance_to: number | null; created_by: number }) =>
+export const canFollowUpProspect = (user: UserProfile, p: { assigned_to: number | null; maintenance_to: number | null; created_by: number; sales_ids?: number[] }) =>
   isMarketing(user) || canEditProspect(user, p)
 
 // "2026-10-15T09:30" / "2026-10-15 09:30" -> "2026-10-15 09:30:00" (WIB, sama dengan zona sesi DB)
@@ -425,13 +452,13 @@ export async function prospectFilter(user: UserProfile, sp: URLSearchParams) {
   }
   const owner = sp.get('owner')
   if (owner === 'me') {
-    where.push('(p.assigned_to = ? OR p.maintenance_to = ?)')
-    params.push(user.id, user.id)
+    where.push(`(p.assigned_to = ? OR p.maintenance_to = ? OR ${salesOf('p')})`)
+    params.push(user.id, user.id, user.id)
   } else if (owner === 'none') {
     where.push('p.assigned_to IS NULL')
   } else if (int(owner)) {
-    where.push('(p.assigned_to = ? OR p.maintenance_to = ?)')
-    params.push(int(owner)!, int(owner)!)
+    where.push(`(p.assigned_to = ? OR p.maintenance_to = ? OR ${salesOf('p')})`)
+    params.push(int(owner)!, int(owner)!, int(owner)!)
   }
   const followup = sp.get('followup')
   if (followup === 'overdue') where.push("p.next_followup_at < CURDATE() AND p.status NOT IN ('gagal')")
@@ -473,7 +500,8 @@ export async function prospectExport(user: UserProfile, sp: URLSearchParams) {
   applyStatusFilter(where, params, sp.get('status'))
   const [rows] = await db.query<ProspectExportRow[]>(
     `SELECT p.id, p.nama_usaha, p.sektor, p.alamat, p.kota, p.kontak_nama, p.kontak_jabatan, p.telepon, p.kebutuhan, p.payment, p.kompetitor, p.catatan, p.status,
-       ua.name AS assigned_name, DATE_FORMAT(p.next_followup_at, '%Y-%m-%d %H:%i') AS next_followup_at
+       COALESCE((SELECT GROUP_CONCAT(us.name ORDER BY ps.urut SEPARATOR ', ') FROM prospect_sales ps JOIN users us ON us.id = ps.user_id WHERE ps.prospect_id = p.id), ua.name) AS assigned_name,
+       DATE_FORMAT(p.next_followup_at, '%Y-%m-%d %H:%i') AS next_followup_at
      FROM prospects p LEFT JOIN users ua ON ua.id = p.assigned_to
      WHERE ${where.join(' AND ')} ORDER BY p.nama_usaha, p.id LIMIT 3000`,
     params,

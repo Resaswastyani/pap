@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser, pageParams } from '@/lib/api'
 import { db } from '@/lib/db'
 import {
-  applyStatusFilter, areaOptions, canSupervise, plasticOptions, plasticTotals, isMarketing, logActivity, MARKETING_DIVISIONS, parseDateTime, PROSPECT_SELECT, PROSPECT_SOURCES,
+  applyStatusFilter, areaOptions, canSupervise, plasticOptions, plasticTotals, isMarketing, logActivity, MARKETING_DIVISIONS, parseDateTime, PROSPECT_SELECT, PROSPECT_SOURCES, readSalesIds, saveProspectSales, withSales,
   prospectFilter, prospectScope, readProspectInput, readProspectProducts, saveProspectProducts, requireMarketing, requireMarketingUser,
 } from '@/lib/marketing'
 import { notify } from '@/lib/notifications'
@@ -54,7 +54,7 @@ export const GET = handle(async (request: Request) => {
     [[...MARKETING_DIVISIONS, 'general_manager']],
   )
   return NextResponse.json({
-    items: items.map((p) => ({ ...p, activity_count: Number(p.activity_count) })),
+    items: items.map((p) => ({ ...withSales(p), activity_count: Number(p.activity_count) })),
     total: Number(total),
     pageSize,
     summary: Object.fromEntries(summaryRows.map((r) => [r.status, Number(r.n)])),
@@ -82,8 +82,11 @@ export const POST = handle(async (request: Request) => {
     const [dup] = await db.query<(RowDataPacket & { nama_usaha: string })[]>('SELECT nama_usaha FROM prospects WHERE telepon = ? LIMIT 1', [input.telepon])
     if (dup.length) fail(409, `Nomor ${input.telepon} sudah terdaftar sebagai prospek "${dup[0].nama_usaha}".`)
   }
-  let assigned = canSupervise(user) ? (await requireMarketingUser(body.assigned_to, 'Sales'))?.id ?? null : null
-  if (!assigned && isMarketing(user) && user.division.code !== 'marketing_digital') assigned = user.id
+  // Sales bisa lebih dari satu (sales_ids, urutan pertama = sales utama); assigned_to tunggal tetap diterima
+  const picked = canSupervise(user) ? (await readSalesIds(body.sales_ids)) ?? (await readSalesIds(body.assigned_to ? [body.assigned_to] : [])) ?? [] : []
+  let salesIds = picked.map((s) => s.id)
+  if (!salesIds.length && isMarketing(user) && user.division.code !== 'marketing_digital') salesIds = [user.id]
+  const assigned = salesIds[0] ?? null
   const nextFollowup = parseDateTime(body.next_followup_at, 'Jadwal follow-up')
 
   const [result] = await db.query<ResultSetHeader>(
@@ -95,14 +98,15 @@ export const POST = handle(async (request: Request) => {
   )
   const id = result.insertId
   if (products) await saveProspectProducts(id, products)
+  await saveProspectSales(id, salesIds)
   await logActivity(db, { prospectId: id, userId: user.id, jenis: 'status', hasil: `Prospek dibuat oleh ${user.name}${input.sumber ? ` (sumber: ${input.sumber})` : ''}`, statusTo: 'baru' })
-  if (assigned && assigned !== user.id) {
-    await pushToUsers(await notify([assigned], {
+  for (const sid of salesIds.filter((s) => s !== user.id)) {
+    await pushToUsers(await notify([sid], {
       type: 'prospek_baru',
       title: `Prospek baru untuk Anda: ${input.nama_usaha}`,
       body: [input.kontak_nama, input.kota, input.kebutuhan].filter(Boolean).join(' · ') || `Dari ${user.name}`,
       prospectId: id,
-      refKey: `prospek:${id}:${assigned}`,
+      refKey: `prospek:${id}:${sid}`,
     }))
   }
   return NextResponse.json({ id }, { status: 201 })

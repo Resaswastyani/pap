@@ -51,6 +51,7 @@ export const POST = handle(async (request: Request) => {
         p!.estimasi_order, p!.kompetitor, p!.payment, p!.catatan, assigned, user.id, now, batch]],
     )
     if (p!.products?.length) await saveProspectProducts(res.insertId, p!.products)
+    if (assigned) await db.query('INSERT IGNORE INTO prospect_sales (prospect_id, user_id, urut) VALUES (?, ?, 0)', [res.insertId, assigned])
   }
   if (assigned && assigned !== user.id && fresh.length) {
     await pushToUsers(await notify([assigned], {

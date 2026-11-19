@@ -40,6 +40,8 @@ export type Prospect = {
   created_at: string
   updated_at?: string
   assigned_name: string | null
+  sales_ids?: number[]
+  sales_names?: string | null
   maintenance_name: string | null
   created_name: string | null
   customer_name: string | null
@@ -258,10 +260,10 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
                     <td><div className="pap-cell-title">{p.nama_usaha}<FreshBadge item={p} /></div><div className="pap-cell-sub">{[p.sektor, p.kota, p.sumber].filter(Boolean).join(' · ') || '—'}</div></td>
                     <td><div>{p.kontak_nama ?? '—'}</div><div className="pap-cell-sub">{p.telepon ?? p.email ?? ''}</div></td>
                     <td><div className="pap-clamp">{p.kebutuhan ?? '—'}</div>{p.estimasi_order && <div className="pap-cell-sub">{p.estimasi_order}</div>}</td>
-                    <td>{p.assigned_name ?? <span className="pap-muted">Belum dibagi</span>}{p.maintenance_name && <div className="pap-cell-sub">Maint: {p.maintenance_name}</div>}</td>
+                    <td>{p.sales_names ?? p.assigned_name ?? <span className="pap-muted">Belum dibagi</span>}{p.maintenance_name && <div className="pap-cell-sub">Maint: {p.maintenance_name}</div>}</td>
                     <td className={`pap-followup ${followupState(p)}`}>{p.next_followup_at ? formatDate(p.next_followup_at, true) : '—'}{p.next_visit && <div className="pap-cell-sub">Visit {formatDate(p.next_visit, true)}</div>}</td>
                     <td><ProspectBadge value={p.status} /></td>
-                    <td className="pap-actions-cell"><RowActions label={p.nama_usaha} onView={() => { setAutoEdit(false); setDetailId(p.id) }} onEdit={data?.canSupervise || [p.assigned_to, p.maintenance_to, p.created_by].includes(user.id) ? () => { setAutoEdit(true); setDetailId(p.id) } : undefined} /></td>
+                    <td className="pap-actions-cell"><RowActions label={p.nama_usaha} onView={() => { setAutoEdit(false); setDetailId(p.id) }} onEdit={data?.canSupervise || [p.assigned_to, p.maintenance_to, p.created_by].includes(user.id) || p.sales_ids?.includes(user.id) ? () => { setAutoEdit(true); setDetailId(p.id) } : undefined} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -318,7 +320,7 @@ function Kanban({ items, onOpen }: { items: Prospect[]; onOpen: (id: number) => 
                   <strong>{p.nama_usaha}<FreshBadge item={p} /></strong>
                   <small>{[p.kontak_nama, p.kota].filter(Boolean).join(' · ') || '—'}</small>
                   {p.kebutuhan && <span className="pap-clamp">{p.kebutuhan}</span>}
-                  <em>{p.assigned_name ?? 'Belum dibagi'}{p.next_followup_at ? ` · FU ${formatDate(p.next_followup_at)}` : ''}</em>
+                  <em>{p.sales_names ?? p.assigned_name ?? 'Belum dibagi'}{p.next_followup_at ? ` · FU ${formatDate(p.next_followup_at)}` : ''}</em>
                 </button>
               ))}
               {!cards.length && <p className="pap-muted">Kosong</p>}
@@ -355,7 +357,6 @@ function ProspectForm({ user, initial, users, canSupervise, onClose, onSaved }: 
     payment: initial?.payment ?? '',
     kompetitor: initial?.kompetitor ?? '',
     catatan: initial?.catatan ?? '',
-    assigned_to: String(initial?.assigned_to ?? ''),
     next_followup_at: initial ? toInputDateTime(initial.next_followup_at) : nowInput(1, 10),
   })
   const [products, setProducts] = useState<NeedItem[]>(() => (initial?.products?.length ? initial.products : splitNeeds(initial?.kebutuhan ?? '').map((label) => ({ product_id: null, label }))).map(withKey))
@@ -366,6 +367,7 @@ function ProspectForm({ user, initial, users, canSupervise, onClose, onSaved }: 
   const [attachments, setAttachments] = useState<PendingAttachments>(emptyAttachments)
   const set = (key: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [key]: e.target.value }))
   const salesUsers = users.filter((u) => u.division_code !== 'marketing_digital')
+  const [salesIds, setSalesIds] = useState<number[]>(() => initial?.sales_ids ?? (initial?.assigned_to ? [initial.assigned_to] : []))
 
   async function submit(e: React.FormEvent, force = false) {
     e.preventDefault()
@@ -373,7 +375,7 @@ function ProspectForm({ user, initial, users, canSupervise, onClose, onSaved }: 
     setError('')
     try {
       const list = products.filter((p) => p.label.trim()).map(({ _k, ...p }) => ({ ...p, label: p.label.trim() }))
-      const payload = { ...values, products: list, assigned_to: canSupervise ? values.assigned_to || null : undefined, force }
+      const payload = { ...values, products: list, sales_ids: canSupervise ? salesIds : undefined, force }
       if (initial) {
         await api(`/api/prospects/${initial.id}`, { method: 'PATCH', json: payload })
         onSaved('Prospek diperbarui.')
@@ -415,11 +417,8 @@ function ProspectForm({ user, initial, users, canSupervise, onClose, onSaved }: 
         </Field>
         <Field label="Payment"><input className="pap-input" list="pap-payment" maxLength={255} value={values.payment} onChange={set('payment')} placeholder="Contoh: TOP 30 Days, DP 50% Pelunasan COD" /></Field>
         {canSupervise ? (
-          <Field label="Sales (Marketing Development)">
-            <select className="pap-select" value={values.assigned_to} onChange={set('assigned_to')}>
-              <option value="">Belum dibagikan</option>
-              {salesUsers.map((u) => <option key={u.id} value={u.id}>{u.name} · {u.division_name}</option>)}
-            </select>
+          <Field label="Sales (Marketing Development)" hint="Bisa lebih dari satu sales; yang pertama menjadi sales utama.">
+            <SalesPicker users={salesUsers} value={salesIds} onChange={setSalesIds} />
           </Field>
         ) : <div />}
         <Field label="Kompetitor" full>
@@ -706,11 +705,8 @@ function ProspectDetail({ id, autoEdit = false, user, users, onClose, onEdit, on
             <dt>Sales</dt>
             <dd>
               {canSupervise ? (
-                <select className="pap-select" value={item.assigned_to ?? ''} onChange={(e) => patch({ assigned_to: e.target.value || null }, 'Sales prospek diperbarui.')}>
-                  <option value="">Belum dibagikan</option>
-                  {salesUsers.map((u) => <option key={u.id} value={u.id}>{u.name} · {u.division_name}</option>)}
-                </select>
-              ) : item.assigned_name ?? '—'}
+                <SalesPicker users={salesUsers} value={item.sales_ids ?? (item.assigned_to ? [item.assigned_to] : [])} onChange={(ids) => patch({ sales_ids: ids }, 'Sales prospek diperbarui.')} />
+              ) : item.sales_names ?? item.assigned_name ?? '—'}
             </dd>
           </div>
           <div><dt>Marketing Maintenance</dt><dd>{item.maintenance_name ?? '—'}</dd></div>
@@ -856,6 +852,33 @@ function ActivityForm({ prospect, onSaved }: { prospect: Prospect; onSaved: (mes
         <div className="pap-inline-actions"><span className="pap-spacer" /><button type="submit" className="pap-primary-button" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan follow-up'}</button></div>
       </form>
     </section>
+  )
+}
+
+// Pilih satu atau lebih sales: chip per sales (pertama = utama) + pilihan untuk menambah
+function SalesPicker({ users, value, onChange }: { users: MarketingUser[]; value: number[]; onChange: (ids: number[]) => void }) {
+  const byId = new Map(users.map((u) => [u.id, u]))
+  const rest = users.filter((u) => !value.includes(u.id))
+  return (
+    <div className="pap-sales-picker">
+      {value.length > 0 && (
+        <div className="pap-sales-chips">
+          {value.map((id, i) => (
+            <span key={id} className={`pap-sales-chip ${i === 0 ? 'main' : ''}`}>
+              {byId.get(id)?.name ?? `User #${id}`}{i === 0 && value.length > 1 && <small>utama</small>}
+              {i > 0 && <button type="button" title="Jadikan sales utama" aria-label={`Jadikan ${byId.get(id)?.name ?? 'sales'} sales utama`} onClick={() => onChange([id, ...value.filter((v) => v !== id)])}>★</button>}
+              <button type="button" title="Lepas" aria-label={`Lepas ${byId.get(id)?.name ?? 'sales'}`} onClick={() => onChange(value.filter((v) => v !== id))}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      {rest.length > 0 && (
+        <select className="pap-select" value="" onChange={(e) => e.target.value && onChange([...value, Number(e.target.value)])} aria-label="Tambah sales">
+          <option value="">{value.length ? '+ Tambah sales lain' : 'Belum dibagikan — pilih sales'}</option>
+          {rest.map((u) => <option key={u.id} value={u.id}>{u.name} · {u.division_name}</option>)}
+        </select>
+      )}
+    </div>
   )
 }
 

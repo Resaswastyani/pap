@@ -19,8 +19,9 @@ export function requireRepeatOrder(user: UserProfile) {
   if (!user.menus.includes('repeat-order')) fail(403, 'Anda tidak punya akses ke menu Repeat Order.')
 }
 
-// Staff hanya customer yang dipegangnya; Lead/GM/admin semua
-export const seesAllCustomers = (user: UserProfile) => canSupervise(user)
+// Semua customer: Lead/GM/admin serta seluruh user Marketing Maintenance & Marketing Development
+// (bisa saling membantu follow-up); divisi lain hanya customer yang dipegangnya. Mengganti PIC tetap Lead/GM.
+export const seesAllCustomers = (user: UserProfile) => canSupervise(user) || ['marketing_maintenance', 'marketing_development'].includes(user.division.code)
 
 export const REPEAT_BASE = `
   SELECT c.id, c.accurate_id, c.customer_no, c.name, ${sectorSql('c.category')} AS sektor, c.mobile_phone, c.work_phone, c.bill_city, c.maintenance_to, c.next_followup_at, c.last_contact_at,

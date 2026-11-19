@@ -10,7 +10,7 @@ import { computeKpi, loadTargets, readPeriode } from '@/lib/kpi'
 import { canSupervise, prospectScope } from '@/lib/marketing'
 import { canViewAllDivisions } from '@/lib/planning'
 import { canApproveQuotation, QUOTATION_APPROVAL_REQUIRED } from '@/lib/quotations'
-import { REPEAT_BASE, seesAllCustomers } from '@/lib/repeat-order'
+import { REPEAT_BASE } from '@/lib/repeat-order'
 import { designScope, designTodoSql, sampleScope, sampleTodoSql } from '@/lib/requests'
 import { sectorSql } from '@/lib/sectors'
 import { todayWib } from '@/lib/accounting'
@@ -29,7 +29,9 @@ export const GET = handle(async () => {
   // ---- Marketing: pekerjaan hari ini ----
   if (has('prospek')) {
     tasks.push((async () => {
-      const own = '(p.assigned_to = ? OR p.maintenance_to = ? OR (p.assigned_to IS NULL AND p.created_by = ?))'
+      // Prospek milik saya: sales utama, salah satu sales (prospect_sales), maintenance, atau pembuat prospek yang belum dibagi
+      const coSales = `EXISTS (SELECT 1 FROM prospect_sales ps WHERE ps.prospect_id = p.id AND ps.user_id = ${Number(user.id)})`
+      const own = `(p.assigned_to = ? OR p.maintenance_to = ? OR (p.assigned_to IS NULL AND p.created_by = ?) OR ${coSales})`
       const scope = prospectScope(user)
       const [[c]] = await db.query<Row[]>(
         `SELECT COALESCE(SUM(${own} AND p.next_followup_at < CURDATE() + INTERVAL 1 DAY AND p.status NOT IN ('gagal', 'handover')), 0) AS followup_saya,
@@ -47,7 +49,7 @@ export const GET = handle(async () => {
       )
       const [followups] = await db.query<Row[]>(
         `SELECT p.id, p.nama_usaha, p.next_followup_at, p.status FROM prospects p
-         WHERE (p.assigned_to = ? OR p.maintenance_to = ? OR (p.assigned_to IS NULL AND p.created_by = ?))
+         WHERE ${own}
            AND p.next_followup_at < CURDATE() + INTERVAL 1 DAY AND p.status NOT IN ('gagal', 'handover') ORDER BY p.next_followup_at LIMIT 6`,
         [user.id, user.id, user.id],
       )
@@ -77,7 +79,8 @@ export const GET = handle(async () => {
   }
   if (has('repeat-order')) {
     tasks.push((async () => {
-      const all = seesAllCustomers(user)
+      // Ringkasan dashboard tetap customer pegangan sendiri kecuali Lead/GM/admin
+      const all = canSupervise(user)
       const [[r]] = await db.query<Row[]>(
         `SELECT COALESCE(SUM(status = 'waktunya'), 0) AS waktunya, COALESCE(SUM(status = 'berisiko'), 0) AS berisiko,
            COALESCE(SUM(next_followup_at < CURDATE() + INTERVAL 1 DAY), 0) AS followup
