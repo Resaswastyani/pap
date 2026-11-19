@@ -287,10 +287,12 @@ export const aiEnabled = () => !!process.env.GEMINI_API_KEY
 type GeminiJson = { candidates?: { content?: Content; finishReason?: string }[]; error?: { message?: string; code?: number } }
 // Model utama sesekali penuh (503 "high demand"): coba ulang sekali, lalu pakai model cadangan
 async function gemini(models: string[], body: unknown) {
-  const attempts = [models[0], models[0], ...models.slice(1)]
+  // Model penuh -> langsung pindah ke model cadangan; model utama diulang sekali di akhir bila cadangan juga gagal
+  const attempts = [...new Set(models), models[0]]
   let status = 0
   for (const [i, model] of attempts.entries()) {
-    if (i === 1) await new Promise((r) => setTimeout(r, 1200))
+    if (i === attempts.length - 1 && i > 0) await new Promise((r) => setTimeout(r, 800))
+    const started = Date.now()
     const res = await fetch(`${GEMINI_URL}/${model}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY! },
@@ -298,12 +300,28 @@ async function gemini(models: string[], body: unknown) {
       signal: AbortSignal.timeout(40_000),
     }).catch((e: Error) => fail(504, e.name === 'TimeoutError' ? 'PAP AI terlalu lama menjawab. Coba lagi atau persempit pertanyaannya.' : 'PAP AI gagal menghubungi layanan AI. Coba lagi.'))
     const json = (await res.json().catch(() => ({}))) as GeminiJson
-    if (res.ok) return json.candidates?.[0]?.content ?? { role: 'model' as const, parts: [] }
+    if (res.ok) {
+      console.log(`[ai] ${model} ${Date.now() - started} ms`)
+      return json.candidates?.[0]?.content ?? { role: 'model' as const, parts: [] }
+    }
     status = res.status
     console.error('Gemini error', model, res.status, json.error?.message)
     if (![429, 500, 503].includes(res.status)) break
   }
   return fail(status === 429 ? 429 : 502, status === 429 ? 'PAP AI sedang sibuk (batas pemakaian tercapai). Coba lagi sebentar lagi.' : 'Layanan AI sedang padat. Coba lagi beberapa saat lagi.')
+}
+
+const toolCache = globalThis as unknown as { papAiToolCache?: Map<string, { at: number; value: unknown }> }
+const TOOL_TTL = 120_000
+async function runTool(tool: Tool, args: Args, user: UserProfile) {
+  const cache = (toolCache.papAiToolCache ??= new Map())
+  const key = `${user.id}:${tool.name}:${JSON.stringify(args)}`
+  const hit = cache.get(key)
+  if (hit && Date.now() - hit.at < TOOL_TTL) return hit.value
+  const value = await tool.run(args, user)
+  cache.set(key, { at: Date.now(), value })
+  if (cache.size > 300) cache.delete(cache.keys().next().value!)
+  return value
 }
 
 export async function askAssistant(user: UserProfile, history: ChatMessage[]): Promise<AiReply> {
@@ -330,8 +348,9 @@ export async function askAssistant(user: UserProfile, history: ChatMessage[]): P
     }
     // Kembalikan isi model apa adanya (termasuk thoughtSignature) lalu kirim hasil setiap alat
     contents.push({ role: 'model', parts })
-    const responses: Part[] = []
-    for (const { functionCall: call } of calls) {
+    // Semua alat yang diminta dalam satu putaran dijalankan bersamaan (urutan jawaban tetap sama)
+    const toolStart = Date.now()
+    const responses: Part[] = await Promise.all(calls.map(async ({ functionCall: call }) => {
       const name = call!.name
       const args = call!.args ?? {}
       let result: unknown
@@ -344,15 +363,16 @@ export async function askAssistant(user: UserProfile, history: ChatMessage[]): P
         if (!tool) result = { error: 'Alat tidak tersedia untuk pengguna ini.' }
         else {
           try {
-            result = await tool.run(args, user)
+            result = await runTool(tool, args, user)
             sources.add(tool.label)
           } catch (e) {
             result = { error: `Data gagal diambil: ${(e as Error).message}`.slice(0, 300) }
           }
         }
       }
-      responses.push({ functionResponse: { ...(call!.id ? { id: call!.id } : {}), name, response: { result } } })
-    }
+      return { functionResponse: { ...(call!.id ? { id: call!.id } : {}), name, response: { result } } }
+    }))
+    console.log(`[ai] putaran ${round + 1}: ${calls.length} alat (${calls.map((c) => c.functionCall!.name).join(', ')}) ${Date.now() - toolStart} ms`)
     contents.push({ role: 'user', parts: responses })
   }
   return { reply: 'Analisis terlalu panjang untuk diselesaikan sekaligus. Coba persempit pertanyaannya (mis. satu sektor atau satu periode).', charts, sources: [...sources] }
