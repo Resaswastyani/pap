@@ -3,7 +3,7 @@ import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { notify } from '@/lib/notifications'
 import { pushToUsers } from '@/lib/push'
-import { canApproveQuotation, loadQuotation, QUOTATION_APPROVAL_REQUIRED, quotationApprovers, requireQuotation } from '@/lib/quotations'
+import { canApproveQuotation, canManageQuotation, loadQuotation, QUOTATION_APPROVAL_REQUIRED, quotationApprovers, requireQuotation } from '@/lib/quotations'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -23,7 +23,7 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   const total = `Rp ${Math.round(item.total).toLocaleString('id-ID')}`
 
   if (action === 'ajukan') {
-    if (item.created_by !== user.id && !user.role.isAdmin) fail(403, 'Hanya pembuat penawaran yang dapat mengajukan persetujuan.')
+    if (!canManageQuotation(user, item as { created_by: number })) fail(403, 'Hanya Marketing / GM yang dapat mengajukan persetujuan.')
     if (item.approval === 'menunggu') fail(400, 'Penawaran sudah diajukan dan sedang menunggu persetujuan.')
     if (item.approval === 'disetujui') fail(400, 'Penawaran sudah disetujui.')
     await db.query("UPDATE quotations SET approval = 'menunggu', approval_note = NULL, approved_by = NULL, approved_at = NULL WHERE id = ? AND status = 'draft'", [item.id])

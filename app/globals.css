@@ -835,7 +835,8 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-sheet-head img { width:120px; height:auto; }
 .pap-sheet-head h1 { margin:0; font-size:20px; color:#1f2a5a; }
 .pap-sheet-head p { margin:1px 0 0; color:#444; font-size:11.5px; }
-.pap-sheet-title { margin:22px 0 14px; text-align:center; font-size:15px; letter-spacing:.06em; text-decoration:underline; }
+.pap-sheet-date { margin:14px 0 0; text-align:right; }
+.pap-sheet-title { margin:10px 0 14px; text-align:center; font-size:15px; letter-spacing:.06em; text-decoration:underline; }
 .pap-sheet-draft { margin:0 0 14px; padding:6px 10px; border:2px dashed #b42318; color:#b42318; text-align:center; font-weight:700; letter-spacing:.04em; }
 .pap-sheet-meta { margin-bottom:14px; border-collapse:collapse; }
 .pap-sheet-meta td { padding:1px 12px 1px 0; vertical-align:top; }
@@ -2689,3 +2690,36 @@ button.pap-ap-gantt-label { cursor:pointer; }
   .pap-sigpad-tools .pap-btn { flex:1 1 auto; justify-content:center; }
 }
 @media print { .pap-sig-panel { display:none; } }
+
+/* ---------- Quotation: pratinjau dokumen & pilihan pengiriman ---------- */
+.pap-modal.pap-doc-preview { width:min(940px,100%); height:calc(100vh - 48px); height:calc(100dvh - 48px); }
+.pap-doc-preview .pap-modal-body { display:flex; flex:1; flex-direction:column; gap:10px; min-height:0; }
+.pap-doc-tabs { align-self:flex-start; }
+.pap-doc-frame { position:relative; flex:1; min-height:320px; overflow:hidden; border:1px solid var(--pap-border); border-radius:12px; background:#e9eaf0; }
+.pap-doc-frame iframe { display:block; width:100%; height:100%; border:0; background:#e9eaf0; }
+.pap-doc-loading { position:absolute; inset:0; z-index:1; display:flex; align-items:center; justify-content:center; gap:10px; background:#e9eaf0; color:#5f6478; font-size:13px; }
+.pap-spin-dot { width:18px; height:18px; border:2.5px solid rgb(124 92 252 / .25); border-top-color:#7c5cfc; border-radius:50%; animation:pap-spin-dot .8s linear infinite; }
+@keyframes pap-spin-dot { to { transform:rotate(360deg); } }
+.pap-doc-hint { margin:0; font-size:11px; }
+.pap-doc-preview .pap-modal-foot a.pap-btn { display:inline-flex; align-items:center; gap:6px; text-decoration:none; }
+.pap-print-embed { min-height:auto; padding:16px 12px 28px; }
+.pap-print-embed .pap-sheet { box-shadow:0 6px 24px rgb(20 33 90 / .12); }
+.pap-ship-options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.pap-ship-option { display:flex; flex-direction:column; align-items:flex-start; gap:3px; min-width:0; padding:12px; border:1.5px solid var(--pap-border); border-radius:12px; background:var(--pap-surface); color:var(--pap-text); text-align:left; cursor:pointer; transition:border-color .15s, box-shadow .15s; }
+.pap-ship-option svg { width:18px; height:18px; color:var(--pap-muted); }
+.pap-ship-option b { font-size:13px; }
+.pap-ship-option small { color:var(--pap-muted); font-size:11px; line-height:1.4; }
+.pap-ship-option:hover { border-color:rgb(124 92 252 / .45); }
+.pap-ship-option.active { border-color:#7c5cfc; box-shadow:0 0 0 3px rgb(124 92 252 / .14); background:rgb(124 92 252 / .05); }
+.pap-ship-option.active svg { color:#7c5cfc; }
+@media (max-width:800px) {
+  .pap-modal.pap-doc-preview { height:94vh; height:94dvh; }
+  .pap-doc-frame { min-height:0; }
+  .pap-hide-sm { display:none; }
+}
+@media (max-width:560px) {
+  .pap-ship-options { grid-template-columns:1fr; }
+  .pap-ship-option { flex-direction:row; flex-wrap:wrap; align-items:center; column-gap:8px; }
+  .pap-ship-option small { flex-basis:100%; }
+  .pap-doc-preview .pap-modal-foot .pap-primary-button { flex:1; justify-content:center; }
+}

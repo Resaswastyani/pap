@@ -26,7 +26,7 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
 // hilang karena salah klik. Tutup lewat tombol ✕, Batal / Tutup, atau Esc. HP & tablet: ketuk di luar tetap menutup.
 export const closeOnOutsideClick = () => typeof window === 'undefined' || !window.matchMedia('(hover: hover) and (pointer: fine)').matches
 
-export function Modal({ title, subtitle, onClose, children, footer, wide }: { title: string; subtitle?: string; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
+export function Modal({ title, subtitle, onClose, children, footer, wide, className }: { title: string; subtitle?: string; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean; className?: string }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -34,7 +34,7 @@ export function Modal({ title, subtitle, onClose, children, footer, wide }: { ti
   }, [onClose])
   return (
     <div className="pap-modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && closeOnOutsideClick() && onClose()}>
-      <div className={`pap-modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div className={`pap-modal ${wide ? 'wide' : ''} ${className ?? ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="pap-modal-head">
           <div>
             <h2>{title}</h2>
