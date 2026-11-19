@@ -12,12 +12,13 @@ export const db =
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
     waitForConnections: true,
-    connectionLimit: 5,
+    // DB_POOL_SIZE bisa diatur di env; default 20 (database lokal di VPS)
+    connectionLimit: Number(process.env.DB_POOL_SIZE || 20),
     connectTimeout: 8000,
     // Koneksi ke MySQL remote sering diputus saat menganggur (ECONNRESET): jaga tetap hidup & tutup yang lama
     enableKeepAlive: true,
     keepAliveInitialDelay: 10000,
-    maxIdle: 2,
+    maxIdle: 10,
     idleTimeout: 60000,
     // DATE/DATETIME dikembalikan sebagai string agar tidak bergeser zona waktu
     dateStrings: true,

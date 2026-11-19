@@ -115,10 +115,24 @@ export async function leadAndGmUsers(leadDivisions: string[]) {
 }
 
 // User yang sedang login (null bila sesi tidak valid atau akun dinonaktifkan)
+// Cache 15 detik per user agar permintaan beruntun (mis. dashboard memuat belasan data) tidak membaca ulang profil.
+// Perubahan akun / hak akses (Manajemen User & Role) memanggil clearProfileCache sehingga langsung berlaku.
+const profileCache = globalThis as unknown as { papProfiles?: Map<number, { at: number; profile: UserProfile | null }> }
+const PROFILE_TTL = 15_000
+export function clearProfileCache(userId?: number) {
+  if (userId === undefined) profileCache.papProfiles?.clear()
+  else profileCache.papProfiles?.delete(userId)
+}
+
 export async function getCurrentUser() {
   const session = await getSession()
   if (!session) return null
+  const cache = (profileCache.papProfiles ??= new Map())
+  const hit = cache.get(session.id)
+  if (hit && Date.now() - hit.at < PROFILE_TTL) return hit.profile
   const user = await findUserById(session.id)
-  if (!user || !user.is_active) return null
-  return toProfile(user)
+  const profile = !user || !user.is_active ? null : await toProfile(user)
+  cache.set(session.id, { at: Date.now(), profile })
+  if (cache.size > 500) cache.delete(cache.keys().next().value!)
+  return profile
 }

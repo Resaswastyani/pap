@@ -1,6 +1,7 @@
 import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, requireUser, str } from '@/lib/api'
+import { runInBackground } from '@/lib/background'
 import { db } from '@/lib/db'
 import { canManageTeknik, canProcessPurchase, requireTeknikMenu } from '@/lib/teknik'
 import { serializeVendor, syncVendors, VENDOR_SELECT, vendorsStale, vendorSyncInfo } from '@/lib/vendors'
@@ -11,11 +12,16 @@ export const GET = handle(async (request: Request) => {
   requireTeknikMenu(user, 'pengajuan-pembelian', 'Pengajuan Pembelian')
   const params = new URL(request.url).searchParams
   let warning: string | null = null
-  if (vendorsStale((await vendorSyncInfo()).at)) {
-    try {
-      await syncVendors()
-    } catch (error) {
-      warning = `Sinkron supplier dari Accurate gagal: ${(error as Error).message}`
+  const lastSync = (await vendorSyncInfo()).at
+  if (vendorsStale(lastSync)) {
+    // Sudah ada data: tampil dulu, sinkron Accurate di latar. Belum pernah: tunggu.
+    if (lastSync) runInBackground('vendors', () => syncVendors())
+    else {
+      try {
+        await syncVendors()
+      } catch (error) {
+        warning = `Sinkron supplier dari Accurate gagal: ${(error as Error).message}`
+      }
     }
   }
   const [rows] = await db.query<RowDataPacket[]>(`${VENDOR_SELECT} ORDER BY v.name`)

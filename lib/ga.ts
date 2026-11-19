@@ -298,6 +298,13 @@ export async function syncGaIfStale(minutes = 10) {
     "SELECT COALESCE(MAX(value) < NOW() - INTERVAL ? MINUTE, 1) AS stale FROM app_settings WHERE `key` = 'ga.synced_at'", [minutes],
   )
   if (!Number(row?.stale ?? 1)) return null
+  // Sudah pernah sinkron: data tersimpan langsung tampil, sinkron di latar
+  const [[done]] = await db.query<RowDataPacket[]>("SELECT 1 FROM app_settings WHERE `key` = 'ga.synced_at' AND value IS NOT NULL AND value <> ''")
+  if (done) {
+    const { runInBackground } = await import('@/lib/background')
+    runInBackground('ga', () => syncGa())
+    return null
+  }
   try {
     await syncGa()
     return null

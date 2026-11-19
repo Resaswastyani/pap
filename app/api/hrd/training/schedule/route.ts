@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser, str } from '@/lib/api'
+import { runInBackground } from '@/lib/background'
 import { canManageTraining, requireTraining, TRAINING_STALE_HOURS } from '@/lib/training'
 import { loadSchedule, loadScheduleSync, loadScheduleUrl, recordScheduleError, saveScheduleUrl, syncSchedule } from '@/lib/training-schedule'
 
@@ -14,13 +15,19 @@ export const GET = handle(async () => {
   const manage = canManageTraining(user)
   const url = await loadScheduleUrl()
   let warning: string | null = null
-  if (url && isStale((await loadScheduleSync()).at)) {
-    try {
-      await syncSchedule()
-    } catch (error) {
-      warning = `Sinkron otomatis gagal: ${(error as Error).message}`
-      await recordScheduleError(warning)
+  const lastSync = (await loadScheduleSync()).at
+  if (url && isStale(lastSync)) {
+    const job = async () => {
+      try {
+        await syncSchedule()
+      } catch (error) {
+        warning = `Sinkron otomatis gagal: ${(error as Error).message}`
+        await recordScheduleError(warning)
+      }
     }
+    // Sudah ada data: tampilkan dulu, sinkron di latar. Belum pernah sinkron: tunggu agar halaman tidak kosong.
+    if (lastSync) runInBackground('training-schedule', job)
+    else await job()
   }
   const data = await loadSchedule()
   return NextResponse.json({
