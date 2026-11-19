@@ -1540,7 +1540,7 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-card-head .pap-primary-button, .pap-card-head .pap-btn { flex:none; justify-content:center; white-space:nowrap; }
 .pap-card-head .pap-primary-button svg { flex:none; }
 @media (max-width:800px) { .pap-card-head > .pap-primary-button, .pap-card-head > .pap-inline-actions { align-self:stretch; } .pap-card-head > .pap-primary-button { width:100%; } }
-@media (max-width:640px) { .pap-page-tabs { display:flex; width:100%; } .pap-page-tabs button { flex:1; justify-content:center; padding:6px 8px; font-size:11px; white-space:nowrap; } }
+@media (max-width:640px) { .pap-page-tabs { display:flex; width:100%; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; } .pap-page-tabs::-webkit-scrollbar { display:none; } .pap-page-tabs button { flex:1 0 auto; justify-content:center; padding:6px 10px; font-size:11px; white-space:nowrap; } }
 /* Cetak invoice faktur penjualan (format Accurate PT. Pandawa Amerta Packindo) */
 .pap-invoice { color:#000; font-family:Arial, Helvetica, sans-serif; font-size:12px; }
 .pap-invoice-head { display:grid; grid-template-columns:1fr auto 1fr; gap:16px; align-items:start; margin-bottom:28px; }
@@ -2535,8 +2535,6 @@ button.pap-ap-gantt-label { cursor:pointer; }
 /* Program Training Tahunan */
 .pap-tp-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:16px; }
 .pap-tp-toolbar .pap-btn { text-decoration:none; }
-.pap-tp-year { display:flex; align-items:center; gap:6px; }
-.pap-tp-year .pap-select { width:auto; min-width:150px; font-weight:700; }
 .pap-tp-name { min-width:220px; }
 .pap-tp-group { display:inline-block; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:700; background:rgb(124 92 252 / .1); color:#7050e7; white-space:nowrap; }
 .pap-tp-group.staff { background:rgb(14 165 233 / .12); color:#0369a1; }
@@ -2596,3 +2594,11 @@ button.pap-ap-gantt-label { cursor:pointer; }
 .pap-tp-date b { min-width:30px; font-size:12px; color:#7050e7; }
 .pap-tp-date .pap-input { min-height:34px; font-size:12px; }
 .pap-tp-day { position:relative; z-index:1; font-size:11px; font-weight:800; color:#4c1d95; }
+
+/* Pemilih tahun Program Training: satu kotak ‹ tahun › */
+.pap-tp-year { display:inline-flex; align-items:stretch; height:40px; border:1px solid var(--pap-border); border-radius:10px; background:var(--pap-surface, #fff); overflow:hidden; }
+.pap-tp-year .pap-icon-button { width:38px; height:auto; border:0; border-radius:0; background:transparent; }
+.pap-tp-year .pap-icon-button:hover { background:rgb(124 92 252 / .08); color:#7050e7; }
+.pap-tp-year .pap-select { width:auto; min-width:140px; height:auto; min-height:0; padding:0 30px 0 12px; border:0; border-left:1px solid var(--pap-border); border-right:1px solid var(--pap-border); border-radius:0; background-color:transparent; font-weight:700; color:var(--pap-text); text-align:center; text-align-last:center; box-shadow:none; }
+.pap-tp-year .pap-select:focus { outline:none; background-color:rgb(124 92 252 / .06); }
+@media (max-width:640px) { .pap-tp-year { width:100%; } .pap-tp-year .pap-select { flex:1; } }
