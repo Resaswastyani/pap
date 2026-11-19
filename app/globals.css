@@ -2692,7 +2692,9 @@ button.pap-ap-gantt-label { cursor:pointer; }
 @media print { .pap-sig-panel { display:none; } }
 
 /* ---------- Quotation: pratinjau dokumen & pilihan pengiriman ---------- */
-.pap-modal.pap-doc-preview { width:min(940px,100%); height:calc(100vh - 48px); height:calc(100dvh - 48px); }
+/* Pratinjau dokumen layar penuh */
+.pap-modal.pap-doc-preview { position:fixed; inset:0; z-index:60; width:100vw; max-width:none; height:100vh; height:100dvh; max-height:none; border:0; border-radius:0; }
+.pap-doc-preview .pap-modal-body { padding-left:max(16px, env(safe-area-inset-left)); padding-right:max(16px, env(safe-area-inset-right)); }
 .pap-doc-preview .pap-modal-body { display:flex; flex:1; flex-direction:column; gap:10px; min-height:0; }
 .pap-doc-tabs { align-self:flex-start; }
 .pap-doc-frame { position:relative; flex:1; min-height:320px; overflow:hidden; border:1px solid var(--pap-border); border-radius:12px; background:#e9eaf0; }
@@ -2713,7 +2715,6 @@ button.pap-ap-gantt-label { cursor:pointer; }
 .pap-ship-option.active { border-color:#7c5cfc; box-shadow:0 0 0 3px rgb(124 92 252 / .14); background:rgb(124 92 252 / .05); }
 .pap-ship-option.active svg { color:#7c5cfc; }
 @media (max-width:800px) {
-  .pap-modal.pap-doc-preview { height:94vh; height:94dvh; }
   .pap-doc-frame { min-height:0; }
   .pap-hide-sm { display:none; }
 }

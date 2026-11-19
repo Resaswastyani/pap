@@ -73,17 +73,18 @@ export function quotationDocumentHtml({ q, items, doc, signatures }: Awaited<Ret
   <td class="logo"><img src="${esc(logoSrc)}" alt="" width="120"></td>
   <td><h1>${esc(perusahaan)}</h1><p>Flexible Plastic Packaging Manufacture</p>${doc.alamat ? `<p>${esc(doc.alamat)}</p>` : ''}${telepon.length ? `<p>Telp/WA: ${telepon.map(esc).join(' · ')}</p>` : ''}${doc.email ? `<p>${esc(doc.email)}</p>` : ''}</td>
 </tr></tbody></table>
-<p class="pap-sheet-date">${doc.kota ? `${esc(doc.kota)}, ` : ''}${tanggal(tanggalDok)}</p>
+<p class="pap-sheet-date">${doc.kota ? `${esc(doc.kota)}, ` : ''}${tanggal(tanggalDok)}${jenis === 'penawaran' ? `<br>Berlaku s/d ${tanggal(q.berlaku_sampai)}` : ''}</p>
 <h2 class="pap-sheet-title">${JUDUL[jenis]}</h2>
 ${QUOTATION_APPROVAL_REQUIRED && jenis === 'penawaran' && q.status === 'draft' && q.approval !== 'disetujui' ? '<p class="pap-sheet-draft">DRAFT — belum disetujui Kepala Marketing / GM, jangan dikirim ke customer</p>' : ''}
 <table class="pap-sheet-meta"><tbody>
-  <tr><td>Nomor</td><td>: ${esc(documentNomor(q, jenis))}</td>${jenis === 'penawaran' ? `<td>Berlaku s/d</td><td>: ${tanggal(q.berlaku_sampai)}</td>` : `<td>Ref. penawaran</td><td>: ${esc(q.nomor)}</td>`}</tr>
-  <tr><td>Kepada</td><td colspan="3">: <b>${esc(q.kepada)}</b></td></tr>
-  ${q.kontak ? `<tr><td>Up.</td><td colspan="3">: ${esc(q.kontak)}</td></tr>` : ''}
-  ${q.telepon ? `<tr><td>Telepon</td><td colspan="3">: ${esc(q.telepon)}</td></tr>` : ''}
-  ${q.whatsapp ? `<tr><td>WA</td><td colspan="3">: ${esc(q.whatsapp)}</td></tr>` : ''}
-  ${q.alamat ? `<tr><td>Alamat</td><td colspan="3">: ${esc(q.alamat)}</td></tr>` : ''}
-  ${jenis !== 'penawaran' && (q.tanggal_kirim || q.pengiriman) ? `<tr><td>Pengiriman</td><td colspan="3">: ${[q.tanggal_kirim ? `rencana ${tanggal(q.tanggal_kirim)}` : '', kirimVia(q)].filter(Boolean).join(' · ')}</td></tr>` : ''}
+  <tr><td>Nomor</td><td>: ${esc(documentNomor(q, jenis))}</td></tr>
+  ${jenis !== 'penawaran' ? `<tr><td>Ref. penawaran</td><td>: ${esc(q.nomor)}</td></tr>` : ''}
+  <tr><td>Kepada</td><td>: <b>${esc(q.kepada)}</b></td></tr>
+  ${q.kontak ? `<tr><td>Up.</td><td>: ${esc(q.kontak)}</td></tr>` : ''}
+  ${q.telepon ? `<tr><td>Telepon</td><td>: ${esc(q.telepon)}</td></tr>` : ''}
+  ${q.whatsapp ? `<tr><td>WA</td><td>: ${esc(q.whatsapp)}</td></tr>` : ''}
+  ${q.alamat ? `<tr><td>Alamat</td><td>: ${esc(q.alamat)}</td></tr>` : ''}
+  ${jenis !== 'penawaran' && (q.tanggal_kirim || q.pengiriman) ? `<tr><td>Pengiriman</td><td>: ${[q.tanggal_kirim ? `rencana ${tanggal(q.tanggal_kirim)}` : '', kirimVia(q)].filter(Boolean).join(' · ')}</td></tr>` : ''}
 </tbody></table>
 <p>Dengan hormat,<br>${pembuka}</p>
 <table class="pap-sheet-items">
