@@ -3,6 +3,7 @@ import { withCronLog } from '@/lib/cron-log'
 import { accurateEnabled } from '@/lib/accurate'
 import { syncAll } from '@/lib/accurate-sync'
 import { refreshCandidateStatus } from '@/lib/logistik'
+import { snapshotToday } from '@/lib/stock-history'
 
 export const maxDuration = 60
 
@@ -20,6 +21,8 @@ async function run(request: Request) {
   try {
     // cron-job.org memutus request setelah ±30 detik; sisa data dilanjutkan pada putaran berikutnya
     const results = await syncAll(20_000)
+    // Catatan stok hari ini (menu Stok: lihat per tanggal)
+    await snapshotToday().catch((e) => console.error('[stok harian]', (e as Error).message))
     // Status SO yang masih perlu dikirim dicek ulang (SO yang sudah difakturkan tidak selalu ikut sinkron inkremental)
     const pengiriman = await refreshCandidateStatus(6_000).catch((e) => ({ error: (e as Error).message }))
     return NextResponse.json({ ok: true, results, pengiriman })

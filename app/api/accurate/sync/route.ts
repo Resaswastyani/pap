@@ -5,6 +5,7 @@ import { PRODUCTION_SYNC_ENTITIES, PURCHASING_SYNC_ENTITIES, SYNC_ENTITIES, sync
 import { canManageCustomer } from '@/lib/customers'
 import { canViewProduction } from '@/lib/production'
 import { canViewPurchasing } from '@/lib/purchasing'
+import { snapshotToday } from '@/lib/stock-history'
 
 export const maxDuration = 60
 
@@ -32,5 +33,6 @@ export const POST = handle(async (request: Request) => {
     || (purchasingOnly && canViewPurchasing(user))
   if (!allowed) fail(403, 'Anda tidak punya akses untuk menjalankan sinkronisasi.')
   const results = await syncAll(45_000, only?.length ? only : undefined)
+  if (!only?.length || only.some((e) => e === 'item' || e === 'stock')) await snapshotToday().catch((e) => console.error('[stok harian]', (e as Error).message))
   return NextResponse.json({ results, status: await syncStatus() })
 })

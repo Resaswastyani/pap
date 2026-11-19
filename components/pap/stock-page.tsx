@@ -1,13 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Boxes, Pencil, PackageX, Plus, Search, Trash2, Wallet } from 'lucide-react'
+import { AlertTriangle, Boxes, CalendarDays, Eye, History, Pencil, PackageX, Plus, RefreshCw, Search, Trash2, Wallet } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatNumber } from './accurate'
 import { api, confirmDialog, Field, formatDate, Modal, Notice, Pager } from './ui'
 
 type StockItem = { accurate_id: number; item_no: string | null; name: string; item_type: string | null; category: string | null; unit: string | null; quantity: number | null; quantity_on_hand: number | null; min_quantity: number | null; vendor_price: number | null; unit_cost: number | null; nilai: number | null; synced_at: string }
-type Summary = { total: number; low: number; empty: number; synced_at: string | null; nilai: number }
+type Summary = { total: number; low: number; empty: number; synced_at: string | null; nilai: number; tanggal?: string; dihitung?: number; harian?: number }
+const todayIso = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
 const rupiah = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `Rp ${Math.round(v).toLocaleString('id-ID')}`)
 
 // Status memakai stok fisik; bila fisik ada tapi semua sudah dipesan, tandai 'Terpesan'
@@ -35,6 +36,10 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
   const [canManage, setCanManage] = useState(false)
   const [form, setForm] = useState<StockItem | 'baru' | null>(null)
   const [message, setMessage] = useState('')
+  // Per tanggal: kosong = hari ini (data terbaru Accurate)
+  const [tanggal, setTanggal] = useState('')
+  const [history, setHistory] = useState<StockItem | null>(null)
+  const past = !!tanggal && tanggal < todayIso()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [q, setQ] = useState('')
@@ -53,6 +58,7 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
       if (category) params.set('category', category)
       if (low) params.set('low', '1')
       if (inventoryOnly) params.set('type', 'inventory')
+      if (past) params.set('tanggal', tanggal)
       const res = await api<{ items: StockItem[]; total: number; categories: string[]; summary: Summary; can?: { manage: boolean } }>(`/api/stock?${params}`)
       setCanManage(!!res.can?.manage && jenis !== 'pembantu')
       setItems(res.items)
@@ -65,7 +71,15 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
     } finally {
       setLoading(false)
     }
-  }, [q, category, low, inventoryOnly, page, size, jenis])
+  }, [q, category, low, inventoryOnly, page, size, jenis, past, tanggal])
+  async function fillAll() {
+    try {
+      const res = await api<{ sisa: number; started: boolean }>('/api/stock', { method: 'POST', json: { jenis, tanggal } })
+      setMessage(res.sisa ? `Menghitung ${res.sisa} barang dari Accurate di latar (beberapa menit). Buka ulang tanggal ini nanti untuk total lengkap.` : 'Semua barang sudah dihitung.')
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
   async function remove(item: StockItem) {
     if (!(await confirmDialog({ title: 'Hapus barang', message: `Hapus ${item.name} dari Accurate? Barang yang sudah dipakai transaksi tidak dihapus tetapi dinonaktifkan.`, confirmLabel: 'Ya, hapus', tone: 'danger' }))) return
     try {
@@ -77,7 +91,7 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
     }
   }
   // Filter berubah -> kembali ke halaman 1
-  useEffect(() => setPage(1), [q, category, low, inventoryOnly])
+  useEffect(() => setPage(1), [q, category, low, inventoryOnly, tanggal])
 
   useEffect(() => {
     const timer = setTimeout(load, q ? 300 : 0)
@@ -85,10 +99,10 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
   }, [load, q])
 
   const stats: [string, number | string, string, typeof Boxes, string, () => void][] = [
-    [`Jenis ${meta.noun}`, summary.total, summary.synced_at ? `Data per ${formatDate(summary.synced_at, true)}` : 'Belum sinkron', Boxes, 'stat-1', () => setLow(false)],
+    [`Jenis ${meta.noun}`, summary.total, past ? `Stok per ${formatDate(tanggal)}` : summary.synced_at ? `Data per ${formatDate(summary.synced_at, true)}` : 'Belum sinkron', Boxes, 'stat-1', () => setLow(false)],
     ['Stok menipis', summary.low, 'Di bawah stok minimum', AlertTriangle, 'stat-2', () => setLow(true)],
     ['Stok habis', summary.empty, 'Stok fisik 0 atau minus', PackageX, 'stat-2', () => setLow(false)],
-    ['Nilai stok', rupiah(summary.nilai), 'Stok fisik x harga pokok rata-rata', Wallet, 'stat-0', () => setLow(false)],
+    ['Nilai stok', rupiah(summary.nilai), past ? (summary.dihitung !== undefined && summary.dihitung < summary.total ? `dari ${summary.dihitung} / ${summary.total} barang yang sudah dihitung` : `per ${formatDate(tanggal)}`) : 'Stok fisik x harga pokok rata-rata', Wallet, 'stat-0', () => setLow(false)],
   ]
 
   return (
@@ -121,11 +135,21 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
           </select>
           <label className="pap-check"><input type="checkbox" checked={low} onChange={(e) => setLow(e.target.checked)} /> Hanya stok menipis</label>
           <label className="pap-check"><input type="checkbox" checked={inventoryOnly} onChange={(e) => setInventoryOnly(e.target.checked)} /> Hanya barang persediaan</label>
+          <label className="pap-stock-date" title="Lihat stok per tanggal"><CalendarDays /><span>Per tanggal</span><input className="pap-input" type="date" max={todayIso()} value={tanggal || todayIso()} onChange={(e) => setTanggal(e.target.value === todayIso() ? '' : e.target.value)} /></label>
+          {past && <button type="button" className="pap-btn" onClick={() => setTanggal('')}>Hari ini</button>}
         </div>
+        {past && (
+          <div className="pap-card-notice">
+            <Notice kind="success">
+              Stok per <b>{formatDate(tanggal)}</b>{summary.harian ? ' dari catatan harian SIMPAP' : ' dihitung dari Accurate'}. Nilai memakai harga pokok {summary.harian ? 'hari itu' : 'saat ini (perkiraan)'}; kolom "Tersedia dijual" hanya untuk hari ini.
+              {summary.dihitung !== undefined && summary.dihitung < summary.total && <> {summary.dihitung} dari {summary.total} barang sudah dihitung (barang di halaman ini dihitung otomatis). <button type="button" className="pap-link-button" onClick={fillAll}><RefreshCw className="pap-inline-icon" /> Hitung semua</button></>}
+            </Notice>
+          </div>
+        )}
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Barang</th><th>Kategori</th><th className="pap-num">Stok fisik</th><th className="pap-num">Tersedia dijual</th><th className="pap-num">Minimum</th><th className="pap-num">Harga pokok</th><th className="pap-num">Nilai stok</th><th>Status</th>{canManage && <th aria-label="Aksi" />}</tr></thead>
+            <thead><tr><th>Barang</th><th>Kategori</th><th className="pap-num">Stok fisik</th><th className="pap-num">Tersedia dijual</th><th className="pap-num">Minimum</th><th className="pap-num">Harga pokok</th><th className="pap-num">Nilai stok</th><th>Status</th><th aria-label="Aksi" /></tr></thead>
             <tbody>
               {items.map((item) => {
                 const state = stockState(item)
@@ -134,19 +158,18 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
                     <td><div className="pap-cell-title">{item.name}</div><div className="pap-cell-sub">{item.item_no ?? '—'}</div></td>
                     <td>{item.category ?? '—'}</td>
                     <td className="pap-num pap-nowrap"><strong>{formatNumber(item.quantity_on_hand)}</strong> {item.unit ?? ''}</td>
-                    <td className="pap-num pap-nowrap">{formatNumber(item.quantity)} {item.unit ?? ''}</td>
+                    <td className="pap-num pap-nowrap">{past ? '—' : `${formatNumber(item.quantity)} ${item.unit ?? ''}`}</td>
                     <td className="pap-num pap-nowrap">{item.min_quantity ? `${formatNumber(item.min_quantity)} ${item.unit ?? ''}` : '—'}</td>
                     <td className="pap-num pap-nowrap">{item.unit_cost ? `${rupiah(item.unit_cost)}/${item.unit ?? 'unit'}` : '—'}</td>
                     <td className="pap-num pap-nowrap"><strong>{item.nilai ? rupiah(item.nilai) : '—'}</strong></td>
                     <td><span className={`pap-status ${state.tone}`}>{state.label}</span></td>
-                    {canManage && (
-                      <td className="pap-nowrap">
-                        <span className="pap-inline-actions">
-                          <button className="pap-icon-button" onClick={() => setForm(item)} aria-label={`Ubah ${item.name}`} title="Ubah"><Pencil /></button>
-                          <button className="pap-icon-button" onClick={() => remove(item)} aria-label={`Hapus ${item.name}`} title="Hapus"><Trash2 /></button>
-                        </span>
-                      </td>
-                    )}
+                    <td className="pap-nowrap">
+                      <span className="pap-inline-actions">
+                        <button className="pap-icon-button" onClick={() => setHistory(item)} aria-label={`Detail ${item.name}`} title="Detail stok per tanggal"><Eye /></button>
+                        {canManage && <button className="pap-icon-button" onClick={() => setForm(item)} aria-label={`Ubah ${item.name}`} title="Ubah"><Pencil /></button>}
+                        {canManage && <button className="pap-icon-button" onClick={() => remove(item)} aria-label={`Hapus ${item.name}`} title="Hapus"><Trash2 /></button>}
+                      </span>
+                    </td>
                   </tr>
                 )
               })}
@@ -157,6 +180,7 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
           <Pager page={page} pageSize={size} total={total} onPage={setPage} onPageSize={(v) => { setSize(v); setPage(1) }} noun={meta.noun} />
         </div>
       </div>
+      {history && <StockHistory item={history} onClose={() => setHistory(null)} />}
       {form && jenis !== 'pembantu' && <StockItemForm jenis={jenis} item={form === 'baru' ? null : form} onClose={() => setForm(null)} onSaved={(t) => { setForm(null); setMessage(t); load() }} />}
     </>
   )
@@ -211,6 +235,45 @@ function StockItemForm({ jenis, item, onClose, onSaved }: { jenis: 'bahan' | 'ja
         <Field label="Harga beli (Rp)" hint="Harga beli default di Accurate"><input className="pap-input pap-num" inputMode="decimal" value={v.vendor_price} onChange={set('vendor_price')} placeholder="0" /></Field>
       </div>
       <p className="pap-muted">Jumlah stok tidak diubah di sini: stok bertambah / berkurang lewat transaksi di Accurate (penerimaan barang, pemakaian, hasil produksi, penyesuaian persediaan).{jenis === 'jadi' ? ' Barang baru otomatis ditandai "Diproduksi".' : ' Barang baru otomatis ditandai "Bahan Baku".'}</p>
+    </Modal>
+  )
+}
+
+// Detail barang: stok & nilai per tanggal yang tercatat, perubahan (masuk / keluar) dari tanggal sebelumnya
+type HistoryRow = { tanggal: string; qty: number | null; unit_cost: number | null; nilai: number | null; perubahan: number | null; sumber: string }
+function StockHistory({ item, onClose }: { item: StockItem; onClose: () => void }) {
+  const [rows, setRows] = useState<HistoryRow[] | null>(null)
+  const [error, setError] = useState('')
+  useEffect(() => { api<{ items: HistoryRow[] }>(`/api/stock/items/${item.accurate_id}/history`).then((r) => setRows(r.items)).catch((e) => setError(e.message)) }, [item.accurate_id])
+  const unit = item.unit ?? ''
+  return (
+    <Modal title={item.name} subtitle={[item.item_no, item.category, 'Riwayat stok per tanggal'].filter(Boolean).join(' · ')} wide onClose={onClose}
+      footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Tutup</button></>}>
+      {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      <div className="pap-stat-grid">
+        <div className="pap-stat-card"><div><span>Stok sekarang</span><strong className="pap-stat-text">{formatNumber(item.quantity_on_hand ?? item.quantity)} {unit}</strong><small className="neutral">tersedia dijual {formatNumber(item.quantity)} {unit}</small></div></div>
+        <div className="pap-stat-card"><div><span>Harga pokok</span><strong className="pap-stat-text">{rupiah(item.unit_cost)}</strong><small className="neutral">rata-rata per {unit || 'unit'}</small></div></div>
+        <div className="pap-stat-card"><div><span>Nilai stok</span><strong className="pap-stat-text">{rupiah(item.nilai)}</strong><small className="neutral">stok x harga pokok</small></div></div>
+      </div>
+      <div className="pap-table-wrap">
+        <table>
+          <thead><tr><th>Tanggal</th><th className="pap-num">Stok</th><th className="pap-num">Perubahan</th><th className="pap-num">Harga pokok</th><th className="pap-num">Nilai (Rp)</th><th>Sumber</th></tr></thead>
+          <tbody>
+            {(rows ?? []).map((r) => (
+              <tr key={r.tanggal}>
+                <td className="pap-nowrap">{formatDate(r.tanggal)}</td>
+                <td className="pap-num pap-nowrap"><strong>{formatNumber(r.qty)}</strong> {unit}</td>
+                <td className={`pap-num pap-nowrap ${r.perubahan && r.perubahan > 0 ? 'pap-text-success' : r.perubahan && r.perubahan < 0 ? 'pap-text-danger' : ''}`}>{r.perubahan ? `${r.perubahan > 0 ? '+' : ''}${formatNumber(r.perubahan)} ${unit}` : '—'}</td>
+                <td className="pap-num pap-nowrap">{rupiah(r.unit_cost)}</td>
+                <td className="pap-num pap-nowrap">{rupiah(r.nilai)}</td>
+                <td><span className="pap-status neutral">{r.sumber === 'harian' ? 'Catatan harian' : 'Dihitung dari Accurate'}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {rows && !rows.length && <div className="pap-empty"><History /> Belum ada riwayat. Stok dicatat otomatis setiap hari mulai sekarang; tanggal lampau bisa dilihat lewat pilihan "Per tanggal".</div>}
+        {!rows && !error && <div className="pap-empty">Memuat riwayat...</div>}
+      </div>
     </Modal>
   )
 }
