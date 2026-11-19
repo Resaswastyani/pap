@@ -6,7 +6,6 @@ import { syncStatus } from '@/lib/accurate-sync'
 import { db } from '@/lib/db'
 import { driveAccount, oauthConfigured } from '@/lib/drive'
 import { isManagement } from '@/lib/users'
-import { aiEnabled } from '@/lib/ai-assistant'
 import { appVersion } from '@/lib/it-status'
 
 type Row = RowDataPacket & Record<string, unknown>
@@ -72,7 +71,7 @@ export const GET = handle(async () => {
     { label: 'reCAPTCHA login', ok: env('RECAPTCHA_V2_SITE_KEY') || env('RECAPTCHA_SITE_KEY') },
     { label: 'Notifikasi push (VAPID)', ok: env('VAPID_PUBLIC_KEY') && env('VAPID_PRIVATE_KEY') },
     { label: 'Cron (CRON_SECRET)', ok: env('CRON_SECRET') },
-    { label: 'PAP AI (Gemini / Claude / ChatGPT)', ok: await aiEnabled() },
+    { label: 'PAP AI (Gemini)', ok: env('GEMINI_API_KEY') },
   ]
 
   return NextResponse.json({

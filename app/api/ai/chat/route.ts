@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser } from '@/lib/api'
 import { aiEnabled, askAssistant, assistantCapabilities, type ChatMessage } from '@/lib/ai-assistant'
 
-// Analisis mendalam (Claude / ChatGPT) bisa beberapa putaran; termasuk pindah penyedia bila gagal
-export const maxDuration = 180
+export const maxDuration = 60
 
 // Batas sederhana per user per instance: 20 pertanyaan / 5 menit
 const hits = new Map<number, number[]>()
@@ -17,7 +16,7 @@ function throttle(userId: number) {
 // Kemampuan PAP AI untuk user ini (saran pertanyaan di panel)
 export const GET = handle(async () => {
   const user = await requireUser()
-  return NextResponse.json({ enabled: await aiEnabled(), can: assistantCapabilities(user) })
+  return NextResponse.json({ enabled: aiEnabled(), can: assistantCapabilities(user) })
 })
 
 // Tanya PAP AI: { messages: [{ role: 'user' | 'model', text }] } (pesan terakhir = pertanyaan baru)

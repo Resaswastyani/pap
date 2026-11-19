@@ -6,7 +6,7 @@ import { formatNumber, formatRupiah } from './accurate'
 import { api, closeOnOutsideClick } from './ui'
 
 type Chart = { jenis: 'bar' | 'line' | 'hbar'; judul: string; label: string[]; seri: { nama: string; data: number[] }[]; format: 'rupiah' | 'angka' | 'persen'; catatan?: string }
-type Message = { role: 'user' | 'model'; text: string; charts?: Chart[]; sources?: string[]; model?: string; error?: boolean }
+type Message = { role: 'user' | 'model'; text: string; charts?: Chart[]; sources?: string[]; error?: boolean }
 type Caps = { sales: boolean; customer: boolean; prospek: boolean; keuangan: boolean }
 
 const TONES = ['var(--viz-s1)', 'var(--viz-s2)', 'var(--viz-s3)', 'var(--viz-s4)']
@@ -250,10 +250,10 @@ export function AiAssistant({ userId, userName }: { userId: number; userName: st
     setInput('')
     setBusy(true)
     try {
-      const res = await api<{ reply: string; charts: Chart[]; sources: string[]; model?: string }>('/api/ai/chat', {
+      const res = await api<{ reply: string; charts: Chart[]; sources: string[] }>('/api/ai/chat', {
         method: 'POST', json: { messages: next.filter((m) => !m.error).slice(-12).map(({ role, text }) => ({ role, text })) },
       })
-      setMessages((m) => [...m, { role: 'model', text: res.reply, charts: res.charts, sources: res.sources, model: res.model }])
+      setMessages((m) => [...m, { role: 'model', text: res.reply, charts: res.charts, sources: res.sources }])
     } catch (e) {
       setMessages((m) => [...m, { role: 'model', text: (e as Error).message || 'PAP AI gagal menjawab. Coba lagi.', error: true }])
     } finally {
@@ -292,7 +292,7 @@ export function AiAssistant({ userId, userName }: { userId: number; userName: st
                 <>
                   <Markdown text={m.text} />
                   {m.charts?.map((c, j) => <ChartCard key={j} chart={c} />)}
-                  {(!!m.sources?.length || m.model) && <div className="pap-ai-sources">{[m.sources?.length ? `Data: ${m.sources.join(' · ')}` : null, m.model ? `Dijawab ${m.model}` : null].filter(Boolean).join('  ·  ')}</div>}
+                  {!!m.sources?.length && <div className="pap-ai-sources">Data: {m.sources.join(' · ')}</div>}
                 </>
               )}
             </div>
