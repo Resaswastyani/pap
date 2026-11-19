@@ -1383,10 +1383,16 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 @media (min-width:801px) { .pap-plan-table th, .pap-plan-table td { padding-left:14px; padding-right:14px; } .pap-plan-table .pap-progress { min-width:96px; } }
 @media (max-width:640px) { .pap-stat-grid.four .pap-stat-text { font-size:17px !important; white-space:nowrap; } }
 
-/* Rencana Produksi: 5 kartu statistik + pembagian shift */
-@media (min-width:1301px) { .pap-stat-grid.four.five { grid-template-columns:repeat(5,minmax(0,1fr)); } }
-@media (min-width:1101px) and (max-width:1300px) { .pap-stat-grid.four.five { grid-template-columns:repeat(3,minmax(0,1fr)); } }
-@media (max-width:1300px) { .pap-stat-grid.four.five > :last-child { grid-column:1 / -1; } }
+/* Rencana Produksi ke depan: jadwal per tanggal & shift */
+.pap-plan-pending { margin-top:20px; }
+.pap-plan-btn { min-height:32px !important; padding:0 10px !important; font-size:11px !important; white-space:nowrap; }
+.pap-due { display:flex; flex-direction:column; gap:2px; }
+.pap-due small { color:var(--pap-muted); font-size:10px; font-weight:700; }
+.pap-due small.soon { color:#b26b00; }
+.pap-due small.late { color:#d14343; }
+@media (min-width:901px) { .pap-shift-row.pap-plan-row { grid-template-columns:160px 120px 140px minmax(140px,1fr) auto; } }
+.pap-card-head .pap-segmented { flex:none; }
+@media (max-width:800px) { .pap-card-head .pap-segmented { align-self:stretch; } .pap-card-head .pap-segmented button { flex:1; } }
 .pap-shift-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; padding:0 20px 14px; }
 .pap-shift-sum { display:flex; flex-direction:column; gap:2px; min-width:0; padding:10px 12px; border:1px solid var(--pap-border); border-radius:12px; }
 .pap-shift-sum strong { font-size:14px; overflow-wrap:anywhere; }
