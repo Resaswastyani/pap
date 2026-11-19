@@ -14,7 +14,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', '
 const KATEGORI = ['K3 & Keselamatan Kerja', 'Mesin & Teknik', 'Mutu / QC', 'Produksi & SOP', 'Soft skill', 'Kepemimpinan', 'Administrasi & Sistem', 'Pelayanan Customer', 'Penjualan & Marketing']
 
 type Program = {
-  id: number; kode: string; tahun: number; nama: string; kategori: string | null; jenis: string; kelompok: string; divisi: string[]; tujuan: string | null; bulan: number[]
+  id: number; kode: string; tahun: number; nama: string; kategori: string | null; jenis: string; kelompok: string; divisi: string[]; tujuan: string | null; bulan: number[]; tanggal: string[]
   frekuensi: string | null; durasi_jam: number | null; metode: string | null; penyelenggara: string | null; target_peserta: number | null; anggaran: number | null
   realisasi_biaya: number | null; indikator: string | null; status: string; module_id: number | null; modul: string | null; catatan: string | null
   sesi: number; sesi_selesai: number; peserta_hadir: number; bulan_realisasi: number[]; dibuat_oleh: string | null; diubah_oleh: string | null; updated_at: string
@@ -26,6 +26,13 @@ const rupiah = (v: number | null | undefined) => (v === null || v === undefined 
 const thisYear = () => new Date(Date.now() + 7 * 3600e3).getUTCFullYear()
 const thisMonth = () => new Date(Date.now() + 7 * 3600e3).getUTCMonth() + 1
 const monthsText = (b: number[]) => (b.length === 12 ? 'Setiap bulan' : b.length ? b.map((m) => MONTHS[m - 1]).join(', ') : '—')
+// "2026-01-15" -> "15 Jan"; jadwal = tanggal rencana bila ada, selain itu nama bulan
+const dayText = (d: string) => `${Number(d.slice(8, 10))} ${MONTHS[Number(d.slice(5, 7)) - 1]}`
+const scheduleText = (p: { bulan: number[]; tanggal: string[] }) => {
+  const noDate = p.bulan.filter((m) => !p.tanggal.some((d) => Number(d.slice(5, 7)) === m))
+  return [...p.tanggal.map(dayText), ...noDate.map((m) => MONTHS[m - 1])].join(', ') || '—'
+}
+const lastDay = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate()
 // Progres: sesi selesai dibanding rencana bulan (minimal 1)
 const progress = (p: Program) => (p.status === 'selesai' ? 100 : Math.min(100, Math.round((p.sesi_selesai / Math.max(1, p.bulan.length || 1)) * 100)))
 
@@ -140,7 +147,7 @@ export function ProgramTab() {
                     <tr key={p.id} className="pap-row-link" onClick={() => setDetail(p.id)}>
                       <td className="pap-tp-name"><div className="pap-cell-title">{p.nama}</div><div className="pap-cell-sub">{[p.kode, p.kategori, JENIS[p.jenis] ?? p.jenis].filter(Boolean).join(' · ')}</div></td>
                       <td><span className={`pap-tp-group ${p.kelompok}`}>{KELOMPOK[p.kelompok] ?? p.kelompok}</span>{p.divisi.length > 0 && <div className="pap-cell-sub">{p.divisi.slice(0, 2).join(', ')}{p.divisi.length > 2 ? ` +${p.divisi.length - 2}` : ''}</div>}</td>
-                      <td><div>{monthsText(p.bulan)}</div><div className="pap-cell-sub">{[p.frekuensi && FREKUENSI[p.frekuensi], p.durasi_jam && `${p.durasi_jam.toLocaleString('id-ID')} jam`].filter(Boolean).join(' · ') || '—'}</div></td>
+                      <td><div>{p.tanggal.length ? scheduleText(p) : monthsText(p.bulan)}</div><div className="pap-cell-sub">{[p.frekuensi && FREKUENSI[p.frekuensi], p.durasi_jam && `${p.durasi_jam.toLocaleString('id-ID')} jam`].filter(Boolean).join(' · ') || '—'}</div></td>
                       <td>{p.penyelenggara ?? '—'}<div className="pap-cell-sub">{p.metode ? METODE[p.metode] : ''}</div></td>
                       <td className="pap-num pap-nowrap"><strong>{p.peserta_hadir}</strong>{p.target_peserta ? ` / ${p.target_peserta}` : ''}<div className="pap-cell-sub">hadir / target</div></td>
                       <td className="pap-num pap-nowrap">{rupiah(p.anggaran)}{p.realisasi_biaya ? <div className="pap-cell-sub">real. {rupiah(p.realisasi_biaya)}</div> : null}</td>
@@ -182,7 +189,8 @@ function ProgramCalendar({ items, tahun, onOpen }: { items: Program[]; tahun: nu
             {MONTHS.map((m, i) => {
               const plan = p.bulan.includes(i + 1)
               const done = p.bulan_realisasi.includes(i + 1)
-              return <div key={m} role="cell" className={`pap-tp-cell ${plan ? `plan ${p.status}` : ''} ${done ? 'done' : ''} ${i + 1 === now ? 'now' : ''}`} title={`${MONTHS[i]}: ${done ? 'terlaksana' : plan ? 'rencana' : '-'}`}>{done ? '✓' : ''}</div>
+              const days = p.tanggal.filter((d) => Number(d.slice(5, 7)) === i + 1).map((d) => Number(d.slice(8, 10)))
+              return <div key={m} role="cell" className={`pap-tp-cell ${plan ? `plan ${p.status}` : ''} ${done ? 'done' : ''} ${i + 1 === now ? 'now' : ''}`} title={`${MONTHS[i]}: ${done ? 'terlaksana' : plan ? `rencana${days.length ? ` tgl ${days.join(', ')}` : ''}` : '-'}`}>{done ? '✓' : days.length ? <span className="pap-tp-day">{days.join(',')}</span> : ''}</div>
             })}
           </button>
         ))}
@@ -227,7 +235,7 @@ function ProgramDetail({ id, onClose, onEdit }: { id: number; onClose: () => voi
       <section className="pap-detail-section">
         <h3>Pelaksanaan & anggaran</h3>
         {grid([
-          ['Bulan pelaksanaan', monthsText(item.bulan)],
+          ['Jadwal pelaksanaan', item.tanggal.length ? scheduleText(item) : monthsText(item.bulan)],
           ['Frekuensi · durasi', [item.frekuensi && FREKUENSI[item.frekuensi], item.durasi_jam && `${item.durasi_jam.toLocaleString('id-ID')} jam per sesi`].filter(Boolean).join(' · ')],
           ['Metode', item.metode && METODE[item.metode]],
           ['Penyelenggara / pemateri', item.penyelenggara],
@@ -271,6 +279,8 @@ function ProgramForm({ item, tahun, modules, divisi, onClose, onSaved }: { item:
     module_id: item?.module_id ? String(item.module_id) : '', catatan: item?.catatan ?? '',
   })
   const [bulan, setBulan] = useState<number[]>(item?.bulan ?? [])
+  // Tanggal rencana per bulan: { 1: '2026-01-15', ... }
+  const [tanggal, setTanggal] = useState<Record<number, string>>(() => Object.fromEntries((item?.tanggal ?? []).map((d) => [Number(d.slice(5, 7)), d])))
   const [div, setDiv] = useState<string[]>(item?.divisi ?? [])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -280,7 +290,10 @@ function ProgramForm({ item, tahun, modules, divisi, onClose, onSaved }: { item:
     const digits = e.target.value.replace(/\D/g, '')
     setV((cur) => ({ ...cur, [k]: digits ? Number(digits).toLocaleString('id-ID') : '' }))
   }
-  const toggleMonth = (m: number) => setBulan((b) => (b.includes(m) ? b.filter((x) => x !== m) : [...b, m].sort((a, c) => a - c)))
+  const toggleMonth = (m: number) => {
+    if (bulan.includes(m)) setTanggal(({ [m]: _drop, ...rest }) => rest)
+    setBulan((b) => (b.includes(m) ? b.filter((x) => x !== m) : [...b, m].sort((a, c) => a - c)))
+  }
   // Pilihan cepat bulan sesuai frekuensi
   const presetMonths = (f: string) => {
     const map: Record<string, number[]> = { bulanan: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], triwulan: [3, 6, 9, 12], semester: [6, 12], tahunan: bulan.length ? [bulan[0]] : [] }
@@ -292,7 +305,9 @@ function ProgramForm({ item, tahun, modules, divisi, onClose, onSaved }: { item:
     setBusy(true)
     setError('')
     try {
-      const json = { ...v, bulan, divisi: div }
+      // Tanggal hanya untuk bulan yang masih dipilih & sesuai tahun program
+      const tgl = bulan.map((m) => tanggal[m]).filter((d): d is string => !!d && d.startsWith(`${v.tahun}-`))
+      const json = { ...v, bulan, tanggal: tgl, divisi: div }
       const r = await api<{ kode?: string }>(item ? `/api/hrd/training/programs/${item.id}` : '/api/hrd/training/programs', { method: item ? 'PUT' : 'POST', json })
       onSaved(item ? `${r.kode ?? item.kode} diperbarui.` : `Program ${r.kode} ditambahkan.`)
     } catch (err) {
@@ -331,7 +346,7 @@ function ProgramForm({ item, tahun, modules, divisi, onClose, onSaved }: { item:
         <section className="pap-tp-form-section">
           <h3><CalendarRange /> Jadwal & pelaksanaan</h3>
           <div className="pap-form-grid">
-            <Field label="Tahun *"><input className="pap-input pap-num" inputMode="numeric" maxLength={4} required value={v.tahun} onChange={set('tahun')} /></Field>
+            <Field label="Tahun *"><input className="pap-input" inputMode="numeric" maxLength={4} required value={v.tahun} onChange={(e) => setV({ ...v, tahun: e.target.value.replace(/\D/g, '') })} /></Field>
             <Field label="Frekuensi" hint="Memilih frekuensi mengisi bulan otomatis">
               <select className="pap-select" value={v.frekuensi} onChange={(e) => { setV({ ...v, frekuensi: e.target.value }); presetMonths(e.target.value) }}>
                 <option value="">—</option>{Object.entries(FREKUENSI).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
@@ -341,6 +356,24 @@ function ProgramForm({ item, tahun, modules, divisi, onClose, onSaved }: { item:
               <span>Bulan pelaksanaan ({bulan.length})</span>
               <div className="pap-tp-months">{MONTHS.map((m, i) => <button type="button" key={m} className={bulan.includes(i + 1) ? 'active' : ''} aria-pressed={bulan.includes(i + 1)} onClick={() => toggleMonth(i + 1)}>{m}</button>)}</div>
             </div>
+            {bulan.length > 0 && (
+              <div className="pap-field full">
+                <span>Tanggal rencana <small className="pap-muted">(opsional, per bulan)</small></span>
+                <div className="pap-tp-dates">
+                  {bulan.map((m) => {
+                    const y = Number(v.tahun) || tahun
+                    const mm = String(m).padStart(2, '0')
+                    return (
+                      <label key={m} className="pap-tp-date">
+                        <b>{MONTHS[m - 1]}</b>
+                        <input className="pap-input" type="date" min={`${y}-${mm}-01`} max={`${y}-${mm}-${lastDay(y, m)}`} value={tanggal[m] ?? ''}
+                          onChange={(e) => setTanggal((t) => ({ ...t, [m]: e.target.value }))} aria-label={`Tanggal rencana ${MONTHS[m - 1]}`} />
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
             <Field label="Durasi per sesi (jam)"><input className="pap-input pap-num" inputMode="decimal" maxLength={6} value={v.durasi_jam} onChange={set('durasi_jam')} placeholder="2" /></Field>
             <Field label="Metode"><select className="pap-select" value={v.metode} onChange={set('metode')}><option value="">—</option>{Object.entries(METODE).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
             <Field label="Penyelenggara / pemateri" full><input className="pap-input" maxLength={200} value={v.penyelenggara} onChange={set('penyelenggara')} placeholder="mis. Tim Teknik internal, Disnaker, lembaga sertifikasi" /></Field>

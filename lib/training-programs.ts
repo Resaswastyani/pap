@@ -29,6 +29,11 @@ export function readProgram(body: Record<string, unknown>) {
   if (!Number.isInteger(tahun) || tahun < 2020 || tahun > 2100) fail(400, 'Tahun program tidak valid.')
   const bulan = (Array.isArray(body.bulan) ? body.bulan : String(body.bulan ?? '').split(','))
     .map((b) => Number(b)).filter((b) => Number.isInteger(b) && b >= 1 && b <= 12)
+  // Tanggal rencana per bulan (YYYY-MM-DD, tahun program); bulannya otomatis ikut terpilih
+  const tanggal = (Array.isArray(body.tanggal) ? body.tanggal : String(body.tanggal ?? '').split(','))
+    .map((t) => String(t).trim()).filter((t) => /^\d{4}-\d{2}-\d{2}$/.test(t) && !Number.isNaN(Date.parse(t)))
+  if (tanggal.some((t) => Number(t.slice(0, 4)) !== tahun)) fail(400, `Tanggal rencana harus di tahun ${tahun}.`)
+  for (const t of tanggal) bulan.push(Number(t.slice(5, 7)))
   const divisi = (Array.isArray(body.divisi) ? body.divisi.map((d) => str(d, 100)) : String(body.divisi ?? '').split(',').map((d) => d.trim())).filter(Boolean)
   return {
     tahun, nama: nama!, kategori: str(body.kategori, 80) || null,
@@ -37,6 +42,7 @@ export function readProgram(body: Record<string, unknown>) {
     divisi: [...new Set(divisi)].join(', ').slice(0, 500) || null,
     tujuan: str(body.tujuan, 3000) || null,
     bulan: [...new Set(bulan)].sort((a, b) => a - b).join(',') || null,
+    tanggal: [...new Set(tanggal)].sort().join(',').slice(0, 400) || null,
     frekuensi: pick(PROGRAM_FREKUENSI, body.frekuensi, null) as string | null,
     durasi_jam: num(body.durasi_jam, 'Durasi', 9999, false),
     metode: pick(PROGRAM_METODE, body.metode, null) as string | null,
@@ -69,7 +75,7 @@ const SELECT = `SELECT p.*, m.judul AS modul, uc.name AS dibuat_oleh, uu.name AS
 const serialize = (r: Row) => ({
   id: Number(r.id), kode: String(r.kode), tahun: Number(r.tahun), nama: String(r.nama), kategori: (r.kategori as string) ?? null, jenis: String(r.jenis),
   kelompok: String(r.kelompok), divisi: r.divisi ? String(r.divisi).split(',').map((d) => d.trim()).filter(Boolean) : [],
-  tujuan: (r.tujuan as string) ?? null, bulan: r.bulan ? String(r.bulan).split(',').map(Number) : [], frekuensi: (r.frekuensi as string) ?? null,
+  tujuan: (r.tujuan as string) ?? null, bulan: r.bulan ? String(r.bulan).split(',').map(Number) : [], tanggal: r.tanggal ? String(r.tanggal).split(',').filter(Boolean) : [], frekuensi: (r.frekuensi as string) ?? null,
   durasi_jam: r.durasi_jam === null ? null : Number(r.durasi_jam), metode: (r.metode as string) ?? null, penyelenggara: (r.penyelenggara as string) ?? null,
   target_peserta: r.target_peserta === null ? null : Number(r.target_peserta), anggaran: r.anggaran === null ? null : Number(r.anggaran),
   realisasi_biaya: r.realisasi_biaya === null ? null : Number(r.realisasi_biaya), indikator: (r.indikator as string) ?? null, status: String(r.status),
@@ -103,6 +109,12 @@ export async function programYears() {
   return rows.map((r) => Number(r.tahun))
 }
 
+// Tanggal rencana pindah tahun (29 Feb -> 28 Feb bila bukan kabisat)
+const shiftYear = (list: string | null, year: number) => list ? list.split(',').filter(Boolean).map((t) => {
+  const d = new Date(Date.UTC(year, Number(t.slice(5, 7)) - 1, Number(t.slice(8, 10))))
+  return d.getUTCMonth() === Number(t.slice(5, 7)) - 1 ? d.toISOString().slice(0, 10) : `${year}-02-28`
+}).join(',') : null
+
 // Salin semua program dari satu tahun ke tahun lain sebagai rencana baru (biaya realisasi & status direset)
 export async function copyPrograms(dari: number, ke: number, userId: number) {
   const [rows] = await db.query<Row[]>("SELECT * FROM training_programs WHERE tahun = ? AND status <> 'batal' ORDER BY kode", [dari])
@@ -113,9 +125,9 @@ export async function copyPrograms(dari: number, ke: number, userId: number) {
     const [[dup]] = await db.query<Row[]>('SELECT id FROM training_programs WHERE tahun = ? AND nama = ? LIMIT 1', [ke, r.nama])
     if (dup) continue
     await db.query(
-      `INSERT INTO training_programs (kode, tahun, nama, kategori, jenis, kelompok, divisi, tujuan, bulan, frekuensi, durasi_jam, metode, penyelenggara, target_peserta, anggaran, indikator, status, module_id, catatan, created_by, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'rencana', ?, ?, ?, ?)`,
-      [await nextProgramKode(ke), ke, r.nama, r.kategori, r.jenis, r.kelompok, r.divisi, r.tujuan, r.bulan, r.frekuensi, r.durasi_jam, r.metode, r.penyelenggara, r.target_peserta, r.anggaran, r.indikator, r.module_id, r.catatan, userId, userId],
+      `INSERT INTO training_programs (kode, tahun, nama, kategori, jenis, kelompok, divisi, tujuan, bulan, tanggal, frekuensi, durasi_jam, metode, penyelenggara, target_peserta, anggaran, indikator, status, module_id, catatan, created_by, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'rencana', ?, ?, ?, ?)`,
+      [await nextProgramKode(ke), ke, r.nama, r.kategori, r.jenis, r.kelompok, r.divisi, r.tujuan, r.bulan, shiftYear(r.tanggal as string | null, ke), r.frekuensi, r.durasi_jam, r.metode, r.penyelenggara, r.target_peserta, r.anggaran, r.indikator, r.module_id, r.catatan, userId, userId],
     )
     added++
   }
@@ -125,7 +137,7 @@ export async function copyPrograms(dari: number, ke: number, userId: number) {
 // Excel program tahunan: tabel lengkap + kalender bulan (x = rencana, v = terlaksana)
 export async function programsXlsx(tahun: number) {
   const items = await listPrograms(tahun)
-  const head = ['Kode', 'Program', 'Kategori', 'Jenis', 'Kelompok', 'Divisi sasaran', 'Bulan', 'Frekuensi', 'Durasi (jam)', 'Metode', 'Penyelenggara', 'Target peserta',
+  const head = ['Kode', 'Program', 'Kategori', 'Jenis', 'Kelompok', 'Divisi sasaran', 'Bulan', 'Tanggal rencana', 'Frekuensi', 'Durasi (jam)', 'Metode', 'Penyelenggara', 'Target peserta',
     'Peserta hadir', 'Sesi selesai', 'Anggaran', 'Realisasi biaya', 'Status', 'Indikator keberhasilan', 'Tujuan', 'Catatan']
   const L = <T extends Record<string, string>>(map: T, v: string | null) => (v ? (map[v as keyof T] ?? v) : '')
   const rows: XlsxCell[][] = items.map((p, i) => {
@@ -133,24 +145,24 @@ export async function programsXlsx(tahun: number) {
     const t = (v: string | number | null) => ({ v, s: (z ? 'cell-z' : 'cell') as 'cell' | 'cell-z' })
     const m = (v: number | null) => ({ v, s: (z ? 'money-z' : 'money') as 'money' | 'money-z' })
     return [t(p.kode), t(p.nama), t(p.kategori), t(L(PROGRAM_JENIS, p.jenis)), t(L(PROGRAM_KELOMPOK, p.kelompok)), t(p.divisi.join(', ')), t(p.bulan.map((b) => MONTHS[b - 1]).join(', ')),
-      t(L(PROGRAM_FREKUENSI, p.frekuensi)), t(p.durasi_jam), t(L(PROGRAM_METODE, p.metode)), t(p.penyelenggara), t(p.target_peserta), t(p.peserta_hadir), t(`${p.sesi_selesai}/${p.sesi}`),
+      t(p.tanggal.map((d) => `${Number(d.slice(8, 10))} ${MONTHS[Number(d.slice(5, 7)) - 1]}`).join(', ')), t(L(PROGRAM_FREKUENSI, p.frekuensi)), t(p.durasi_jam), t(L(PROGRAM_METODE, p.metode)), t(p.penyelenggara), t(p.target_peserta), t(p.peserta_hadir), t(`${p.sesi_selesai}/${p.sesi}`),
       m(p.anggaran), m(p.realisasi_biaya), t(L(PROGRAM_STATUS, p.status)), t(p.indikator), t(p.tujuan), t(p.catatan)]
   })
   const total = (k: 'anggaran' | 'realisasi_biaya') => items.reduce((n, p) => n + (p[k] ?? 0), 0)
   const kalender: XlsxCell[][] = items.map((p) => [{ v: p.kode, s: 'cell' }, { v: p.nama, s: 'cell' },
-    ...MONTHS.map((_, i) => ({ v: p.bulan_realisasi.includes(i + 1) ? 'v' : p.bulan.includes(i + 1) ? 'x' : '', s: (p.bulan_realisasi.includes(i + 1) ? 'sh-2' : p.bulan.includes(i + 1) ? 'sh-normal' : 'center') as 'center' }))])
+    ...MONTHS.map((_, i) => ({ v: p.bulan_realisasi.includes(i + 1) ? 'v' : p.bulan.includes(i + 1) ? (p.tanggal.filter((d) => Number(d.slice(5, 7)) === i + 1).map((d) => Number(d.slice(8, 10))).join(',') || 'x') : '', s: (p.bulan_realisasi.includes(i + 1) ? 'sh-2' : p.bulan.includes(i + 1) ? 'sh-normal' : 'center') as 'center' }))])
   return writeXlsx([
     {
-      title: `Program ${tahun}`, widths: [13, 34, 16, 14, 16, 22, 18, 12, 10, 12, 22, 10, 10, 10, 16, 16, 11, 30, 34, 26], freeze: { row: 4, col: 2 }, heights: { 1: 26 },
+      title: `Program ${tahun}`, widths: [13, 34, 16, 14, 16, 22, 18, 22, 12, 10, 12, 22, 10, 10, 10, 16, 16, 11, 30, 34, 26], freeze: { row: 4, col: 2 }, heights: { 1: 26 },
       rows: [
         [{ v: `PROGRAM TRAINING TAHUNAN ${tahun}`, s: 'title2' }],
         [{ v: `${items.length} program · anggaran Rp ${total('anggaran').toLocaleString('id-ID')} · realisasi biaya Rp ${total('realisasi_biaya').toLocaleString('id-ID')} · dicetak dari SIMPAP`, s: 'note' }],
         [],
         head.map((v) => ({ v, s: 'head' })),
         ...rows,
-        ...(items.length ? [[{ v: 'TOTAL', s: 'total-label' }, ...Array(13).fill({ v: null, s: 'total-label' }), { v: total('anggaran'), s: 'total-money' }, { v: total('realisasi_biaya'), s: 'total-money' }, ...Array(4).fill({ v: null, s: 'total-label' })] as XlsxCell[]] : []),
+        ...(items.length ? [[{ v: 'TOTAL', s: 'total-label' }, ...Array(14).fill({ v: null, s: 'total-label' }), { v: total('anggaran'), s: 'total-money' }, { v: total('realisasi_biaya'), s: 'total-money' }, ...Array(4).fill({ v: null, s: 'total-label' })] as XlsxCell[]] : []),
       ],
-      merges: items.length ? [`A${rows.length + 5}:N${rows.length + 5}`] : [],
+      merges: items.length ? [`A${rows.length + 5}:O${rows.length + 5}`] : [],
     },
     {
       title: 'Kalender', widths: [13, 34, ...MONTHS.map(() => 6)], freeze: { row: 3, col: 2 },

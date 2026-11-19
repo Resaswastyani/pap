@@ -2589,3 +2589,10 @@ button.pap-ap-gantt-label { cursor:pointer; }
   .pap-tp-months { grid-template-columns:repeat(4, minmax(0, 1fr)); }
   .pap-tp-cal-wrap { padding:0 12px 12px; }
 }
+
+/* Program training: tanggal rencana per bulan */
+.pap-tp-dates { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:8px; }
+.pap-tp-date { display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid var(--pap-border); border-radius:10px; background:var(--pap-bg); }
+.pap-tp-date b { min-width:30px; font-size:12px; color:#7050e7; }
+.pap-tp-date .pap-input { min-height:34px; font-size:12px; }
+.pap-tp-day { position:relative; z-index:1; font-size:11px; font-weight:800; color:#4c1d95; }
