@@ -22,6 +22,8 @@ export const MENU_KEYS = {
   'Kalender Konten': 'konten',
   Pembayaran: 'pembayaran',
   'Rencana Produksi': 'jadwal-produksi',
+  // Analisis Bahan Baku: menu sendiri di Produksi, hak aksesnya mengikuti menu Rencana Produksi
+  'Analisis Bahan Baku': 'jadwal-produksi',
   'Kapasitas Produksi': 'kapasitas-produksi',
   'Jadwal Shift': 'jadwal-shift',
   'Hasil Produksi': 'hasil-produksi',
