@@ -13,9 +13,11 @@ type Peserta = { nama: string; employee_id: number | null; kehadiran: keyof type
 type Sesi = {
   id: number; judul: string; batch: string | null; tanggal: string; jam_mulai: string | null; jam_selesai: string | null; tempat: string | null; pemateri: string | null
   catatan: string | null; status: keyof typeof STATUS; dibuat_oleh: string | null; peserta: Peserta[]
+  program_id?: number | null; program?: string | null
 }
 type Emp = { id: number; nama: string; nip: string; jabatan: string | null; divisi: string | null }
-type Res = { items: Sesi[]; employees: Emp[]; can: { manage: boolean } }
+type ProgramOpt = { id: number; kode: string; nama: string; tahun: number }
+type Res = { items: Sesi[]; employees: Emp[]; programs?: ProgramOpt[]; can: { manage: boolean } }
 
 const wibToday = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
 const jamText = (s: Sesi) => (s.jam_mulai ? `${s.jam_mulai}${s.jam_selesai ? `–${s.jam_selesai}` : ''} WIB` : '')
@@ -128,15 +130,16 @@ export function TrainingSessions({ canImport }: { canImport: boolean }) {
           </section>
         </Modal>
       )}
-      {form && data && <SessionForm item={form === 'baru' ? null : form} employees={data.employees} onClose={() => setForm(null)} onSaved={(t) => { setForm(null); setMessage(t); load() }} />}
+      {form && data && <SessionForm item={form === 'baru' ? null : form} employees={data.employees} programs={data?.programs ?? []} onClose={() => setForm(null)} onSaved={(t) => { setForm(null); setMessage(t); load() }} />}
     </div>
   )
 }
 
-function SessionForm({ item, employees, onClose, onSaved }: { item: Sesi | null; employees: Emp[]; onClose: () => void; onSaved: (message: string) => void }) {
+function SessionForm({ item, employees, programs = [], onClose, onSaved }: { item: Sesi | null; employees: Emp[]; programs?: ProgramOpt[]; onClose: () => void; onSaved: (message: string) => void }) {
   const [v, setV] = useState({
     judul: item?.judul ?? '', batch: item?.batch ?? '', tanggal: item?.tanggal ?? wibToday(), jam_mulai: item?.jam_mulai ?? '13:00', jam_selesai: item?.jam_selesai ?? '15:00',
     tempat: item?.tempat ?? '', pemateri: item?.pemateri ?? '', catatan: item?.catatan ?? '', status: item?.status ?? 'terjadwal',
+    program_id: item?.program_id ? String(item.program_id) : '',
   })
   const [peserta, setPeserta] = useState<Peserta[]>(item?.peserta ?? [])
   const [cari, setCari] = useState('')
@@ -179,6 +182,12 @@ function SessionForm({ item, employees, onClose, onSaved }: { item: Sesi | null;
         </div>
         <Field label="Tempat"><input className="pap-input" maxLength={150} value={v.tempat} onChange={set('tempat')} placeholder="Ruang Produksi (Layar TV)" /></Field>
         <Field label="Pemateri"><input className="pap-input" maxLength={200} value={v.pemateri} onChange={set('pemateri')} placeholder="Kurniawan, Ino, ..." /></Field>
+        <Field label="Program training tahunan" full hint="Sesi ini dihitung sebagai realisasi program yang dipilih (opsional).">
+          <select className="pap-select" value={v.program_id} onChange={set('program_id')}>
+            <option value="">— Tidak terkait program —</option>
+            {programs.map((p) => <option key={p.id} value={p.id}>{p.kode} · {p.nama} ({p.tahun})</option>)}
+          </select>
+        </Field>
         <Field label="Catatan" full><textarea className="pap-input" rows={2} maxLength={1000} value={v.catatan} onChange={set('catatan')} /></Field>
         <div className="pap-field full">
           <span>Peserta ({peserta.length})</span>

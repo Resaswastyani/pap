@@ -15,7 +15,11 @@ export const GET = handle(async () => {
   const [employees] = manage
     ? await db.query<RowDataPacket[]>("SELECT id, nama, nip, jabatan, divisi FROM employees WHERE tgl_berhenti IS NULL AND COALESCE(status_karyawan, '') NOT LIKE '%resign%' ORDER BY nama")
     : [[] as RowDataPacket[]]
-  return NextResponse.json({ items: await listSessions(), employees, can: { manage } })
+  // Program tahunan (tahun ini & sebelumnya) untuk dihubungkan ke sesi
+  const [programs] = manage
+    ? await db.query<RowDataPacket[]>("SELECT id, kode, nama, tahun FROM training_programs WHERE status <> 'batal' ORDER BY tahun DESC, kode")
+    : [[] as RowDataPacket[]]
+  return NextResponse.json({ items: await listSessions(), employees, programs, can: { manage } })
 })
 
 // Tambah sesi, atau { impor: true } untuk menyalin sesi dari spreadsheet jadwal (tab BATCH) yang belum ada
@@ -52,8 +56,8 @@ export const POST = handle(async (request: Request) => {
   try {
     await conn.beginTransaction()
     const [res] = await conn.query<ResultSetHeader>(
-      'INSERT INTO training_sessions (judul, batch, tanggal, jam_mulai, jam_selesai, tempat, pemateri, catatan, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [v.judul, v.batch, v.tanggal, v.jam_mulai, v.jam_selesai, v.tempat, v.pemateri, v.catatan, v.status, user.id],
+      'INSERT INTO training_sessions (judul, batch, tanggal, jam_mulai, jam_selesai, tempat, pemateri, catatan, status, program_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [v.judul, v.batch, v.tanggal, v.jam_mulai, v.jam_selesai, v.tempat, v.pemateri, v.catatan, v.status, v.program_id, user.id],
     )
     await saveParticipants(conn, res.insertId, v.peserta)
     await conn.commit()

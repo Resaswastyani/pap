@@ -24,8 +24,8 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
   const conn = await db.getConnection()
   try {
     await conn.beginTransaction()
-    await conn.query('UPDATE training_sessions SET judul = ?, batch = ?, tanggal = ?, jam_mulai = ?, jam_selesai = ?, tempat = ?, pemateri = ?, catatan = ?, status = ? WHERE id = ?',
-      [v.judul, v.batch, v.tanggal, v.jam_mulai, v.jam_selesai, v.tempat, v.pemateri, v.catatan, v.status, id])
+    await conn.query('UPDATE training_sessions SET judul = ?, batch = ?, tanggal = ?, jam_mulai = ?, jam_selesai = ?, tempat = ?, pemateri = ?, catatan = ?, status = ?, program_id = ? WHERE id = ?',
+      [v.judul, v.batch, v.tanggal, v.jam_mulai, v.jam_selesai, v.tempat, v.pemateri, v.catatan, v.status, v.program_id, id])
     await saveParticipants(conn, id, v.peserta)
     await conn.commit()
   } catch (error) {

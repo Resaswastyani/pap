@@ -6,6 +6,7 @@ import type { UserProfile } from '@/lib/users'
 import { api, Field, formatDate, formatSize, Modal, Notice, confirmDialog } from './ui'
 import { MaterialForm, MateriTab, PreviewDialog } from './training-materi'
 import { JadwalTab } from './training-schedule'
+import { ProgramTab } from './training-programs'
 
 // Training Karyawan: tab Materi (folder Google Drive + preview), Jadwal (spreadsheet), Modul & Peserta (subfolder = modul, peserta & nilai dicatat HRD)
 
@@ -27,7 +28,7 @@ export function TrainingPage(_props: { user: UserProfile }) {
   const [data, setData] = useState<Res | null>(null)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
-  const [tab, setTab] = useState<'materi' | 'jadwal' | 'modul'>('materi')
+  const [tab, setTab] = useState<'materi' | 'program' | 'jadwal' | 'modul'>('materi')
   const [materiKey, setMateriKey] = useState(0)
   const [q, setQ] = useState('')
   const [kategori, setKategori] = useState('')
@@ -68,10 +69,11 @@ export function TrainingPage(_props: { user: UserProfile }) {
       </div>
       <div className="pap-segmented pap-page-tabs" role="tablist" aria-label="Bagian training">
         <button role="tab" aria-selected={tab === 'materi'} className={tab === 'materi' ? 'active' : ''} onClick={() => setTab('materi')}>Materi</button>
+        <button role="tab" aria-selected={tab === 'program'} className={tab === 'program' ? 'active' : ''} onClick={() => setTab('program')}>Program Tahunan</button>
         <button role="tab" aria-selected={tab === 'jadwal'} className={tab === 'jadwal' ? 'active' : ''} onClick={() => setTab('jadwal')}>Jadwal Training</button>
         <button role="tab" aria-selected={tab === 'modul'} className={tab === 'modul' ? 'active' : ''} onClick={() => setTab('modul')}>Modul & Peserta</button>
       </div>
-      {tab !== 'jadwal' && <>
+      {tab !== 'jadwal' && tab !== 'program' && <>
       <div className="pap-sync-bar">
         <div className="pap-sync-items">
           <span className="pap-sync-title">Google Drive</span>
@@ -84,6 +86,7 @@ export function TrainingPage(_props: { user: UserProfile }) {
       {(error || data?.warning) && <Notice onClose={() => setError('')}>{error || data?.warning}</Notice>}
       </>}
       {tab === 'materi' && <MateriTab key={materiKey} manage={manage} />}
+      {tab === 'program' && <ProgramTab />}
       {tab === 'jadwal' && <JadwalTab />}
       {tab === 'modul' && <>
       <div className="pap-stat-grid four">

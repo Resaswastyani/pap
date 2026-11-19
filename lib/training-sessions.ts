@@ -27,6 +27,8 @@ export function readSession(body: Record<string, unknown>) {
   return {
     judul: judul!, tanggal, status, batch: str(body.batch, 60) || null, jam_mulai: jam(body.jam_mulai, 'Jam mulai'), jam_selesai: jam(body.jam_selesai, 'Jam selesai'),
     tempat: str(body.tempat, 150) || null, pemateri: str(body.pemateri, 200) || null, catatan: str(body.catatan, 1000) || null, peserta,
+    // Program Training Tahunan yang direalisasikan sesi ini (opsional)
+    program_id: Number(body.program_id) > 0 ? Number(body.program_id) : null,
   }
 }
 export type SessionInput = ReturnType<typeof readSession>
@@ -40,7 +42,8 @@ export async function saveParticipants(conn: PoolConnection | typeof db, session
 
 export async function listSessions() {
   const [rows] = await db.query<Row[]>(
-    `SELECT s.*, DATE_FORMAT(s.tanggal, '%Y-%m-%d') AS tanggal, u.name AS dibuat_oleh FROM training_sessions s LEFT JOIN users u ON u.id = s.created_by
+    `SELECT s.*, DATE_FORMAT(s.tanggal, '%Y-%m-%d') AS tanggal, u.name AS dibuat_oleh, tp.kode AS program_kode, tp.nama AS program_nama FROM training_sessions s LEFT JOIN users u ON u.id = s.created_by
+     LEFT JOIN training_programs tp ON tp.id = s.program_id
      ORDER BY s.tanggal DESC, s.jam_mulai DESC, s.id DESC LIMIT 500`,
   )
   const [peserta] = rows.length
@@ -50,6 +53,7 @@ export async function listSessions() {
     id: Number(r.id), judul: String(r.judul), batch: (r.batch as string) ?? null, tanggal: String(r.tanggal), jam_mulai: (r.jam_mulai as string) ?? null, jam_selesai: (r.jam_selesai as string) ?? null,
     tempat: (r.tempat as string) ?? null, pemateri: (r.pemateri as string) ?? null, catatan: (r.catatan as string) ?? null, status: r.status as keyof typeof SESSION_STATUS,
     dibuat_oleh: (r.dibuat_oleh as string) ?? null,
+    program_id: r.program_id === null || r.program_id === undefined ? null : Number(r.program_id), program: r.program_kode ? `${r.program_kode} · ${r.program_nama}` : null,
     peserta: peserta.filter((p) => Number(p.session_id) === Number(r.id)).map((p) => ({ nama: String(p.nama), employee_id: p.employee_id === null ? null : Number(p.employee_id), kehadiran: p.kehadiran as SessionParticipant['kehadiran'] })),
   }))
 }
