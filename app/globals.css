@@ -2517,3 +2517,8 @@ button.pap-ap-gantt-label { cursor:pointer; }
 .pap-stock-date svg { width:15px; height:15px; }
 .pap-stock-date .pap-input { width:auto; min-height:38px; font-size:12px; }
 .pap-text-success { color:#16a34a; }
+
+/* Tabel stok: nama barang boleh membungkus, kolom angka ringkas; filter tanggal ikut turun baris di layar sempit */
+.pap-stock-name { min-width:220px; max-width:420px; }
+.pap-stock-name .pap-cell-title { overflow-wrap:anywhere; }
+@media (max-width:900px) { .pap-stock-date { flex:1 1 100%; } .pap-stock-date .pap-input { flex:1; } }

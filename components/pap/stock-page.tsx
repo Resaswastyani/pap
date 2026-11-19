@@ -126,7 +126,7 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
         ))}
       </div>
       <div className="pap-table-card">
-        <div className="pap-card-head"><div><h2>Daftar {meta.noun}</h2><p>Stok fisik = jumlah di gudang. Tersedia dijual = stok fisik dikurangi pesanan yang belum dikirim. Semua gudang.</p></div></div>
+        <div className="pap-card-head"><div><h2>Daftar {meta.noun}</h2><p>Stok fisik = jumlah di gudang (semua gudang); "tersedia dijual" tampil bila ada pesanan yang belum dikirim. Nilai stok = stok fisik x harga pokok rata-rata Accurate.</p></div></div>
         <div className="pap-filters">
           <label className="pap-filter-search"><Search /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Cari nama atau kode ${meta.noun}...`} /></label>
           <select className="pap-select" value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Filter kategori">
@@ -149,18 +149,19 @@ export function StockPage({ user, jenis }: { user: UserProfile; jenis: keyof typ
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Barang</th><th>Kategori</th><th className="pap-num">Stok fisik</th><th className="pap-num">Tersedia dijual</th><th className="pap-num">Minimum</th><th className="pap-num">Harga pokok</th><th className="pap-num">Nilai stok</th><th>Status</th><th aria-label="Aksi" /></tr></thead>
+            <thead><tr><th>Barang</th><th className="pap-num">Stok fisik</th><th className="pap-num">Harga pokok</th><th className="pap-num">Nilai stok</th><th>Status</th><th aria-label="Aksi" /></tr></thead>
             <tbody>
               {items.map((item) => {
                 const state = stockState(item)
                 return (
                   <tr key={item.accurate_id}>
-                    <td><div className="pap-cell-title">{item.name}</div><div className="pap-cell-sub">{item.item_no ?? '—'}</div></td>
-                    <td>{item.category ?? '—'}</td>
-                    <td className="pap-num pap-nowrap"><strong>{formatNumber(item.quantity_on_hand)}</strong> {item.unit ?? ''}</td>
-                    <td className="pap-num pap-nowrap">{past ? '—' : `${formatNumber(item.quantity)} ${item.unit ?? ''}`}</td>
-                    <td className="pap-num pap-nowrap">{item.min_quantity ? `${formatNumber(item.min_quantity)} ${item.unit ?? ''}` : '—'}</td>
-                    <td className="pap-num pap-nowrap">{item.unit_cost ? `${rupiah(item.unit_cost)}/${item.unit ?? 'unit'}` : '—'}</td>
+                    <td className="pap-stock-name"><div className="pap-cell-title">{item.name}</div><div className="pap-cell-sub">{[item.item_no, item.category].filter(Boolean).join(' · ') || '—'}</div></td>
+                    <td className="pap-num">
+                      <div className="pap-nowrap"><strong>{formatNumber(item.quantity_on_hand)}</strong> {item.unit ?? ''}</div>
+                      {!past && item.quantity !== item.quantity_on_hand && <div className="pap-cell-sub pap-nowrap">tersedia dijual {formatNumber(item.quantity)}</div>}
+                      {item.min_quantity ? <div className="pap-cell-sub pap-nowrap">min. {formatNumber(item.min_quantity)}</div> : null}
+                    </td>
+                    <td className="pap-num pap-nowrap">{item.unit_cost ? <>{rupiah(item.unit_cost)}<div className="pap-cell-sub">per {item.unit ?? 'unit'}</div></> : '—'}</td>
                     <td className="pap-num pap-nowrap"><strong>{item.nilai ? rupiah(item.nilai) : '—'}</strong></td>
                     <td><span className={`pap-status ${state.tone}`}>{state.label}</span></td>
                     <td className="pap-nowrap">
