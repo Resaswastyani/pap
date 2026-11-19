@@ -2582,7 +2582,7 @@ button.pap-ap-gantt-label { cursor:pointer; }
 @media (max-width:640px) {
   .pap-tp-toolbar > .pap-btn, .pap-tp-toolbar > .pap-primary-button { flex:1 1 auto; justify-content:center; }
   .pap-tp-toolbar .pap-spacer { display:none; }
-  .pap-tp-year { width:100%; } .pap-tp-year .pap-select { flex:1; }
+  .pap-tp-year { width:auto; }
   .pap-tp-kelompok { width:100%; } .pap-tp-kelompok button { flex:1; }
   .pap-tp-months { grid-template-columns:repeat(4, minmax(0, 1fr)); }
   .pap-tp-cal-wrap { padding:0 12px 12px; }
@@ -2599,6 +2599,6 @@ button.pap-ap-gantt-label { cursor:pointer; }
 .pap-tp-year { display:inline-flex; align-items:stretch; height:40px; border:1px solid var(--pap-border); border-radius:10px; background:var(--pap-surface, #fff); overflow:hidden; }
 .pap-tp-year .pap-icon-button { width:38px; height:auto; border:0; border-radius:0; background:transparent; }
 .pap-tp-year .pap-icon-button:hover { background:rgb(124 92 252 / .08); color:#7050e7; }
-.pap-tp-year .pap-select { width:auto; min-width:140px; height:auto; min-height:0; padding:0 30px 0 12px; border:0; border-left:1px solid var(--pap-border); border-right:1px solid var(--pap-border); border-radius:0; background-color:transparent; font-weight:700; color:var(--pap-text); text-align:center; text-align-last:center; box-shadow:none; }
+.pap-tp-year .pap-select { width:auto; min-width:0; height:auto; min-height:0; padding:0 6px 0 12px; border:0; border-left:1px solid var(--pap-border); border-right:1px solid var(--pap-border); border-radius:0; background-color:transparent; font-weight:700; color:var(--pap-text); box-shadow:none; }
 .pap-tp-year .pap-select:focus { outline:none; background-color:rgb(124 92 252 / .06); }
-@media (max-width:640px) { .pap-tp-year { width:100%; } .pap-tp-year .pap-select { flex:1; } }
+@media (max-width:640px) { .pap-tp-year { width:auto; } }
