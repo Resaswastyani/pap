@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
 import { canEditHppParams, loadSettings } from '@/lib/hpp'
-import { canApproveQuotation, canWriteQuotation, loadQuotation, QUOTATION_APPROVAL_REQUIRED, loadQuotationItems, readQuotationInput, requireQuotation, saveQuotationItems } from '@/lib/quotations'
+import { canApproveQuotation, canManageQuotation, canWriteQuotation, loadQuotation, QUOTATION_APPROVAL_REQUIRED, loadQuotationItems, readQuotationInput, requireQuotation, saveQuotationItems } from '@/lib/quotations'
 import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -16,7 +16,7 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
     item,
     items: await loadQuotationItems(item.id),
     doc: await loadSettings('doc.'),
-    canEdit: item.status === 'draft' && (item.created_by === user.id || user.role.isAdmin || canEditHppParams(user)),
+    canEdit: item.status === 'draft' && (canManageQuotation(user, item as { created_by: number }) || canEditHppParams(user)),
     canWrite: canWriteQuotation(user),
     canApprove: canApproveQuotation(user),
     isOwner: item.created_by === user.id,
@@ -30,7 +30,7 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   requireQuotation(user)
   const item = await loadQuotation(await quotationId(ctx), user)
   if (item.status !== 'draft') fail(400, 'Hanya penawaran berstatus Draft yang dapat diubah. Buat revisi baru bila perlu.')
-  if (item.created_by !== user.id && !user.role.isAdmin && !canEditHppParams(user)) fail(403, 'Hanya pembuat penawaran yang dapat mengubah.')
+  if (!canManageQuotation(user, item as { created_by: number }) && !canEditHppParams(user)) fail(403, 'Hanya Marketing / GM yang dapat mengubah penawaran.')
   const { header, items } = await readQuotationInput(await readJson(request), user)
   await db.query(
     `UPDATE quotations SET prospect_id = ?, customer_id = ?, kepada = ?, kontak = ?, telepon = ?, whatsapp = ?, alamat = ?, tanggal = ?, berlaku_hari = ?, pakai_ppn = ?,
@@ -51,7 +51,7 @@ export const DELETE = handle(async (_request: Request, ctx: Ctx) => {
   requireQuotation(user)
   const item = await loadQuotation(await quotationId(ctx), user)
   if (item.status !== 'draft') fail(400, 'Penawaran yang sudah dikirim tidak dapat dihapus; gunakan Batal.')
-  if (item.created_by !== user.id && !user.role.isAdmin) fail(403, 'Hanya pembuat penawaran yang dapat menghapus.')
+  if (!canManageQuotation(user, item as { created_by: number })) fail(403, 'Hanya Marketing / GM yang dapat menghapus penawaran.')
   await softDelete({ table: 'quotations', id: item.id, modul: 'Quotation', label: `${item.nomor} · ${item.kepada ?? ''}`, user })
   return NextResponse.json({ ok: true })
 })

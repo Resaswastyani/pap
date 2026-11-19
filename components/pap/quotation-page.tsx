@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Ban, CheckCircle2, Copy, FileDown, FileText, MessageCircle, Pencil, Plus, Printer, Receipt, Search, Send, Settings2, Trash2, TrendingUp, Truck, Wallet, XCircle } from 'lucide-react'
+import { Ban, CheckCircle2, Copy, ExternalLink, Eye, FileDown, FileText, MessageCircle, Package, Store, Pencil, Plus, Printer, Receipt, Search, Send, Settings2, Trash2, TrendingUp, Truck, Wallet, XCircle } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { rupiah } from '@/lib/hpp-calc'
 import { DocForm, useHppData } from './hpp-page'
@@ -28,6 +28,7 @@ type Quotation = {
   created_name: string; sent_at: string | null; created_at: string; prospect_name: string | null; customer_no: string | null; item_count: number
   order_nomor: string | null; proforma_nomor: string | null; tanggal_kirim: string | null; dp_persen: number | null; expedition_id: number | null
   expedition_name: string | null; expedition_estimasi: string | null; ongkir: number | null; catatan_order: string | null; terbayar: number
+  pengiriman: 'ambil' | 'ekspedisi' | 'driver_pap' | null; driver_nama: string | null
   approval: Approval | null; approval_note: string | null; approved_name: string | null; approved_at: string | null; rekening: string | null; telepon_kop: string | null
 }
 type Item = { id: number; product_id: number | null; nama_produk: string; spesifikasi: string | null; qty: number; satuan: string; harga_satuan: number; subtotal: number }
@@ -362,6 +363,7 @@ function QuotationDetail({ id, userName, autoEdit = false, onClose, onChanged, o
   const [approvalNote, setApprovalNote] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [preview, setPreview] = useState<DocJenis | null>(null)
   const editOpened = useRef(false)
   const load = useCallback(async () => {
     try {
@@ -449,7 +451,7 @@ function QuotationDetail({ id, userName, autoEdit = false, onClose, onChanged, o
         {canWrite && <button className="pap-btn" onClick={() => onCopy(full)}><Copy /> Buat revisi</button>}
         {item.status === 'draft' && canEdit && <button className="pap-btn" onClick={() => onEdit(full)}><Pencil /> Edit</button>}
         <a className="pap-btn" href={links.word}><FileDown /> Word</a>
-        <a className="pap-btn" href={links.pdf} target="_blank" rel="noreferrer"><Printer /> PDF</a>
+        <button type="button" className="pap-primary-button" onClick={() => setPreview('penawaran')}><Eye /> Pratinjau & cetak</button>
       </>}
     >
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
@@ -531,6 +533,7 @@ function QuotationDetail({ id, userName, autoEdit = false, onClose, onChanged, o
       </div>
       {item.syarat && <section className="pap-detail-section"><h3>Syarat & ketentuan</h3><p className="pap-prewrap">{item.syarat}</p></section>}
       {item.catatan && <section className="pap-detail-section"><h3>Catatan internal</h3><p className="pap-prewrap">{item.catatan}</p></section>}
+      {preview && <DocPreview id={item.id} nomor={item.nomor} initial={preview} hasOrder={!!item.order_nomor} onClose={() => setPreview(null)} />}
     </Modal>
   )
 }
@@ -543,9 +546,11 @@ function OrderPanel({ item, canWrite, onSaved }: { item: Quotation; canWrite: bo
   const [paying, setPaying] = useState(false)
   const [expeditions, setExpeditions] = useState<Expedition[]>([])
   const [v, setV] = useState({
+    pengiriman: item.pengiriman ?? (item.expedition_id ? 'ekspedisi' : 'driver_pap'), driver_nama: item.driver_nama ?? '',
     tanggal_kirim: item.tanggal_kirim ?? '', dp_persen: item.dp_persen?.toString() ?? '50', expedition_id: item.expedition_id ? String(item.expedition_id) : '',
     ongkir: item.ongkir?.toString() ?? '', catatan_order: item.catatan_order ?? '',
   })
+  const [preview, setPreview] = useState<DocJenis | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   useEffect(() => { if (editing) api<{ items: Expedition[] }>('/api/expeditions').then((r) => setExpeditions(r.items.filter((e) => e.aktif))).catch(() => {}) }, [editing])
@@ -575,12 +580,25 @@ function OrderPanel({ item, canWrite, onSaved }: { item: Quotation; canWrite: bo
         <form className="pap-form-grid" onSubmit={save}>
           <Field label="Rencana tanggal kirim"><input className="pap-input" type="date" value={v.tanggal_kirim} onChange={set('tanggal_kirim')} /></Field>
           <Field label="DP (%)"><input className="pap-input" inputMode="decimal" value={v.dp_persen} onChange={set('dp_persen')} placeholder="50" /></Field>
-          <Field label="Ekspedisi" hint="Diurutkan termurah per rute. Kelola di Master Data → Ekspedisi.">
-            <select className="pap-select" value={v.expedition_id} onChange={set('expedition_id')}>
-              <option value="">— Diambil sendiri / belum ditentukan —</option>
-              {expeditions.map((e) => <option key={e.id} value={e.id}>{e.tujuan} · {e.nama}{e.tarif_per_kg ? ` · ${rupiah(e.tarif_per_kg)}/kg` : ''}{e.estimasi_hari ? ` · ${e.estimasi_hari} hari` : ''}</option>)}
-            </select>
-          </Field>
+          <div className="pap-field full">
+            <span>Pengiriman</span>
+            <div className="pap-ship-options" role="radiogroup" aria-label="Cara pengiriman">
+              {([['driver_pap', Truck, 'Driver PAP', 'Diantar armada / driver sendiri PT. PAP'], ['ekspedisi', Package, 'Ekspedisi', 'Dikirim lewat ekspedisi / cargo'], ['ambil', Store, 'Diambil sendiri', 'Customer mengambil ke pabrik']] as const).map(([k, Icon, label, hint]) => (
+                <button type="button" key={k} role="radio" aria-checked={v.pengiriman === k} className={`pap-ship-option ${v.pengiriman === k ? 'active' : ''}`} onClick={() => setV((x) => ({ ...x, pengiriman: k }))}>
+                  <Icon /><b>{label}</b><small>{hint}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+          {v.pengiriman === 'driver_pap' && <Field label="Driver / kendaraan (opsional)"><input className="pap-input" maxLength={150} value={v.driver_nama} onChange={set('driver_nama')} placeholder="mis. Pak Joko · L300 AD 1234 XX" /></Field>}
+          {v.pengiriman === 'ekspedisi' && (
+            <Field label="Ekspedisi" hint="Diurutkan termurah per rute. Kelola di Master Data → Ekspedisi.">
+              <select className="pap-select" value={v.expedition_id} onChange={set('expedition_id')} required>
+                <option value="">— Pilih ekspedisi —</option>
+                {expeditions.map((e) => <option key={e.id} value={e.id}>{e.tujuan} · {e.nama}{e.tarif_per_kg ? ` · ${rupiah(e.tarif_per_kg)}/kg` : ''}{e.estimasi_hari ? ` · ${e.estimasi_hari} hari` : ''}</option>)}
+              </select>
+            </Field>
+          )}
           <Field label="Ongkir (Rp, opsional)"><input className="pap-input" inputMode="numeric" value={v.ongkir} onChange={set('ongkir')} /></Field>
           <Field label="Catatan order (dicetak)" full><textarea className="pap-input" rows={2} maxLength={5000} value={v.catatan_order} onChange={set('catatan_order')} placeholder="Mis. desain final DSN-..., packing per 100 pcs, special request" /></Field>
           <div className="pap-inline-actions full">{item.order_nomor && <button type="button" className="pap-btn" onClick={() => setEditing(false)}>Batal</button>}<button className="pap-primary-button" disabled={busy}>{busy ? 'Menyimpan...' : item.order_nomor ? 'Simpan' : 'Buat surat order'}</button></div>
@@ -589,21 +607,22 @@ function OrderPanel({ item, canWrite, onSaved }: { item: Quotation; canWrite: bo
         <>
           <dl className="pap-detail-grid">
             <div><dt>Tanggal kirim</dt><dd>{formatDate(item.tanggal_kirim)}</dd></div>
-            <div><dt>Ekspedisi</dt><dd>{item.expedition_name ? <><Truck className="pap-inline-icon" /> {item.expedition_name}{item.expedition_estimasi ? ` (${item.expedition_estimasi} hari)` : ''}</> : '—'}</dd></div>
+            <div><dt>Pengiriman</dt><dd>{item.pengiriman === 'driver_pap' ? <><Truck className="pap-inline-icon" /> Driver PAP{item.driver_nama ? ` · ${item.driver_nama}` : ''}</>
+              : item.expedition_name ? <><Package className="pap-inline-icon" /> {item.expedition_name}{item.expedition_estimasi ? ` (${item.expedition_estimasi} hari)` : ''}</>
+              : item.pengiriman === 'ambil' ? 'Diambil sendiri' : '—'}</dd></div>
             <div><dt>Total + ongkir</dt><dd>{rupiah(grand)}{dp ? ` · DP ${item.dp_persen}% = ${rupiah(dp)}` : ''}</dd></div>
             <div><dt>Sudah dibayar (diverifikasi)</dt><dd className={sisa > 0 ? 'pap-text-warn' : 'pap-text-ok'}>{rupiah(item.terbayar)}{sisa > 0 ? ` · sisa ${rupiah(sisa)}` : ' · LUNAS'}</dd></div>
           </dl>
           <div className="pap-inline-actions pap-wrap">
             {canWrite && <button className="pap-btn" onClick={() => setEditing(true)}><Pencil /> Ubah data order</button>}
             <span className="pap-spacer" />
-            <a className="pap-btn" href={docLinks(item.id, 'order').pdf} target="_blank" rel="noreferrer"><Printer /> Surat Order PDF</a>
-            <a className="pap-btn" href={docLinks(item.id, 'order').word}><FileDown /> Word</a>
-            <a className="pap-btn" href={docLinks(item.id, 'proforma').pdf} target="_blank" rel="noreferrer"><Printer /> Proforma PDF</a>
-            <a className="pap-btn" href={docLinks(item.id, 'proforma').word}><FileDown /> Word</a>
+            <button type="button" className="pap-btn" onClick={() => setPreview('order')}><Eye /> Surat Order</button>
+            <button type="button" className="pap-btn" onClick={() => setPreview('proforma')}><Eye /> Proforma Invoice</button>
             {sisa > 0 && <button className="pap-primary-button" onClick={() => setPaying(true)}><Wallet /> Konfirmasi pembayaran</button>}
           </div>
         </>
       )}
+      {preview && <DocPreview id={item.id} nomor={item.nomor} initial={preview} hasOrder={!!item.order_nomor} onClose={() => setPreview(null)} />}
       {paying && (
         <PaymentForm
           preset={{ quotation_id: item.id, pembayar: item.kepada, nomor: item.order_nomor ?? item.nomor, sisa, dp: item.terbayar === 0 ? dp : null }}
@@ -612,5 +631,44 @@ function OrderPanel({ item, canWrite, onSaved }: { item: Quotation; canWrite: bo
         />
       )}
     </div>
+  )
+}
+
+// ---------------- Pratinjau dokumen sebelum dicetak ----------------
+type DocJenis = 'penawaran' | 'order' | 'proforma'
+const DOC_LABEL: Record<DocJenis, string> = { penawaran: 'Surat Penawaran', order: 'Surat Order', proforma: 'Proforma Invoice' }
+
+// Lembar A4 ditampilkan di dalam SIMPAP (halaman cetak dalam iframe), lalu dicetak / disimpan PDF dari sini
+function DocPreview({ id, nomor, initial, hasOrder, onClose }: { id: number; nomor: string; initial: DocJenis; hasOrder: boolean; onClose: () => void }) {
+  const [jenis, setJenis] = useState<DocJenis>(initial)
+  const [loading, setLoading] = useState(true)
+  const frame = useRef<HTMLIFrameElement | null>(null)
+  const links = docLinks(id, jenis)
+  const src = `${links.pdf}${links.pdf.includes('?') ? '&' : '?'}embed=1`
+  function print() {
+    const w = frame.current?.contentWindow
+    if (!w) return
+    w.focus()
+    w.print()
+  }
+  return (
+    <Modal title={`Pratinjau ${DOC_LABEL[jenis]}`} subtitle={`${nomor} · periksa dulu sebelum dicetak / dikirim ke customer`} className="pap-doc-preview" onClose={onClose}
+      footer={<>
+        <a className="pap-btn" href={links.pdf} target="_blank" rel="noreferrer"><ExternalLink /> <span className="pap-hide-sm">Buka tab baru</span></a>
+        <span className="pap-spacer" />
+        <a className="pap-btn" href={links.word}><FileDown /> Word</a>
+        <button type="button" className="pap-primary-button" onClick={print} disabled={loading}><Printer /> Cetak / Simpan PDF</button>
+      </>}>
+      {hasOrder && (
+        <div className="pap-segmented pap-doc-tabs" role="tablist" aria-label="Jenis dokumen">
+          {(['penawaran', 'order', 'proforma'] as DocJenis[]).map((j) => <button key={j} role="tab" aria-selected={jenis === j} className={jenis === j ? 'active' : ''} onClick={() => { if (j !== jenis) { setLoading(true); setJenis(j) } }}>{DOC_LABEL[j]}</button>)}
+        </div>
+      )}
+      <div className="pap-doc-frame">
+        {loading && <div className="pap-doc-loading"><span className="pap-spin-dot" /> Menyiapkan dokumen...</div>}
+        <iframe ref={frame} key={jenis} src={src} title={`Pratinjau ${DOC_LABEL[jenis]} ${nomor}`} onLoad={() => setLoading(false)} />
+      </div>
+      <p className="pap-muted pap-doc-hint">Di dialog cetak pilih <b>Simpan sebagai PDF</b> untuk mendapatkan file PDF. Di HP, bila tombol cetak tidak muncul, pakai <b>Buka tab baru</b>.</p>
+    </Modal>
   )
 }

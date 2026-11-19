@@ -20,8 +20,11 @@ export function requireQuotation(user: UserProfile) {
 }
 
 // Staff marketing melihat penawarannya sendiri; Lead/GM/Accounting/admin melihat semua
-export const seesAllQuotations = (user: UserProfile) => canSupervise(user) || ['general_manager', 'accounting'].includes(user.division.code)
+// Semua Marketing (Development, Maintenance, Digital; staff maupun lead) melihat semua penawaran
+export const seesAllQuotations = (user: UserProfile) => canSupervise(user) || ['general_manager', 'accounting'].includes(user.division.code) || user.division.code.startsWith('marketing')
 export const canWriteQuotation = (user: UserProfile) => user.role.isAdmin || user.division.code.startsWith('marketing') || user.division.code === 'general_manager'
+// Ubah / hapus draft penawaran siapa pun: semua Marketing, GM, admin (dan pembuatnya)
+export const canManageQuotation = (user: UserProfile, item: { created_by: number }) => canWriteQuotation(user) || item.created_by === user.id
 
 export function quotationScope(user: UserProfile) {
   return seesAllQuotations(user) ? { sql: '1 = 1', params: [] as number[] } : { sql: 'q.created_by = ?', params: [user.id] }

@@ -15,6 +15,11 @@ const tanggal = (value: string) => {
   const [y, m, d] = value.slice(0, 10).split('-').map(Number)
   return `${d} ${MONTHS[m - 1]} ${y}`
 }
+// Cara kirim untuk surat order / proforma
+const kirimVia = (q: Record<string, unknown>) =>
+  q.pengiriman === 'driver_pap' ? `dikirim armada PT. Pandawa Amerta Packindo${q.driver_nama ? ` (${esc(q.driver_nama)})` : ''}`
+    : q.expedition_name ? `via ekspedisi ${esc(q.expedition_name)}`
+    : q.pengiriman === 'ambil' ? 'diambil sendiri oleh customer' : ''
 const signedAt = (v: string) => { const [d, t] = v.split(' '); return `${tanggal(d)}${t ? ` ${t.slice(0, 5)} WIB` : ''}` }
 const rp = (v: number, digits = 0) => `Rp ${v.toLocaleString('id-ID', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`
 const esc = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
@@ -68,16 +73,17 @@ export function quotationDocumentHtml({ q, items, doc, signatures }: Awaited<Ret
   <td class="logo"><img src="${esc(logoSrc)}" alt="" width="120"></td>
   <td><h1>${esc(perusahaan)}</h1><p>Flexible Plastic Packaging Manufacture</p>${doc.alamat ? `<p>${esc(doc.alamat)}</p>` : ''}${telepon.length ? `<p>Telp/WA: ${telepon.map(esc).join(' · ')}</p>` : ''}${doc.email ? `<p>${esc(doc.email)}</p>` : ''}</td>
 </tr></tbody></table>
+<p class="pap-sheet-date">${doc.kota ? `${esc(doc.kota)}, ` : ''}${tanggal(tanggalDok)}</p>
 <h2 class="pap-sheet-title">${JUDUL[jenis]}</h2>
 ${QUOTATION_APPROVAL_REQUIRED && jenis === 'penawaran' && q.status === 'draft' && q.approval !== 'disetujui' ? '<p class="pap-sheet-draft">DRAFT — belum disetujui Kepala Marketing / GM, jangan dikirim ke customer</p>' : ''}
 <table class="pap-sheet-meta"><tbody>
-  <tr><td>Nomor</td><td>: ${esc(documentNomor(q, jenis))}</td><td>Tanggal</td><td>: ${tanggal(tanggalDok)}</td></tr>
-  <tr><td>Kepada</td><td>: <b>${esc(q.kepada)}</b></td>${jenis === 'penawaran' ? `<td>Berlaku s/d</td><td>: ${tanggal(q.berlaku_sampai)}</td>` : `<td>Ref. penawaran</td><td>: ${esc(q.nomor)}</td>`}</tr>
+  <tr><td>Nomor</td><td>: ${esc(documentNomor(q, jenis))}</td>${jenis === 'penawaran' ? `<td>Berlaku s/d</td><td>: ${tanggal(q.berlaku_sampai)}</td>` : `<td>Ref. penawaran</td><td>: ${esc(q.nomor)}</td>`}</tr>
+  <tr><td>Kepada</td><td colspan="3">: <b>${esc(q.kepada)}</b></td></tr>
   ${q.kontak ? `<tr><td>Up.</td><td colspan="3">: ${esc(q.kontak)}</td></tr>` : ''}
   ${q.telepon ? `<tr><td>Telepon</td><td colspan="3">: ${esc(q.telepon)}</td></tr>` : ''}
   ${q.whatsapp ? `<tr><td>WA</td><td colspan="3">: ${esc(q.whatsapp)}</td></tr>` : ''}
   ${q.alamat ? `<tr><td>Alamat</td><td colspan="3">: ${esc(q.alamat)}</td></tr>` : ''}
-  ${jenis !== 'penawaran' && q.tanggal_kirim ? `<tr><td>Rencana kirim</td><td colspan="3">: ${tanggal(q.tanggal_kirim)}${q.expedition_name ? ` · via ${esc(q.expedition_name)}` : ''}</td></tr>` : ''}
+  ${jenis !== 'penawaran' && (q.tanggal_kirim || q.pengiriman) ? `<tr><td>Pengiriman</td><td colspan="3">: ${[q.tanggal_kirim ? `rencana ${tanggal(q.tanggal_kirim)}` : '', kirimVia(q)].filter(Boolean).join(' · ')}</td></tr>` : ''}
 </tbody></table>
 <p>Dengan hormat,<br>${pembuka}</p>
 <table class="pap-sheet-items">
@@ -118,6 +124,7 @@ img { max-width: 100%; height: auto; }
 .pap-sheet-head p { margin: 0; color: #444; font-size: 9.5pt; }
 .pap-sheet-title { margin: 16pt 0 10pt; text-align: center; font-size: 12.5pt; text-decoration: underline; }
 .pap-sheet-draft { padding: 4pt; border: 2px dashed #b42318; color: #b42318; text-align: center; font-weight: bold; }
+.pap-sheet-date { margin: 10pt 0 0; text-align: right; }
 .pap-sheet-meta { border-collapse: collapse; margin-bottom: 10pt; }
 .pap-sheet-meta td { padding: 1pt 10pt 1pt 0; vertical-align: top; }
 .pap-sheet-items { width: 100%; border-collapse: collapse; margin: 8pt 0; }

@@ -40,7 +40,7 @@ export async function saveSettings(prefix: 'hpp.' | 'doc.', values: Record<strin
   }
 }
 
-export const DOC_KEYS = ['nama', 'alamat', 'telepon', 'email', 'rekening', 'syarat', 'penandatangan']
+export const DOC_KEYS = ['nama', 'alamat', 'kota', 'telepon', 'email', 'rekening', 'syarat', 'penandatangan']
 
 export type MaterialRow = { id: number; kode: string; nama: string; jenis: string; satuan: string; harga: number; density: number | null; aktif: number }
 

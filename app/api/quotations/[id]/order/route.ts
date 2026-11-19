@@ -22,18 +22,22 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   if (dp !== null && (dp < 0 || dp > 100)) fail(400, 'DP harus 0–100%.')
   const ongkir = toNumber(String(body.ongkir ?? '').replace(/\./g, ''))
   if (ongkir !== null && ongkir < 0) fail(400, 'Ongkir tidak valid.')
-  let expeditionId = int(body.expedition_id)
+  // Pengiriman: driver / armada sendiri PT. PAP, ekspedisi (pilih dari Master Data), atau diambil sendiri
+  const pengiriman = body.pengiriman === 'driver_pap' || body.pengiriman === 'ekspedisi' || body.pengiriman === 'ambil' ? body.pengiriman : null
+  let expeditionId = pengiriman === 'ekspedisi' ? int(body.expedition_id) : null
   if (expeditionId) {
     const [[e]] = await db.query<(RowDataPacket & { id: number })[]>('SELECT id FROM expeditions WHERE id = ?', [expeditionId])
     expeditionId = e?.id ?? null
   }
+  if (pengiriman === 'ekspedisi' && !expeditionId) fail(400, 'Pilih ekspedisi pengirimannya.')
+  const driverNama = pengiriman === 'driver_pap' ? str(body.driver_nama, 150) || null : null
   const first = !item.order_nomor
   await db.query(
-    `UPDATE quotations SET tanggal_kirim = ?, dp_persen = ?, expedition_id = ?, ongkir = ?, catatan_order = ?, order_at = COALESCE(order_at, NOW()),
+    `UPDATE quotations SET pengiriman = ?, driver_nama = ?, tanggal_kirim = ?, dp_persen = ?, expedition_id = ?, ongkir = ?, catatan_order = ?, order_at = COALESCE(order_at, NOW()),
        order_nomor = COALESCE(order_nomor, CONCAT('SO-', DATE_FORMAT(NOW(), '%y%m'), '-', LPAD(id, 4, '0'))),
        proforma_nomor = COALESCE(proforma_nomor, CONCAT('PI-', DATE_FORMAT(NOW(), '%y%m'), '-', LPAD(id, 4, '0')))
      WHERE id = ?`,
-    [tanggalKirim || null, dp, expeditionId, ongkir, str(body.catatan_order, 5000) || null, item.id],
+    [pengiriman, driverNama, tanggalKirim || null, dp, expeditionId, ongkir, str(body.catatan_order, 5000) || null, item.id],
   )
   if (first && item.prospect_id) {
     await logActivity(db, { prospectId: item.prospect_id, userId: user.id, jenis: 'catatan', hasil: `Surat order & proforma dibuat dari ${item.nomor}${tanggalKirim ? `, rencana kirim ${tanggalKirim}` : ''}` })
