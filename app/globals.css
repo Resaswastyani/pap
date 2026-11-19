@@ -1383,6 +1383,49 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 @media (min-width:801px) { .pap-plan-table th, .pap-plan-table td { padding-left:14px; padding-right:14px; } .pap-plan-table .pap-progress { min-width:96px; } }
 @media (max-width:640px) { .pap-stat-grid.four .pap-stat-text { font-size:17px !important; white-space:nowrap; } }
 
+/* Rencana Produksi: 5 kartu statistik + pembagian shift */
+@media (min-width:1301px) { .pap-stat-grid.four.five { grid-template-columns:repeat(5,minmax(0,1fr)); } }
+@media (min-width:1101px) and (max-width:1300px) { .pap-stat-grid.four.five { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (max-width:1300px) { .pap-stat-grid.four.five > :last-child { grid-column:1 / -1; } }
+.pap-shift-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; padding:0 20px 14px; }
+.pap-shift-sum { display:flex; flex-direction:column; gap:2px; min-width:0; padding:10px 12px; border:1px solid var(--pap-border); border-radius:12px; }
+.pap-shift-sum strong { font-size:14px; overflow-wrap:anywhere; }
+.pap-shift-sum small { color:var(--pap-muted); font-size:11px; }
+.pap-shift-tag { align-self:flex-start; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:800; letter-spacing:.02em; }
+.pap-shift-sum.s1 .pap-shift-tag, .pap-shift-chip.s1 { background:rgb(124 92 252 / .12); color:#6a4ee0; }
+.pap-shift-sum.s2 .pap-shift-tag, .pap-shift-chip.s2 { background:rgb(29 185 138 / .14); color:#11916b; }
+.pap-shift-sum.s3 .pap-shift-tag, .pap-shift-chip.s3 { background:rgb(245 158 11 / .16); color:#b26b00; }
+.pap-shift-cell { display:flex; flex-direction:column; align-items:flex-start; gap:4px; min-width:150px; }
+.pap-shift-chips { display:flex; flex-wrap:wrap; gap:4px; }
+.pap-shift-chip { padding:3px 8px; border-radius:999px; font-size:11px; white-space:nowrap; }
+.pap-shift-chip b { font-weight:800; }
+.pap-shift-rest { color:#b26b00; font-size:11px; }
+.pap-shift-over { color:#d14343; font-size:11px; }
+.pap-shift-edit { display:inline-flex; align-items:center; gap:4px; }
+.pap-shift-edit svg { width:12px; height:12px; }
+.pap-shift-form { display:flex; flex-direction:column; gap:14px; }
+.pap-shift-info { display:flex; flex-wrap:wrap; gap:6px 18px; padding:10px 12px; border-radius:12px; background:var(--pap-soft, rgb(124 92 252 / .06)); font-size:12px; color:var(--pap-muted); }
+.pap-shift-info b { color:var(--pap-text); }
+.pap-shift-rows { display:flex; flex-direction:column; gap:10px; }
+.pap-shift-row { display:grid; grid-template-columns:110px 150px 130px 140px minmax(140px,1fr) auto; gap:8px; align-items:end; padding:10px; border:1px solid var(--pap-border); border-radius:12px; }
+.pap-shift-row label { display:flex; flex-direction:column; gap:4px; min-width:0; font-size:11px; color:var(--pap-muted); }
+.pap-shift-row .pap-input, .pap-shift-row .pap-select { width:100%; min-width:0; }
+.pap-shift-row-end { display:flex; align-items:center; gap:6px; }
+.pap-shift-row-value { min-width:90px; text-align:right; font-size:12px; font-weight:700; white-space:nowrap; }
+.pap-shift-total { display:flex; flex-wrap:wrap; gap:4px 14px; font-size:12px; color:var(--pap-muted); }
+.pap-shift-total b { color:var(--pap-text); }
+.pap-shift-hint { margin:0; font-size:11px; }
+@media (max-width:900px) {
+  .pap-shift-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .pap-shift-note { grid-column:1 / -1; }
+  .pap-shift-row-end { grid-column:1 / -1; justify-content:space-between; }
+  .pap-shift-row-value { text-align:left; }
+}
+@media (max-width:640px) {
+  .pap-shift-summary { grid-template-columns:1fr; padding:0 12px 12px; }
+  .pap-shift-cell { min-width:0; }
+}
+
 /* ---------- Formulasi dari BOM Accurate ---------- */
 .pap-bom-row { grid-template-columns:minmax(0,3fr) 110px 80px minmax(110px,1fr) 38px; }
 .pap-bom-row .pap-num { text-align:right; }
