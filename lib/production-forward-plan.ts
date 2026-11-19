@@ -18,7 +18,10 @@ const OPEN = `so.status <> 'Terproses' AND j.status NOT IN ('selesai', 'batal') 
 
 export const todayWib = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
 
+// Hanya pesanan yang tanggal kirimnya hari ini atau ke depan (yang sudah lewat tidak direncanakan lagi),
+// kecuali pesanan yang masih punya jadwal produksi mulai hari ini.
 export async function loadForwardPlan() {
+  const today = todayWib()
   const [jobs] = await db.query<Row[]>(
     `SELECT j.id, j.so_number, DATE_FORMAT(so.trans_date, '%Y-%m-%d') AS so_date, DATE_FORMAT(j.due_date, '%Y-%m-%d') AS due_date, j.item_name, i.item_no,
        j.quantity, j.unit, j.prioritas, so.status AS so_status, soi.unit_price, c.name AS customer
@@ -28,8 +31,10 @@ export async function loadForwardPlan() {
      LEFT JOIN accurate_items i ON i.accurate_id = j.item_accurate_id
      LEFT JOIN customers c ON c.id = j.customer_id
      WHERE ${OPEN}
+       AND (j.due_date IS NULL OR j.due_date >= ? OR EXISTS (SELECT 1 FROM production_job_shifts f WHERE f.job_id = j.id AND f.tanggal >= ?))
      ORDER BY j.due_date IS NULL, j.due_date, j.prioritas = 'tinggi' DESC, j.id
      LIMIT 1000`,
+    [today, today],
   )
   const ids = jobs.map((j) => Number(j.id))
   const [shifts] = ids.length

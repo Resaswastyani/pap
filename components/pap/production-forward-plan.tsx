@@ -85,7 +85,8 @@ export function ForwardPlanView() {
   const paged = usePaged(pending, [query, days])
 
   const allJobs = data?.jobs ?? []
-  const late = allJobs.filter((j) => j.due_date && j.due_date < today && j.quantity - j.terjadwal > 1e-6).length
+  // Mendesak: tanggal kirim <= 3 hari lagi dan belum seluruhnya dijadwalkan
+  const late = allJobs.filter((j) => j.due_date && dayDiff(j.due_date, today) <= 3 && j.quantity - j.terjadwal > 1e-6).length
   const totalValue = allJobs.reduce((a, j) => a + (j.nilai ?? 0), 0)
   const rangeValue = scheduled.reduce((a, x) => a + (x.s.nilai ?? 0), 0)
   const perShift = [1, 2, 3].map((shift) => {
@@ -96,7 +97,7 @@ export function ForwardPlanView() {
 
   const tiles: [string, string, typeof ClipboardList, string, string][] = [
     ['Pesanan perlu diproduksi', `${allJobs.length}`, ClipboardList, 'stat-1', `Nilai ${shortRupiah(totalValue)}`],
-    ['Belum dijadwalkan', `${allJobs.filter((j) => j.quantity - j.terjadwal > 1e-6).length}`, AlertTriangle, late ? 'stat-2' : 'stat-0', late ? `${late} lewat tanggal kirim` : 'Semua sesuai tanggal kirim'],
+    ['Belum dijadwalkan', `${allJobs.filter((j) => j.quantity - j.terjadwal > 1e-6).length}`, AlertTriangle, late ? 'stat-2' : 'stat-0', late ? `${late} kirim ≤ 3 hari lagi` : 'Tidak ada yang mendesak'],
     [`Terjadwal ${days} hari`, unitText(scheduled.map((x) => ({ quantity: x.s.quantity, unit: x.job.unit }))), CalendarClock, 'stat-2', `${scheduled.length} jadwal shift · s.d. ${formatDate(end)}`],
     [`Nilai rencana ${days} hari`, shortRupiah(rangeValue), Wallet, 'stat-2', 'Jumlah × harga jual pesanan'],
   ]
@@ -170,7 +171,7 @@ export function ForwardPlanView() {
 
       <div className="pap-table-card pap-plan-pending">
         <div className="pap-card-head">
-          <div><h2>Belum dijadwalkan</h2><p>Pesanan Accurate (barang diproduksi) yang belum terproses dan belum seluruhnya punya jadwal. Urut tanggal kirim terdekat.</p></div>
+          <div><h2>Belum dijadwalkan</h2><p>Pesanan Accurate (barang diproduksi) dengan tanggal kirim mulai hari ini yang belum seluruhnya punya jadwal. Urut tanggal kirim terdekat.</p></div>
         </div>
         <div className="pap-table-wrap">
           <table className="pap-plan-table">
@@ -189,7 +190,7 @@ export function ForwardPlanView() {
               ))}
             </tbody>
           </table>
-          {data && !pending.length && <div className="pap-empty">{query ? 'Tidak ada pesanan yang cocok.' : 'Semua pesanan sudah dijadwalkan.'}</div>}
+          {data && !pending.length && <div className="pap-empty">{query ? 'Tidak ada pesanan yang cocok.' : 'Tidak ada pesanan dengan tanggal kirim mulai hari ini yang belum dijadwalkan.'}</div>}
           <Pager {...paged.pager} noun="pesanan" />
         </div>
       </div>
