@@ -14,6 +14,12 @@ export type CronRun = { at: string; ok: boolean; status: number; ms: number; det
 export async function recordCron(name: CronName, run: Omit<CronRun, 'at'>) {
   const value: CronRun = { ...run, at: new Date().toISOString(), detail: run.detail ? run.detail.slice(0, 300) : null }
   await db.query('INSERT INTO app_settings (`key`, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)', [`cron.${name}.last`, JSON.stringify(value)]).catch(() => {})
+  // Riwayat: 10 panggilan terakhir (terbaru di depan)
+  try {
+    const [[row]] = await db.query<import('mysql2').RowDataPacket[]>('SELECT value FROM app_settings WHERE `key` = ?', [`cron.${name}.history`])
+    const list = [value, ...((row?.value ? JSON.parse(String(row.value)) : []) as CronRun[])].slice(0, 10)
+    await db.query('INSERT INTO app_settings (`key`, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)', [`cron.${name}.history`, JSON.stringify(list)])
+  } catch {}
 }
 
 // Bungkus handler cron: catat hasil (termasuk ditolak 401) tanpa mengubah respons
@@ -44,14 +50,17 @@ const summarize = (body: Record<string, unknown>) => {
 }
 
 export async function cronStatus() {
-  const [rows] = await db.query<import('mysql2').RowDataPacket[]>('SELECT `key`, value FROM app_settings WHERE `key` LIKE ?', ['cron.%.last'])
-  const byName = new Map(rows.map((r) => [String(r.key).slice(5, -5), r.value as string]))
+  const [rows] = await db.query<import('mysql2').RowDataPacket[]>('SELECT `key`, value FROM app_settings WHERE `key` LIKE ? OR `key` LIKE ?', ['cron.%.last', 'cron.%.history'])
+  const byName = new Map(rows.filter((r) => String(r.key).endsWith('.last')).map((r) => [String(r.key).slice(5, -5), r.value as string]))
+  const historyOf = (name: string) => {
+    try { return JSON.parse(String(rows.find((r) => r.key === `cron.${name}.history`)?.value ?? '[]')) as CronRun[] } catch { return [] }
+  }
   return CRON_JOBS.map((job) => {
     let last: CronRun | null = null
     try { last = byName.get(job.name) ? JSON.parse(byName.get(job.name)!) : null } catch {}
     const ageMin = last ? (Date.now() - Date.parse(last.at)) / 60_000 : null
     // Sehat bila panggilan terakhir sukses dan tidak lebih lama dari 3x jadwalnya (min. 5 menit)
     const health = !last ? 'unknown' : !last.ok ? 'error' : ageMin! > Math.max(job.every * 3, 5) ? 'stale' : 'ok'
-    return { ...job, last, health }
+    return { ...job, last, health, history: historyOf(job.name) }
   })
 }

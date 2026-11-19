@@ -392,7 +392,10 @@ function SystemTab() {
 }
 
 // ---------------- IT: server, cron, Google Cloud, reCAPTCHA ----------------
-type CronItem = { name: string; label: string; every: number; note: string; url: string; health: 'ok' | 'stale' | 'error' | 'unknown'; last: { at: string; ok: boolean; status: number; ms: number; detail: string | null; manual?: boolean } | null }
+type CronRun = { at: string; ok: boolean; status: number; ms: number; detail: string | null; manual?: boolean }
+type CronItem = { name: string; label: string; every: number; note: string; url: string; health: 'ok' | 'stale' | 'error' | 'unknown'; last: CronRun | null; history?: CronRun[] }
+// Waktu ISO (UTC) -> tanggal & jam WIB, mis. "19 Nov 2026 10:44"
+const wibDateTime = (iso: string) => new Date(iso).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(/\./g, ':')
 type ItData = {
   url: string
   server: { host: string; platform: string; node: string; versi: string | null; lingkungan: string | null; uptime: number; app_uptime: number; cpus: number; load: number[]; mem_total: number; mem_free: number; app_rss: number; app_heap: number; disk: { total: number; free: number } | null; network: { rx: number; tx: number } | null }
@@ -474,7 +477,7 @@ function ItTab() {
         ))}
       </div>
 
-      <div className="pap-settings-grid">
+      <div className="pap-settings-grid pap-it-grid">
         <section className="pap-table-card pap-settings-card">
           <div className="pap-card-head"><div><h2>Server Hostinger (VPS)</h2><p>Sumber daya server tempat SIMPAP berjalan.</p></div><button type="button" className="pap-icon-button" onClick={load} aria-label="Muat ulang" title="Muat ulang"><RefreshCw /></button></div>
           <div className="pap-settings-body">
@@ -510,8 +513,23 @@ function ItTab() {
                       <span className={`pap-status ${tone}`}>{text}</span>
                     </div>
                     <small className="pap-muted">{c.note}</small>
-                    <small>{c.last ? <>Terakhir {sejak(c.last.at)} ({formatDate(c.last.at, true)}) · HTTP {c.last.status} · {(c.last.ms / 1000).toFixed(1)} dtk{c.last.manual ? ' · manual' : ''}{c.last.detail ? <> · <span className={c.last.ok ? '' : 'pap-text-danger'}>{c.last.detail}</span></> : null}</> : 'Belum ada panggilan tercatat sejak fitur ini dipasang.'}</small>
+                    <small>{c.last ? <>Terakhir {sejak(c.last.at)} ({wibDateTime(c.last.at)}) · HTTP {c.last.status} · {(c.last.ms / 1000).toFixed(1)} dtk{c.last.manual ? ' · manual' : ''}{c.last.detail ? <> · <span className={c.last.ok ? '' : 'pap-text-danger'}>{c.last.detail}</span></> : null}</> : 'Belum ada panggilan tercatat sejak fitur ini dipasang.'}</small>
                     {c.last?.status === 401 && <small className="pap-text-danger">Ditolak 401: kunci di cron-job.org tidak sama dengan CRON_SECRET di server.</small>}
+                    {!!c.history?.length && (
+                      <details className="pap-it-history">
+                        <summary>Riwayat {c.history.length} panggilan terakhir</summary>
+                        <ul>
+                          {c.history.map((h, i) => (
+                            <li key={i}>
+                              <span className={`pap-status ${h.ok ? 'success' : 'danger'}`}>{h.ok ? 'OK' : 'Gagal'}</span>
+                              <span>{wibDateTime(h.at)}</span>
+                              <span className="pap-muted">HTTP {h.status} · {(h.ms / 1000).toFixed(1)} dtk{h.manual ? ' · manual' : ''}</span>
+                              {h.detail && <span className={h.ok ? 'pap-muted' : 'pap-text-danger'}>{h.detail}</span>}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
                     <div className="pap-it-cron-actions">
                       <code title={c.url}>{c.url}</code>
                       <button type="button" className="pap-icon-button" onClick={() => copy(c.url)} aria-label="Salin URL" title="Salin URL"><Copy /></button>

@@ -2522,3 +2522,12 @@ button.pap-ap-gantt-label { cursor:pointer; }
 .pap-stock-name { min-width:220px; max-width:420px; }
 .pap-stock-name .pap-cell-title { overflow-wrap:anywhere; }
 @media (max-width:900px) { .pap-stock-date { flex:1 1 100%; } .pap-stock-date .pap-input { flex:1; } }
+
+/* Tab IT: kartu bertumpuk per kolom (tanpa ruang kosong di bawah kartu yang pendek) */
+.pap-settings-grid.pap-it-grid { display:block; columns:2; column-gap:16px; }
+.pap-settings-grid.pap-it-grid > .pap-settings-card { break-inside:avoid; display:inline-block; width:100%; margin:0 0 16px; }
+@media (max-width:1100px) { .pap-settings-grid.pap-it-grid { columns:1; } }
+.pap-it-history { margin-top:6px; font-size:12px; }
+.pap-it-history summary { cursor:pointer; color:#7050e7; font-weight:600; }
+.pap-it-history ul { display:flex; flex-direction:column; gap:4px; margin:6px 0 0; padding:0; list-style:none; }
+.pap-it-history li { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:6px 8px; border-radius:8px; background:var(--pap-bg); }
