@@ -1,5 +1,5 @@
 // Kendala Customer: keluhan customer + tracking penanganan (status, PIC, target, akar masalah, tindakan, solusi, kepuasan).
-// Semua yang punya menu boleh melihat & mencatat keluhan baru. Yang boleh memproses (ubah status / isi penanganan):
+// Semua yang punya menu boleh melihat & mencatat keluhan baru. Yang boleh memproses (ubah status / isi penanganan): semua Marketing,
 // pelapor, PIC, Kepala divisi (lead), General Manager & admin.
 import type { RowDataPacket } from 'mysql2'
 import { fail, str } from '@/lib/api'
@@ -25,8 +25,10 @@ export function requireComplaints(user: UserProfile) {
   if (!user.role.isAdmin && !user.menus.includes('kendala-customer' as never)) fail(403, 'Anda tidak punya akses ke menu Kendala Customer.')
 }
 export const canManageComplaints = (user: UserProfile) => isManagement(user) || user.role.code === 'lead'
+// Semua Marketing (Marketing, Development, Maintenance, Digital; staff maupun lead) boleh memproses semua keluhan
+export const isMarketing = (user: UserProfile) => user.division.code === 'marketing' || user.division.code.startsWith('marketing_')
 export const canProcess = (user: UserProfile, c: { pic_id: number | null; dilaporkan_oleh: number | null }) =>
-  canManageComplaints(user) || c.pic_id === user.id || c.dilaporkan_oleh === user.id
+  canManageComplaints(user) || isMarketing(user) || c.pic_id === user.id || c.dilaporkan_oleh === user.id
 
 type Row = RowDataPacket & Record<string, unknown>
 const num = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v))
