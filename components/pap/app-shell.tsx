@@ -1,62 +1,85 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { MENU_KEYS, menuName } from '@/lib/menus'
 import type { UserProfile } from '@/lib/users'
-import { ContentPage } from './content-page'
-import { CustomerPage } from './customer-page'
-import { MonthlyOrdersPage } from './monthly-orders-page'
 import { DashboardPage } from './dashboard-page'
-import { KpiPage } from './kpi-page'
-import { MachinePage } from './machine-page'
-import { MasterDataPage } from './master-data-page'
-import { QuotationPage } from './quotation-page'
-import { RepeatOrderPage } from './repeat-order-page'
-import { MeetingPage } from './meeting-page'
 import { NotificationCenter, unsubscribePush, type NotificationTarget } from './notifications'
-import { PlanningPage } from './planning-page'
-import { ProductPage } from './product-page'
-import { FinishedGoodsPage, ProductionPlanPage } from './accurate-production'
-import { KerusakanMesinPage } from './damage-log'
-import { PerawatanMesinPage } from './maintenance-sheet'
-import { PurchaseRequestPage } from './purchase-request-page'
-import { KARYAWAN_GAJI_ACTION, KaryawanMenuPage } from './hrd-page'
-import { JobdeskPage } from './jobdesk'
-import { GaDataPage, GaRequestPage } from './ga-page'
-import { ServicePage } from './ga-service-page'
-import { LemburPage } from './payroll-page'
-import { BelanjaPage } from './belanja-page'
-import { AbsensiPage } from './attendance-page'
-import { TrainingPage } from './training-page'
-import { MaterialPricePage, PayablePage, PurchaseOrderPage, SupplierPage } from './purchasing-page'
-import { SopPage } from './sop-page'
-import { SparepartPage } from './sparepart-page'
-import { FormulationPage } from './formulation-page'
-import { ProspectPage } from './prospect-page'
-import { DesignPage, SamplePage } from './request-page'
 import { getCaptchaConfig, getRecaptchaToken, loadRecaptcha, primeCaptchaConfig } from './recaptcha'
-import { RolesPage } from './roles-page'
-import { CapacityPage } from './capacity-page'
-import { FakturPage } from './faktur-page'
-import { ExpeditionPage, ShipmentPage } from './logistik-page'
-import { DokumenOrderPage } from './dokumen-order-page'
-import { MonitoringPage } from './monitoring-page'
-import { BpjsPage, EmployeeKpiPage, LeavePage, PermitPage } from './sdm-page'
-import { CashBankPage, CashFlowPage, FinanceSummaryPage, FinancialReportPage, ReceivablePage, TaxPage } from './accounting-page'
-import { ShiftPage } from './shift-page'
-import { StockPage } from './stock-page'
 import { ConfirmHost, Modal, ReasonHost, requestQuickAction, useCardTables } from './ui'
 import { QuickReport } from './quick-report'
-import { SettingsPage, type ThemeMode } from './settings-page'
+import type { ThemeMode } from './settings-page'
 import { clientHintHeaders } from './client-hints'
 import { GlobalSearch } from './global-search'
-import { RecycleBinPage } from './recycle-bin-page'
-import { TicketPage } from './ticket-page'
-import { ActionPlanPage } from './action-plan-page'
-import { AiAssistant } from './ai-assistant'
-import { UsersPage } from './users-page'
-import { VisitPage } from './visit-page'
 import { ArchiveRestore, LifeBuoy, ArrowLeft, Briefcase, ShoppingBag, Radar, CalendarOff, ShieldPlus, Stamp, Boxes, Weight, CalendarRange, ReceiptText, PieChart, Landmark, HandCoins, FileSpreadsheet as FileSheetIcon, ChartNoAxesCombined, Percent, Package, Bell, CalendarDays, ChevronDown, ChevronRight, ClipboardList, Factory, LayoutDashboard, Menu, Moon, PackageCheck, Search, Settings, Sun, Users, X, LogOut, CheckCircle2, Clock3, AlertCircle, UserRound, FileText, Wrench, Handshake, UserCheck, ListChecks, UserCog, ShieldCheck, Eye, EyeOff, Target, MapPinned, FlaskConical, Palette, Database, Repeat, Gauge, Megaphone, CalendarClock, ClipboardCheck, CalendarCheck, Cog, ShoppingCart, MonitorPlay, Building2, Truck, Tags, Wallet, Award, GraduationCap } from 'lucide-react'
+
+// Halaman dimuat saat dibuka (code splitting) agar pembukaan awal SIMPAP lebih cepat
+function PageLoading() {
+  return <div className="pap-empty">Memuat halaman...</div>
+}
+const ContentPage = dynamic(() => import('./content-page').then((m) => m.ContentPage), { loading: PageLoading })
+const CustomerPage = dynamic(() => import('./customer-page').then((m) => m.CustomerPage), { loading: PageLoading })
+const MonthlyOrdersPage = dynamic(() => import('./monthly-orders-page').then((m) => m.MonthlyOrdersPage), { loading: PageLoading })
+const KpiPage = dynamic(() => import('./kpi-page').then((m) => m.KpiPage), { loading: PageLoading })
+const MachinePage = dynamic(() => import('./machine-page').then((m) => m.MachinePage), { loading: PageLoading })
+const MasterDataPage = dynamic(() => import('./master-data-page').then((m) => m.MasterDataPage), { loading: PageLoading })
+const QuotationPage = dynamic(() => import('./quotation-page').then((m) => m.QuotationPage), { loading: PageLoading })
+const RepeatOrderPage = dynamic(() => import('./repeat-order-page').then((m) => m.RepeatOrderPage), { loading: PageLoading })
+const MeetingPage = dynamic(() => import('./meeting-page').then((m) => m.MeetingPage), { loading: PageLoading })
+const PlanningPage = dynamic(() => import('./planning-page').then((m) => m.PlanningPage), { loading: PageLoading })
+const ProductPage = dynamic(() => import('./product-page').then((m) => m.ProductPage), { loading: PageLoading })
+const FinishedGoodsPage = dynamic(() => import('./accurate-production').then((m) => m.FinishedGoodsPage), { loading: PageLoading })
+const ProductionPlanPage = dynamic(() => import('./accurate-production').then((m) => m.ProductionPlanPage), { loading: PageLoading })
+const KerusakanMesinPage = dynamic(() => import('./damage-log').then((m) => m.KerusakanMesinPage), { loading: PageLoading })
+const PerawatanMesinPage = dynamic(() => import('./maintenance-sheet').then((m) => m.PerawatanMesinPage), { loading: PageLoading })
+const PurchaseRequestPage = dynamic(() => import('./purchase-request-page').then((m) => m.PurchaseRequestPage), { loading: PageLoading })
+const KARYAWAN_GAJI_ACTION = 'karyawan-grade-gaji' // sama dengan hrd-page (konstanta disalin agar halaman tetap lazy)
+const KaryawanMenuPage = dynamic(() => import('./hrd-page').then((m) => m.KaryawanMenuPage), { loading: PageLoading })
+const JobdeskPage = dynamic(() => import('./jobdesk').then((m) => m.JobdeskPage), { loading: PageLoading })
+const GaDataPage = dynamic(() => import('./ga-page').then((m) => m.GaDataPage), { loading: PageLoading })
+const GaRequestPage = dynamic(() => import('./ga-page').then((m) => m.GaRequestPage), { loading: PageLoading })
+const ServicePage = dynamic(() => import('./ga-service-page').then((m) => m.ServicePage), { loading: PageLoading })
+const LemburPage = dynamic(() => import('./payroll-page').then((m) => m.LemburPage), { loading: PageLoading })
+const BelanjaPage = dynamic(() => import('./belanja-page').then((m) => m.BelanjaPage), { loading: PageLoading })
+const AbsensiPage = dynamic(() => import('./attendance-page').then((m) => m.AbsensiPage), { loading: PageLoading })
+const TrainingPage = dynamic(() => import('./training-page').then((m) => m.TrainingPage), { loading: PageLoading })
+const MaterialPricePage = dynamic(() => import('./purchasing-page').then((m) => m.MaterialPricePage), { loading: PageLoading })
+const PayablePage = dynamic(() => import('./purchasing-page').then((m) => m.PayablePage), { loading: PageLoading })
+const PurchaseOrderPage = dynamic(() => import('./purchasing-page').then((m) => m.PurchaseOrderPage), { loading: PageLoading })
+const SupplierPage = dynamic(() => import('./purchasing-page').then((m) => m.SupplierPage), { loading: PageLoading })
+const SopPage = dynamic(() => import('./sop-page').then((m) => m.SopPage), { loading: PageLoading })
+const SparepartPage = dynamic(() => import('./sparepart-page').then((m) => m.SparepartPage), { loading: PageLoading })
+const FormulationPage = dynamic(() => import('./formulation-page').then((m) => m.FormulationPage), { loading: PageLoading })
+const ProspectPage = dynamic(() => import('./prospect-page').then((m) => m.ProspectPage), { loading: PageLoading })
+const DesignPage = dynamic(() => import('./request-page').then((m) => m.DesignPage), { loading: PageLoading })
+const SamplePage = dynamic(() => import('./request-page').then((m) => m.SamplePage), { loading: PageLoading })
+const RolesPage = dynamic(() => import('./roles-page').then((m) => m.RolesPage), { loading: PageLoading })
+const CapacityPage = dynamic(() => import('./capacity-page').then((m) => m.CapacityPage), { loading: PageLoading })
+const FakturPage = dynamic(() => import('./faktur-page').then((m) => m.FakturPage), { loading: PageLoading })
+const ExpeditionPage = dynamic(() => import('./logistik-page').then((m) => m.ExpeditionPage), { loading: PageLoading })
+const ShipmentPage = dynamic(() => import('./logistik-page').then((m) => m.ShipmentPage), { loading: PageLoading })
+const DokumenOrderPage = dynamic(() => import('./dokumen-order-page').then((m) => m.DokumenOrderPage), { loading: PageLoading })
+const MonitoringPage = dynamic(() => import('./monitoring-page').then((m) => m.MonitoringPage), { loading: PageLoading })
+const BpjsPage = dynamic(() => import('./sdm-page').then((m) => m.BpjsPage), { loading: PageLoading })
+const EmployeeKpiPage = dynamic(() => import('./sdm-page').then((m) => m.EmployeeKpiPage), { loading: PageLoading })
+const LeavePage = dynamic(() => import('./sdm-page').then((m) => m.LeavePage), { loading: PageLoading })
+const PermitPage = dynamic(() => import('./sdm-page').then((m) => m.PermitPage), { loading: PageLoading })
+const CashBankPage = dynamic(() => import('./accounting-page').then((m) => m.CashBankPage), { loading: PageLoading })
+const CashFlowPage = dynamic(() => import('./accounting-page').then((m) => m.CashFlowPage), { loading: PageLoading })
+const FinanceSummaryPage = dynamic(() => import('./accounting-page').then((m) => m.FinanceSummaryPage), { loading: PageLoading })
+const FinancialReportPage = dynamic(() => import('./accounting-page').then((m) => m.FinancialReportPage), { loading: PageLoading })
+const ReceivablePage = dynamic(() => import('./accounting-page').then((m) => m.ReceivablePage), { loading: PageLoading })
+const TaxPage = dynamic(() => import('./accounting-page').then((m) => m.TaxPage), { loading: PageLoading })
+const ShiftPage = dynamic(() => import('./shift-page').then((m) => m.ShiftPage), { loading: PageLoading })
+const StockPage = dynamic(() => import('./stock-page').then((m) => m.StockPage), { loading: PageLoading })
+const SettingsPage = dynamic(() => import('./settings-page').then((m) => m.SettingsPage), { loading: PageLoading })
+const RecycleBinPage = dynamic(() => import('./recycle-bin-page').then((m) => m.RecycleBinPage), { loading: PageLoading })
+const TicketPage = dynamic(() => import('./ticket-page').then((m) => m.TicketPage), { loading: PageLoading })
+const ActionPlanPage = dynamic(() => import('./action-plan-page').then((m) => m.ActionPlanPage), { loading: PageLoading })
+const AiAssistant = dynamic(() => import('./ai-assistant').then((m) => m.AiAssistant), { loading: PageLoading })
+const UsersPage = dynamic(() => import('./users-page').then((m) => m.UsersPage), { loading: PageLoading })
+const VisitPage = dynamic(() => import('./visit-page').then((m) => m.VisitPage), { loading: PageLoading })
 
 type MenuItem = { label: string; icon: typeof LayoutDashboard; badge?: string }
 const groups: { label: string; items: MenuItem[] }[] = [

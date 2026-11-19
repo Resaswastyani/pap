@@ -1,6 +1,7 @@
 import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser, str } from '@/lib/api'
+import { runInBackground } from '@/lib/background'
 import { db } from '@/lib/db'
 import { loadSopFolderUrl, loadSyncInfo, recordSyncError, saveSopFolderUrl, SOP_KATEGORI, SOP_STALE_HOURS, syncSop } from '@/lib/sop'
 import { canManageTeknik, requireTeknikMenu } from '@/lib/teknik'
@@ -13,13 +14,19 @@ export const GET = handle(async () => {
   const user = await requireUser()
   requireTeknikMenu(user, 'sop-mesin', 'SOP Mesin')
   let warning: string | null = null
-  if (isStale((await loadSyncInfo()).at)) {
-    try {
-      await syncSop()
-    } catch (error) {
-      warning = `Sinkron otomatis gagal: ${(error as Error).message}`
-      await recordSyncError(warning)
+  const lastSync = (await loadSyncInfo()).at
+  if (isStale(lastSync)) {
+    const job = async () => {
+      try {
+        await syncSop()
+      } catch (error) {
+        warning = `Sinkron otomatis gagal: ${(error as Error).message}`
+        await recordSyncError(warning)
+      }
     }
+    // Sudah ada data: tampilkan dulu, sinkron di latar. Belum pernah sinkron: tunggu agar halaman tidak kosong.
+    if (lastSync) runInBackground('sop', job)
+    else await job()
   }
   const [rows] = await db.query<RowDataPacket[]>(SELECT)
   return NextResponse.json({

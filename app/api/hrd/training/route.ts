@@ -1,6 +1,7 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser, str } from '@/lib/api'
+import { runInBackground } from '@/lib/background'
 import { db } from '@/lib/db'
 import {
   canManageTraining, loadTrainingFolderUrl, readModuleInput, loadTrainingSync, recordTrainingSyncError, requireTraining, saveTrainingFolderUrl, syncTraining, TRAINING_STALE_HOURS,
@@ -17,13 +18,19 @@ export const GET = handle(async () => {
   const manage = canManageTraining(user)
   const folderUrl = await loadTrainingFolderUrl()
   let warning: string | null = null
-  if (folderUrl && isStale((await loadTrainingSync()).at)) {
-    try {
-      await syncTraining()
-    } catch (error) {
-      warning = `Sinkron otomatis gagal: ${(error as Error).message}`
-      await recordTrainingSyncError(warning)
+  const lastSync = (await loadTrainingSync()).at
+  if (folderUrl && isStale(lastSync)) {
+    const job = async () => {
+      try {
+        await syncTraining()
+      } catch (error) {
+        warning = `Sinkron otomatis gagal: ${(error as Error).message}`
+        await recordTrainingSyncError(warning)
+      }
     }
+    // Sudah ada data: tampilkan dulu, sinkron di latar. Belum pernah sinkron: tunggu agar halaman tidak kosong.
+    if (lastSync) runInBackground('training', job)
+    else await job()
   }
   const [rows] = await db.query<Row[]>(
     `SELECT m.id, m.drive_folder_id IS NOT NULL AS dari_drive, m.judul, m.kategori, m.deskripsi, m.sasaran, m.wajib, m.durasi_menit, m.aktif, m.urut,

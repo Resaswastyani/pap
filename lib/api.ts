@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { setActivityActor, withActivity } from '@/lib/activity'
 import type { PermissionCode } from '@/lib/permissions'
-import { can, getCurrentUser, type UserProfile } from '@/lib/users'
+import { can, clearProfileCache, getCurrentUser, type UserProfile } from '@/lib/users'
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -25,6 +25,7 @@ export async function requireUser(...permissions: PermissionCode[]) {
 // Aksi tambah/ubah/hapus yang berhasil otomatis dicatat ke log aktivitas.
 export function handle<A extends unknown[]>(fn: (...args: A) => Promise<Response>) {
   return async (...args: A) => withActivity(args[0] instanceof Request ? args[0] : null, async () => {
+    const started = Date.now()
     try {
       return await fn(...args)
     } catch (error) {
@@ -33,6 +34,15 @@ export function handle<A extends unknown[]>(fn: (...args: A) => Promise<Response
       if (code === 'ER_DUP_ENTRY') return NextResponse.json({ error: 'Data sudah ada (duplikat).' }, { status: 409 })
       console.error('[api]', error)
       return NextResponse.json({ error: 'Terjadi kesalahan pada server.' }, { status: 500 })
+    } finally {
+      const ms = Date.now() - started
+      const req = args[0] instanceof Request ? args[0] : null
+      // Perubahan data apa pun (termasuk akun / role / menu divisi): profil user di-cache dibaca ulang
+      if (req && req.method !== 'GET') clearProfileCache()
+      if (ms > 1000 && req) {
+        const url = new URL(req.url)
+        console.warn(`[lambat] ${req.method} ${url.pathname}${url.search ? url.search.slice(0, 120) : ''} ${ms} ms`)
+      }
     }
   })
 }
