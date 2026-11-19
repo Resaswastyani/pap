@@ -2,7 +2,7 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
-import { canSupervise, readProspectInput, readProspectProducts, requireMarketing, requireMarketingUser, saveProspectProducts } from '@/lib/marketing'
+import { canActProspect, readProspectInput, readProspectProducts, requireMarketing, requireMarketingUser, saveProspectProducts } from '@/lib/marketing'
 import { notify } from '@/lib/notifications'
 import { pushToUsers } from '@/lib/push'
 import { softDelete } from '@/lib/recycle-bin'
@@ -21,7 +21,7 @@ export const POST = handle(async (request: Request) => {
   if (!Array.isArray(body.rows) || !body.rows.length) fail(400, 'Tidak ada baris untuk diimpor.')
   const rows = body.rows as Record<string, unknown>[]
   if (rows.length > MAX_ROWS) fail(400, `Maksimal ${MAX_ROWS} prospek per impor.`)
-  const assigned = canSupervise(user) ? (await requireMarketingUser(body.assigned_to, 'Sales'))?.id ?? null : user.division.code === 'marketing_digital' ? null : user.id
+  const assigned = canActProspect(user) ? (await requireMarketingUser(body.assigned_to, 'Sales'))?.id ?? null : user.division.code === 'marketing_digital' ? null : user.id
 
   const inputs = rows.map((row, i) => {
     try {
@@ -68,7 +68,7 @@ export const POST = handle(async (request: Request) => {
 export const GET = handle(async () => {
   const user = await requireUser()
   requireMarketing(user, 'prospek')
-  const all = canSupervise(user)
+  const all = canActProspect(user)
   const [rows] = await db.query<Row[]>(
     `SELECT p.import_batch AS batch, MIN(p.created_at) AS waktu, COUNT(*) AS jumlah, MAX(u.name) AS oleh, MAX(p.created_by) AS created_by,
        SUBSTRING_INDEX(GROUP_CONCAT(p.nama_usaha ORDER BY p.id SEPARATOR '; '), '; ', 3) AS contoh,
@@ -89,7 +89,7 @@ export const DELETE = handle(async (request: Request) => {
   if (!batch) fail(400, 'Kode impor wajib diisi.')
   const [rows] = await db.query<(RowDataPacket & { id: number; created_by: number })[]>('SELECT id, created_by FROM prospects WHERE import_batch = ?', [batch])
   if (!rows.length) fail(404, 'Data impor tidak ditemukan atau sudah dibatalkan.')
-  if (!canSupervise(user) && rows.some((r) => r.created_by !== user.id)) fail(403, 'Hanya pengimpor atau Lead yang dapat membatalkan impor ini.')
+  if (!canActProspect(user) && rows.some((r) => r.created_by !== user.id)) fail(403, 'Hanya pengimpor, Lead, atau tim Marketing yang dapat membatalkan impor ini.')
   for (const r of rows) {
     await softDelete({
       table: 'prospects', id: r.id, modul: 'Prospek', user,

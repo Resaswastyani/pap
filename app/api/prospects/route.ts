@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, readJson, requireUser, pageParams } from '@/lib/api'
 import { db } from '@/lib/db'
 import {
-  applyStatusFilter, areaOptions, canSupervise, plasticOptions, plasticTotals, isMarketing, logActivity, MARKETING_DIVISIONS, parseDateTime, PROSPECT_SELECT, PROSPECT_SOURCES, readSalesIds, saveProspectSales, withSales,
+  applyStatusFilter, areaOptions, canActProspect, plasticOptions, plasticTotals, isMarketing, logActivity, MARKETING_DIVISIONS, parseDateTime, PROSPECT_SELECT, PROSPECT_SOURCES, readSalesIds, saveProspectSales, withSales,
   prospectFilter, prospectScope, readProspectInput, readProspectProducts, saveProspectProducts, requireMarketing, requireMarketingUser,
 } from '@/lib/marketing'
 import { notify } from '@/lib/notifications'
@@ -66,7 +66,7 @@ export const GET = handle(async (request: Request) => {
     areas,
     plasticSummary: plasticSummary.rows,
     plasticProspek: plasticSummary.prospek,
-    canSupervise: canSupervise(user),
+    canSupervise: canActProspect(user),
   })
 })
 
@@ -83,7 +83,7 @@ export const POST = handle(async (request: Request) => {
     if (dup.length) fail(409, `Nomor ${input.telepon} sudah terdaftar sebagai prospek "${dup[0].nama_usaha}".`)
   }
   // Sales bisa lebih dari satu (sales_ids, urutan pertama = sales utama); assigned_to tunggal tetap diterima
-  const picked = canSupervise(user) ? (await readSalesIds(body.sales_ids)) ?? (await readSalesIds(body.assigned_to ? [body.assigned_to] : [])) ?? [] : []
+  const picked = canActProspect(user) ? (await readSalesIds(body.sales_ids)) ?? (await readSalesIds(body.assigned_to ? [body.assigned_to] : [])) ?? [] : []
   let salesIds = picked.map((s) => s.id)
   if (!salesIds.length && isMarketing(user) && user.division.code !== 'marketing_digital') salesIds = [user.id]
   const assigned = salesIds[0] ?? null

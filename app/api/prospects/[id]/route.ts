@@ -4,7 +4,7 @@ import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { withNoteAttachments } from '@/lib/attachments'
 import { db } from '@/lib/db'
 import {
-  canEditProspect, canFollowUpProspect, canSupervise, loadProspect, loadProspectProducts, readProspectProducts, saveProspectProducts, logActivity, parseDateTime, PROSPECT_STATUS, readProspectInput, requireMarketing,
+  canActProspect, canEditProspect, canFollowUpProspect, loadProspect, loadProspectProducts, readProspectProducts, saveProspectProducts, logActivity, parseDateTime, PROSPECT_STATUS, readProspectInput, requireMarketing,
   readSalesIds, requireMarketingUser, saveProspectSales, serializeVisit, VISIT_SELECT, type ProspectStatus,
 } from '@/lib/marketing'
 import { notify } from '@/lib/notifications'
@@ -25,7 +25,7 @@ export const GET = handle(async (_request: Request, { params }: Ctx) => {
   )
   const notes = await withNoteAttachments('activity', activities as (RowDataPacket & { id: number })[])
   const [visits] = await db.query<RowDataPacket[]>(`${VISIT_SELECT} WHERE v.prospect_id = ? ORDER BY v.jadwal DESC`, [prospect.id])
-  return NextResponse.json({ item: { ...prospect, products: await loadProspectProducts(prospect.id) }, activities: notes, visits: visits.map(serializeVisit), canEdit: canEditProspect(user, prospect as never), canFollowUp: canFollowUpProspect(user, prospect as never), canSupervise: canSupervise(user) })
+  return NextResponse.json({ item: { ...prospect, products: await loadProspectProducts(prospect.id) }, activities: notes, visits: visits.map(serializeVisit), canEdit: canEditProspect(user, prospect as never), canFollowUp: canFollowUpProspect(user, prospect as never), canSupervise: canActProspect(user) })
 })
 
 // Ubah data prospek, sales/maintenance, status, atau jadwal follow-up (field yang dikirim saja)
@@ -64,8 +64,8 @@ export const PATCH = handle(async (request: Request, { params }: Ctx) => {
   if (picked) {
     const before: number[] = prospect.sales_ids
     const after = picked.map((s) => s.id)
-    if (!canSupervise(user) && (after.some((sid) => !before.includes(sid) && sid !== user.id) || before.some((sid) => !after.includes(sid) && sid !== user.id))) {
-      fail(403, 'Hanya Lead / Marketing Digital yang dapat membagikan prospek ke sales lain.')
+    if (!canActProspect(user) && (after.some((sid) => !before.includes(sid) && sid !== user.id) || before.some((sid) => !after.includes(sid) && sid !== user.id))) {
+      fail(403, 'Hanya Lead, Marketing Digital, Development, atau Maintenance yang dapat membagikan prospek ke sales lain.')
     }
     if (after.join(',') !== before.join(',')) {
       await saveProspectSales(prospect.id, after)
@@ -127,7 +127,7 @@ export const DELETE = handle(async (_request: Request, { params }: Ctx) => {
   const user = await requireUser()
   requireMarketing(user, 'prospek')
   const prospect = await loadProspect(Number((await params).id), user)
-  if (!canSupervise(user) && prospect.created_by !== user.id) fail(403, 'Hanya pembuat prospek atau Lead yang dapat menghapus.')
+  if (!canActProspect(user) && prospect.created_by !== user.id) fail(403, 'Hanya pembuat prospek, Lead, atau tim Marketing yang dapat menghapus.')
   // Lampiran catatan aktivitas (polimorfik, bukan FK) ikut masuk Data Terhapus
   await softDelete({
     table: 'prospects', id: prospect.id, modul: 'Prospek', user,

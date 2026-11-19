@@ -206,7 +206,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
 
       <div className="pap-table-card">
         <div className="pap-card-head">
-          <div><h2>Daftar prospek</h2><p>{data?.canSupervise ? 'Anda melihat semua prospek dan dapat membagikannya ke sales.' : 'Semua prospek tim marketing. Follow-up bisa dicatat untuk prospek mana pun; data prospek diubah oleh pemiliknya.'}</p></div>
+          <div><h2>Daftar prospek</h2><p>{data?.canSupervise ? 'Semua prospek tim marketing. Anda dapat mengubah, membagikan ke beberapa sales, dan mengelola prospek mana pun.' : 'Semua prospek tim marketing. Follow-up bisa dicatat untuk prospek mana pun; data prospek diubah oleh pemiliknya.'}</p></div>
           <div className="pap-segmented" role="tablist" aria-label="Tampilan prospek">
             <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}><LayoutList /> Daftar</button>
             <button className={view === 'kanban' ? 'active' : ''} onClick={() => setView('kanban')}><Columns3 /> Kanban</button>

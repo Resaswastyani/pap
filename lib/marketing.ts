@@ -42,6 +42,11 @@ export const VISIT_PHOTO_MAX_BYTES = 2 * 1024 * 1024
 export const canSupervise = (user: UserProfile) =>
   user.role.isAdmin || user.division.code === 'general_manager' || user.division.code === 'marketing_digital' || (isMarketing(user) && user.role.code === 'lead')
 
+// Menu Prospek: semua Marketing Development & Marketing Maintenance boleh melakukan semua aksi (ubah, bagikan ke
+// beberapa sales, hapus, impor) untuk prospek mana pun, sama seperti supervisor
+export const isProspectTeam = (user: UserProfile) => user.division.code === 'marketing_development' || user.division.code === 'marketing_maintenance'
+export const canActProspect = (user: UserProfile) => canSupervise(user) || isProspectTeam(user)
+
 export function requireMarketing(user: UserProfile, menu: 'prospek' | 'visit') {
   if (!user.menus.includes(menu)) fail(403, 'Anda tidak punya akses ke menu ini.')
 }
@@ -96,9 +101,9 @@ export async function loadProspect(id: number, user: UserProfile) {
   return withSales(rows[0] ?? fail(404, 'Prospek tidak ditemukan atau bukan milik Anda.'))
 }
 
-// Staff hanya boleh mengubah prospek miliknya; supervisor semua
+// Supervisor & tim Marketing Development / Maintenance: semua prospek; staff lain hanya prospek miliknya
 export const canEditProspect = (user: UserProfile, p: { assigned_to: number | null; maintenance_to: number | null; created_by: number; sales_ids?: number[] }) =>
-  canSupervise(user) || [p.assigned_to, p.maintenance_to, p.created_by].includes(user.id) || !!p.sales_ids?.includes(user.id)
+  canActProspect(user) || [p.assigned_to, p.maintenance_to, p.created_by].includes(user.id) || !!p.sales_ids?.includes(user.id)
 
 // Follow-up boleh dicatat semua marketing untuk prospek mana pun (mengubah data prospek tetap pemilik / supervisor)
 export const canFollowUpProspect = (user: UserProfile, p: { assigned_to: number | null; maintenance_to: number | null; created_by: number; sales_ids?: number[] }) =>
