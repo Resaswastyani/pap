@@ -16,7 +16,7 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
 export const PUT = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
   requireDokumenOrder(user)
-  await updateOrderDocument(user, await docId(ctx), readDocInput(await readJson(request)))
+  await updateOrderDocument(user, await docId(ctx), await readDocInput(await readJson(request)))
   return NextResponse.json({ ok: true })
 })
 

@@ -1,11 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { FilePlus2, FileText, Pencil, Plus, Printer, ReceiptText, Save, Search, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { MonthNav, monthLabel, useDebounced } from './accurate-production'
 import { api, Field, formatDate, Modal, Notice, Pager, usePaged, confirmDialog } from './ui'
+import { ProspectSelect, type ProspectOption } from './marketing'
+import { CustomerSelect, type CustomerOption } from './product-page'
 
 // Dokumen Order: Surat Order & Proforma Invoice. Tab "Dokumen tersimpan" untuk dokumen yang dibuat, diubah, dan
 // dihapus di SIMPAP; tab "Sales order Accurate" untuk cetak langsung dari SO atau membuat dokumen tersimpan darinya.
@@ -16,6 +18,7 @@ type PpnMode = 'none' | 'exclusive' | 'inclusive'
 type DocItem = { nama: string; qty: number; unit: string; harga: number; disc_pct: number | null; catatan: string | null }
 type DocData = {
   jenis: Jenis; nomor: string; tanggal: string; so_accurate_id: number | null; so_number: string | null
+  prospect_id: number | null; customer_id: number | null; ongkir_per_kg: number | null; berat_kg: number | null; diskon_persen: number | null
   kepada: string; customer_no: string | null; kontak: string | null; telepon: string | null; alamat: string | null; po_number: string | null
   ship_date: string | null; ekspedisi: string | null; items: DocItem[]; expenses: { nama: string; amount: number }[]
   diskon: number; ppn_mode: PpnMode; ppn_rate: number; terbayar: number; dp_persen: number | null
@@ -206,6 +209,10 @@ const toLine = (it?: Partial<DocItem>): Line => ({ key: `l${++lineSeq}`, nama: i
 const toCost = (e?: { nama: string; amount: number }): Cost => ({ key: `c${++lineSeq}`, nama: e?.nama ?? '', amount: e ? String(e.amount) : '' })
 const num = (v: string) => { const n = Number(v.replace(',', '.')); return Number.isFinite(n) ? n : 0 }
 const lineTotal = (l: Line) => Math.round(num(l.qty) * num(l.harga) * (1 - num(l.disc_pct) / 100) * 100) / 100
+// Satuan sama dengan Quotation (+ satuan lama dari SO bila berbeda)
+const UNITS = ['pcs', 'kg', 'pack', 'roll', 'lembar']
+const unitOptions = (u: string) => (u && !UNITS.some((x) => x.toLowerCase() === u.toLowerCase()) ? [...UNITS, u] : UNITS)
+const kgOf = (lines: Line[]) => Math.round(lines.filter((l) => /^kg$/i.test(l.unit.trim())).reduce((t, l) => t + num(l.qty), 0) * 100) / 100
 
 function DocEditor({ editing, onClose, onSaved }: { editing: Editing; onClose: () => void; onSaved: (nomor: string, isNew: boolean) => void }) {
   const isNew = !editing.id
@@ -215,6 +222,14 @@ function DocEditor({ editing, onClose, onSaved }: { editing: Editing; onClose: (
   const [costs, setCosts] = useState<Cost[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // Untuk prospek atau customer (daftar customer dari Accurate)
+  const [mode, setMode] = useState<'prospek' | 'customer'>('customer')
+  const [prospect, setProspect] = useState<ProspectOption | null>(null)
+  const [customer, setCustomer] = useState<CustomerOption | null>(null)
+  // Diskon seperti Quotation: centang, lalu % atau Rp dari subtotal
+  const [pakaiDiskon, setPakaiDiskon] = useState(false)
+  const [diskonTipe, setDiskonTipe] = useState<'persen' | 'nominal'>('persen')
+  const [diskonNilai, setDiskonNilai] = useState('')
 
   // Dokumen baru: isian awal dari SO / kosong, dimuat ulang bila jenis diganti. Dokumen lama: dibaca sekali.
   useEffect(() => {
@@ -222,7 +237,18 @@ function DocEditor({ editing, onClose, onSaved }: { editing: Editing; onClose: (
     setV(null)
     const url = isNew ? `/api/order-documents/draft?jenis=${jenis}${editing.soId ? `&so=${editing.soId}` : ''}` : `/api/order-documents/${editing.id}`
     api<{ item: DocData }>(url)
-      .then((r) => { if (!alive) return; setV(r.item); setLines(r.item.items.map(toLine)); setCosts(r.item.expenses.map(toCost)); setError('') })
+      .then((r) => {
+        if (!alive) return
+        const it = r.item
+        setV(it); setLines(it.items.map(toLine)); setCosts(it.expenses.map(toCost)); setError('')
+        setMode(it.prospect_id && !it.customer_id ? 'prospek' : 'customer')
+        // Diskon lama dalam Rupiah diubah ke persen dari subtotal
+        const sub = it.items.reduce((t, x) => t + x.qty * x.harga * (1 - (x.disc_pct ?? 0) / 100), 0)
+        const pct = it.diskon_persen ?? (it.diskon && sub ? Math.round((it.diskon / sub) * 1000000) / 10000 : null)
+        setPakaiDiskon(!!pct)
+        setDiskonTipe(it.diskon_persen == null && it.diskon ? 'nominal' : 'persen')
+        setDiskonNilai(it.diskon_persen == null && it.diskon ? String(it.diskon) : pct ? String(pct) : '')
+      })
       .catch((e) => alive && setError(e.message))
     return () => { alive = false }
   }, [isNew, jenis, editing.id, editing.soId])
@@ -231,13 +257,16 @@ function DocEditor({ editing, onClose, onSaved }: { editing: Editing; onClose: (
   const totals = useMemo(() => {
     if (!v) return null
     const subtotal = lines.reduce((t, l) => t + lineTotal(l), 0)
-    const dasar = subtotal - v.diskon
+    const diskon = !pakaiDiskon ? 0 : diskonTipe === 'persen' ? Math.round((subtotal * Math.min(100, num(diskonNilai))) / 100) : Math.min(subtotal, num(diskonNilai))
+    const dasar = subtotal - diskon
     const ppn = v.ppn_mode === 'exclusive' ? Math.round((dasar * v.ppn_rate) / 100) : v.ppn_mode === 'inclusive' ? Math.round((dasar * v.ppn_rate) / (100 + v.ppn_rate)) : 0
-    const total = dasar + (v.ppn_mode === 'exclusive' ? ppn : 0) + costs.reduce((t, c) => t + num(c.amount), 0)
+    const berat = v.berat_kg ?? kgOf(lines)
+    const ongkir = v.ongkir_per_kg ? Math.round(v.ongkir_per_kg * berat * 100) / 100 : 0
+    const total = dasar + (v.ppn_mode === 'exclusive' ? ppn : 0) + ongkir + costs.reduce((t, c) => t + num(c.amount), 0)
     const sisa = Math.max(0, total - v.terbayar)
     const tagihan = v.jenis !== 'proforma' ? null : v.terbayar > 0 ? sisa : v.dp_persen ? Math.round((total * v.dp_persen) / 100) : total
-    return { subtotal, ppn, total, tagihan }
-  }, [v, lines, costs])
+    return { subtotal, diskon, ppn, berat, ongkir, total, tagihan }
+  }, [v, lines, costs, pakaiDiskon, diskonTipe, diskonNilai])
   const updateLine = (key: string, patch: Partial<Line>) => setLines((list) => list.map((l) => (l.key === key ? { ...l, ...patch } : l)))
   const updateCost = (key: string, patch: Partial<Cost>) => setCosts((list) => list.map((c) => (c.key === key ? { ...c, ...patch } : c)))
 
@@ -248,6 +277,8 @@ function DocEditor({ editing, onClose, onSaved }: { editing: Editing; onClose: (
     setError('')
     const body = {
       ...v, jenis,
+      diskon_persen: pakaiDiskon && diskonTipe === 'persen' && num(diskonNilai) ? num(diskonNilai) : null,
+      diskon: pakaiDiskon && diskonTipe === 'nominal' ? num(diskonNilai) : 0,
       items: lines.filter((l) => l.nama.trim()).map((l) => ({ nama: l.nama, qty: num(l.qty), unit: l.unit, harga: num(l.harga), disc_pct: num(l.disc_pct) || null, catatan: l.catatan || null })),
       expenses: costs.filter((c) => c.nama.trim() && num(c.amount)).map((c) => ({ nama: c.nama, amount: num(c.amount) })),
     }
@@ -259,6 +290,22 @@ function DocEditor({ editing, onClose, onSaved }: { editing: Editing; onClose: (
       setError((err as Error).message)
       setBusy(false)
     }
+  }
+
+  function pickProspect(p: ProspectOption) {
+    setProspect(p)
+    setV((cur) => (cur ? { ...cur, prospect_id: p.id, customer_id: null, customer_no: null, kepada: p.nama_usaha } : cur))
+    api<{ item: { nama_usaha: string; kontak_nama: string | null; telepon: string | null; alamat: string | null; kota: string | null } }>(`/api/prospects/${p.id}`)
+      .then(({ item }) => setV((cur) => (cur ? { ...cur, kepada: item.nama_usaha, kontak: item.kontak_nama, telepon: item.telepon, alamat: [item.alamat, item.kota].filter(Boolean).join(', ') || null } : cur)))
+      .catch(() => {})
+  }
+  function pickCustomer(c: CustomerOption) {
+    setCustomer(c)
+    const full = c as CustomerOption & { mobile_phone?: string | null; work_phone?: string | null; bill_street?: string | null }
+    setV((cur) => (cur ? {
+      ...cur, customer_id: c.id, prospect_id: null, kepada: c.name, customer_no: c.customer_no,
+      telepon: full.mobile_phone || full.work_phone || cur.telepon, alamat: [full.bill_street, c.bill_city].filter(Boolean).join(', ') || cur.alamat,
+    } : cur))
   }
 
   const title = isNew ? (editing.soId ? 'Buat dokumen dari SO' : 'Buat dokumen order') : `Ubah ${JENIS_LABEL[jenis]}`
@@ -286,52 +333,54 @@ function DocEditor({ editing, onClose, onSaved }: { editing: Editing; onClose: (
           <div className="pap-po-sections">
             <fieldset>
               <legend>Customer</legend>
+              <div className="pap-field">
+                <span>Untuk</span>
+                <div className="pap-target-picker">
+                  <div className="pap-segmented">
+                    <button type="button" className={mode === 'prospek' ? 'active' : ''} onClick={() => setMode('prospek')}>Prospek</button>
+                    <button type="button" className={mode === 'customer' ? 'active' : ''} onClick={() => setMode('customer')}>Customer</button>
+                  </div>
+                  {mode === 'prospek' ? <ProspectSelect value={prospect} onChange={pickProspect} /> : <CustomerSelect value={customer} onChange={pickCustomer} />}
+                  {!prospect && !customer && (v.customer_no || v.kepada) && <small className="pap-muted">{mode === 'customer' ? 'Daftar customer dari Accurate. ' : ''}Saat ini: {v.kepada || '—'}{v.customer_no ? ` (${v.customer_no})` : ''}</small>}
+                </div>
+              </div>
               <Field label="Kepada (nama customer) *"><input className="pap-input" required maxLength={255} value={v.kepada} onChange={(e) => set('kepada', e.target.value)} /></Field>
               <Field label="Up. (kontak)"><input className="pap-input" maxLength={150} value={v.kontak ?? ''} onChange={(e) => set('kontak', e.target.value || null)} /></Field>
               <Field label="Telepon"><input className="pap-input" maxLength={100} value={v.telepon ?? ''} onChange={(e) => set('telepon', e.target.value || null)} /></Field>
               <Field label="Alamat kirim"><textarea className="pap-input" rows={3} maxLength={2000} value={v.alamat ?? ''} onChange={(e) => set('alamat', e.target.value || null)} /></Field>
             </fieldset>
             <fieldset>
-              <legend>Pengiriman & pajak</legend>
+              <legend>Pengiriman</legend>
               <Field label="Rencana kirim"><input className="pap-input" type="date" value={v.ship_date ?? ''} onChange={(e) => set('ship_date', e.target.value || null)} /></Field>
-              <Field label="Ekspedisi"><input className="pap-input" maxLength={255} value={v.ekspedisi ?? ''} onChange={(e) => set('ekspedisi', e.target.value || null)} placeholder="mis. SL Cargo (Rp 1.000/kg)" /></Field>
-              <Field label="PPN">
-                <select className="pap-select" value={v.ppn_mode} onChange={(e) => set('ppn_mode', e.target.value as PpnMode)}>
-                  <option value="none">Tanpa PPN</option><option value="exclusive">PPN ditambahkan</option><option value="inclusive">Harga termasuk PPN</option>
-                </select>
-              </Field>
-              {v.ppn_mode !== 'none' && <Field label="Tarif PPN (%)"><input className="pap-input pap-num" type="number" min={1} max={100} step="0.01" value={v.ppn_rate} onChange={(e) => set('ppn_rate', num(e.target.value))} /></Field>}
+              <Field label="Ekspedisi"><input className="pap-input" maxLength={255} value={v.ekspedisi ?? ''} onChange={(e) => set('ekspedisi', e.target.value || null)} placeholder="mis. SL Cargo" /></Field>
             </fieldset>
           </div>
 
           <div className="pap-field">
-            <span>Barang</span>
-            <div className="pap-table-wrap bordered pap-po-lines">
-              <table>
-                <thead><tr><th>Produk & spesifikasi</th><th className="pap-num">Jumlah</th><th>Satuan</th><th className="pap-num">Harga @</th><th className="pap-num">Disk %</th><th className="pap-num">Jumlah harga</th><th /></tr></thead>
-                <tbody>
-                  {lines.map((l, i) => (
-                    <tr key={l.key}>
-                      <td>
-                        <input className="pap-input" required={i === 0} maxLength={500} value={l.nama} onChange={(e) => updateLine(l.key, { nama: e.target.value })} aria-label="Nama produk" />
-                        <input className="pap-input pap-doc-line-note" maxLength={500} value={l.catatan} onChange={(e) => updateLine(l.key, { catatan: e.target.value })} placeholder="Catatan / spesifikasi (opsional)" aria-label="Catatan produk" />
-                      </td>
-                      <td><input className="pap-input pap-num" inputMode="decimal" required={!!l.nama} value={l.qty} onChange={(e) => updateLine(l.key, { qty: e.target.value })} aria-label="Jumlah" /></td>
-                      <td><input className="pap-input" maxLength={40} value={l.unit} onChange={(e) => updateLine(l.key, { unit: e.target.value })} aria-label="Satuan" /></td>
-                      <td><input className="pap-input pap-num" inputMode="decimal" required={!!l.nama} value={l.harga} onChange={(e) => updateLine(l.key, { harga: e.target.value })} aria-label="Harga satuan" /></td>
-                      <td><input className="pap-input pap-num" inputMode="decimal" value={l.disc_pct} onChange={(e) => updateLine(l.key, { disc_pct: e.target.value })} aria-label="Diskon persen" /></td>
-                      <td className="pap-num pap-nowrap">{formatRupiah(lineTotal(l))}</td>
-                      <td>{lines.length > 1 && <button type="button" className="pap-icon-button" aria-label={`Hapus barang ${i + 1}`} onClick={() => setLines((list) => list.filter((x) => x.key !== l.key))}><Trash2 /></button>}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <span>Produk ({lines.length})</span>
+            <div className="pap-quote-items">
+              {lines.map((l, i) => (
+                <div key={l.key} className="pap-quote-item">
+                  <div className="pap-sample-item-head">
+                    <b>{i + 1}</b>
+                    <input className="pap-input" required={i === 0} maxLength={500} value={l.nama} onChange={(e) => updateLine(l.key, { nama: e.target.value })} placeholder="Nama produk, mis. Kantong laundry HD" aria-label={`Nama produk ${i + 1}`} />
+                    <button type="button" className="pap-icon-button" aria-label={`Hapus produk ${i + 1}`} disabled={lines.length === 1} onClick={() => setLines((list) => list.filter((x) => x.key !== l.key))}><Trash2 /></button>
+                  </div>
+                  <label className="pap-quote-spec"><span>Spesifikasi (dicetak di dokumen)</span><textarea className="pap-input" rows={2} maxLength={500} value={l.catatan} onChange={(e) => updateLine(l.key, { catatan: e.target.value })} placeholder="mis. HD 30 x 40 cm, 50 mikron, cetak 2 warna" /></label>
+                  <div className="pap-quote-price">
+                    <label><span>Jumlah</span><input className="pap-input" inputMode="decimal" required={!!l.nama} value={l.qty} onChange={(e) => updateLine(l.key, { qty: e.target.value })} placeholder="10000" /></label>
+                    <label><span>Satuan</span><select className="pap-select" value={l.unit} onChange={(e) => updateLine(l.key, { unit: e.target.value })}>{!l.unit && <option value="">—</option>}{unitOptions(l.unit).map((u) => <option key={u} value={u}>{u}</option>)}</select></label>
+                    <label><span>Harga / {l.unit || 'satuan'} (Rp)</span><input className="pap-input" inputMode="decimal" required={!!l.nama} value={l.harga} onChange={(e) => updateLine(l.key, { harga: e.target.value })} /></label>
+                    <div className="pap-quote-line"><small>Subtotal{num(l.disc_pct) ? ` (diskon baris ${l.disc_pct}% dari SO)` : ''}</small><b>{formatRupiah(lineTotal(l))}</b></div>
+                  </div>
+                </div>
+              ))}
+              <button type="button" className="pap-btn pap-add-item" onClick={() => setLines((list) => [...list, toLine({ unit: list[list.length - 1]?.unit || 'pcs' })])}><Plus /> Tambah produk</button>
             </div>
-            <button type="button" className="pap-btn pap-add-item" onClick={() => setLines((list) => [...list, toLine({ unit: list[list.length - 1]?.unit ?? '' })])}><Plus /> Tambah barang</button>
           </div>
 
           <div className="pap-field">
-            <span>Biaya lain (ongkir, dll.)</span>
+            <span>Biaya lain (opsional)</span>
             {costs.map((c) => (
               <div key={c.key} className="pap-doc-cost">
                 <input className="pap-input" maxLength={150} value={c.nama} onChange={(e) => updateCost(c.key, { nama: e.target.value })} placeholder="Nama biaya" aria-label="Nama biaya" />
@@ -343,17 +392,41 @@ function DocEditor({ editing, onClose, onSaved }: { editing: Editing; onClose: (
           </div>
 
           {totals && (
-            <dl className="pap-po-totals">
-              <div><dt>Subtotal</dt><dd>{formatRupiah(totals.subtotal)}</dd></div>
-              <div><dt>Diskon <input className="pap-input pap-num pap-doc-diskon" inputMode="decimal" value={v.diskon || ''} onChange={(e) => set('diskon', num(e.target.value))} placeholder="0" aria-label="Diskon (Rp)" /></dt><dd>{v.diskon ? `- ${formatRupiah(v.diskon)}` : '—'}</dd></div>
-              {v.ppn_mode !== 'none' && <div><dt>PPN {v.ppn_rate}%{v.ppn_mode === 'inclusive' ? ' (termasuk)' : ''}</dt><dd>{formatRupiah(totals.ppn)}</dd></div>}
-              <div className="total"><dt>TOTAL</dt><dd>{formatRupiah(totals.total)}</dd></div>
-              <div><dt>Uang muka diterima <input className="pap-input pap-num pap-doc-diskon" inputMode="decimal" value={v.terbayar || ''} onChange={(e) => set('terbayar', num(e.target.value))} placeholder="0" aria-label="Uang muka diterima" /></dt><dd>{v.terbayar ? `- ${formatRupiah(v.terbayar)}` : '—'}</dd></div>
-              {jenis === 'proforma' && v.terbayar <= 0 && (
-                <div><dt>Tagih DP (%) <input className="pap-input pap-num pap-doc-diskon" type="number" min={1} max={99} value={v.dp_persen ?? ''} onChange={(e) => set('dp_persen', num(e.target.value) > 0 && num(e.target.value) < 100 ? num(e.target.value) : null)} placeholder="Total" aria-label="DP persen" /></dt><dd /></div>
-              )}
-              {totals.tagihan != null && <div className="total"><dt>{v.terbayar > 0 ? 'SISA TAGIHAN' : v.dp_persen ? `DP ${v.dp_persen}%` : 'TAGIHAN'}</dt><dd>{formatRupiah(totals.tagihan)}</dd></div>}
-            </dl>
+            <div className="pap-quote-totals">
+              <div className="pap-quote-options">
+                <label className="pap-check"><input type="checkbox" checked={v.ppn_mode !== 'none'} onChange={(e) => set('ppn_mode', e.target.checked ? 'exclusive' : 'none')} /><span>Kenakan PPN {v.ppn_rate}%</span></label>
+                {v.ppn_mode !== 'none' && (
+                  <label className="pap-check pap-check-sub"><input type="checkbox" checked={v.ppn_mode === 'inclusive'} onChange={(e) => set('ppn_mode', e.target.checked ? 'inclusive' : 'exclusive')} /><span>Harga sudah termasuk PPN</span></label>
+                )}
+                <label className="pap-check"><input type="checkbox" checked={pakaiDiskon} onChange={(e) => setPakaiDiskon(e.target.checked)} /><span>Diskon</span></label>
+                {pakaiDiskon && (
+                  <div className="pap-quote-ongkir"><span>Besar diskon *</span><div className="pap-quote-diskon">
+                    <select className="pap-select" aria-label="Jenis diskon" value={diskonTipe} onChange={(e) => setDiskonTipe(e.target.value as 'persen' | 'nominal')}><option value="persen">%</option><option value="nominal">Rp</option></select>
+                    <input className="pap-input" inputMode="decimal" required value={diskonNilai} onChange={(e) => setDiskonNilai(e.target.value.replace(/[^\d.,]/g, ''))} placeholder={diskonTipe === 'persen' ? 'mis. 5' : 'mis. 50000'} aria-label="Besar diskon" />
+                  </div><small className="pap-muted">Dipotong dari subtotal; PPN dihitung dari harga setelah diskon.</small></div>
+                )}
+                <label className="pap-check"><input type="checkbox" checked={v.ongkir_per_kg !== null} onChange={(e) => setV((cur) => (cur ? { ...cur, ongkir_per_kg: e.target.checked ? 0 : null, berat_kg: e.target.checked ? cur.berat_kg : null } : cur))} /><span>Ongkos kirim</span></label>
+                {v.ongkir_per_kg !== null && (
+                  <label className="pap-quote-ongkir"><span>Harga ongkir per kg (Rp) *</span><input className="pap-input" inputMode="decimal" required autoFocus value={v.ongkir_per_kg || ''} onChange={(e) => set('ongkir_per_kg', num(e.target.value.replace(/[^\d.,]/g, '')))} placeholder="mis. 1500" /></label>
+                )}
+                {v.ongkir_per_kg !== null && (
+                  <label className="pap-quote-ongkir"><span>Berat kiriman (kg){kgOf(lines) ? '' : ' *'}</span><input className="pap-input" inputMode="decimal" required={!kgOf(lines)} value={v.berat_kg ?? ''} onChange={(e) => set('berat_kg', e.target.value.trim() ? num(e.target.value.replace(/[^\d.,]/g, '')) : null)} placeholder={kgOf(lines) ? `${kgOf(lines).toLocaleString('id-ID')} (otomatis dari produk kg)` : 'mis. 100'} /><small className="pap-muted">{kgOf(lines) && v.berat_kg == null ? 'Otomatis dari jumlah produk bersatuan kg; isi bila berbeda.' : 'Isi perkiraan berat total kiriman.'} Ongkir dijumlahkan ke total.</small></label>
+                )}
+              </div>
+              <dl>
+                <dt>Subtotal</dt><dd>{formatRupiah(totals.subtotal)}</dd>
+                {totals.diskon > 0 && <><dt>Diskon{diskonTipe === 'persen' ? ` ${num(diskonNilai)}%` : ''}</dt><dd>- {formatRupiah(totals.diskon)}</dd><dt>Harga setelah diskon</dt><dd>{formatRupiah(totals.subtotal - totals.diskon)}</dd></>}
+                {v.ppn_mode !== 'none' && <><dt>PPN {v.ppn_rate}%{v.ppn_mode === 'inclusive' ? ' (termasuk)' : ''}</dt><dd>{formatRupiah(totals.ppn)}</dd></>}
+                {totals.ongkir > 0 && <><dt>Ongkos kirim<small> {formatRupiah(v.ongkir_per_kg ?? 0)}/kg × {totals.berat.toLocaleString('id-ID')} kg</small></dt><dd>{formatRupiah(totals.ongkir)}</dd></>}
+                {costs.filter((c) => c.nama.trim() && num(c.amount)).map((c) => <Fragment key={c.key}><dt>{c.nama}</dt><dd>{formatRupiah(num(c.amount))}</dd></Fragment>)}
+                <dt className="grand">Total</dt><dd className="grand">{formatRupiah(totals.total)}</dd>
+                <dt>Uang muka diterima <input className="pap-input pap-num pap-doc-diskon" inputMode="decimal" value={v.terbayar || ''} onChange={(e) => set('terbayar', num(e.target.value))} placeholder="0" aria-label="Uang muka diterima" /></dt><dd>{v.terbayar ? `- ${formatRupiah(v.terbayar)}` : '—'}</dd>
+                {jenis === 'proforma' && v.terbayar <= 0 && (
+                  <><dt>Tagih DP (%) <input className="pap-input pap-num pap-doc-diskon" type="number" min={1} max={99} value={v.dp_persen ?? ''} onChange={(e) => set('dp_persen', num(e.target.value) > 0 && num(e.target.value) < 100 ? num(e.target.value) : null)} placeholder="Total" aria-label="DP persen" /></dt><dd /></>
+                )}
+                {totals.tagihan != null && <><dt className="grand">{v.terbayar > 0 ? 'Sisa tagihan' : v.dp_persen ? `DP ${v.dp_persen}%` : 'Tagihan'}</dt><dd className="grand">{formatRupiah(totals.tagihan)}</dd></>}
+              </dl>
+            </div>
           )}
 
           <div className="pap-form-grid">

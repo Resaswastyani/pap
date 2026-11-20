@@ -15,6 +15,7 @@ export type DocItem = { nama: string; qty: number; unit: string; harga: number; 
 export type DocExpense = { nama: string; amount: number }
 export type DocInput = {
   jenis: SoJenis; nomor: string; tanggal: string; so_accurate_id: number | null; so_number: string | null
+  prospect_id: number | null; customer_id: number | null; ongkir_per_kg: number | null; berat_kg: number | null; diskon_persen: number | null
   kepada: string; customer_no: string | null; kontak: string | null; telepon: string | null; alamat: string | null; po_number: string | null
   ship_date: string | null; ekspedisi: string | null; items: DocItem[]; expenses: DocExpense[]
   diskon: number; ppn_mode: PpnMode; ppn_rate: number; terbayar: number; dp_persen: number | null
@@ -36,18 +37,26 @@ const json = <T>(v: unknown, fallback: T): T => {
 
 export const lineTotal = (it: DocItem) => round2(it.qty * it.harga * (1 - (it.disc_pct ?? 0) / 100))
 
-// Hitung ringkasan angka: subtotal, PPN (di luar / termasuk), total, sisa
-export function docTotals(d: Pick<DocInput, 'items' | 'expenses' | 'diskon' | 'ppn_mode' | 'ppn_rate' | 'terbayar'>) {
+// Berat kiriman bawaan = jumlah barang bersatuan kg
+export const kgFromItems = (items: DocItem[]) => round2(items.filter((it) => /^kg$/i.test(it.unit.trim())).reduce((t, it) => t + it.qty, 0))
+// Ongkos kirim = tarif per kg x berat kiriman (berat kosong = dari barang bersatuan kg)
+export const ongkirOf = (d: Pick<DocInput, 'items' | 'ongkir_per_kg' | 'berat_kg'>) =>
+  d.ongkir_per_kg ? round2(d.ongkir_per_kg * (d.berat_kg ?? kgFromItems(d.items))) : 0
+
+// Hitung ringkasan angka: subtotal, diskon (persen dari subtotal), PPN (di luar / termasuk), ongkir, total, sisa
+export function docTotals(d: Pick<DocInput, 'items' | 'expenses' | 'diskon' | 'diskon_persen' | 'ppn_mode' | 'ppn_rate' | 'terbayar' | 'ongkir_per_kg' | 'berat_kg'>) {
   const subtotal = round2(d.items.reduce((t, it) => t + lineTotal(it), 0))
-  const dasar = subtotal - d.diskon
+  const diskon = d.diskon_persen != null ? Math.round((subtotal * d.diskon_persen) / 100) : d.diskon
+  const dasar = subtotal - diskon
   const ppn = d.ppn_mode === 'exclusive' ? Math.round((dasar * d.ppn_rate) / 100) : d.ppn_mode === 'inclusive' ? Math.round((dasar * d.ppn_rate) / (100 + d.ppn_rate)) : 0
+  const ongkir = ongkirOf(d)
   const biaya = d.expenses.reduce((t, e) => t + e.amount, 0)
-  const total = round2(dasar + (d.ppn_mode === 'exclusive' ? ppn : 0) + biaya)
-  return { subtotal, ppn, total, sisa: Math.max(0, total - d.terbayar) }
+  const total = round2(dasar + (d.ppn_mode === 'exclusive' ? ppn : 0) + ongkir + biaya)
+  return { subtotal, diskon, ppn, ongkir, total, sisa: Math.max(0, total - d.terbayar) }
 }
 
 // Validasi isian form
-export function readDocInput(body: Record<string, unknown>): DocInput {
+export async function readDocInput(body: Record<string, unknown>): Promise<DocInput> {
   const jenis = readSoJenis(str(body.jenis, 20))
   const nomor = str(body.nomor, 60)
   if (!nomor) fail(400, 'Nomor dokumen wajib diisi.')
@@ -72,11 +81,35 @@ export function readDocInput(body: Record<string, unknown>): DocInput {
   if (ppn_mode !== 'none' && (ppn_rate <= 0 || ppn_rate > 100)) fail(400, 'Tarif PPN tidak valid.')
   const dp = num(body.dp_persen)
   const soId = int(body.so_accurate_id)
+  // Untuk prospek atau customer (Accurate)
+  const prospectId = int(body.prospect_id)
+  const customerId = int(body.customer_id)
+  if (prospectId) {
+    const [[p]] = await db.query<Row[]>('SELECT id FROM prospects WHERE id = ?', [prospectId])
+    if (!p) fail(400, 'Prospek tidak ditemukan.')
+  }
+  if (customerId) {
+    const [[c]] = await db.query<Row[]>('SELECT id FROM customers WHERE id = ?', [customerId])
+    if (!c) fail(400, 'Customer tidak ditemukan.')
+  }
+  // Ongkir per kg (opsional) x berat kiriman (kosong = jumlah barang bersatuan kg)
+  const ongkir = num(body.ongkir_per_kg)
+  if (ongkir < 0) fail(400, 'Ongkos kirim per kg tidak valid.')
+  const beratRaw = body.berat_kg === '' || body.berat_kg == null ? null : num(body.berat_kg)
+  if (beratRaw !== null && beratRaw < 0) fail(400, 'Berat kiriman tidak valid.')
+  // Diskon dalam persen dari subtotal
+  const diskonPct = body.diskon_persen === '' || body.diskon_persen == null ? null : num(body.diskon_persen)
+  if (diskonPct !== null && (diskonPct < 0 || diskonPct > 100)) fail(400, 'Diskon harus 0–100%.')
+  const subtotal = round2(items.reduce((t, it) => t + lineTotal(it), 0))
   return {
     jenis, nomor, tanggal, so_accurate_id: soId && soId > 0 ? soId : null, so_number: opt(body.so_number, 60),
+    prospect_id: prospectId && !customerId ? prospectId : null, customer_id: customerId || null,
+    ongkir_per_kg: ongkir > 0 ? round2(ongkir) : null, berat_kg: ongkir > 0 && beratRaw !== null ? Math.round(beratRaw * 1000) / 1000 : null,
+    diskon_persen: diskonPct ? Math.round(diskonPct * 10000) / 10000 : null,
     kepada, customer_no: opt(body.customer_no, 60), kontak: opt(body.kontak, 150), telepon: opt(body.telepon, 100), alamat: opt(body.alamat, 2000),
     po_number: opt(body.po_number, 100), ship_date: date(body.ship_date), ekspedisi: opt(body.ekspedisi, 255), items, expenses,
-    diskon: Math.max(0, round2(num(body.diskon))), ppn_mode, ppn_rate: ppn_rate > 0 ? ppn_rate : 11, terbayar: Math.max(0, round2(num(body.terbayar))),
+    // Diskon persen (diskon_persen) atau nominal Rupiah (diskon), maksimal subtotal
+    diskon: diskonPct ? Math.round((subtotal * diskonPct) / 100) : Math.min(subtotal, Math.max(0, round2(num(body.diskon)))), ppn_mode, ppn_rate: ppn_rate > 0 ? ppn_rate : 11, terbayar: Math.max(0, round2(num(body.terbayar))),
     dp_persen: jenis === 'proforma' && dp > 0 && dp < 100 ? dp : null,
     catatan: opt(body.catatan, 5000), rekening: jenis === 'proforma' ? opt(body.rekening, 2000) : null, penandatangan: opt(body.penandatangan, 150),
   }
@@ -86,6 +119,9 @@ function fromRow(r: Row) {
   const items = json<DocItem[]>(r.items, []).map((it) => ({ ...it, qty: num(it.qty), harga: num(it.harga), disc_pct: it.disc_pct ? num(it.disc_pct) : null, catatan: it.catatan ?? null, unit: it.unit ?? '' }))
   const input: DocInput = {
     jenis: readSoJenis(r.jenis as string), nomor: String(r.nomor), tanggal: String(r.tanggal), so_accurate_id: r.so_accurate_id == null ? null : Number(r.so_accurate_id), so_number: (r.so_number as string) ?? null,
+    prospect_id: r.prospect_id == null ? null : Number(r.prospect_id), customer_id: r.customer_id == null ? null : Number(r.customer_id),
+    ongkir_per_kg: r.ongkir_per_kg == null ? null : num(r.ongkir_per_kg), berat_kg: r.berat_kg == null ? null : num(r.berat_kg),
+    diskon_persen: r.diskon_persen == null ? null : num(r.diskon_persen),
     kepada: String(r.kepada), customer_no: (r.customer_no as string) ?? null, kontak: (r.kontak as string) ?? null, telepon: (r.telepon as string) ?? null, alamat: (r.alamat as string) ?? null,
     po_number: (r.po_number as string) ?? null, ship_date: (r.ship_date as string) ?? null, ekspedisi: (r.ekspedisi as string) ?? null,
     items, expenses: json<DocExpense[]>(r.expenses, []).map((e) => ({ nama: String(e.nama), amount: num(e.amount) })),
@@ -117,8 +153,8 @@ export async function loadOrderDocument(id: number) {
   return fromRow(row)
 }
 
-const COLS = ['jenis', 'nomor', 'tanggal', 'so_accurate_id', 'so_number', 'kepada', 'customer_no', 'kontak', 'telepon', 'alamat', 'po_number', 'ship_date', 'ekspedisi', 'items', 'expenses',
-  'diskon', 'ppn_mode', 'ppn_rate', 'terbayar', 'dp_persen', 'catatan', 'rekening', 'penandatangan'] as const
+const COLS = ['jenis', 'nomor', 'tanggal', 'so_accurate_id', 'so_number', 'prospect_id', 'customer_id', 'kepada', 'customer_no', 'kontak', 'telepon', 'alamat', 'po_number', 'ship_date', 'ekspedisi',
+  'ongkir_per_kg', 'berat_kg', 'items', 'expenses', 'diskon', 'diskon_persen', 'ppn_mode', 'ppn_rate', 'terbayar', 'dp_persen', 'catatan', 'rekening', 'penandatangan'] as const
 const values = (d: DocInput) => COLS.map((c) => (c === 'items' || c === 'expenses' ? JSON.stringify(d[c]) : d[c]))
 
 const duplicate = (error: unknown, d: DocInput) => {
@@ -160,14 +196,20 @@ export async function draftOrderDocument(jenis: SoJenis, soId: number | null): P
     const [[r]] = await db.query<Row[]>('SELECT COUNT(*) AS n FROM order_documents WHERE jenis = ? AND nomor LIKE ?', [jenis, `${prefix}-M.${ym}.%`])
     return {
       jenis, nomor: `${prefix}-M.${ym}.${String(Number(r.n) + 1).padStart(4, '0')}`, tanggal: todayWib(), so_accurate_id: null, so_number: null,
+      prospect_id: null, customer_id: null, ongkir_per_kg: null, berat_kg: null, diskon_persen: null,
       kepada: '', customer_no: null, kontak: null, telepon: null, alamat: null, po_number: null, ship_date: null, ekspedisi: null,
-      items: [{ nama: '', qty: 1, unit: 'kg', harga: 0, disc_pct: null, catatan: null }], expenses: [], diskon: 0, ppn_mode: 'none', ppn_rate: 11, terbayar: 0, dp_persen: jenis === 'proforma' ? 50 : null,
+      items: [{ nama: '', qty: 1, unit: 'pcs', harga: 0, disc_pct: null, catatan: null }], expenses: [], diskon: 0, ppn_mode: 'none', ppn_rate: 11, terbayar: 0, dp_persen: jenis === 'proforma' ? 50 : null,
       catatan: null, ...base,
     }
   }
   const so = await loadSoDocument(soId)
+  const [[cust]] = so.customer_no ? await db.query<Row[]>('SELECT id FROM customers WHERE customer_no = ? LIMIT 1', [so.customer_no]) : [[undefined]]
+  // Diskon SO (Rupiah) diubah ke persen dari subtotal
+  const soSub = so.subtotal || 0
   return {
     jenis, nomor: soDocNomor(so, jenis), tanggal: jenis === 'proforma' ? todayWib() : so.tanggal, so_accurate_id: so.id, so_number: so.nomor,
+    prospect_id: null, customer_id: cust ? Number(cust.id) : null, ongkir_per_kg: null, berat_kg: null,
+    diskon_persen: so.diskon && soSub ? Math.round((so.diskon / soSub) * 1000000) / 10000 : null,
     kepada: so.customer_name, customer_no: so.customer_no, kontak: so.kontak, telepon: so.telepon, alamat: so.alamat, po_number: so.po_number,
     ship_date: so.ship_date, ekspedisi: so.ekspedisi,
     items: so.items.map((it) => {
@@ -186,7 +228,13 @@ export function orderDocumentView(d: DocInput): DocView {
   return {
     jenis: d.jenis, nomor: d.nomor, tanggal: d.tanggal, ref: d.jenis === 'order' ? d.po_number : d.so_number,
     customer_name: d.kepada, kontak: d.kontak, telepon: d.telepon, alamat: d.alamat, ship_date: d.ship_date, ekspedisi: d.ekspedisi,
-    items: d.items.map((it) => ({ ...it, total: lineTotal(it) })), expenses: d.expenses, subtotal: t.subtotal, diskon: d.diskon,
+    items: d.items.map((it) => ({ ...it, total: lineTotal(it) })),
+    // Ongkir per kg dicetak sebagai baris biaya: "Ongkos kirim (Rp 1.500/kg x 100 kg)"
+    expenses: [
+      ...(t.ongkir ? [{ nama: `Ongkos kirim (Rp ${Number(d.ongkir_per_kg).toLocaleString('id-ID')}/kg × ${(d.berat_kg ?? kgFromItems(d.items)).toLocaleString('id-ID')} kg)`, amount: t.ongkir }] : []),
+      ...d.expenses,
+    ],
+    subtotal: t.subtotal, diskon: t.diskon,
     ppn_mode: d.ppn_mode, ppn_rate: d.ppn_rate, ppn: t.ppn, total: t.total, terbayar: d.terbayar,
     tagihan: d.jenis === 'proforma' ? proformaTagihan({ total: t.total, terbayar: d.terbayar, sisa: t.sisa }, d.dp_persen) : null,
     catatan: d.catatan ?? '', rekening: d.jenis === 'proforma' ? d.rekening : null, penandatangan: d.penandatangan,

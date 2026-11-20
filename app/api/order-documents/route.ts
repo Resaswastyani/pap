@@ -14,6 +14,6 @@ export const GET = handle(async (request: Request) => {
 export const POST = handle(async (request: Request) => {
   const user = await requireUser()
   requireDokumenOrder(user)
-  const id = await createOrderDocument(user, readDocInput(await readJson(request)))
+  const id = await createOrderDocument(user, await readDocInput(await readJson(request)))
   return NextResponse.json({ id }, { status: 201 })
 })

@@ -3371,3 +3371,8 @@ a.pap-row-action { text-decoration:none; }
 .pap-quote-diskon { display:flex; gap:6px; }
 .pap-quote-diskon .pap-select { flex:none; width:72px; }
 .pap-quote-diskon .pap-input { flex:1; min-width:0; }
+.pap-doc-ppn { width:auto; min-width:150px; margin:0 6px; padding-top:4px; padding-bottom:4px; }
+
+.pap-check-sub { margin-left:24px; font-size:12.5px; }
+#order-doc-form .pap-quote-totals { flex-wrap:nowrap; } #order-doc-form .pap-quote-totals dl { flex:1 1 auto; min-width:0; max-width:420px; } @media (max-width:640px) { #order-doc-form .pap-quote-totals { flex-wrap:wrap; } #order-doc-form .pap-quote-totals dl { max-width:none; width:100%; } }
+#order-doc-form .pap-quote-totals dt .pap-doc-diskon { display:inline-block; width:110px; margin-left:6px; padding-top:4px; padding-bottom:4px; }
