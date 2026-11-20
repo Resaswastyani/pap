@@ -1,0 +1,165 @@
+// Analisa Aspek Teknik atas Rencana Order Baru / Spec Baru (Marketing -> Teknik -> Direksi).
+// Bagian Marketing diisi Marketing; analisa proses & kesimpulan diisi Dept Teknik; rekomendasi oleh Direksi (GM / admin).
+import type { RowDataPacket } from 'mysql2'
+import { fail, str } from '@/lib/api'
+import { db } from '@/lib/db'
+import { notify } from '@/lib/notifications'
+import { pushToUsers } from '@/lib/push'
+import { isManagement, type UserProfile } from '@/lib/users'
+
+export const TA_STATUS = { draft: 'Draft (Marketing)', diserahkan: 'Diserahkan ke Teknik', dianalisa: 'Dianalisa Teknik', selesai: 'Selesai (Direksi)' } as const
+export type TaStatus = keyof typeof TA_STATUS
+
+// Urutan mesin / proses sesuai formulir Dept Teknik
+export const MACHINES: { mesin: string; kec_label: string }[] = [
+  { mesin: 'Inline Blow-Roto', kec_label: 'Kec Inverter Blow' },
+  { mesin: 'Inline Blow Roto Gusset', kec_label: 'Kec Inverter Blow' },
+  { mesin: 'Inline Blow Roto Slitting', kec_label: 'Kec Inverter Blow' },
+  { mesin: 'Inline Blow-Roto-Pillow Case', kec_label: 'Kec Inverter Blow' },
+  { mesin: 'Cutseal POLOS', kec_label: 'Kec' },
+  { mesin: 'CutSeal SENSOR GAMBAR', kec_label: 'Kec' },
+  { mesin: 'Cutting dng Mesin Cutseal POLOS', kec_label: 'Kec' },
+  { mesin: 'Cutting dng Mesin Cutseal SENSOR GAMBAR', kec_label: '' },
+  { mesin: 'Cutseal Hanger POLOS', kec_label: '' },
+  { mesin: 'Cutseal Hanger SENSOR GAMBAR', kec_label: '' },
+  { mesin: 'Slitting', kec_label: 'Kec Inverter' },
+  { mesin: 'Hanger Manual', kec_label: 'Kec' },
+  { mesin: 'Las Plat Manual', kec_label: 'Kec' },
+  { mesin: 'Mesin Penggulung Plastik', kec_label: 'Kec Inverter' },
+  { mesin: 'Sideseal Manual', kec_label: '' },
+  { mesin: 'Mesin Cutting Mika', kec_label: '' },
+]
+export type ProsesRow = { mesin: string; kec_label: string; dipakai: boolean; kecepatan: string; keterangan: string; produktivitas: number | null }
+export const defaultProses = (): ProsesRow[] => MACHINES.map((m) => ({ ...m, dipakai: false, kecepatan: '', keterangan: '', produktivitas: null }))
+
+const MARKETING = (u: UserProfile) => u.division.code === 'marketing' || u.division.code.startsWith('marketing_')
+export function requireTechAnalysis(user: UserProfile) {
+  if (!user.role.isAdmin && !user.menus.includes('prospek' as never) && !user.menus.includes('analisa-teknik' as never)) fail(403, 'Anda tidak punya akses ke Analisa Teknik Order.')
+}
+export const canMarketingSection = (u: UserProfile) => u.role.isAdmin || isManagement(u) || MARKETING(u)
+export const canTeknikSection = (u: UserProfile) => u.role.isAdmin || u.division.code === 'teknik'
+export const canDireksiSection = (u: UserProfile) => isManagement(u)
+
+type Row = RowDataPacket & Record<string, unknown>
+const num = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v))
+const parse = <T>(v: unknown, fallback: T): T => { try { return v ? (JSON.parse(String(v)) as T) : fallback } catch { return fallback } }
+
+const SELECT = `SELECT a.*, DATE_FORMAT(a.tanggal_serah, '%Y-%m-%d') AS tanggal_serah, p.nama_usaha AS prospect_name,
+    uc.name AS created_name, ut.name AS teknik_name, ud.name AS direksi_name
+  FROM prospect_tech_analyses a LEFT JOIN prospects p ON p.id = a.prospect_id
+  LEFT JOIN users uc ON uc.id = a.created_by LEFT JOIN users ut ON ut.id = a.teknik_oleh LEFT JOIN users ud ON ud.id = a.direksi_oleh`
+
+export function serializeAnalysis(r: Row) {
+  const proses = parse<ProsesRow[]>(r.proses, [])
+  return {
+    id: Number(r.id), nomor: String(r.nomor), prospect_id: num(r.prospect_id), prospect_name: (r.prospect_name as string) ?? null, status: String(r.status) as TaStatus,
+    tanggal_serah: (r.tanggal_serah as string) ?? null,
+    nama_produk: String(r.nama_produk), nama_customer: String(r.nama_customer), jenis_plastik: (r.jenis_plastik as string) ?? null,
+    panjang_cm: num(r.panjang_cm), lebar_cm: num(r.lebar_cm), tebal_mm: num(r.tebal_mm), print_jenis: (r.print_jenis as 'polos' | 'print') ?? null,
+    jumlah_warna: num(r.jumlah_warna), kesulitan_print: (r.kesulitan_print as string) ?? null, spec_lainnya: (r.spec_lainnya as string) ?? null,
+    qty_order: num(r.qty_order), qty_satuan: (r.qty_satuan as string) ?? null, frekuensi: (r.frekuensi as 'sekali' | 'rutin') ?? null, rutin_bulan: num(r.rutin_bulan),
+    critical_to_quality: (r.critical_to_quality as string) ?? null,
+    proses: proses.length ? proses : defaultProses(),
+    bisa_produksi: (r.bisa_produksi as 'bisa' | 'bersyarat' | 'tidak') ?? null, penjelasan_produksi: (r.penjelasan_produksi as string) ?? null,
+    kesulitan_kualitas: (r.kesulitan_kualitas as 'mudah' | 'sedang' | 'sulit') ?? null, penjelasan_kualitas: (r.penjelasan_kualitas as string) ?? null,
+    catatan_lain: (r.catatan_lain as string) ?? null,
+    teknik_oleh: num(r.teknik_oleh), teknik_name: (r.teknik_name as string) ?? null, teknik_at: r.teknik_at ? String(r.teknik_at) : null,
+    rekomendasi_direksi: (r.rekomendasi_direksi as string) ?? null, direksi_oleh: num(r.direksi_oleh), direksi_name: (r.direksi_name as string) ?? null, direksi_at: r.direksi_at ? String(r.direksi_at) : null,
+    created_by: num(r.created_by), created_name: (r.created_name as string) ?? null, created_at: String(r.created_at), updated_at: String(r.updated_at),
+  }
+}
+export type TechAnalysis = ReturnType<typeof serializeAnalysis>
+
+export async function loadAnalysis(id: number) {
+  const [[r]] = await db.query<Row[]>(`${SELECT} WHERE a.id = ?`, [id])
+  if (!r) fail(404, 'Analisa teknik tidak ditemukan.')
+  return serializeAnalysis(r!)
+}
+
+export async function listAnalyses(params: URLSearchParams) {
+  const where: string[] = []
+  const args: unknown[] = []
+  const prospect = Number(params.get('prospect_id'))
+  if (Number.isInteger(prospect) && prospect > 0) where.push('a.prospect_id = ?'), args.push(prospect)
+  const status = params.get('status')
+  if (status && status in TA_STATUS) where.push('a.status = ?'), args.push(status)
+  const q = str(params.get('q'), 100)
+  if (q) where.push('(a.nomor LIKE ? OR a.nama_produk LIKE ? OR a.nama_customer LIKE ? OR a.jenis_plastik LIKE ?)'), args.push(...Array(4).fill(`%${q}%`))
+  const [rows] = await db.query<Row[]>(
+    `${SELECT} ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+     ORDER BY FIELD(a.status, 'diserahkan', 'dianalisa', 'draft', 'selesai'), a.updated_at DESC, a.id DESC LIMIT 500`,
+    args,
+  )
+  const [counts] = await db.query<Row[]>('SELECT status, COUNT(*) AS n FROM prospect_tech_analyses GROUP BY status')
+  return { items: rows.map(serializeAnalysis), counts: Object.fromEntries(counts.map((c) => [String(c.status), Number(c.n)])) }
+}
+
+export async function nextAnalysisNumber() {
+  const year = new Date(Date.now() + 7 * 3600e3).getUTCFullYear()
+  const prefix = `AT-${year}-`
+  const [[r]] = await db.query<Row[]>('SELECT MAX(CAST(SUBSTRING(nomor, ?) AS UNSIGNED)) AS n FROM prospect_tech_analyses WHERE nomor LIKE ?', [prefix.length + 1, `${prefix}%`])
+  return `${prefix}${String((Number(r?.n) || 0) + 1).padStart(4, '0')}`
+}
+
+const dec = (v: unknown, label: string, max = 1e9) => {
+  if (v === null || v === undefined || v === '') return null
+  const n = Number(String(v).replace(',', '.'))
+  if (!Number.isFinite(n) || n < 0 || n > max) fail(400, `${label} tidak valid.`)
+  return n
+}
+
+// Bagian Marketing
+export async function readMarketingSection(body: Record<string, unknown>) {
+  const nama_produk = str(body.nama_produk, 255) || fail(400, 'Isi nama produk.')
+  const nama_customer = str(body.nama_customer, 255) || fail(400, 'Isi nama customer.')
+  let prospectId = num(body.prospect_id)
+  if (prospectId) {
+    const [[p]] = await db.query<Row[]>('SELECT id FROM prospects WHERE id = ?', [prospectId])
+    prospectId = p ? Number(p.id) : null
+  }
+  const print = body.print_jenis === 'print' ? 'print' : body.print_jenis === 'polos' ? 'polos' : null
+  const frek = body.frekuensi === 'rutin' ? 'rutin' : body.frekuensi === 'sekali' ? 'sekali' : null
+  return {
+    prospect_id: prospectId, nama_produk: nama_produk!, nama_customer: nama_customer!, jenis_plastik: str(body.jenis_plastik, 80) || null,
+    panjang_cm: dec(body.panjang_cm, 'Panjang', 100000), lebar_cm: dec(body.lebar_cm, 'Lebar', 100000), tebal_mm: dec(body.tebal_mm, 'Tebal', 1000),
+    print_jenis: print, jumlah_warna: print === 'print' ? dec(body.jumlah_warna, 'Jumlah warna print', 20) : null, kesulitan_print: str(body.kesulitan_print, 255) || null,
+    spec_lainnya: str(body.spec_lainnya, 5000) || null, qty_order: dec(body.qty_order, 'Qty order', 1e12), qty_satuan: str(body.qty_satuan, 20) || 'kg',
+    frekuensi: frek, rutin_bulan: frek === 'rutin' ? dec(body.rutin_bulan, 'Rutin per bulan', 120) : null, critical_to_quality: str(body.critical_to_quality, 5000) || null,
+  }
+}
+
+// Bagian Teknik: tabel proses + kesimpulan
+export function readTeknikSection(body: Record<string, unknown>) {
+  const raw = Array.isArray(body.proses) ? (body.proses as unknown[]).slice(0, 40) : []
+  const proses: ProsesRow[] = raw.map((x) => {
+    const r = (x ?? {}) as Record<string, unknown>
+    return {
+      mesin: str(r.mesin, 120), kec_label: str(r.kec_label, 60), dipakai: r.dipakai === true, kecepatan: str(r.kecepatan, 120), keterangan: str(r.keterangan, 500),
+      produktivitas: dec(r.produktivitas, `Produktivitas ${str(r.mesin, 60)}`, 1e7),
+    }
+  }).filter((r) => r.mesin)
+  return {
+    proses: JSON.stringify(proses),
+    bisa_produksi: ['bisa', 'bersyarat', 'tidak'].includes(String(body.bisa_produksi)) ? String(body.bisa_produksi) : null,
+    penjelasan_produksi: str(body.penjelasan_produksi, 5000) || null,
+    kesulitan_kualitas: ['mudah', 'sedang', 'sulit'].includes(String(body.kesulitan_kualitas)) ? String(body.kesulitan_kualitas) : null,
+    penjelasan_kualitas: str(body.penjelasan_kualitas, 5000) || null, catatan_lain: str(body.catatan_lain, 5000) || null,
+  }
+}
+
+async function usersOf(where: string) {
+  const [rows] = await db.query<Row[]>(`SELECT u.id FROM users u JOIN divisions d ON d.id = u.division_id JOIN roles r ON r.id = u.role_id WHERE u.is_active = 1 AND (${where})`)
+  return rows.map((r) => Number(r.id))
+}
+export const teknikUsers = () => usersOf("d.code = 'teknik'")
+export const direksiUsers = () => usersOf("d.code = 'general_manager'")
+
+// Teknik / Direksi dibuka ke menu Analisa Teknik Order; Marketing (pembuat) ke prospeknya di menu Prospek
+export async function notifyAnalysis(userIds: (number | null)[], a: { id: number; nomor: string; nama_produk: string; nama_customer: string; prospect_id: number | null }, title: string, key: string, exclude?: number, toProspect = false) {
+  const users = [...new Set(userIds.filter((x): x is number => !!x && x !== exclude))]
+  if (!users.length) return
+  const target = toProspect && a.prospect_id ? { page: 'Prospek', pageId: a.prospect_id, prospectId: a.prospect_id } : { page: 'Analisa Teknik Order', pageId: a.id }
+  await pushToUsers(await notify(users, {
+    type: 'analisa_teknik', title, body: `${a.nomor} · ${a.nama_produk} · ${a.nama_customer}`, ...target, refKey: `at:${a.id}:${key}`,
+  }))
+}

@@ -9,6 +9,7 @@ import {
   type MarketingUser, type ProspectStatus, type Visit,
 } from './marketing'
 import { QuotationForm } from './quotation-page'
+import { TechAnalysisView } from './tech-analysis'
 import { DesignForm, SampleForm } from './request-page'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, uploadPendingAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
 import { api, askReason, Field, formatDate, Modal, Notice, Pager, RowActions, useQuickAction, confirmDialog, FreshBadge } from './ui'
@@ -98,6 +99,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
   const [autoEdit, setAutoEdit] = useState(false)
   const [importing, setImporting] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
+  const [section, setSection] = useState<'prospek' | 'analisa'>('prospek')
 
   // Filter daftar (tanpa halaman) untuk unduh PDF / Excel / CSV
   const exportQuery = useMemo(() => {
@@ -151,6 +153,22 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
   const won = count('order_pertama') + count('handover')
   const closed = won + count('gagal')
   const isDigital = user.division.code === 'marketing_digital'
+  const sectionTabs = (
+    <div className="pap-segmented pap-page-tabs" role="tablist" aria-label="Bagian prospek">
+      <button role="tab" aria-selected={section === 'prospek'} className={section === 'prospek' ? 'active' : ''} onClick={() => setSection('prospek')}>Prospek</button>
+      <button role="tab" aria-selected={section === 'analisa'} className={section === 'analisa' ? 'active' : ''} onClick={() => setSection('analisa')}>Analisa Teknik Order</button>
+    </div>
+  )
+  // Tab Analisa Teknik: spek order baru dari Marketing dianalisa Dept Teknik & diberi rekomendasi Direksi
+  if (section === 'analisa') {
+    return (
+      <>
+        <div className="pap-page-heading"><div><p className="pap-eyebrow">MARKETING</p><h1>Prospek</h1><span>Analisa aspek teknik atas rencana order baru / spec baru: Marketing → Dept Teknik → Direksi, bisa dicetak PDF & Word.</span></div></div>
+        {sectionTabs}
+        <TechAnalysisView user={user} />
+      </>
+    )
+  }
 
   return (
     <>
@@ -176,6 +194,7 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
           <button className="pap-primary-button" onClick={() => setForm('new')}><Plus /> Tambah prospek</button>
         </div>
       </div>
+      {sectionTabs}
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       <div className="pap-stat-grid four">
         <button className={`pap-stat-card pap-stat-button ${status === 'aktif' && !followup ? 'active' : ''}`} onClick={() => { setStatus('aktif'); setFollowup('') }}>
@@ -736,6 +755,8 @@ function ProspectDetail({ id, autoEdit = false, user, users, onClose, onEdit, on
         )}
 
         {canFollowUp && <ActivityForm prospect={item} onSaved={(text) => changed(text)} />}
+
+        <TechAnalysisView user={user} prospectId={item.id} compact prefill={{ prospect_id: item.id, nama_customer: item.nama_usaha, products: (item.products ?? []).map((p) => ({ label: p.label, jenis_plastik: p.jenis_plastik, qty_kg: p.qty_kg, catatan: p.catatan })) }} />
 
         <AttachmentPanel title="Foto Produk / lampiran" basePath={`/api/prospects/${item.id}/attachments`} fileBase="/api/prospects/attachments" canAdd={canEdit} currentUserId={user.id} isAdmin={user.role.isAdmin} allowVideo />
 
