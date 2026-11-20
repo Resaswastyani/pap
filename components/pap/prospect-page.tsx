@@ -420,7 +420,7 @@ function ProspectForm({ user, initial, users, canSupervise, onClose, onSaved }: 
         <Field label="Alamat dll" full><input className="pap-input" maxLength={500} value={values.alamat} onChange={set('alamat')} placeholder="Alamat lengkap atau kota" /></Field>
         <Field label="Nama Kontak PIC"><input className="pap-input" maxLength={150} value={values.kontak_nama} onChange={set('kontak_nama')} placeholder="Contoh: Ibu Surti - Purchasing" /></Field>
         <Field label="Nomor WhatsApp" hint="Format 08xx / 62xx, dipakai untuk tombol WhatsApp."><input className="pap-input" inputMode="tel" maxLength={40} value={values.telepon} onChange={set('telepon')} /></Field>
-        <Field label="Produk" full hint="Satu baris per produk: Jenis Product - Spec, Jenis Plastik, Qty Kebutuhan (Kg), Harga / satuan, Satuan Harga, GPF/sat. Bisa lebih dari satu produk.">
+        <Field label="Produk" full hint="Satu baris per produk: Jenis Product - Spec, Jenis Plastik, Qty Kebutuhan (Kg), Harga / satuan, Satuan Harga, GPF/sat. Bisa lebih dari satu produk. Tiap produk bisa diisi Analisa teknik (opsional) untuk diserahkan ke Dept Teknik.">
           <ProductTable value={products} onChange={setProducts} />
         </Field>
         <Field label="Payment"><input className="pap-input" list="pap-payment" maxLength={255} value={values.payment} onChange={set('payment')} placeholder="Contoh: TOP 30 Days, DP 50% Pelunasan COD" /></Field>

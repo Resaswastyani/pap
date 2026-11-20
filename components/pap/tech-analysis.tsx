@@ -461,8 +461,9 @@ export type TeknikSpec = {
   minta: boolean; panjang_cm: string; lebar_cm: string; tebal_mm: string; print_jenis: '' | 'polos' | 'print'; jumlah_warna: string; kesulitan_print: string
   spec_lainnya: string; frekuensi: '' | 'sekali' | 'rutin'; rutin_bulan: string; critical_to_quality: string
   analysis?: { id: number; nomor: string; status: Status } | null
+  mintaManual?: boolean
 }
-export const emptyTeknik = (): TeknikSpec => ({ minta: true, panjang_cm: '', lebar_cm: '', tebal_mm: '', print_jenis: '', jumlah_warna: '', kesulitan_print: '', spec_lainnya: '', frekuensi: '', rutin_bulan: '', critical_to_quality: '' })
+export const emptyTeknik = (): TeknikSpec => ({ minta: false, panjang_cm: '', lebar_cm: '', tebal_mm: '', print_jenis: '', jumlah_warna: '', kesulitan_print: '', spec_lainnya: '', frekuensi: '', rutin_bulan: '', critical_to_quality: '' })
 
 // Analisa yang sudah ada untuk prospek: dipetakan per nama produk (untuk form Edit prospek)
 export async function loadProspectTeknik(prospectId: number) {
@@ -482,14 +483,21 @@ export function TeknikSpecPanel({ value, onChange }: { value: TeknikSpec | null 
   const [open, setOpen] = useState(!!value?.minta)
   const t = value ?? null
   const locked = !!t?.analysis && (t.analysis.status === 'dianalisa' || t.analysis.status === 'selesai')
-  const set = (patch: Partial<TeknikSpec>) => onChange({ ...(t ?? emptyTeknik()), ...patch })
+  // Opsional: analisa otomatis diminta begitu ada isian spek (kecuali centangnya dilepas manual); kosong = tidak ada analisa
+  const set = (patch: Partial<TeknikSpec>) => {
+    const next = { ...(t ?? emptyTeknik()), ...patch }
+    if (!('minta' in patch) && !next.mintaManual) {
+      next.minta = [next.panjang_cm, next.lebar_cm, next.tebal_mm, next.print_jenis, next.jumlah_warna, next.kesulitan_print, next.spec_lainnya, next.frekuensi, next.critical_to_quality].some((x) => String(x ?? '').trim())
+    }
+    onChange(next)
+  }
   const num = (k: keyof TeknikSpec) => (e: { target: { value: string } }) => set({ [k]: e.target.value.replace(/[^\d.,]/g, '') } as Partial<TeknikSpec>)
   const txt = (k: keyof TeknikSpec) => (e: { target: { value: string } }) => set({ [k]: e.target.value } as Partial<TeknikSpec>)
   return (
     <div className={`pap-ta-inline ${t?.minta ? 'on' : ''}`}>
       <div className="pap-ta-inline-head">
-        <button type="button" className="pap-link-button pap-shift-edit" onClick={() => { setOpen(!open); if (!t) onChange(emptyTeknik()) }} aria-expanded={open}>
-          <Ruler /> Spek teknik {t?.minta ? '· minta analisa Teknik' : ''}
+        <button type="button" className="pap-link-button pap-shift-edit" onClick={() => setOpen(!open)} aria-expanded={open}>
+          <Ruler /> {t?.analysis ? 'Analisa teknik' : t?.minta ? 'Analisa teknik · akan diserahkan ke Teknik' : 'Isi analisa teknik (opsional)'}
         </button>
         {t?.analysis && <span className={`pap-status ${TONE[t.analysis.status]}`}>{t.analysis.nomor} · {STATUS[t.analysis.status]}</span>}
       </div>
@@ -497,7 +505,7 @@ export function TeknikSpecPanel({ value, onChange }: { value: TeknikSpec | null 
         <div className="pap-ta-inline-body">
           {locked ? <p className="pap-muted pap-ta-hint">Produk ini sudah dianalisa Dept Teknik ({t!.analysis!.nomor}); spek tidak bisa diubah dari sini. Lihat hasilnya di detail prospek.</p> : (
             <>
-              <label className="pap-ma-check"><input type="checkbox" checked={!!t?.minta} onChange={(e) => set({ minta: e.target.checked })} /> Minta analisa ke Dept Teknik saat prospek disimpan</label>
+              <label className="pap-ma-check"><input type="checkbox" checked={!!t?.minta} onChange={(e) => set({ minta: e.target.checked, mintaManual: true })} /> Minta analisa ke Dept Teknik saat prospek disimpan <small className="pap-muted">(otomatis tercentang bila spek diisi)</small></label>
               <div className="pap-ta-inline-grid">
                 <label><span>Panjang (cm)</span><input className="pap-input" inputMode="decimal" value={t?.panjang_cm ?? ''} onChange={num('panjang_cm')} /></label>
                 <label><span>Lebar (cm)</span><input className="pap-input" inputMode="decimal" value={t?.lebar_cm ?? ''} onChange={num('lebar_cm')} /></label>
