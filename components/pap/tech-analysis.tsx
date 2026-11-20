@@ -183,15 +183,19 @@ function MarketingFields({ v, set, disabled, products, onPickProduct }: {
   )
 }
 
+const fromPrefill = (prefill: TaPrefill | undefined, base: MarketingValues): MarketingValues => {
+  const p = prefill?.products[0]
+  return { ...base, nama_customer: prefill?.nama_customer ?? base.nama_customer, nama_produk: p?.label ?? base.nama_produk, jenis_plastik: p?.jenis_plastik ?? base.jenis_plastik, qty_order: p?.qty_kg ? String(p.qty_kg) : base.qty_order, spec_lainnya: p?.catatan ?? base.spec_lainnya }
+}
+
 function TechAnalysisForm({ prefill, onClose, onSaved }: { prefill?: TaPrefill; onClose: () => void; onSaved: (id: number, msg: string) => void }) {
-  const [v, setV] = useState<MarketingValues>(() => {
-    const p = prefill?.products[0]
-    return { ...toValues(), nama_customer: prefill?.nama_customer ?? '', nama_produk: p?.label ?? '', jenis_plastik: p?.jenis_plastik ?? '', qty_order: p?.qty_kg ? String(p.qty_kg) : '', spec_lainnya: p?.catatan ?? '' }
-  })
+  // Dari detail prospek: prospek sudah tertentu; dari tab / menu: pilih prospek dulu (atau isi manual)
+  const [source, setSource] = useState<(TaPrefill & { nama?: string }) | undefined>(prefill)
+  const [v, setV] = useState<MarketingValues>(() => fromPrefill(prefill, toValues()))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   function pick(i: number) {
-    const p = prefill!.products[i]
+    const p = source!.products[i]
     setV({ ...v, nama_produk: p.label, jenis_plastik: p.jenis_plastik ?? v.jenis_plastik, qty_order: p.qty_kg ? String(p.qty_kg) : v.qty_order, spec_lainnya: p.catatan ?? v.spec_lainnya })
   }
   async function save(e: React.FormEvent) {
@@ -199,7 +203,7 @@ function TechAnalysisForm({ prefill, onClose, onSaved }: { prefill?: TaPrefill; 
     setBusy(true)
     setError('')
     try {
-      const res = await api<{ id: number; nomor: string }>('/api/tech-analyses', { method: 'POST', json: { ...v, prospect_id: prefill?.prospect_id ?? null } })
+      const res = await api<{ id: number; nomor: string }>('/api/tech-analyses', { method: 'POST', json: { ...v, prospect_id: source?.prospect_id ?? null } })
       onSaved(res.id, `Analisa teknik ${res.nomor} dibuat. Lengkapi lalu klik "Serahkan ke Teknik".`)
     } catch (err) {
       setError((err as Error).message)
@@ -211,7 +215,10 @@ function TechAnalysisForm({ prefill, onClose, onSaved }: { prefill?: TaPrefill; 
       footer={<><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="pap-ta-form" disabled={busy}>{busy ? 'Menyimpan...' : 'Simpan'}</button></>}>
       <form id="pap-ta-form" onSubmit={save}>
         {error && <Notice onClose={() => setError('')}>{error}</Notice>}
-        <MarketingFields v={v} set={(p) => setV({ ...v, ...p })} products={prefill?.products} onPickProduct={pick} />
+        {!prefill && (
+          <ProspectPicker value={source} onPick={(s) => { setSource(s); setV(s ? fromPrefill(s, { ...v, nama_produk: '', jenis_plastik: '', qty_order: '', spec_lainnya: '' }) : v) }} onError={setError} />
+        )}
+        <MarketingFields v={v} set={(p) => setV({ ...v, ...p })} products={source?.products} onPickProduct={pick} />
       </form>
     </Modal>
   )
@@ -390,5 +397,60 @@ export function TechAnalysisPage({ user, focusId }: { user: UserProfile; focusId
       </div>
       <TechAnalysisView user={user} focusId={focusId} />
     </>
+  )
+}
+
+// Cari & pilih prospek: nama customer & produk prospek terisi otomatis
+type ProspectHit = { id: number; nama_usaha: string; kota: string | null; kontak_nama: string | null; kebutuhan: string | null; status: string }
+function ProspectPicker({ value, onPick, onError }: { value: (TaPrefill & { nama?: string }) | undefined; onPick: (v: (TaPrefill & { nama?: string }) | undefined) => void; onError: (msg: string) => void }) {
+  const [q, setQ] = useState('')
+  const [open, setOpen] = useState(false)
+  const [hits, setHits] = useState<ProspectHit[]>([])
+  const [loading, setLoading] = useState(false)
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(() => {
+      api<{ items: ProspectHit[] }>(`/api/prospects?status=semua&pageSize=25${q.trim() ? `&q=${encodeURIComponent(q.trim())}` : ''}`)
+        .then((r) => setHits(r.items)).catch(() => setHits([]))
+    }, 250)
+    return () => clearTimeout(t)
+  }, [q, open])
+  async function choose(h: ProspectHit) {
+    setLoading(true)
+    setOpen(false)
+    try {
+      const r = await api<{ item: { id: number; nama_usaha: string; products?: TaPrefill['products'] } }>(`/api/prospects/${h.id}`)
+      onPick({ prospect_id: r.item.id, nama: r.item.nama_usaha, nama_customer: r.item.nama_usaha, products: (r.item.products ?? []).map((p) => ({ label: p.label, jenis_plastik: p.jenis_plastik, qty_kg: p.qty_kg, catatan: p.catatan })) })
+    } catch (e) {
+      onError((e as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }
+  return (
+    <div className="pap-field pap-ta-prospect">
+      <span>Ambil dari prospek <small className="pap-muted">(opsional; nama customer & produk terisi otomatis)</small></span>
+      {value ? (
+        <div className="pap-plan-picked">
+          <div><b>{value.nama ?? value.nama_customer}</b><small>{value.products.length ? `${value.products.length} produk: ${value.products.map((p) => p.label).join(', ')}` : 'Prospek tanpa daftar produk'}</small></div>
+          <button type="button" className="pap-btn" onClick={() => onPick(undefined)}>Ganti</button>
+        </div>
+      ) : (
+        <div className="pap-proj-picker">
+          <input className="pap-input" value={q} placeholder={loading ? 'Mengambil data prospek...' : 'Cari nama usaha, kontak, kota...'} disabled={loading}
+            onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 180)} onChange={(e) => { setQ(e.target.value); setOpen(true) }} />
+          {open && (
+            <div className="pap-proj-drop" role="listbox">
+              {hits.map((h) => (
+                <button type="button" role="option" aria-selected={false} key={h.id} onMouseDown={(e) => e.preventDefault()} onClick={() => choose(h)}>
+                  <b>{h.nama_usaha}</b><small>{[h.kontak_nama, h.kota, h.kebutuhan].filter(Boolean).join(' · ') || h.status}</small>
+                </button>
+              ))}
+              {!hits.length && <p className="pap-muted">{q ? 'Prospek tidak ditemukan.' : 'Memuat prospek...'}</p>}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
