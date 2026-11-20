@@ -163,3 +163,52 @@ export async function notifyAnalysis(userIds: (number | null)[], a: { id: number
     type: 'analisa_teknik', title, body: `${a.nomor} · ${a.nama_produk} · ${a.nama_customer}`, ...target, refKey: `at:${a.id}:${key}`,
   }))
 }
+
+// ---- Dari form Prospek: spek teknik per produk -> analisa otomatis dibuat / diperbarui & diserahkan ke Teknik ----
+// products: body.products dari form prospek; tiap produk boleh punya { teknik: { minta: true, panjang_cm, ... } }.
+// Analisa dicocokkan per nama produk dalam prospek. Yang sudah dianalisa Teknik / selesai tidak diubah lagi dari form.
+export async function syncProspectAnalyses(prospectId: number, products: unknown, user: UserProfile) {
+  if (!Array.isArray(products) || !canMarketingSection(user)) return { dibuat: 0, diperbarui: 0, dikunci: 0 }
+  const [[prospect]] = await db.query<Row[]>('SELECT id, nama_usaha FROM prospects WHERE id = ?', [prospectId])
+  if (!prospect) return { dibuat: 0, diperbarui: 0, dikunci: 0 }
+  const [rows] = await db.query<Row[]>('SELECT id, nomor, nama_produk, status FROM prospect_tech_analyses WHERE prospect_id = ?', [prospectId])
+  const existing = new Map(rows.map((r) => [String(r.nama_produk).trim().toLowerCase(), r]))
+  const out = { dibuat: 0, diperbarui: 0, dikunci: 0 }
+  const created: { id: number; nomor: string; nama_produk: string }[] = []
+  for (const raw of products as Record<string, unknown>[]) {
+    const t = (raw?.teknik ?? null) as Record<string, unknown> | null
+    const label = str(raw?.label, 255)
+    if (!t || t.minta !== true || !label) continue
+    const cycle = Number(raw?.cycle_nilai) || null
+    const v = await readMarketingSection({
+      ...t, prospect_id: prospectId, nama_produk: label, nama_customer: String(prospect.nama_usaha),
+      jenis_plastik: raw?.jenis_plastik || t.jenis_plastik, qty_order: t.qty_order || raw?.qty_kg, qty_satuan: t.qty_satuan || 'kg',
+      frekuensi: t.frekuensi || (cycle && String(raw?.cycle_satuan ?? 'Bulan') === 'Bulan' ? 'rutin' : null), rutin_bulan: t.rutin_bulan || cycle,
+      spec_lainnya: t.spec_lainnya || raw?.catatan,
+    })
+    const cur = existing.get(label.toLowerCase())
+    if (cur) {
+      if (cur.status === 'dianalisa' || cur.status === 'selesai') { out.dikunci++; continue }
+      await db.query(
+        `UPDATE prospect_tech_analyses SET ?, updated_by = ?${cur.status === 'draft' ? ", status = 'diserahkan', tanggal_serah = CURDATE()" : ''} WHERE id = ?`,
+        [v, user.id, cur.id],
+      )
+      if (cur.status === 'draft') created.push({ id: Number(cur.id), nomor: String(cur.nomor), nama_produk: label })
+      out.diperbarui++
+    } else {
+      const nomor = await nextAnalysisNumber()
+      const [res] = await db.query<import('mysql2').ResultSetHeader>('INSERT INTO prospect_tech_analyses SET ?', [{
+        ...v, nomor, status: 'diserahkan', tanggal_serah: new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10),
+        proses: JSON.stringify(defaultProses()), created_by: user.id, updated_by: user.id,
+      }])
+      existing.set(label.toLowerCase(), { id: res.insertId, nomor, nama_produk: label, status: 'diserahkan' } as unknown as Row)
+      created.push({ id: res.insertId, nomor, nama_produk: label })
+      out.dibuat++
+    }
+  }
+  const teknik = created.length ? await teknikUsers() : []
+  for (const c of created) {
+    await notifyAnalysis(teknik, { ...c, nama_customer: String(prospect.nama_usaha), prospect_id: prospectId }, 'Analisa teknik order baru dari Marketing', 'serah', user.id)
+  }
+  return out
+}

@@ -32,7 +32,7 @@ export type TaPrefill = { prospect_id: number; nama_customer: string; products: 
 const fmt = (v: number | null | undefined) => (v === null || v === undefined ? '' : String(v).replace('.', ','))
 
 // Daftar analisa (menu Analisa Teknik Order, tab di Prospek, atau bagian di detail prospek bila prospectId diisi)
-export function TechAnalysisView({ user, prospectId, prefill, focusId, compact = false }: { user: UserProfile; prospectId?: number; prefill?: TaPrefill; focusId?: number | null; compact?: boolean }) {
+export function TechAnalysisView({ user, prospectId, prefill, focusId, compact = false, allowCreate = true }: { user: UserProfile; prospectId?: number; prefill?: TaPrefill; focusId?: number | null; compact?: boolean; allowCreate?: boolean }) {
   const [data, setData] = useState<ListRes | null>(null)
   const [status, setStatus] = useState<Status | ''>('')
   const [q, setQ] = useState('')
@@ -99,7 +99,7 @@ export function TechAnalysisView({ user, prospectId, prefill, focusId, compact =
               ))}
             </tbody>
           </table>
-          {data && !data.items.length && <div className="pap-empty">{compact ? 'Belum ada analisa teknik untuk prospek ini.' : q || status ? 'Tidak ada analisa yang cocok.' : 'Belum ada analisa teknik order.'}</div>}
+          {data && !data.items.length && <div className="pap-empty">{compact ? 'Belum ada analisa teknik untuk produk prospek ini.' : q || status ? 'Tidak ada analisa yang cocok.' : 'Belum ada analisa teknik order.'}</div>}
           {!data && !error && <div className="pap-empty">Memuat...</div>}
           {!compact && <Pager {...paged.pager} noun="analisa" />}
         </div>
@@ -111,7 +111,8 @@ export function TechAnalysisView({ user, prospectId, prefill, focusId, compact =
     <>
       {compact ? (
         <section className="pap-detail-section">
-          <div className="pap-ta-compact-head"><h3><Ruler className="pap-inline-icon" /> Analisa teknik order ({data?.items.length ?? 0})</h3>{can?.create && <button type="button" className="pap-btn" onClick={() => setCreating(true)}><Plus /> Analisa teknik</button>}</div>
+          <div className="pap-ta-compact-head"><h3><Ruler className="pap-inline-icon" /> Analisa teknik order ({data?.items.length ?? 0})</h3>{can?.create && allowCreate && <button type="button" className="pap-btn" onClick={() => setCreating(true)}><Plus /> Analisa teknik</button>}</div>
+          {!allowCreate && <p className="pap-muted pap-ta-hint">Analisa dibuat dari <b>Edit data</b> prospek: buka <b>Spek teknik</b> pada produk lalu centang <b>Minta analisa ke Dept Teknik</b>.</p>}
           {list}
         </section>
       ) : list}
@@ -448,6 +449,72 @@ function ProspectPicker({ value, onPick, onError }: { value: (TaPrefill & { nama
               ))}
               {!hits.length && <p className="pap-muted">{q ? 'Prospek tidak ditemukan.' : 'Memuat prospek...'}</p>}
             </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------- Spek teknik per produk di form Prospek (gabung dengan prospek) ----------
+export type TeknikSpec = {
+  minta: boolean; panjang_cm: string; lebar_cm: string; tebal_mm: string; print_jenis: '' | 'polos' | 'print'; jumlah_warna: string; kesulitan_print: string
+  spec_lainnya: string; frekuensi: '' | 'sekali' | 'rutin'; rutin_bulan: string; critical_to_quality: string
+  analysis?: { id: number; nomor: string; status: Status } | null
+}
+export const emptyTeknik = (): TeknikSpec => ({ minta: true, panjang_cm: '', lebar_cm: '', tebal_mm: '', print_jenis: '', jumlah_warna: '', kesulitan_print: '', spec_lainnya: '', frekuensi: '', rutin_bulan: '', critical_to_quality: '' })
+
+// Analisa yang sudah ada untuk prospek: dipetakan per nama produk (untuk form Edit prospek)
+export async function loadProspectTeknik(prospectId: number) {
+  const r = await api<ListRes>(`/api/tech-analyses?prospect_id=${prospectId}`)
+  const map = new Map<string, TeknikSpec>()
+  for (const a of r.items) {
+    map.set(a.nama_produk.trim().toLowerCase(), {
+      minta: true, panjang_cm: fmt(a.panjang_cm), lebar_cm: fmt(a.lebar_cm), tebal_mm: fmt(a.tebal_mm), print_jenis: a.print_jenis ?? '', jumlah_warna: fmt(a.jumlah_warna),
+      kesulitan_print: a.kesulitan_print ?? '', spec_lainnya: a.spec_lainnya ?? '', frekuensi: a.frekuensi ?? '', rutin_bulan: fmt(a.rutin_bulan), critical_to_quality: a.critical_to_quality ?? '',
+      analysis: { id: a.id, nomor: a.nomor, status: a.status },
+    })
+  }
+  return map
+}
+
+export function TeknikSpecPanel({ value, onChange }: { value: TeknikSpec | null | undefined; onChange: (v: TeknikSpec | null) => void }) {
+  const [open, setOpen] = useState(!!value?.minta)
+  const t = value ?? null
+  const locked = !!t?.analysis && (t.analysis.status === 'dianalisa' || t.analysis.status === 'selesai')
+  const set = (patch: Partial<TeknikSpec>) => onChange({ ...(t ?? emptyTeknik()), ...patch })
+  const num = (k: keyof TeknikSpec) => (e: { target: { value: string } }) => set({ [k]: e.target.value.replace(/[^\d.,]/g, '') } as Partial<TeknikSpec>)
+  const txt = (k: keyof TeknikSpec) => (e: { target: { value: string } }) => set({ [k]: e.target.value } as Partial<TeknikSpec>)
+  return (
+    <div className={`pap-ta-inline ${t?.minta ? 'on' : ''}`}>
+      <div className="pap-ta-inline-head">
+        <button type="button" className="pap-link-button pap-shift-edit" onClick={() => { setOpen(!open); if (!t) onChange(emptyTeknik()) }} aria-expanded={open}>
+          <Ruler /> Spek teknik {t?.minta ? '· minta analisa Teknik' : ''}
+        </button>
+        {t?.analysis && <span className={`pap-status ${TONE[t.analysis.status]}`}>{t.analysis.nomor} · {STATUS[t.analysis.status]}</span>}
+      </div>
+      {open && (
+        <div className="pap-ta-inline-body">
+          {locked ? <p className="pap-muted pap-ta-hint">Produk ini sudah dianalisa Dept Teknik ({t!.analysis!.nomor}); spek tidak bisa diubah dari sini. Lihat hasilnya di detail prospek.</p> : (
+            <>
+              <label className="pap-ma-check"><input type="checkbox" checked={!!t?.minta} onChange={(e) => set({ minta: e.target.checked })} /> Minta analisa ke Dept Teknik saat prospek disimpan</label>
+              <div className="pap-ta-inline-grid">
+                <label><span>Panjang (cm)</span><input className="pap-input" inputMode="decimal" value={t?.panjang_cm ?? ''} onChange={num('panjang_cm')} /></label>
+                <label><span>Lebar (cm)</span><input className="pap-input" inputMode="decimal" value={t?.lebar_cm ?? ''} onChange={num('lebar_cm')} /></label>
+                <label><span>Tebal (mm)</span><input className="pap-input" inputMode="decimal" value={t?.tebal_mm ?? ''} onChange={num('tebal_mm')} placeholder="0,03" /></label>
+                <label><span>Polos / print</span>
+                  <select className="pap-select" value={t?.print_jenis ?? ''} onChange={(e) => set({ print_jenis: e.target.value as TeknikSpec['print_jenis'] })}><option value="">—</option><option value="polos">Polos</option><option value="print">Print</option></select>
+                </label>
+                {t?.print_jenis === 'print' && <label><span>Jumlah warna</span><input className="pap-input" inputMode="numeric" value={t.jumlah_warna} onChange={num('jumlah_warna')} /></label>}
+                {t?.print_jenis === 'print' && <label className="wide"><span>Tingkat kesulitan print</span><input className="pap-input" maxLength={255} value={t.kesulitan_print} onChange={txt('kesulitan_print')} placeholder="mis. register ketat" /></label>}
+                <label><span>Frekuensi order</span>
+                  <select className="pap-select" value={t?.frekuensi ?? ''} onChange={(e) => set({ frekuensi: e.target.value as TeknikSpec['frekuensi'] })}><option value="">Ikut cycle</option><option value="sekali">Hanya 1x</option><option value="rutin">Rutin</option></select>
+                </label>
+                {t?.frekuensi === 'rutin' && <label><span>Rutin per … bulan</span><input className="pap-input" inputMode="numeric" value={t.rutin_bulan} onChange={num('rutin_bulan')} /></label>}
+                <label className="full"><span>Spec lainnya (airhole, pillow case, dll.)</span><input className="pap-input" maxLength={1000} value={t?.spec_lainnya ?? ''} onChange={txt('spec_lainnya')} placeholder="Kosong = pakai Spek khusus / catatan produk" /></label>
+                <label className="full"><span>Critical to quality</span><input className="pap-input" maxLength={1000} value={t?.critical_to_quality ?? ''} onChange={txt('critical_to_quality')} placeholder="mis. sealing kuat, warna logo sesuai" /></label>
+              </div>
+            </>
           )}
         </div>
       )}

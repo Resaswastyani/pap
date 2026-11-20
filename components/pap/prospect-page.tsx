@@ -9,7 +9,7 @@ import {
   type MarketingUser, type ProspectStatus, type Visit,
 } from './marketing'
 import { QuotationForm } from './quotation-page'
-import { TechAnalysisView } from './tech-analysis'
+import { loadProspectTeknik, TechAnalysisView, TeknikSpecPanel, type TeknikSpec } from './tech-analysis'
 import { DesignForm, SampleForm } from './request-page'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, uploadPendingAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
 import { api, askReason, Field, formatDate, Modal, Notice, Pager, RowActions, useQuickAction, confirmDialog, FreshBadge } from './ui'
@@ -99,7 +99,6 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
   const [autoEdit, setAutoEdit] = useState(false)
   const [importing, setImporting] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
-  const [section, setSection] = useState<'prospek' | 'analisa'>('prospek')
 
   // Filter daftar (tanpa halaman) untuk unduh PDF / Excel / CSV
   const exportQuery = useMemo(() => {
@@ -153,22 +152,6 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
   const won = count('order_pertama') + count('handover')
   const closed = won + count('gagal')
   const isDigital = user.division.code === 'marketing_digital'
-  const sectionTabs = (
-    <div className="pap-segmented pap-page-tabs" role="tablist" aria-label="Bagian prospek">
-      <button role="tab" aria-selected={section === 'prospek'} className={section === 'prospek' ? 'active' : ''} onClick={() => setSection('prospek')}>Prospek</button>
-      <button role="tab" aria-selected={section === 'analisa'} className={section === 'analisa' ? 'active' : ''} onClick={() => setSection('analisa')}>Analisa Teknik Order</button>
-    </div>
-  )
-  // Tab Analisa Teknik: spek order baru dari Marketing dianalisa Dept Teknik & diberi rekomendasi Direksi
-  if (section === 'analisa') {
-    return (
-      <>
-        <div className="pap-page-heading"><div><p className="pap-eyebrow">MARKETING</p><h1>Prospek</h1><span>Analisa aspek teknik atas rencana order baru / spec baru: Marketing → Dept Teknik → Direksi, bisa dicetak PDF & Word.</span></div></div>
-        {sectionTabs}
-        <TechAnalysisView user={user} />
-      </>
-    )
-  }
 
   return (
     <>
@@ -194,7 +177,6 @@ export function ProspectPage({ user, focusId }: { user: UserProfile; focusId?: n
           <button className="pap-primary-button" onClick={() => setForm('new')}><Plus /> Tambah prospek</button>
         </div>
       </div>
-      {sectionTabs}
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
       <div className="pap-stat-grid four">
         <button className={`pap-stat-card pap-stat-button ${status === 'aktif' && !followup ? 'active' : ''}`} onClick={() => { setStatus('aktif'); setFollowup('') }}>
@@ -380,6 +362,13 @@ function ProspectForm({ user, initial, users, canSupervise, onClose, onSaved }: 
   })
   const [products, setProducts] = useState<NeedItem[]>(() => (initial?.products?.length ? initial.products : splitNeeds(initial?.kebutuhan ?? '').map((label) => ({ product_id: null, label }))).map(withKey))
   const [duplicate, setDuplicate] = useState('')
+  // Edit prospek: spek teknik dari analisa yang sudah ada (dicocokkan per nama produk)
+  useEffect(() => {
+    if (!initial) return
+    loadProspectTeknik(initial.id).then((map) => {
+      if (map.size) setProducts((list) => list.map((p) => (p.teknik ? p : { ...p, teknik: map.get(p.label.trim().toLowerCase()) ?? null })))
+    }).catch(() => {})
+  }, [initial])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   // Foto produk / lampiran saat tambah prospek: diunggah setelah prospek tersimpan (saat edit langsung lewat panel lampiran)
@@ -396,13 +385,13 @@ function ProspectForm({ user, initial, users, canSupervise, onClose, onSaved }: 
       const list = products.filter((p) => p.label.trim()).map(({ _k, ...p }) => ({ ...p, label: p.label.trim() }))
       const payload = { ...values, products: list, sales_ids: canSupervise ? salesIds : undefined, force }
       if (initial) {
-        await api(`/api/prospects/${initial.id}`, { method: 'PATCH', json: payload })
-        onSaved('Prospek diperbarui.')
+        const res = await api<{ analisa?: { dibuat: number; diperbarui: number } | null }>(`/api/prospects/${initial.id}`, { method: 'PATCH', json: payload })
+        onSaved(`Prospek diperbarui.${analisaText(res.analisa)}`)
       } else {
-        const res = await api<{ id: number }>('/api/prospects', { method: 'POST', json: payload })
+        const res = await api<{ id: number; analisa?: { dibuat: number; diperbarui: number } | null }>('/api/prospects', { method: 'POST', json: payload })
         const total = pendingCount(attachments)
         const failed = total ? await uploadPendingAttachments(`/api/prospects/${res.id}/attachments`, attachments) : []
-        onSaved(failed.length ? `Prospek ditambahkan, tetapi ${failed.length} dari ${total} lampiran gagal diunggah: ${failed.join(' ')}` : `Prospek ditambahkan${total ? ` dengan ${total} lampiran` : ''}.`, res.id)
+        onSaved(`${failed.length ? `Prospek ditambahkan, tetapi ${failed.length} dari ${total} lampiran gagal diunggah: ${failed.join(' ')}` : `Prospek ditambahkan${total ? ` dengan ${total} lampiran` : ''}.`}${analisaText(res.analisa)}`, res.id)
       }
     } catch (err) {
       const text = (err as Error).message
@@ -466,6 +455,7 @@ export type NeedItem = {
   jenis_plastik?: string | null; qty_kg?: number | string | null; harga?: number | string | null; satuan_harga?: string | null; gpf?: number | string | null
   cycle_nilai?: number | string | null; cycle_satuan?: string | null; catatan?: string | null
   jenis?: string | null; spesifikasi?: string | null; bahan?: string | null; _k?: number
+  teknik?: TeknikSpec | null
 }
 let needKey = 0
 const withKey = (n: NeedItem): NeedItem => ({ ...n, _k: ++needKey })
@@ -542,6 +532,7 @@ function ProductTable({ value, onChange }: { value: NeedItem[]; onChange: (value
                 </label>
                 <label><span>Spek khusus / catatan (opsional)</span><input className="pap-input" maxLength={500} value={n.catatan ?? ''} onChange={(e) => edit(i, { catatan: e.target.value })} placeholder="Contoh: sablon 2 warna, food grade, lubang angin" /></label>
               </div>
+              <TeknikSpecPanel value={n.teknik} onChange={(t) => edit(i, { teknik: t })} />
               {n.estimasi ? <small className="pap-muted">Estimasi (data lama): {n.estimasi}</small> : null}
             </li>
           ))}
@@ -756,7 +747,7 @@ function ProspectDetail({ id, autoEdit = false, user, users, onClose, onEdit, on
 
         {canFollowUp && <ActivityForm prospect={item} onSaved={(text) => changed(text)} />}
 
-        <TechAnalysisView user={user} prospectId={item.id} compact prefill={{ prospect_id: item.id, nama_customer: item.nama_usaha, products: (item.products ?? []).map((p) => ({ label: p.label, jenis_plastik: p.jenis_plastik, qty_kg: p.qty_kg, catatan: p.catatan })) }} />
+        <TechAnalysisView user={user} prospectId={item.id} compact allowCreate={false} prefill={{ prospect_id: item.id, nama_customer: item.nama_usaha, products: (item.products ?? []).map((p) => ({ label: p.label, jenis_plastik: p.jenis_plastik, qty_kg: p.qty_kg, catatan: p.catatan })) }} />
 
         <AttachmentPanel title="Foto Produk / lampiran" basePath={`/api/prospects/${item.id}/attachments`} fileBase="/api/prospects/attachments" canAdd={canEdit} currentUserId={user.id} isAdmin={user.role.isAdmin} allowVideo />
 
@@ -1172,3 +1163,7 @@ function ImportModal({ users, canSupervise, onClose, onDone }: { users: Marketin
     </Modal>
   )
 }
+
+// Ringkasan analisa teknik yang dibuat dari form prospek
+const analisaText = (a?: { dibuat: number; diperbarui: number } | null) =>
+  a && (a.dibuat || a.diperbarui) ? ` ${a.dibuat ? `${a.dibuat} analisa teknik baru diserahkan ke Dept Teknik` : ''}${a.dibuat && a.diperbarui ? ', ' : ''}${a.diperbarui ? `${a.diperbarui} analisa teknik diperbarui` : ''}.` : ''

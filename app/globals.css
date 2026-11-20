@@ -3165,3 +3165,18 @@ button.pap-ap-gantt-label { cursor:pointer; }
   .pap-ta-grid4 { grid-template-columns:1fr; }
   .pap-ta-stepper small { display:none; }
 }
+
+/* Spek teknik per produk di form Prospek */
+.pap-ta-inline { margin-top:8px; padding:8px 10px; border:1px dashed var(--pap-border); border-radius:10px; }
+.pap-ta-inline.on { border-style:solid; border-color:rgb(124 92 252 / .4); background:rgb(124 92 252 / .04); }
+.pap-ta-inline-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px; }
+.pap-ta-inline-head .pap-link-button { font-size:12px; }
+.pap-ta-inline-body { display:flex; flex-direction:column; gap:10px; margin-top:10px; }
+.pap-ta-inline-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px 10px; }
+.pap-ta-inline-grid label { display:flex; flex-direction:column; gap:4px; min-width:0; color:var(--pap-muted); font-size:11px; font-weight:600; }
+.pap-ta-inline-grid label.wide { grid-column:span 2; }
+.pap-ta-inline-grid label.full { grid-column:1 / -1; }
+@media (max-width:760px) {
+  .pap-ta-inline-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .pap-ta-inline-grid label.wide { grid-column:1 / -1; }
+}

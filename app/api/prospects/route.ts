@@ -1,5 +1,6 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
+import { syncProspectAnalyses } from '@/lib/tech-analysis'
 import { fail, handle, readJson, requireUser, pageParams } from '@/lib/api'
 import { db } from '@/lib/db'
 import {
@@ -98,6 +99,8 @@ export const POST = handle(async (request: Request) => {
   )
   const id = result.insertId
   if (products) await saveProspectProducts(id, products)
+  // Spek teknik per produk dari form: analisa teknik dibuat & diserahkan ke Dept Teknik
+  const analisa = await syncProspectAnalyses(id, body.products, user)
   await saveProspectSales(id, salesIds)
   await logActivity(db, { prospectId: id, userId: user.id, jenis: 'status', hasil: `Prospek dibuat oleh ${user.name}${input.sumber ? ` (sumber: ${input.sumber})` : ''}`, statusTo: 'baru' })
   for (const sid of salesIds.filter((s) => s !== user.id)) {
@@ -109,5 +112,5 @@ export const POST = handle(async (request: Request) => {
       refKey: `prospek:${id}:${sid}`,
     }))
   }
-  return NextResponse.json({ id }, { status: 201 })
+  return NextResponse.json({ id, analisa }, { status: 201 })
 })

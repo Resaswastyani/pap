@@ -1,5 +1,6 @@
 import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
+import { syncProspectAnalyses } from '@/lib/tech-analysis'
 import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { withNoteAttachments } from '@/lib/attachments'
 import { db } from '@/lib/db'
@@ -108,6 +109,8 @@ export const PATCH = handle(async (request: Request, { params }: Ctx) => {
   }
 
   if (sets.length) await db.query(`UPDATE prospects SET ${sets.join(', ')} WHERE id = ?`, [...values, prospect.id])
+  // Spek teknik per produk dari form: analisa teknik dibuat / diperbarui & diserahkan ke Dept Teknik
+  const analisa = body.nama_usaha !== undefined ? await syncProspectAnalyses(prospect.id, body.products, user) : null
   for (const note of notes) await logActivity(db, { prospectId: prospect.id, userId: user.id, jenis: 'catatan', hasil: note })
   const created: number[] = []
   for (const n of toNotify) {
@@ -120,7 +123,7 @@ export const PATCH = handle(async (request: Request, { params }: Ctx) => {
     })))
   }
   await pushToUsers(created)
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, analisa })
 })
 
 export const DELETE = handle(async (_request: Request, { params }: Ctx) => {
