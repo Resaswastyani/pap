@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { CheckCircle2, Clock, Inbox, LifeBuoy, MessageSquare, Pencil, Plus, RotateCcw, Search, Send, Trash2, UserCheck } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
-import { AttachmentPanel } from './attachments'
+import { AttachmentInput, AttachmentPanel, emptyAttachments, pendingCount, uploadPendingAttachments, type PendingAttachments } from './attachments'
 import { api, askReason, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged, confirmDialog, FreshBadge } from './ui'
 
 // Tiket Kendala Sistem: semua pengguna melaporkan kendala SIMPAP; Super Admin / Staff IT menangani semua tiket,
@@ -155,6 +155,8 @@ function TicketForm({ item, menus, onClose, onSaved }: { item: Ticket | null; me
   const setJenisForm = (j: keyof typeof JENIS) => setV({ ...v, jenis: j, kategori: KATEGORI_JENIS[j].includes(v.kategori) ? v.kategori : KATEGORI_JENIS[j][0] })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // Lampiran tiket baru (file / screenshot tempel / link), diunggah setelah tiket tersimpan
+  const [attachments, setAttachments] = useState<PendingAttachments>(emptyAttachments)
   async function save(e: React.FormEvent) {
     e.preventDefault()
     setBusy(true)
@@ -165,7 +167,9 @@ function TicketForm({ item, menus, onClose, onSaved }: { item: Ticket | null; me
         onSaved(`Tiket ${item.nomor} diperbarui.`)
       } else {
         const res = await api<{ id: number; nomor: string }>('/api/tickets', { method: 'POST', json: v })
-        onSaved(`Tiket ${res.nomor} terkirim ke Staff IT. Tambahkan screenshot di detail tiket bila perlu.`, res.id)
+        const total = pendingCount(attachments)
+        const failed = total ? await uploadPendingAttachments(`/api/notes/ticket/${res.id}/attachments`, attachments) : []
+        onSaved(`Tiket ${res.nomor} terkirim ke Staff IT${total ? ` dengan ${total - failed.length} lampiran` : ''}.${failed.length ? ` ${failed.length} lampiran gagal diunggah: ${failed.join(' ')} Tambahkan lagi di detail tiket.` : ''}`, res.id)
       }
     } catch (err) {
       setError((err as Error).message)
@@ -207,6 +211,11 @@ function TicketForm({ item, menus, onClose, onSaved }: { item: Ticket | null; me
           <textarea className="pap-input" required rows={6} maxLength={10000} value={v.deskripsi} onChange={(e) => setV({ ...v, deskripsi: e.target.value })}
             placeholder={v.jenis === 'umum' ? 'Jelaskan kendalanya: sejak kapan, apa yang sudah dicoba, dan dampaknya ke pekerjaan.\nMis. Laptop mati saat dinyalakan, lampu indikator berkedip. Sudah dicas semalaman.' : 'Apa yang Anda lakukan, apa yang terjadi, dan apa yang seharusnya terjadi.\nMis. Buka Quotation > Tambah > klik Simpan, muncul "Gagal menyimpan". Sudah dicoba 3x.'} />
         </Field>
+        {!item && (
+          <Field label="Screenshot / lampiran (opsional)" full>
+            <AttachmentInput value={attachments} onChange={setAttachments} pasteImages />
+          </Field>
+        )}
       </form>
     </Modal>
   )
@@ -298,7 +307,7 @@ function TicketDetail({ id, user, onClose, onEdit, onChanged, onDeleted }: { id:
         <h3>Deskripsi</h3>
         <p className="pap-prewrap">{t.deskripsi}</p>
       </section>
-      <AttachmentPanel title="Screenshot / lampiran" basePath={`/api/notes/ticket/${t.id}/attachments`} fileBase="/api/notes/attachments" canAdd={can.reply} currentUserId={user.id} isAdmin={user.role.isAdmin} />
+      <AttachmentPanel title="Screenshot / lampiran" pasteImages basePath={`/api/notes/ticket/${t.id}/attachments`} fileBase="/api/notes/attachments" canAdd={can.reply} currentUserId={user.id} isAdmin={user.role.isAdmin} />
       <section className="pap-detail-section">
         <h3>Percakapan</h3>
         <div className="pap-ticket-thread">

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Camera, Download, FileText, Link2, Paperclip, Trash2, X } from 'lucide-react'
+import { Camera, Clipboard, Download, FileText, Link2, Paperclip, Trash2, X } from 'lucide-react'
 import { ATTACHMENT_MAX_BYTES, VIDEO_ATTACHMENT_MAX_BYTES } from '@/lib/permissions'
 import { compressImage, isCompressibleImage } from './compress'
 import { api, formatDate, formatSize, Notice, confirmDialog } from './ui'
@@ -42,6 +42,46 @@ async function fitFiles(list: File[], allowVideo = false) {
   return { ok, errors }
 }
 
+// Gambar dari clipboard (Ctrl+V / tempel screenshot): diberi nama "Screenshot <tanggal jam>.png"
+export function clipboardImages(e: ClipboardEvent | React.ClipboardEvent) {
+  const items = [...(e.clipboardData?.items ?? [])]
+  const stamp = new Date().toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'medium' }).replace(/[/:]/g, '-').replace(/,/g, '')
+  return items
+    .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
+    .map((it, i, all) => {
+      const f = it.getAsFile()!
+      const ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
+      return new File([f], `Screenshot ${stamp}${all.length > 1 ? ` (${i + 1})` : ''}.${ext}`, { type: f.type })
+    })
+}
+// Tempel gambar di mana saja selama komponen tampil (teks biasa tetap tertempel seperti biasa)
+function usePasteImages(enabled: boolean, onImages: (files: File[]) => void) {
+  const ref = useRef(onImages)
+  ref.current = onImages
+  useEffect(() => {
+    if (!enabled) return
+    const handler = (e: ClipboardEvent) => {
+      const files = clipboardImages(e)
+      if (!files.length) return
+      e.preventDefault()
+      ref.current(files)
+    }
+    document.addEventListener('paste', handler)
+    return () => document.removeEventListener('paste', handler)
+  }, [enabled])
+}
+
+// Pratinjau kecil gambar yang belum diunggah
+function PendingThumb({ file }: { file: File }) {
+  const [src, setSrc] = useState('')
+  useEffect(() => {
+    const url = URL.createObjectURL(file)
+    setSrc(url)
+    return () => URL.revokeObjectURL(url)
+  }, [file])
+  return src ? <img className="pap-attach-thumb" src={src} alt="" /> : <FileText />
+}
+
 const cameraName = () => `Foto ${new Date().toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }).replace(/[/:]/g, '-')}.jpg`
 
 function FileButtons({ disabled, onFiles }: { disabled?: boolean; onFiles: (files: File[], fromCamera: boolean) => void }) {
@@ -58,7 +98,8 @@ function FileButtons({ disabled, onFiles }: { disabled?: boolean; onFiles: (file
 }
 
 // Isian lampiran yang belum dikirim (dipakai di form tambah); diunggah setelah data tersimpan
-export function AttachmentInput({ value, onChange, allowVideo = false }: { value: PendingAttachments; onChange: (v: PendingAttachments) => void; allowVideo?: boolean }) {
+// pasteImages: gambar yang ditempel (Ctrl+V) selama form terbuka langsung masuk lampiran
+export function AttachmentInput({ value, onChange, allowVideo = false, pasteImages = false }: { value: PendingAttachments; onChange: (v: PendingAttachments) => void; allowVideo?: boolean; pasteImages?: boolean }) {
   const url = value.draft?.url ?? ''
   const name = value.draft?.name ?? ''
   const setUrl = (v: string) => onChange({ ...value, draft: { url: v, name } })
@@ -74,8 +115,10 @@ export function AttachmentInput({ value, onChange, allowVideo = false }: { value
     setError(errors.join(' '))
     if (ok.length) onChange({ ...value, files: [...value.files, ...ok] })
   }
+  usePasteImages(pasteImages, (files) => addFiles(files, false))
   return (
     <div className="pap-attach-editor">
+      {pasteImages && <div className="pap-paste-hint"><Clipboard /> Tempel screenshot langsung di sini dengan <kbd>Ctrl</kbd>+<kbd>V</kbd> (atau tekan <kbd>PrtSc</kbd> / <kbd>Win</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> dulu untuk mengambil layar).</div>}
       <div className="pap-attach-row">
         <FileButtons onFiles={addFiles} />
         <small className="pap-muted">{allowVideo ? 'Foto, video (maks 10 MB), atau file lain (maks 2 MB). Foto besar dikompres otomatis.' : 'Semua format file, maks 2 MB per file. Gambar lebih besar dikompres otomatis ke 2 MB.'}</small>
@@ -89,7 +132,7 @@ export function AttachmentInput({ value, onChange, allowVideo = false }: { value
       {(value.links.length > 0 || value.files.length > 0) && (
         <ul className="pap-attach-pending">
           {value.links.map((l, i) => <li key={`l${i}`}><Link2 /><span>{l.name || l.url}</span><button type="button" aria-label="Hapus link" onClick={() => onChange({ ...value, links: value.links.filter((_, j) => j !== i) })}><X /></button></li>)}
-          {value.files.map((f, i) => <li key={`f${i}`}><FileText /><span>{f.name} · {formatSize(f.size)}</span><button type="button" aria-label="Hapus file" onClick={() => onChange({ ...value, files: value.files.filter((_, j) => j !== i) })}><X /></button></li>)}
+          {value.files.map((f, i) => <li key={`f${i}`}>{f.type.startsWith('image/') ? <PendingThumb file={f} /> : <FileText />}<span>{f.name} · {formatSize(f.size)}</span><button type="button" aria-label="Hapus file" onClick={() => onChange({ ...value, files: value.files.filter((_, j) => j !== i) })}><X /></button></li>)}
         </ul>
       )}
     </div>
@@ -115,8 +158,8 @@ export async function uploadPendingAttachments(basePath: string, pending: Pendin
 }
 
 // Daftar lampiran di halaman detail + tambah file / foto / link
-export function AttachmentPanel({ title = 'Lampiran', basePath, fileBase, canAdd, currentUserId, isAdmin, allowVideo = false }: {
-  title?: string; basePath: string; fileBase: string; canAdd: boolean; currentUserId: number; isAdmin: boolean; allowVideo?: boolean
+export function AttachmentPanel({ title = 'Lampiran', basePath, fileBase, canAdd, currentUserId, isAdmin, allowVideo = false, pasteImages = false }: {
+  title?: string; basePath: string; fileBase: string; canAdd: boolean; currentUserId: number; isAdmin: boolean; allowVideo?: boolean; pasteImages?: boolean
 }) {
   const [items, setItems] = useState<Attachment[]>([])
   const [busy, setBusy] = useState(false)
@@ -147,6 +190,7 @@ export function AttachmentPanel({ title = 'Lampiran', basePath, fileBase, canAdd
     const { ok, errors } = await fitFiles(named, allowVideo)
     return [...errors, ...(await uploadPendingAttachments(basePath, { files: ok, links: [] }))]
   })
+  usePasteImages(pasteImages && canAdd, (files) => addFiles(files, false))
   const addLink = () => run(async () => {
     await postAttachment(basePath, { url: normalizeUrl(url), name: name.trim() })
     setUrl('')
@@ -167,6 +211,7 @@ export function AttachmentPanel({ title = 'Lampiran', basePath, fileBase, canAdd
         )}
       </div>
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      {pasteImages && canAdd && <p className="pap-muted pap-paste-note"><Clipboard className="pap-inline-icon" /> Screenshot bisa langsung ditempel (Ctrl+V).</p>}
       {busy && <p className="pap-muted">Mengunggah...</p>}
       {linking && (
         <div className="pap-attach-row">
