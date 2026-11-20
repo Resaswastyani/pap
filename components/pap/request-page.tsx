@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Ban, CheckCircle2, Download, FileText, Hammer, Palette, Plus, RotateCcw, Search, Send, Trash2, Truck, Upload } from 'lucide-react'
+import { Ban, CheckCircle2, Download, FileText, Hammer, Link2, Palette, Plus, RotateCcw, Search, Send, Trash2, Truck, Upload } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { ProspectSelect, type ProspectOption } from './marketing'
 import { CustomerSelect, type CustomerOption } from './product-page'
@@ -511,7 +511,7 @@ type Design = {
   requested_by: number; requested_name: string; designer_name: string | null; target_name: string | null; customer_no: string | null
   product_name: string | null; design_count: number; created_at: string; updated_at?: string; can_delete?: boolean; kategori: 'klise' | 'konten'; jenis_konten: string | null
 }
-type DesignFile = { id: number; kind: 'referensi' | 'desain'; versi: number; name: string; mime: string; size: number; created_at: string; uploaded_by_name: string }
+type DesignFile = { id: number; kind: 'referensi' | 'desain'; versi: number; name: string; mime: string; url?: string | null; size: number; created_at: string; uploaded_by_name: string }
 type DesignRoles = { canRequest: boolean; designer: boolean; canAccept?: boolean; isRequester?: boolean; isDesignerOf?: boolean; canDelete?: boolean }
 
 export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: number | null }) {
@@ -575,7 +575,7 @@ export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: num
         <div>
           <p className="pap-eyebrow">MARKETING · DIGITAL MARKETING</p>
           <h1>Request Desain</h1>
-          <span>Klise cetakan (desain final masuk Data Produk) dan konten digital untuk Marketing Digital (masuk Bank Konten). Tim Digital Marketing mengunggah desain per versi sampai disetujui.</span>
+          <span>Klise cetakan (desain final masuk Data Produk) dan konten lainnya untuk Marketing Digital (masuk Bank Konten). Tim Digital Marketing mengunggah desain per versi sampai disetujui.</span>
         </div>
         {roles.canRequest && <button className="pap-primary-button" onClick={() => setForm(true)}><Plus /> Request desain</button>}
       </div>
@@ -587,7 +587,7 @@ export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: num
       <div className="pap-segmented pap-page-tabs" role="tablist" aria-label="Kategori desain">
         <button className={kategori === '' ? 'active' : ''} onClick={() => setKategori('')}>Semua</button>
         <button className={kategori === 'klise' ? 'active' : ''} onClick={() => setKategori('klise')}>Klise cetakan</button>
-        <button className={kategori === 'konten' ? 'active' : ''} onClick={() => setKategori('konten')}>Konten digital</button>
+        <button className={kategori === 'konten' ? 'active' : ''} onClick={() => setKategori('konten')}>Konten Lainnya</button>
       </div>
       <div className="pap-table-card">
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
@@ -620,19 +620,23 @@ export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: num
   )
 }
 
-// Format file desain & referensi: PDF atau gambar, maks 4 MB. Semua file dicek dulu sebelum ada yang diunggah.
-const DESIGN_FILE_ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp'
-const DESIGN_FILE_EXT = /\.(pdf|jpe?g|png|webp)$/i
+// File desain & referensi: semua format (PDF, gambar, AI, CDR, PSD, ZIP, dll.), maks 4 MB; file lebih besar ditempel sebagai link.
+const DESIGN_FILE_ACCEPT = ''
 const DESIGN_FILE_MAX = 4 * 1024 * 1024
 export function checkDesignFiles(files: File[]) {
   const problems = files.flatMap((f) => {
-    const typeOk = DESIGN_FILE_ACCEPT.split(',').includes(f.type) || (!f.type && DESIGN_FILE_EXT.test(f.name))
-    if (!typeOk) return [`${f.name} (format tidak didukung)`]
     // Gambar besar dikompres otomatis ke 2 MB saat diunggah
     if (f.size > DESIGN_FILE_MAX && !isCompressibleImage(f)) return [`${f.name} (${formatSize(f.size)}, maks 4 MB)`]
     return []
   })
-  return problems.length ? `File ditolak: ${problems.join(', ')}. Hanya PDF, JPG, PNG, atau WEBP; PDF maks 4 MB per file.` : ''
+  return problems.length ? `File ditolak: ${problems.join(', ')}. Maks 4 MB per file; untuk file besar tempel sebagai link (Google Drive, Canva, dll.).` : ''
+}
+
+async function uploadDesignLink(designId: number, kind: 'referensi' | 'desain', url: string) {
+  const form = new FormData()
+  form.append('kind', kind)
+  form.append('url', url)
+  await api(`/api/designs/${designId}/files`, { method: 'POST', body: form })
 }
 
 async function uploadDesignFile(designId: number, kind: 'referensi' | 'desain', file: File) {
@@ -652,6 +656,8 @@ export function DesignForm({ prospect, preset, onClose, onSaved }: { prospect?: 
   const [product, setProduct] = useState<ProductRef | null>(null)
   const [values, setValues] = useState({ judul: preset?.judul ?? prospect?.kebutuhan?.split(';')[0]?.trim() ?? '', ukuran: '', deadline: preset?.deadline ?? '', brief: preset?.brief ?? '' })
   const [files, setFiles] = useState<File[]>([])
+  const [links, setLinks] = useState<string[]>([])
+  const [linkDraft, setLinkDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const set = (key: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [key]: e.target.value }))
@@ -670,6 +676,7 @@ export function DesignForm({ prospect, preset, onClose, onSaved }: { prospect?: 
       const res = await api<{ id: number; nomor: string }>('/api/designs', { method: 'POST', json: payload })
       const failed: string[] = []
       for (const file of files) await uploadDesignFile(res.id, 'referensi', file).catch((err: Error) => failed.push(err.message))
+      for (const url of [...links, ...(linkDraft.trim() ? [linkDraft.trim()] : [])]) await uploadDesignLink(res.id, 'referensi', url).catch((err: Error) => failed.push(err.message))
       onSaved(`Request desain ${res.nomor} terkirim ke Lead Digital Marketing.${failed.length ? ` Sebagian referensi gagal diunggah: ${failed.join('; ')}` : ''}`, res.id)
     } catch (err) {
       setError((err as Error).message)
@@ -679,7 +686,7 @@ export function DesignForm({ prospect, preset, onClose, onSaved }: { prospect?: 
   }
   return (
     <Modal
-      title={konten ? 'Request konten digital' : 'Request desain klise'}
+      title={konten ? 'Request konten lainnya' : 'Request desain klise'}
       subtitle={konten ? 'Gambar / video untuk sosial media, iklan, atau blasting — dikerjakan tim Digital Marketing' : 'Brief dikirim ke tim Digital Marketing'}
       wide
       onClose={onClose}
@@ -692,7 +699,7 @@ export function DesignForm({ prospect, preset, onClose, onSaved }: { prospect?: 
             <span>Kategori</span>
             <div className="pap-segmented">
               <button type="button" className={!konten ? 'active' : ''} onClick={() => setKategori('klise')}>Klise cetakan (order)</button>
-              <button type="button" className={konten ? 'active' : ''} onClick={() => setKategori('konten')}>Konten digital (MDigi)</button>
+              <button type="button" className={konten ? 'active' : ''} onClick={() => setKategori('konten')}>Konten Lainnya</button>
             </div>
           </div>
         )}
@@ -713,8 +720,17 @@ export function DesignForm({ prospect, preset, onClose, onSaved }: { prospect?: 
         {konten && <Field label="Ukuran / format"><input className="pap-input" maxLength={150} value={values.ukuran} onChange={set('ukuran')} placeholder="Contoh: 1080x1350 (4:5), video 9:16 30 detik" /></Field>}
         <Field label="Deadline"><input className="pap-input" type="date" value={values.deadline} onChange={set('deadline')} /></Field>
         <Field label={konten ? 'Brief konten' : 'Brief desain'} full><textarea className="pap-input" rows={4} required maxLength={10000} value={values.brief} onChange={set('brief')} placeholder={konten ? 'Pesan utama, teks/caption di gambar, CTA (nomor WA), gaya visual, referensi akun yang disukai...' : 'Isi teks (nama usaha, alamat, nomor WA), logo, posisi, gaya, warna dominan, contoh yang disukai customer...'} /></Field>
-        <Field label="File referensi (opsional)" full hint="Logo, foto produk, contoh, sketsa. PDF/JPG/PNG/WEBP. Gambar > 2 MB dikompres otomatis; PDF maks 4 MB.">
+        <Field label="File referensi (opsional)" full hint="Logo, foto produk, contoh, sketsa — semua format (PDF, gambar, AI, CDR, PSD, ZIP, dll.). Gambar > 2 MB dikompres otomatis; file lain maks 4 MB.">
           <input className="pap-input" type="file" multiple accept={DESIGN_FILE_ACCEPT} onChange={(e) => { const list = [...(e.target.files ?? [])]; const invalid = checkDesignFiles(list); setError(invalid); setFiles(invalid ? [] : list); if (invalid) e.target.value = '' }} />
+        </Field>
+        <Field label="Link referensi (opsional)" full hint="Google Drive, Canva, Dropbox, contoh di Instagram, dll. Bisa lebih dari satu.">
+          <div className="pap-design-links">
+            {links.map((l, i) => <span key={l} className="pap-chip"><Link2 className="pap-inline-icon" /> {l.replace(/^https?:\/\//, '').slice(0, 48)}<button type="button" aria-label="Hapus link" onClick={() => setLinks(links.filter((_, j) => j !== i))}>×</button></span>)}
+            <div className="pap-design-link-row">
+              <input className="pap-input" type="url" inputMode="url" value={linkDraft} onChange={(e) => setLinkDraft(e.target.value)} placeholder="https://drive.google.com/..." onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (/^https?:\/\/\S+$/.test(linkDraft.trim())) { setLinks([...links, linkDraft.trim()]); setLinkDraft('') } } }} />
+              <button type="button" className="pap-btn" disabled={!/^https?:\/\/\S+$/.test(linkDraft.trim())} onClick={() => { setLinks([...links, linkDraft.trim()]); setLinkDraft('') }}><Plus /> Tambah link</button>
+            </div>
+          </div>
         </Field>
       </form>
     </Modal>
@@ -765,6 +781,20 @@ function DesignDetail({ id, user, onClose, onChanged, onDeleted }: { id: number;
       setBusy(false)
     }
   }
+  async function addLink(kind: 'referensi' | 'desain') {
+    const url = (await askReason({ title: kind === 'desain' ? 'Tempel link hasil desain' : 'Tempel link referensi', label: 'Link (https://...)', placeholder: 'https://drive.google.com/...', confirmLabel: 'Tambah link', danger: false }))?.trim()
+    if (!url) return
+    setBusy(true)
+    setError('')
+    try {
+      await uploadDesignLink(id, kind, url)
+      await load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
   async function upload(kind: 'referensi' | 'desain', list: FileList | null) {
     if (!list?.length) return
     const invalid = checkDesignFiles([...list])
@@ -802,13 +832,13 @@ function DesignDetail({ id, user, onClose, onChanged, onDeleted }: { id: number;
 
   const fileRow = (f: DesignFile, selectable = false) => (
     <li key={f.id} className={item.final_file_id === f.id ? 'final' : ''}>
-      {selectable ? <input type="radio" name="final" checked={finalId === f.id} onChange={() => setFinalId(f.id)} aria-label={`Pilih ${f.name} sebagai final`} /> : <FileText />}
+      {selectable && !f.url ? <input type="radio" name="final" checked={finalId === f.id} onChange={() => setFinalId(f.id)} aria-label={`Pilih ${f.name} sebagai final`} /> : f.url ? <Link2 /> : <FileText />}
       {f.mime.startsWith('image/') && <a href={`/api/designs/files/${f.id}`} target="_blank" rel="noreferrer"><img className="pap-file-thumb" src={`/api/designs/files/${f.id}`} alt="" /></a>}
       <div>
         <a href={`/api/designs/files/${f.id}`} target="_blank" rel="noreferrer">{f.name}</a>
-        <span>{formatSize(f.size)} · {f.uploaded_by_name} · {formatDate(f.created_at, true)}{item.final_file_id === f.id ? ' · DESAIN FINAL' : ''}</span>
+        <span>{f.url ? 'Link' : formatSize(f.size)} · {f.uploaded_by_name} · {formatDate(f.created_at, true)}{item.final_file_id === f.id ? ' · DESAIN FINAL' : ''}</span>
       </div>
-      <a className="pap-icon-button" href={`/api/designs/files/${f.id}?download=1`} aria-label={`Unduh ${f.name}`}><Download /></a>
+      {!f.url && <a className="pap-icon-button" href={`/api/designs/files/${f.id}?download=1`} aria-label={`Unduh ${f.name}`}><Download /></a>}
       {open && <button className="pap-icon-button" onClick={() => removeFile(f)} aria-label={`Hapus ${f.name}`}><Trash2 /></button>}
     </li>
   )
@@ -848,6 +878,7 @@ function DesignDetail({ id, user, onClose, onChanged, onDeleted }: { id: number;
           <div className="pap-note-attach"><AttachmentInput value={noteFiles} onChange={setNoteFiles} /></div>
           <div className="pap-inline-actions pap-wrap">
             <button className="pap-btn" disabled={busy} onClick={() => designInput.current?.click()}><Upload /> Unggah file desain</button>
+            <button className="pap-btn" disabled={busy} onClick={() => addLink('desain')}><Link2 /> Tempel link desain</button>
             <span className="pap-spacer" />
             <button className="pap-primary-button" disabled={busy || (latestVersi !== currentVersi && !lampiranCount)} title={latestVersi !== currentVersi && !lampiranCount ? 'Unggah file desain atau tambahkan link hasil desain' : undefined} onClick={() => act({ status: 'review', catatan, lampiran: lampiranCount }, 'Desain dikirim ke sales untuk review customer.')}><Send /> Kirim untuk review</button>
           </div>
@@ -909,7 +940,7 @@ function DesignDetail({ id, user, onClose, onChanged, onDeleted }: { id: number;
       <section className="pap-detail-section">
         <div className="pap-section-head">
           <h3>Referensi dari sales ({refs.length})</h3>
-          {open && roles.isRequester && <><input ref={refInput} type="file" multiple hidden accept={DESIGN_FILE_ACCEPT} onChange={(e) => { upload('referensi', e.target.files); e.target.value = '' }} /><button className="pap-btn" disabled={busy} onClick={() => refInput.current?.click()}><Upload /> Tambah referensi</button></>}
+          {open && roles.isRequester && <><input ref={refInput} type="file" multiple hidden accept={DESIGN_FILE_ACCEPT} onChange={(e) => { upload('referensi', e.target.files); e.target.value = '' }} /><button className="pap-btn" disabled={busy} onClick={() => refInput.current?.click()}><Upload /> Tambah referensi</button><button className="pap-btn" disabled={busy} onClick={() => addLink('referensi')}><Link2 /> Tempel link</button></>}
         </div>
         <ul className="pap-file-list">{refs.map((f) => fileRow(f))}</ul>
         {!refs.length && <p className="pap-muted">Tidak ada file referensi.</p>}

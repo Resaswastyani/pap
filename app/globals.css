@@ -3282,3 +3282,15 @@ a.pap-row-action { text-decoration:none; }
   .ta-v2 .ta-sign-name td + td { border-left-width:6px; }
   .ta-v2 .ta-sec-title span { display:block; margin-left:0; }
 }
+
+/* Bar dokumen di jendela analisa teknik & tautan referensi request desain */
+.pap-ta-docbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 12px; margin:0 0 12px; padding:10px 12px; border:1px solid rgb(124 92 252 / .3); border-radius:12px; background:rgb(124 92 252 / .06); font-size:12px; }
+.pap-ta-docbar > span { display:inline-flex; align-items:center; gap:6px; color:var(--pap-text); font-weight:600; }
+.pap-ta-docbar.subtle { margin:4px 0 0; border-style:dashed; background:transparent; }
+.pap-ta-docbar.subtle > span { color:var(--pap-muted); font-weight:500; }
+.pap-design-links { display:flex; flex-direction:column; gap:8px; }
+.pap-design-links .pap-chip { display:inline-flex; align-self:flex-start; align-items:center; gap:6px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pap-design-links .pap-chip button { border:0; background:transparent; color:var(--pap-muted); font-size:15px; line-height:1; cursor:pointer; }
+.pap-design-link-row { display:flex; gap:8px; }
+.pap-design-link-row .pap-input { flex:1; min-width:0; }
+@media (max-width:560px) { .pap-design-link-row { flex-direction:column; } }

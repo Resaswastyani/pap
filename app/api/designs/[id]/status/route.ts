@@ -98,7 +98,7 @@ export const POST = handle(async (request: Request, ctx: Ctx) => {
   } else if (to === 'disetujui') {
     if (!requester) fail(403, 'Persetujuan customer dicatat oleh sales yang mengajukan.')
     const [[file]] = await db.query<(RowDataPacket & { id: number; name: string })[]>(
-      `SELECT id, name FROM design_request_files WHERE design_id = ? AND kind = 'desain' AND (? IS NULL OR id = ?) ORDER BY versi DESC, id DESC LIMIT 1`,
+      `SELECT id, name FROM design_request_files WHERE design_id = ? AND kind = 'desain' AND url IS NULL AND (? IS NULL OR id = ?) ORDER BY versi DESC, id DESC LIMIT 1`,
       [item.id, int(body.file_id), int(body.file_id)],
     )
     // Tanpa file desain (hasil dikirim lewat link): tetap bisa disetujui, hanya tidak masuk Data Produk/Bank Konten

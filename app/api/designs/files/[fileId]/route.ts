@@ -5,11 +5,13 @@ import { db } from '@/lib/db'
 import { loadDesign, requireRequestMenu } from '@/lib/requests'
 
 type Ctx = { params: Promise<{ fileId: string }> }
-type FileRow = RowDataPacket & { id: number; design_id: number; name: string; mime: string; size: number; data: Buffer; uploaded_by: number }
+type FileRow = RowDataPacket & { id: number; design_id: number; name: string; mime: string; url: string | null; size: number; data: Buffer; uploaded_by: number }
+// Hanya PDF & gambar raster yang boleh dibuka langsung di browser; format lain (HTML, SVG, AI, CDR, ZIP...) selalu diunduh
+const INLINE_SAFE = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif']
 
 async function loadFile(ctx: Ctx) {
   const id = int((await ctx.params).fileId) ?? fail(404, 'File tidak ditemukan.')
-  const [[file]] = await db.query<FileRow[]>('SELECT id, design_id, name, mime, size, data, uploaded_by FROM design_request_files WHERE id = ?', [id])
+  const [[file]] = await db.query<FileRow[]>('SELECT id, design_id, name, mime, url, size, data, uploaded_by FROM design_request_files WHERE id = ?', [id])
   return file ?? fail(404, 'File tidak ditemukan.')
 }
 
@@ -19,10 +21,13 @@ export const GET = handle(async (request: Request, ctx: Ctx) => {
   requireRequestMenu(user, 'desain')
   const file = await loadFile(ctx)
   await loadDesign(file.design_id, user)
-  const download = new URL(request.url).searchParams.get('download') === '1'
+  // Lampiran link: arahkan ke alamatnya
+  if (file.url) return NextResponse.redirect(file.url, 302)
+  const safe = INLINE_SAFE.includes(file.mime)
+  const download = !safe || new URL(request.url).searchParams.get('download') === '1'
   return new NextResponse(new Uint8Array(file.data), {
     headers: {
-      'Content-Type': file.mime,
+      'Content-Type': safe ? file.mime : 'application/octet-stream',
       'Content-Length': String(file.size),
       'Content-Disposition': `${download ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(file.name)}`,
       // Isi file per id tidak pernah berubah: simpan di cache browser agar dibuka ulang tanpa unduh lagi

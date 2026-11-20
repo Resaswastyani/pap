@@ -315,6 +315,11 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
         ))}
       </ol>
 
+      <div className="pap-ta-docbar">
+        <span><Printer className="pap-inline-icon" /> Dokumen analisa {a.nomor}: pratinjau PDF, cetak, atau unduh Word</span>
+        <DocActions id={a.id} nomor={a.nomor} compact />
+      </div>
+
       <div className="pap-segmented pap-page-tabs" role="tablist" aria-label="Bagian analisa">
         <button role="tab" aria-selected={tab === 'spek'} className={tab === 'spek' ? 'active' : ''} onClick={() => setTab('spek')}>1. Spek order (Marketing)</button>
         <button role="tab" aria-selected={tab === 'teknik'} className={tab === 'teknik' ? 'active' : ''} onClick={() => setTab('teknik')}>2. Analisa proses (Teknik)</button>
@@ -368,6 +373,7 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
           </div>
           <Field label="3. Catatan penting lainnya" full><textarea className="pap-input" rows={2} maxLength={5000} disabled={!can.teknik} value={tv.catatan_lain} onChange={(e) => setTv({ ...tv, catatan_lain: e.target.value })} /></Field>
           {a.teknik_name && <p className="pap-muted pap-ta-hint">Diparaf {a.teknik_name}, {formatDate(a.teknik_at, true)}</p>}
+          <div className="pap-ta-docbar subtle"><span>Hasil analisa proses langsung tercetak di lembar analisa.</span><DocActions id={a.id} nomor={a.nomor} compact /></div>
           <div className="pap-inline-actions pap-wrap pap-ta-actions">
             {(a.status === 'dianalisa' || a.status === 'selesai') && (can.direksi || user.division.code === 'teknik' || user.role.isAdmin) && <button type="button" className="pap-btn" disabled={busy} onClick={() => flow('buka', 'Analisa dibuka lagi untuk Dept Teknik.')}><Undo2 /> Buka lagi untuk Teknik</button>}
             <span className="pap-spacer" />
