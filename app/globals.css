@@ -3085,3 +3085,76 @@ button.pap-ap-gantt-label { cursor:pointer; }
   .pap-doc-preview .pap-modal-foot .pap-primary-button { flex:1; justify-content:center; }
 }
 .pap-plan-shift > .pap-shift-chip { align-self:flex-start; width:auto; }
+
+/* ---------- Analisa Teknik Order (Prospek / Teknik) ---------- */
+.pap-ta-pipeline { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-bottom:18px; }
+.pap-ta-stage { display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-width:0; padding:12px 14px; border:1px solid var(--pap-border); border-radius:12px; background:var(--pap-surface); color:var(--pap-text); text-align:left; cursor:pointer; }
+.pap-ta-stage b { font-size:22px; letter-spacing:-.03em; }
+.pap-ta-stage span { overflow:hidden; max-width:100%; color:var(--pap-muted); font-size:11px; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
+.pap-ta-stage.active { border-color:#7c5cfc; box-shadow:0 0 0 3px rgb(124 92 252 / .15); }
+.pap-ta-table td { vertical-align:top; }
+.pap-ta-table tr.pap-clickable { cursor:pointer; }
+.pap-ta-table tr.pap-clickable:hover td { background:rgb(124 92 252 / .04); }
+.pap-ta-verdict { display:inline-block; padding:3px 9px; border-radius:999px; font-size:10px; font-weight:800; }
+.pap-ta-verdict.bisa { background:rgb(29 185 138 / .14); color:#0f8f6a; }
+.pap-ta-verdict.bersyarat { background:rgb(245 158 11 / .16); color:#a86400; }
+.pap-ta-verdict.tidak { background:rgb(209 67 67 / .14); color:#c03535; }
+.pap-ta-compact { border:1px solid var(--pap-border); border-radius:12px; overflow:hidden; }
+.pap-ta-compact .pap-table-wrap { border-top:0; }
+.pap-ta-compact-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.pap-ta-compact-head h3 { margin:0; }
+.pap-ta-fields { display:flex; flex-direction:column; gap:12px; }
+.pap-ta-sub-h { display:flex; align-items:center; gap:6px; margin:6px 0 0; color:var(--pap-muted); font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+.pap-ta-grid4 { grid-template-columns:repeat(4,minmax(0,1fr)); }
+.pap-ta-stepper { margin:4px 0 14px; grid-template-columns:repeat(4,minmax(0,1fr)); }
+.pap-ta-section { display:flex; flex-direction:column; gap:12px; }
+.pap-ta-actions { margin-top:4px; }
+.pap-ta-hint { margin:0; font-size:11px; line-height:1.5; }
+.pap-ta-proses-list { display:flex; flex-direction:column; gap:6px; }
+.pap-ta-proc { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.2fr) 110px; align-items:end; gap:8px; padding:8px 10px; border:1px solid var(--pap-border); border-radius:10px; }
+.pap-ta-proc.on { border-color:rgb(124 92 252 / .45); background:rgb(124 92 252 / .05); }
+.pap-ta-proc-name { display:flex; align-items:center; gap:8px; align-self:center; font-size:12px; font-weight:700; cursor:pointer; }
+.pap-ta-proc-name input { flex:none; width:17px; height:17px; accent-color:#7c5cfc; }
+.pap-ta-proc-f { display:flex; flex-direction:column; gap:3px; min-width:0; font-size:10px; color:var(--pap-muted); }
+.pap-ta-proc-f .pap-input { min-height:34px; padding-top:6px; padding-bottom:6px; font-size:12px; }
+.pap-ta-choice { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; }
+.pap-ta-choice-btn { padding:7px 12px; border:1.5px solid var(--pap-border); border-radius:999px; background:var(--pap-surface); color:var(--pap-text); font-size:12px; font-weight:700; cursor:pointer; }
+.pap-ta-choice-btn.active.bisa, .pap-ta-choice-btn.active.q-mudah { border-color:#1db98a; background:rgb(29 185 138 / .12); color:#0f8f6a; }
+.pap-ta-choice-btn.active.bersyarat, .pap-ta-choice-btn.active.q-sedang { border-color:#f59e0b; background:rgb(245 158 11 / .12); color:#a86400; }
+.pap-ta-choice-btn.active.tidak, .pap-ta-choice-btn.active.q-sulit { border-color:#d14343; background:rgb(209 67 67 / .1); color:#c03535; }
+.pap-ta-summary { padding:12px; border-radius:12px; background:rgb(124 92 252 / .06); font-size:12px; line-height:1.5; }
+.pap-ta-summary.bisa { background:rgb(29 185 138 / .1); } .pap-ta-summary.tidak { background:rgb(209 67 67 / .08); } .pap-ta-summary.bersyarat { background:rgb(245 158 11 / .1); }
+.pap-ta-summary p { margin:4px 0 0; white-space:pre-wrap; }
+/* Lembar cetak */
+.pap-sheet.pap-ta { font-size:12px; }
+.pap-ta-title { margin:14px 0 0; text-align:center; font-size:15px; text-decoration:underline; }
+.pap-ta-sub { margin:3px 0 12px; text-align:center; color:#555; font-size:11px; }
+.pap-ta-line { margin:0 0 10px; }
+.pap-ta .muted { color:#666; }
+.pap-ta-spec { width:100%; border-collapse:collapse; }
+.pap-ta-spec td { padding:3px 5px; border-bottom:1px solid #e3e5ee; vertical-align:top; }
+.pap-ta-spec td.lbl { width:36%; } .pap-ta-spec td.in { padding-left:20px; } .pap-ta-spec td.eq { width:12px; } .pap-ta-spec td.side { width:30%; color:#333; }
+.pap-ta-h { margin:14px 0 6px; font-size:12.5px; }
+.pap-ta-proses { width:100%; border-collapse:collapse; }
+.pap-ta-proses th, .pap-ta-proses td { padding:4px 6px; border:1px solid #333; vertical-align:top; }
+.pap-ta-proses th { background:#eef0f7; font-size:11px; }
+.pap-ta-proses td.ck { width:22px; text-align:center; font-size:13px; }
+.pap-ta-proses td.r { text-align:right; }
+.pap-ta-proses tr.on td { background:#f4f1ff; }
+.pap-ta-concl { width:100%; margin-top:14px; border-collapse:collapse; }
+.pap-ta-concl td { padding:5px 6px; border-bottom:1px solid #e3e5ee; vertical-align:top; }
+.pap-ta-concl td.big { font-size:13px; } .pap-ta-concl td.no { width:16px; text-align:right; } .pap-ta-concl td.paraf { width:30%; }
+.pap-ta-concl .exp { margin-top:3px; color:#333; }
+@media print { .pap-ta-proses tr.on td { background:#f4f1ff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
+@media (max-width:900px) {
+  .pap-ta-grid4 { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .pap-ta-proc { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .pap-ta-proc-name { grid-column:1 / -1; }
+}
+@media (max-width:640px) {
+  .pap-ta-pipeline { display:flex; overflow-x:auto; scrollbar-width:none; }
+  .pap-ta-pipeline::-webkit-scrollbar { display:none; }
+  .pap-ta-stage { flex:0 0 130px; }
+  .pap-ta-grid4 { grid-template-columns:1fr; }
+  .pap-ta-stepper small { display:none; }
+}
