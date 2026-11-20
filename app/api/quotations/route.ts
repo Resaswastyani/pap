@@ -56,10 +56,10 @@ export const POST = handle(async (request: Request) => {
   if (!canWriteQuotation(user)) fail(403, 'Quotation dibuat oleh Marketing.')
   const { header, items } = await readQuotationInput(await readJson(request), user)
   const [result] = await db.query<ResultSetHeader>(
-    `INSERT INTO quotations (prospect_id, customer_id, kepada, kontak, telepon, whatsapp, alamat, tanggal, berlaku_hari, pakai_ppn, ppn_persen, subtotal, ppn, total, syarat, rekening, telepon_kop, catatan, created_by, pakai_ongkir, ongkir_per_kg)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO quotations (prospect_id, customer_id, kepada, kontak, telepon, whatsapp, alamat, tanggal, berlaku_hari, pakai_ppn, ppn_persen, subtotal, ppn, total, syarat, rekening, telepon_kop, catatan, created_by, pakai_ongkir, ongkir_per_kg, ongkir_berat_kg)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [header.prospect_id, header.customer_id, header.kepada, header.kontak, header.telepon, header.whatsapp, header.alamat, header.tanggal, header.berlaku_hari, header.pakai_ppn,
-      header.ppn_persen, header.subtotal, header.ppn, header.total, header.syarat, header.rekening, header.telepon_kop, header.catatan, user.id, header.pakai_ongkir, header.ongkir_per_kg],
+      header.ppn_persen, header.subtotal, header.ppn, header.total, header.syarat, header.rekening, header.telepon_kop, header.catatan, user.id, header.pakai_ongkir, header.ongkir_per_kg, header.ongkir_berat_kg],
   )
   const id = result.insertId
   await saveQuotationItems(id, items)

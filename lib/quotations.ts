@@ -43,6 +43,9 @@ const toNumbers = (q: RowDataPacket): RowDataPacket => ({
   subtotal: Number(q.subtotal), ppn: Number(q.ppn), total: Number(q.total), ppn_persen: Number(q.ppn_persen),
   item_count: Number(q.item_count ?? 0), pakai_ppn: !!q.pakai_ppn,
   pakai_ongkir: !!q.pakai_ongkir, ongkir_per_kg: q.ongkir_per_kg === null || q.ongkir_per_kg === undefined ? null : Number(q.ongkir_per_kg),
+  ongkir_berat_kg: q.ongkir_berat_kg === null || q.ongkir_berat_kg === undefined ? null : Number(q.ongkir_berat_kg),
+  // Ongkos kirim penawaran (tarif per kg x berat) yang sudah termasuk dalam total; 0 = tidak ada / penawaran lama (per kg saja)
+  ongkir_kirim: q.pakai_ongkir && q.ongkir_per_kg && q.ongkir_berat_kg ? Math.round(Number(q.ongkir_per_kg) * Number(q.ongkir_berat_kg)) : 0,
   ongkir: q.ongkir === null || q.ongkir === undefined ? null : Number(q.ongkir), dp_persen: q.dp_persen === null || q.dp_persen === undefined ? null : Number(q.dp_persen),
   terbayar: Number(q.terbayar ?? 0),
 }) as RowDataPacket
@@ -110,12 +113,17 @@ export async function readQuotationInput(body: Record<string, unknown>, user: Us
   const pakaiOngkir = body.pakai_ongkir === true
   const ongkirPerKg = pakaiOngkir ? toNumber(body.ongkir_per_kg) : null
   if (pakaiOngkir && (!ongkirPerKg || ongkirPerKg <= 0)) fail(400, 'Isi harga ongkos kirim per kg (atau hilangkan centang Ongkos kirim).')
+  // Berat kiriman (kg): default = jumlah produk bersatuan kg; ongkir = tarif per kg x berat, dijumlahkan ke total
+  const beratAuto = items.filter((it) => it.satuan === 'kg').reduce((n, it) => n + it.qty, 0)
+  const ongkirBerat = pakaiOngkir ? toNumber(body.ongkir_berat_kg) || beratAuto : null
+  if (pakaiOngkir && (!ongkirBerat || ongkirBerat <= 0)) fail(400, 'Isi berat kiriman (kg) untuk menghitung total ongkos kirim.')
+  const ongkirTotal = pakaiOngkir ? Math.round(ongkirPerKg! * ongkirBerat!) : 0
   return {
     header: {
       prospect_id: prospectId, customer_id: customerId, kepada,
       kontak: str(body.kontak, 150) || null, telepon: str(body.telepon, 40) || null, whatsapp: str(body.whatsapp, 40) || null, alamat: str(body.alamat, 500) || null,
-      tanggal, berlaku_hari: berlaku, pakai_ppn: pakaiPpn ? 1 : 0, ppn_persen: ppnPersen, pakai_ongkir: pakaiOngkir ? 1 : 0, ongkir_per_kg: ongkirPerKg,
-      subtotal, ppn, total: subtotal + ppn,
+      tanggal, berlaku_hari: berlaku, pakai_ppn: pakaiPpn ? 1 : 0, ppn_persen: ppnPersen, pakai_ongkir: pakaiOngkir ? 1 : 0, ongkir_per_kg: ongkirPerKg, ongkir_berat_kg: ongkirBerat,
+      subtotal, ppn, total: subtotal + ppn + ongkirTotal,
       syarat: str(body.syarat, 5000) || null, rekening: str(body.rekening, 255) || null, catatan: str(body.catatan, 5000) || null,
       // Nomor Telepon / WA perusahaan yang dicetak di kop (satu per baris)
       telepon_kop: (Array.isArray(body.telepon_kop) ? body.telepon_kop.map((v) => str(v, 150)).filter(Boolean).join('\n') : '').slice(0, 1000) || null,

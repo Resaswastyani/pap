@@ -56,6 +56,7 @@ export function quotationDocumentHtml({ q, items, doc, signatures }: Awaited<Ret
   const sign = (title: string, name: string, org: string, ttd?: QuotationSignature) => ttd
     ? `<td><p>${esc(title)}</p><div class="sig"><img src="${esc(`${origin}/api/ttd/${ttd.token}`)}" alt="Tanda tangan ${esc(ttd.nama)}" height="72"></div><p><b>${esc(ttd.nama)}</b></p>${ttd.jabatan ? `<p>${esc(ttd.jabatan)}</p>` : ''}<p>${esc(org)}</p><p class="sig-note">Ditandatangani secara digital ${esc(signedAt(ttd.signed_at))}<br>Verifikasi: ${esc(`${verifyBase}/verifikasi/ttd/${ttd.token}`)}</p></td>`
     : `<td><p>${esc(title)}</p><div class="space">&nbsp;</div><p><b>${esc(name)}</b></p><p>${esc(org)}</p></td>`
+  const kg = (n: number | null) => Number(n ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })
   const total = (label: string, value: string, grandRow = false) => `<tr${grandRow ? ' class="grand"' : ''}><td colspan="4" class="r">${esc(label)}</td><td class="r">${esc(value)}</td></tr>`
   const pembuka = {
     penawaran: 'Bersama ini kami sampaikan penawaran harga produk kemasan plastik sebagai berikut:',
@@ -93,7 +94,9 @@ ${QUOTATION_APPROVAL_REQUIRED && jenis === 'penawaran' && q.status === 'draft' &
   <tfoot>
     ${total('Subtotal', rp(q.subtotal))}
     ${q.pakai_ppn ? total(`PPN ${q.ppn_persen}%`, rp(q.ppn)) : ''}
-    ${q.pakai_ongkir && q.ongkir_per_kg ? total('Ongkos kirim (per kg)', `${rp(q.ongkir_per_kg, q.ongkir_per_kg % 1 ? 2 : 0)} / kg`) : ''}
+    ${q.pakai_ongkir && q.ongkir_per_kg ? (q.ongkir_kirim > 0
+      ? total(`Ongkos kirim (${rp(q.ongkir_per_kg, q.ongkir_per_kg % 1 ? 2 : 0)} / kg × ${kg(q.ongkir_berat_kg)} kg)`, rp(q.ongkir_kirim))
+      : total('Ongkos kirim (per kg)', `${rp(q.ongkir_per_kg, q.ongkir_per_kg % 1 ? 2 : 0)} / kg`)) : ''}
     ${ongkir > 0 ? total('Ongkos kirim', rp(ongkir)) : ''}
     ${total('TOTAL', rp(grand), true)}
     ${jenis !== 'penawaran' && q.terbayar > 0 ? total('Sudah dibayar', `- ${rp(q.terbayar)}`) : ''}
@@ -101,7 +104,9 @@ ${QUOTATION_APPROVAL_REQUIRED && jenis === 'penawaran' && q.status === 'draft' &
   </tfoot>
 </table>
 ${!q.pakai_ppn ? '<p class="pap-sheet-note">Harga belum termasuk PPN.</p>' : ''}
-${q.pakai_ongkir && q.ongkir_per_kg ? `<p class="pap-sheet-note">Ongkos kirim ${rp(q.ongkir_per_kg, q.ongkir_per_kg % 1 ? 2 : 0)} per kg dihitung dari berat kiriman dan belum termasuk dalam total.</p>` : ''}
+${q.pakai_ongkir && q.ongkir_per_kg ? (q.ongkir_kirim > 0
+  ? `<p class="pap-sheet-note">Total sudah termasuk ongkos kirim ${rp(q.ongkir_per_kg, q.ongkir_per_kg % 1 ? 2 : 0)} per kg untuk perkiraan berat ${kg(q.ongkir_berat_kg)} kg; ongkir akhir mengikuti berat kiriman.</p>`
+  : `<p class="pap-sheet-note">Ongkos kirim ${rp(q.ongkir_per_kg, q.ongkir_per_kg % 1 ? 2 : 0)} per kg dihitung dari berat kiriman dan belum termasuk dalam total.</p>`) : ''}
 ${jenis !== 'penawaran' && q.catatan_order ? `<h3>Catatan pesanan</h3><p class="pre">${esc(q.catatan_order)}</p>` : ''}
 ${jenis === 'order' && dp ? `<p>Pembayaran: DP ${q.dp_persen}% sebesar <b>${rp(dp)}</b> sebelum produksi dimulai, pelunasan sebelum barang dikirim.</p>` : ''}
 ${syarat && jenis !== 'proforma' ? `<h3>Syarat &amp; ketentuan</h3><ol>${syarat}</ol>` : ''}

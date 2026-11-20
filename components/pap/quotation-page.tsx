@@ -24,7 +24,7 @@ const ApprovalBadge = ({ q, show = true }: { q: Pick<Quotation, 'status' | 'appr
 
 type Quotation = {
   id: number; nomor: string; prospect_id: number | null; customer_id: number | null; kepada: string; kontak: string | null; telepon: string | null; whatsapp: string | null
-  alamat: string | null; tanggal: string; berlaku_hari: number; berlaku_sampai: string; status: Status; pakai_ppn: boolean; ppn_persen: number; pakai_ongkir?: boolean; ongkir_per_kg?: number | null
+  alamat: string | null; tanggal: string; berlaku_hari: number; berlaku_sampai: string; status: Status; pakai_ppn: boolean; ppn_persen: number; pakai_ongkir?: boolean; ongkir_per_kg?: number | null; ongkir_berat_kg?: number | null; ongkir_kirim?: number
   subtotal: number; ppn: number; total: number; syarat: string | null; catatan: string | null; alasan: string | null; created_by: number
   created_name: string; sent_at: string | null; created_at: string; prospect_name: string | null; customer_no: string | null; item_count: number
   order_nomor: string | null; proforma_nomor: string | null; tanggal_kirim: string | null; dp_persen: number | null; expedition_id: number | null
@@ -192,6 +192,8 @@ export function QuotationForm({ user, edit, copy, prefill, onClose, onSaved }: {
     alamat: base?.alamat ?? [pp?.alamat, pp?.kota].filter(Boolean).join(', '), tanggal: edit?.tanggal ?? today(), berlaku_hari: String(base?.berlaku_hari ?? 14),
     syarat: base?.syarat ?? '', catatan: base?.catatan ?? '', pakai_ppn: base ? base.pakai_ppn : true,
     pakai_ongkir: !!base?.pakai_ongkir, ongkir_per_kg: base?.ongkir_per_kg ? String(base.ongkir_per_kg) : '',
+    // Kosong = otomatis dari jumlah produk bersatuan kg
+    ongkir_berat_kg: base?.ongkir_berat_kg ? String(base.ongkir_berat_kg) : '',
   })
   // Nomor Telepon / WA perusahaan di kop (bisa lebih dari satu)
   const [teleponKop, setTeleponKop] = useState<string[]>(() => lines(base?.telepon_kop))
@@ -225,6 +227,11 @@ export function QuotationForm({ user, edit, copy, prefill, onClose, onSaved }: {
   const subtotal = items.reduce((n, it) => n + toNum(it.qty) * toNum(it.harga_satuan), 0)
   const ppnPersen = data?.params.ppn_persen ?? 11
   const ppn = values.pakai_ppn ? Math.round(subtotal * ppnPersen) / 100 : 0
+  // Ongkos kirim = tarif per kg x berat kiriman (default: total produk bersatuan kg), dijumlahkan ke total
+  const beratAuto = items.filter((it) => it.satuan === 'kg').reduce((n, it) => n + toNum(it.qty), 0)
+  const beratKirim = toNum(values.ongkir_berat_kg) || beratAuto
+  const ongkirTotal = values.pakai_ongkir ? Math.round(toNum(values.ongkir_per_kg) * beratKirim) : 0
+  const kgText = (n: number) => n.toLocaleString('id-ID', { maximumFractionDigits: 2 })
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -232,7 +239,7 @@ export function QuotationForm({ user, edit, copy, prefill, onClose, onSaved }: {
     setError('')
     try {
       const payload = {
-        ...values, ...target, berlaku_hari: Number(values.berlaku_hari) || 14, telepon_kop: teleponKop, ongkir_per_kg: values.pakai_ongkir ? toNum(values.ongkir_per_kg) : null,
+        ...values, ...target, berlaku_hari: Number(values.berlaku_hari) || 14, telepon_kop: teleponKop, ongkir_per_kg: values.pakai_ongkir ? toNum(values.ongkir_per_kg) : null, ongkir_berat_kg: values.pakai_ongkir ? beratKirim : null,
         items: items.map((it) => ({ product_id: it.product_id, nama_produk: it.nama_produk, spesifikasi: it.spesifikasi, qty: it.qty, satuan: it.satuan, harga_satuan: it.harga_satuan })),
       }
       if (edit) {
@@ -269,7 +276,7 @@ export function QuotationForm({ user, edit, copy, prefill, onClose, onSaved }: {
       subtitle="Isi produk, spesifikasi, jumlah, dan harga secara manual."
       wide
       onClose={onClose}
-      footer={<><span className="pap-quote-total">Total: <b>{rupiah(subtotal + ppn)}</b></span><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="quotation-form" className="pap-primary-button" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan draft'}</button></>}
+      footer={<><span className="pap-quote-total">Total: <b>{rupiah(subtotal + ppn + ongkirTotal)}</b></span><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="quotation-form" className="pap-primary-button" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan draft'}</button></>}
     >
       {(error || loadError) && <Notice onClose={() => setError('')}>{error || loadError}</Notice>}
       {notice && <Notice kind="success" onClose={() => setNotice('')}>{notice}</Notice>}
@@ -344,10 +351,13 @@ export function QuotationForm({ user, edit, copy, prefill, onClose, onSaved }: {
           }} /><span>Kenakan PPN {ppnPersen}%</span></label>
           <label className="pap-check"><input type="checkbox" checked={values.pakai_ongkir} onChange={(e) => { const on = e.target.checked; setValues((v) => ({ ...v, pakai_ongkir: on })) }} /><span>Ongkos kirim</span></label>
           {values.pakai_ongkir && (
-            <label className="pap-quote-ongkir"><span>Harga ongkir per kg (Rp) *</span><input className="pap-input" inputMode="decimal" required autoFocus value={values.ongkir_per_kg} onChange={(e) => setValues((v) => ({ ...v, ongkir_per_kg: e.target.value.replace(/[^\d.,]/g, '') }))} placeholder="mis. 1500" /><small className="pap-muted">Dicetak di penawaran per kg, tidak dijumlahkan ke total.</small></label>
+            <label className="pap-quote-ongkir"><span>Harga ongkir per kg (Rp) *</span><input className="pap-input" inputMode="decimal" required autoFocus value={values.ongkir_per_kg} onChange={(e) => setValues((v) => ({ ...v, ongkir_per_kg: e.target.value.replace(/[^\d.,]/g, '') }))} placeholder="mis. 1500" /></label>
+          )}
+          {values.pakai_ongkir && (
+            <label className="pap-quote-ongkir"><span>Berat kiriman (kg) *</span><input className="pap-input" inputMode="decimal" value={values.ongkir_berat_kg} onChange={(e) => setValues((v) => ({ ...v, ongkir_berat_kg: e.target.value.replace(/[^\d.,]/g, '') }))} placeholder={beratAuto ? `${kgText(beratAuto)} (otomatis dari produk kg)` : 'mis. 100'} required={!beratAuto} /><small className="pap-muted">{beratAuto && !values.ongkir_berat_kg ? 'Otomatis dari jumlah produk bersatuan kg; isi bila berbeda.' : 'Isi perkiraan berat total kiriman.'} Ongkir dijumlahkan ke total.</small></label>
           )}
           </div>
-          <dl><dt>Subtotal</dt><dd>{rupiah(subtotal)}</dd>{values.pakai_ppn && <><dt>PPN {ppnPersen}%</dt><dd>{rupiah(ppn)}</dd></>}{values.pakai_ongkir && toNum(values.ongkir_per_kg) > 0 && <><dt>Ongkos kirim</dt><dd>{rupiah(toNum(values.ongkir_per_kg))} / kg</dd></>}<dt className="grand">Total</dt><dd className="grand">{rupiah(subtotal + ppn)}</dd></dl>
+          <dl><dt>Subtotal</dt><dd>{rupiah(subtotal)}</dd>{values.pakai_ppn && <><dt>PPN {ppnPersen}%</dt><dd>{rupiah(ppn)}</dd></>}{values.pakai_ongkir && toNum(values.ongkir_per_kg) > 0 && <><dt>Ongkos kirim<small> {rupiah(toNum(values.ongkir_per_kg))}/kg × {kgText(beratKirim)} kg</small></dt><dd>{rupiah(ongkirTotal)}</dd></>}<dt className="grand">Total</dt><dd className="grand">{rupiah(subtotal + ppn + ongkirTotal)}</dd></dl>
         </div>
         <Field label="Telepon / WA perusahaan di kop surat (bisa lebih dari satu)" full>
           <MultiSelect options={teleponOptions} value={teleponKop} onChange={setTeleponKop} empty="Belum ada nomor di Template dokumen" placeholder="Semua nomor di Template dokumen" />
@@ -567,7 +577,7 @@ function QuotationDetail({ id, userName, autoEdit = false, onClose, onChanged, o
       </div>
       <div className="pap-quote-totals">
         <span />
-        <dl><dt>Subtotal</dt><dd>{rupiah(item.subtotal)}</dd>{item.pakai_ppn && <><dt>PPN {item.ppn_persen}%</dt><dd>{rupiah(item.ppn)}</dd></>}{item.pakai_ongkir && item.ongkir_per_kg ? <><dt>Ongkos kirim</dt><dd>{rupiah(item.ongkir_per_kg)} / kg</dd></> : null}<dt className="grand">Total</dt><dd className="grand">{rupiah(item.total)}</dd></dl>
+        <dl><dt>Subtotal</dt><dd>{rupiah(item.subtotal)}</dd>{item.pakai_ppn && <><dt>PPN {item.ppn_persen}%</dt><dd>{rupiah(item.ppn)}</dd></>}{item.pakai_ongkir && item.ongkir_per_kg ? (item.ongkir_kirim ? <><dt>Ongkos kirim<small> {rupiah(item.ongkir_per_kg)}/kg × {Number(item.ongkir_berat_kg).toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</small></dt><dd>{rupiah(item.ongkir_kirim)}</dd></> : <><dt>Ongkos kirim</dt><dd>{rupiah(item.ongkir_per_kg)} / kg</dd></>) : null}<dt className="grand">Total</dt><dd className="grand">{rupiah(item.total)}</dd></dl>
       </div>
       {item.syarat && <section className="pap-detail-section"><h3>Syarat & ketentuan</h3><p className="pap-prewrap">{item.syarat}</p></section>}
       {item.catatan && <section className="pap-detail-section"><h3>Catatan internal</h3><p className="pap-prewrap">{item.catatan}</p></section>}
@@ -635,7 +645,7 @@ function OrderPanel({ item, canWrite, onSaved }: { item: Quotation; canWrite: bo
               </select>
             </Field>
           )}
-          <Field label="Ongkir (Rp, opsional)"><input className="pap-input" inputMode="numeric" value={v.ongkir} onChange={set('ongkir')} /></Field>
+          <Field label={item.ongkir_kirim ? 'Ongkir tambahan (Rp, opsional)' : 'Ongkir (Rp, opsional)'} hint={item.ongkir_kirim ? `Ongkir ${rupiah(item.ongkir_kirim)} sudah termasuk di total penawaran.` : undefined}><input className="pap-input" inputMode="numeric" value={v.ongkir} onChange={set('ongkir')} /></Field>
           <Field label="Catatan order (dicetak)" full><textarea className="pap-input" rows={2} maxLength={5000} value={v.catatan_order} onChange={set('catatan_order')} placeholder="Mis. desain final DSN-..., packing per 100 pcs, special request" /></Field>
           <div className="pap-inline-actions full">{item.order_nomor && <button type="button" className="pap-btn" onClick={() => setEditing(false)}>Batal</button>}<button className="pap-primary-button" disabled={busy}>{busy ? 'Menyimpan...' : item.order_nomor ? 'Simpan' : 'Buat surat order'}</button></div>
         </form>
