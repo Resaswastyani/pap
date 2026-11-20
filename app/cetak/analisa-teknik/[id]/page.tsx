@@ -9,10 +9,11 @@ import { PrintButton } from '../../quotation/[id]/print-button'
 export const metadata: Metadata = { title: 'Analisa Teknik Order · SIMPAP' }
 
 // Formulir Analisa Aspek Teknik siap cetak / simpan PDF (Word: /api/tech-analyses/[id]/word)
-export default async function CetakAnalisaTeknikPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CetakAnalisaTeknikPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ print?: string }> }) {
   const user = await getCurrentUser()
   if (!user) redirect('/')
   const { id } = await params
+  const autoPrint = (await searchParams).print === '1'
   let a
   try {
     requireTechAnalysis(user)
@@ -23,7 +24,7 @@ export default async function CetakAnalisaTeknikPage({ params }: { params: Promi
   }
   return (
     <main className="pap-print">
-      <PrintButton wordUrl={`/api/tech-analyses/${a.id}/word`} hint="untuk diarsipkan / diserahkan ke Dept Teknik" />
+      <PrintButton wordUrl={`/api/tech-analyses/${a.id}/word`} hint="untuk diarsipkan / diserahkan ke Dept Teknik" autoPrint={autoPrint} />
       {/* Semua isi data sudah di-escape di template */}
       <div dangerouslySetInnerHTML={{ __html: techAnalysisHtml(a, await techAnalysisSettings(), '/logo-pap.png') }} />
     </main>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, ClipboardCheck, FileDown, Plus, Printer, Ruler, Save, Search, Send, Trash2, Undo2, Wrench } from 'lucide-react'
+import { CheckCircle2, ClipboardCheck, Eye, FileDown, Plus, Printer, Ruler, Save, Search, Send, Trash2, Undo2, Wrench } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { api, confirmDialog, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged } from './ui'
 
@@ -94,7 +94,7 @@ export function TechAnalysisView({ user, prospectId, prefill, focusId, compact =
                   <td className="pap-cell-sub">{[a.jenis_plastik, a.panjang_cm && a.lebar_cm ? `${fmt(a.panjang_cm)}×${fmt(a.lebar_cm)} cm` : null, a.tebal_mm ? `${fmt(a.tebal_mm)} mm` : null, a.print_jenis === 'print' ? `print ${a.jumlah_warna ?? ''} wrn` : a.print_jenis === 'polos' ? 'polos' : null].filter(Boolean).join(' · ') || '—'}</td>
                   <td>{a.bisa_produksi ? <span className={`pap-ta-verdict ${a.bisa_produksi}`}>{BISA[a.bisa_produksi]}</span> : <span className="pap-muted">—</span>}{a.kesulitan_kualitas && <div className="pap-cell-sub">Kualitas: {KUALITAS[a.kesulitan_kualitas]}</div>}</td>
                   <td><span className={`pap-status ${TONE[a.status]}`}>{STATUS[a.status]}</span></td>
-                  <td onClick={(e) => e.stopPropagation()}><RowActions label={a.nomor} onView={() => setOpenId(a.id)} /></td>
+                  <td onClick={(e) => e.stopPropagation()}><div className="pap-ta-row-actions"><RowActions label={a.nomor} onView={() => setOpenId(a.id)} /><DocActions id={a.id} nomor={a.nomor} compact /></div></td>
                 </tr>
               ))}
             </tbody>
@@ -295,8 +295,7 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
       footer={<>
         {can.delete && <button type="button" className="pap-btn danger" onClick={remove}><Trash2 /> Hapus</button>}
         <span className="pap-spacer" />
-        <a className="pap-btn" href={`/api/tech-analyses/${a.id}/word`}><FileDown /> Word</a>
-        <a className="pap-primary-button" href={`/cetak/analisa-teknik/${a.id}`} target="_blank" rel="noreferrer"><Printer /> Pratinjau & cetak</a>
+        <DocActions id={a.id} nomor={a.nomor} />
       </>}>
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       {notice && <Notice kind="success" onClose={() => setNotice('')}>{notice}</Notice>}
@@ -499,7 +498,7 @@ export function TeknikSpecPanel({ value, onChange }: { value: TeknikSpec | null 
         <button type="button" className="pap-link-button pap-shift-edit" onClick={() => setOpen(!open)} aria-expanded={open}>
           <Ruler /> {t?.analysis ? 'Analisa teknik' : t?.minta ? 'Analisa teknik · akan diserahkan ke Teknik' : 'Isi analisa teknik (opsional)'}
         </button>
-        {t?.analysis && <span className={`pap-status ${TONE[t.analysis.status]}`}>{t.analysis.nomor} · {STATUS[t.analysis.status]}</span>}
+        {t?.analysis && <span className="pap-ta-inline-doc"><span className={`pap-status ${TONE[t.analysis.status]}`}>{t.analysis.nomor} · {STATUS[t.analysis.status]}</span><DocActions id={t.analysis.id} nomor={t.analysis.nomor} compact /></span>}
       </div>
       {open && (
         <div className="pap-ta-inline-body">
@@ -527,5 +526,23 @@ export function TeknikSpecPanel({ value, onChange }: { value: TeknikSpec | null 
         </div>
       )}
     </div>
+  )
+}
+
+// Aksi dokumen analisa: Pratinjau PDF (tab baru), Cetak (dialog cetak langsung terbuka), Word
+export function DocActions({ id, nomor, compact = false }: { id: number; nomor: string; compact?: boolean }) {
+  const base = `/cetak/analisa-teknik/${id}`
+  return compact ? (
+    <span className="pap-ta-doc-icons">
+      <a className="pap-row-action" href={base} target="_blank" rel="noreferrer" title="Pratinjau PDF" aria-label={`Pratinjau PDF ${nomor}`}><Eye /><span>PDF</span></a>
+      <a className="pap-row-action" href={`${base}?print=1`} target="_blank" rel="noreferrer" title="Cetak" aria-label={`Cetak ${nomor}`}><Printer /><span>Cetak</span></a>
+      <a className="pap-row-action" href={`/api/tech-analyses/${id}/word`} title="Unduh Word" aria-label={`Unduh Word ${nomor}`}><FileDown /><span>Word</span></a>
+    </span>
+  ) : (
+    <>
+      <a className="pap-btn" href={`/api/tech-analyses/${id}/word`}><FileDown /> Word</a>
+      <a className="pap-btn" href={`${base}?print=1`} target="_blank" rel="noreferrer"><Printer /> Cetak</a>
+      <a className="pap-primary-button" href={base} target="_blank" rel="noreferrer"><Eye /> Pratinjau PDF</a>
+    </>
   )
 }
