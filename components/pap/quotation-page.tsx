@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Ban, CheckCircle2, Copy, ExternalLink, Eye, FileDown, FileText, MessageCircle, Package, Store, Pencil, Plus, Printer, Receipt, Search, Send, Settings2, Trash2, TrendingUp, Truck, Wallet, XCircle } from 'lucide-react'
+import { Ban, CheckCircle2, Copy, FileDown, FileText, MessageCircle, Package, Store, Pencil, Plus, Printer, Receipt, Search, Send, Settings2, Trash2, TrendingUp, Truck, Wallet, XCircle } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { rupiah } from '@/lib/hpp-calc'
 import { DocForm, useHppData } from './hpp-page'
@@ -136,7 +136,7 @@ export function QuotationPage({ user, focusId }: { user: UserProfile; focusId?: 
                   <td className="pap-num">{rupiah(x.total)}</td>
                   <td>{x.created_name}</td>
                   <td><div className="pap-detail-badges"><Badge s={x.status} /><ApprovalBadge q={x} show={approvalRequired} /></div></td>
-                  <td className="pap-actions-cell"><RowActions label={x.nomor} onView={() => { setAutoEdit(false); setDetailId(x.id) }} onEdit={canWrite && x.status === 'draft' ? () => { setAutoEdit(true); setDetailId(x.id) } : undefined} /></td>
+                  <td className="pap-actions-cell"><RowActions label={x.nomor} onView={() => { setAutoEdit(false); setDetailId(x.id) }} onEdit={canWrite && x.status !== 'batal' ? () => { setAutoEdit(true); setDetailId(x.id) } : undefined} /></td>
                 </tr>
               ))}
             </tbody>
@@ -363,7 +363,6 @@ function QuotationDetail({ id, userName, autoEdit = false, onClose, onChanged, o
   const [approvalNote, setApprovalNote] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [preview, setPreview] = useState<DocJenis | null>(null)
   const editOpened = useRef(false)
   const load = useCallback(async () => {
     try {
@@ -378,8 +377,8 @@ function QuotationDetail({ id, userName, autoEdit = false, onClose, onChanged, o
       // Dibuka dari tombol Ubah di daftar: langsung ke form bila masih draft & boleh diubah
       if (autoEdit && !editOpened.current) {
         editOpened.current = true
-        if (res.item.status === 'draft' && res.canEdit) onEdit({ ...res.item, items: res.items })
-        else setError('Penawaran ini tidak bisa diubah (hanya draft milik Anda).')
+        if (res.canEdit) void confirmEdit(res.item).then((ok) => ok && onEdit({ ...res.item, items: res.items }))
+        else setError('Penawaran yang dibatalkan tidak bisa diubah. Buat revisi baru bila perlu.')
       }
     } catch (e) {
       setError((e as Error).message)
@@ -449,9 +448,9 @@ function QuotationDetail({ id, userName, autoEdit = false, onClose, onChanged, o
         {['draft', 'dikirim'].includes(item.status) && canWrite && <button className="pap-btn danger" disabled={busy} onClick={() => status('batal', true)}><Ban /> Batalkan</button>}
         <span className="pap-spacer" />
         {canWrite && <button className="pap-btn" onClick={() => onCopy(full)}><Copy /> Buat revisi</button>}
-        {item.status === 'draft' && canEdit && <button className="pap-btn" onClick={() => onEdit(full)}><Pencil /> Edit</button>}
+        {canEdit && <button className="pap-btn" onClick={async () => (await confirmEdit(item)) && onEdit(full)}><Pencil /> Edit</button>}
         <a className="pap-btn" href={links.word}><FileDown /> Word</a>
-        <button type="button" className="pap-primary-button" onClick={() => setPreview('penawaran')}><Eye /> Pratinjau & cetak</button>
+        <a className="pap-primary-button" href={links.pdf} target="_blank" rel="noreferrer"><Printer /> Pratinjau & cetak</a>
       </>}
     >
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
@@ -533,7 +532,6 @@ function QuotationDetail({ id, userName, autoEdit = false, onClose, onChanged, o
       </div>
       {item.syarat && <section className="pap-detail-section"><h3>Syarat & ketentuan</h3><p className="pap-prewrap">{item.syarat}</p></section>}
       {item.catatan && <section className="pap-detail-section"><h3>Catatan internal</h3><p className="pap-prewrap">{item.catatan}</p></section>}
-      {preview && <DocPreview id={item.id} nomor={item.nomor} initial={preview} hasOrder={!!item.order_nomor} onClose={() => setPreview(null)} />}
     </Modal>
   )
 }
@@ -550,7 +548,6 @@ function OrderPanel({ item, canWrite, onSaved }: { item: Quotation; canWrite: bo
     tanggal_kirim: item.tanggal_kirim ?? '', dp_persen: item.dp_persen?.toString() ?? '50', expedition_id: item.expedition_id ? String(item.expedition_id) : '',
     ongkir: item.ongkir?.toString() ?? '', catatan_order: item.catatan_order ?? '',
   })
-  const [preview, setPreview] = useState<DocJenis | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   useEffect(() => { if (editing) api<{ items: Expedition[] }>('/api/expeditions').then((r) => setExpeditions(r.items.filter((e) => e.aktif))).catch(() => {}) }, [editing])
@@ -616,13 +613,12 @@ function OrderPanel({ item, canWrite, onSaved }: { item: Quotation; canWrite: bo
           <div className="pap-inline-actions pap-wrap">
             {canWrite && <button className="pap-btn" onClick={() => setEditing(true)}><Pencil /> Ubah data order</button>}
             <span className="pap-spacer" />
-            <button type="button" className="pap-btn" onClick={() => setPreview('order')}><Eye /> Surat Order</button>
-            <button type="button" className="pap-btn" onClick={() => setPreview('proforma')}><Eye /> Proforma Invoice</button>
+            <a className="pap-btn" href={docLinks(item.id, 'order').pdf} target="_blank" rel="noreferrer"><Printer /> Surat Order</a>
+            <a className="pap-btn" href={docLinks(item.id, 'proforma').pdf} target="_blank" rel="noreferrer"><Printer /> Proforma Invoice</a>
             {sisa > 0 && <button className="pap-primary-button" onClick={() => setPaying(true)}><Wallet /> Konfirmasi pembayaran</button>}
           </div>
         </>
       )}
-      {preview && <DocPreview id={item.id} nomor={item.nomor} initial={preview} hasOrder={!!item.order_nomor} onClose={() => setPreview(null)} />}
       {paying && (
         <PaymentForm
           preset={{ quotation_id: item.id, pembayar: item.kepada, nomor: item.order_nomor ?? item.nomor, sisa, dp: item.terbayar === 0 ? dp : null }}
@@ -634,41 +630,12 @@ function OrderPanel({ item, canWrite, onSaved }: { item: Quotation; canWrite: bo
   )
 }
 
-// ---------------- Pratinjau dokumen sebelum dicetak ----------------
-type DocJenis = 'penawaran' | 'order' | 'proforma'
-const DOC_LABEL: Record<DocJenis, string> = { penawaran: 'Surat Penawaran', order: 'Surat Order', proforma: 'Proforma Invoice' }
-
-// Lembar A4 ditampilkan di dalam SIMPAP (halaman cetak dalam iframe), lalu dicetak / disimpan PDF dari sini
-function DocPreview({ id, nomor, initial, hasOrder, onClose }: { id: number; nomor: string; initial: DocJenis; hasOrder: boolean; onClose: () => void }) {
-  const [jenis, setJenis] = useState<DocJenis>(initial)
-  const [loading, setLoading] = useState(true)
-  const frame = useRef<HTMLIFrameElement | null>(null)
-  const links = docLinks(id, jenis)
-  const src = `${links.pdf}${links.pdf.includes('?') ? '&' : '?'}embed=1`
-  function print() {
-    const w = frame.current?.contentWindow
-    if (!w) return
-    w.focus()
-    w.print()
-  }
-  return (
-    <Modal title={`Pratinjau ${DOC_LABEL[jenis]}`} subtitle={`${nomor} · periksa dulu sebelum dicetak / dikirim ke customer`} className="pap-doc-preview" onClose={onClose}
-      footer={<>
-        <a className="pap-btn" href={links.pdf} target="_blank" rel="noreferrer"><ExternalLink /> <span className="pap-hide-sm">Buka tab baru</span></a>
-        <span className="pap-spacer" />
-        <a className="pap-btn" href={links.word}><FileDown /> Word</a>
-        <button type="button" className="pap-primary-button" onClick={print} disabled={loading}><Printer /> Cetak / Simpan PDF</button>
-      </>}>
-      {hasOrder && (
-        <div className="pap-segmented pap-doc-tabs" role="tablist" aria-label="Jenis dokumen">
-          {(['penawaran', 'order', 'proforma'] as DocJenis[]).map((j) => <button key={j} role="tab" aria-selected={jenis === j} className={jenis === j ? 'active' : ''} onClick={() => { if (j !== jenis) { setLoading(true); setJenis(j) } }}>{DOC_LABEL[j]}</button>)}
-        </div>
-      )}
-      <div className="pap-doc-frame">
-        {loading && <div className="pap-doc-loading"><span className="pap-spin-dot" /> Menyiapkan dokumen...</div>}
-        <iframe ref={frame} key={jenis} src={src} title={`Pratinjau ${DOC_LABEL[jenis]} ${nomor}`} onLoad={() => setLoading(false)} />
-      </div>
-      <p className="pap-muted pap-doc-hint">Di dialog cetak pilih <b>Simpan sebagai PDF</b> untuk mendapatkan file PDF. Di HP, bila tombol cetak tidak muncul, pakai <b>Buka tab baru</b>.</p>
-    </Modal>
-  )
+// Edit penawaran yang sudah dikirim / diterima / ditolak: konfirmasi dulu (isi dokumen berubah, TTD digital tidak berlaku)
+async function confirmEdit(q: Pick<Quotation, 'status' | 'nomor'>) {
+  if (q.status === 'draft') return true
+  return confirmDialog({
+    title: `Ubah penawaran ${q.nomor}?`,
+    message: `Penawaran ini berstatus ${STATUS_LABEL[q.status as Status].toLowerCase()}. Perubahan langsung mengganti isi dokumen yang mungkin sudah diterima customer, dan tanda tangan digitalnya otomatis tidak berlaku (perlu ditandatangani ulang).\n\nUntuk perubahan harga / produk ke customer, sebaiknya pakai "Buat revisi" agar riwayat penawaran tetap tercatat.`,
+    confirmLabel: 'Tetap ubah', tone: 'primary',
+  })
 }

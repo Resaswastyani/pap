@@ -16,7 +16,7 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
     item,
     items: await loadQuotationItems(item.id),
     doc: await loadSettings('doc.'),
-    canEdit: item.status === 'draft' && (canManageQuotation(user, item as { created_by: number }) || canEditHppParams(user)),
+    canEdit: item.status !== 'batal' && (canManageQuotation(user, item as { created_by: number }) || canEditHppParams(user)),
     canWrite: canWriteQuotation(user),
     canApprove: canApproveQuotation(user),
     isOwner: item.created_by === user.id,
@@ -29,7 +29,7 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
   requireQuotation(user)
   const item = await loadQuotation(await quotationId(ctx), user)
-  if (item.status !== 'draft') fail(400, 'Hanya penawaran berstatus Draft yang dapat diubah. Buat revisi baru bila perlu.')
+  if (item.status === 'batal') fail(400, 'Penawaran yang dibatalkan tidak dapat diubah. Buat revisi baru bila perlu.')
   if (!canManageQuotation(user, item as { created_by: number }) && !canEditHppParams(user)) fail(403, 'Hanya Marketing / GM yang dapat mengubah penawaran.')
   const { header, items } = await readQuotationInput(await readJson(request), user)
   await db.query(
