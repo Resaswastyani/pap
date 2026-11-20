@@ -4,7 +4,7 @@ import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { requireMenu } from '@/lib/customers'
 import { db } from '@/lib/db'
 import { canViewProduction } from '@/lib/production'
-import { canPlanProduction, entryColumns, entryLabel, loadEntry, readEntry, refreshJobStatus, todayWib } from '@/lib/production-forward-plan'
+import { canPlanProduction, entryColumns, entryLabel, loadEntry, readEntry, refreshJobStatus, refreshSampleSchedule, todayWib } from '@/lib/production-forward-plan'
 import { softDelete } from '@/lib/recycle-bin'
 import type { UserProfile } from '@/lib/users'
 
@@ -27,6 +27,7 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
   if (e.tanggal < todayWib() && e.tanggal !== old.tanggal) fail(400, 'Tanggal rencana tidak boleh sebelum hari ini.')
   await db.query('UPDATE production_plan_entries SET ? WHERE id = ?', [{ ...entryColumns(e), updated_by: user.id }, old.id])
   await refreshJobStatus([old.job_id, e.job_id], user.id)
+  await refreshSampleSchedule([old.sample_id, e.sample_id])
   await logActivity(request, user, {
     module: 'Rencana Produksi', action: 'update', entity: { type: 'production_plan_entry', id: old.id, label: e.item_name },
     description: `Mengubah rencana produksi: ${entryLabel(old)} → ${entryLabel(e)}`,
@@ -39,6 +40,7 @@ export const DELETE = handle(async (request: Request, ctx: Ctx) => {
   const { user, old } = await guard(ctx)
   await softDelete({ table: 'production_plan_entries', id: old.id, modul: 'Rencana Produksi', label: entryLabel(old), user })
   await refreshJobStatus([old.job_id], user.id)
+  await refreshSampleSchedule([old.sample_id])
   await logActivity(request, user, {
     module: 'Rencana Produksi', action: 'delete', entity: { type: 'production_plan_entry', id: old.id, label: old.item_name },
     description: `Menghapus rencana produksi ${entryLabel(old)}`,

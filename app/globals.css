@@ -3078,3 +3078,4 @@ button.pap-ap-gantt-label { cursor:pointer; }
   .pap-ship-option small { flex-basis:100%; }
   .pap-doc-preview .pap-modal-foot .pap-primary-button { flex:1; justify-content:center; }
 }
+.pap-plan-shift > .pap-shift-chip { align-self:flex-start; width:auto; }

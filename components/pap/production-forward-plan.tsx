@@ -1,14 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CalendarClock, CalendarDays, ClipboardList, Package, Plus, Search, ShoppingCart, Wallet } from 'lucide-react'
+import { AlertTriangle, CalendarClock, CalendarDays, ClipboardList, FlaskConical, Package, Plus, Search, ShoppingCart, Wallet } from 'lucide-react'
 import { AccurateSyncBar, formatNumber, formatRupiah } from './accurate'
 import { api, confirmDialog, formatDate, Modal, Notice, Pager, RowActions, usePaged } from './ui'
 
 // Rencana Produksi ke depan (CRUD): tanggal + Shift 1/2/3 + produk (dari pesanan atau produk Accurate) + jumlah + nilai
 
 type Entry = {
-  id: number; tanggal: string; shift: number; sumber: 'pesanan' | 'produk'; job_id: number | null; item_accurate_id: number | null; item_no: string | null; item_name: string
+  id: number; tanggal: string; shift: number; sumber: Sumber; job_id: number | null; sample_id: number | null; sample_item_id: number | null; item_accurate_id: number | null; item_no: string | null; item_name: string
   customer_name: string | null; so_number: string | null; due_date: string | null; quantity: number; unit: string | null; unit_price: number | null; nilai: number | null; catatan: string | null
   capacity_id: number | null; mesin: string | null
 }
@@ -17,7 +17,15 @@ type Job = {
   id: number; so_number: string | null; so_date: string | null; due_date: string | null; item_accurate_id: number | null; item_name: string; item_no: string | null; customer: string | null
   quantity: number; unit: string | null; unit_price: number | null; nilai: number | null; prioritas: string; terjadwal: number
 }
-type PlanRes = { today: string; machines: Machine[]; entries: Entry[]; jobs: Job[]; can: { plan: boolean } }
+type Sumber = 'pesanan' | 'produk' | 'sample'
+type Sample = {
+  id: number; item_id: number | null; nomor: string | null; status: string; tenggat: string | null; jadwal_produksi: string | null; customer: string | null
+  nama: string; jumlah: string | null; spek: string | null; terjadwal: number; rencana: number
+}
+type PlanRes = { today: string; machines: Machine[]; units: string[]; samples: Sample[]; entries: Entry[]; jobs: Job[]; can: { plan: boolean } }
+const sampleKey = (s: { id: number; item_id: number | null }) => `${s.id}:${s.item_id ?? 0}`
+const SAMPLE_STATUS_LABEL: Record<string, string> = { diajukan: 'Diajukan', dijadwalkan: 'Disetujui & dijadwalkan', diproduksi: 'Diproduksi', revisi: 'Revisi spek' }
+const SUMBER_LABEL: Record<Sumber, string> = { pesanan: 'dari pesanan', produk: 'dari produk Accurate', sample: 'pembuatan sample' }
 type Product = { id: number; item_no: string | null; name: string; unit: string | null; price: number | null; price_source: string | null }
 
 const RANGES = [7, 14, 30] as const
@@ -63,7 +71,7 @@ function DueBadge({ due, today }: { due: string | null; today: string }) {
   )
 }
 
-type FormState = { mode: 'baru'; job?: Job } | { mode: 'ubah'; entry: Entry }
+type FormState = { mode: 'baru'; job?: Job; sample?: Sample } | { mode: 'ubah'; entry: Entry }
 
 export function ForwardPlanView() {
   const [data, setData] = useState<PlanRes | null>(null)
@@ -102,6 +110,7 @@ export function ForwardPlanView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, query])
   const paged = usePaged(pending, [query])
+  const pendingSamples = (data?.samples ?? []).filter((s) => !s.rencana && match(s.nama, s.nomor, s.customer, s.spek))
 
   const allJobs = data?.jobs ?? []
   const allPending = allJobs.filter((j) => j.quantity - j.terjadwal > 1e-6)
@@ -185,7 +194,7 @@ export function ForwardPlanView() {
                 ...list.map((e) => (
                   <tr key={e.id}>
                     <td><span className={`pap-shift-chip s${e.shift}`}><b>Shift {e.shift}</b></span>{e.mesin ? <div className="pap-cell-sub">{e.mesin}</div> : <div className="pap-cell-sub pap-text-warning">Mesin belum dipilih</div>}{e.catatan && <div className="pap-cell-sub">{e.catatan}</div>}</td>
-                    <td><div className="pap-cell-title pap-plan-item">{e.item_name}</div><div className="pap-cell-sub">{[e.item_no, e.sumber === 'pesanan' ? 'dari pesanan' : 'dari produk Accurate'].filter(Boolean).join(' · ')}</div></td>
+                    <td><div className="pap-cell-title pap-plan-item">{e.item_name}</div><div className="pap-cell-sub">{[e.item_no, SUMBER_LABEL[e.sumber] ?? e.sumber].filter(Boolean).join(' · ')}</div></td>
                     <td><div>{e.customer_name ?? '—'}</div>{e.so_number && <div className="pap-cell-sub">{e.so_number}</div>}</td>
                     <td className="pap-num pap-nowrap"><strong>{qty(e.quantity, e.unit)}</strong></td>
                     <td className="pap-num pap-nowrap"><strong>{formatRupiah(e.nilai)}</strong>{e.unit_price !== null && <div className="pap-cell-sub">@ {formatRupiah(e.unit_price)}</div>}</td>
@@ -226,8 +235,31 @@ export function ForwardPlanView() {
           <Pager {...paged.pager} noun="pesanan" />
         </div>
       </div>
+      <div className="pap-table-card pap-plan-pending">
+        <div className="pap-card-head">
+          <div><h2>Sample belum direncanakan</h2><p>Request sample yang masih perlu dibuat (diajukan, dijadwalkan, diproduksi, revisi) dan belum punya rencana produksi. Urut tenggat terdekat.</p></div>
+        </div>
+        <div className="pap-table-wrap">
+          <table className="pap-plan-table">
+            <thead><tr><th>Sample</th><th>Customer / nomor</th><th>Tenggat</th><th>Jumlah diminta</th><th>Status</th>{can && <th aria-label="Aksi" />}</tr></thead>
+            <tbody>
+              {pendingSamples.map((s) => (
+                <tr key={sampleKey(s)}>
+                  <td><div className="pap-cell-title pap-plan-item">{s.nama}</div>{s.spek && <div className="pap-cell-sub">{s.spek}</div>}</td>
+                  <td><div>{s.customer ?? '—'}</div><div className="pap-cell-sub">{s.nomor ?? ''}</div></td>
+                  <td className="pap-nowrap"><DueBadge due={s.tenggat} today={today} /></td>
+                  <td>{s.jumlah ?? '—'}</td>
+                  <td>{SAMPLE_STATUS_LABEL[s.status] ?? s.status}</td>
+                  {can && <td><button type="button" className="pap-primary-button pap-plan-btn" onClick={() => setForm({ mode: 'baru', sample: s })}><CalendarClock /> Rencanakan</button></td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {data && !pendingSamples.length && <div className="pap-empty">{query ? 'Tidak ada sample yang cocok.' : 'Tidak ada request sample yang menunggu direncanakan.'}</div>}
+        </div>
+      </div>
       {form && data && (
-        <PlanForm state={form} today={today} jobs={data.jobs} machines={data.machines ?? []} onClose={() => setForm(null)}
+        <PlanForm state={form} today={today} jobs={data.jobs} samples={data.samples ?? []} units={data.units ?? ['kg', 'Pcs']} machines={data.machines ?? []} onClose={() => setForm(null)}
           onSaved={(msg) => { setForm(null); setNotice(msg); load() }} />
       )}
     </>
@@ -235,10 +267,13 @@ export function ForwardPlanView() {
 }
 
 // Form tambah / ubah rencana: sumber produk (pesanan / produk Accurate), tanggal, shift, jumlah, harga, catatan
-function PlanForm({ state, today, jobs, machines, onClose, onSaved }: { state: FormState; today: string; jobs: Job[]; machines: Machine[]; onClose: () => void; onSaved: (msg: string) => void }) {
+function PlanForm({ state, today, jobs, samples, units, machines, onClose, onSaved }: { state: FormState; today: string; jobs: Job[]; samples: Sample[]; units: string[]; machines: Machine[]; onClose: () => void; onSaved: (msg: string) => void }) {
   const edit = state.mode === 'ubah' ? state.entry : null
   const preJob = state.mode === 'baru' ? state.job : undefined
-  const [sumber, setSumber] = useState<'pesanan' | 'produk'>(edit?.sumber ?? (preJob ? 'pesanan' : jobs.length ? 'pesanan' : 'produk'))
+  const preSample = state.mode === 'baru' ? state.sample : undefined
+  const [sumber, setSumber] = useState<Sumber>(edit?.sumber ?? (preSample ? 'sample' : preJob ? 'pesanan' : jobs.length ? 'pesanan' : 'produk'))
+  const [sKey, setSKey] = useState(edit?.sample_id ? `${edit.sample_id}:${edit.sample_item_id ?? 0}` : preSample ? sampleKey(preSample) : '')
+  const [sampleFilter, setSampleFilter] = useState('')
   const [jobId, setJobId] = useState<number | null>(edit?.job_id ?? preJob?.id ?? null)
   const [jobFilter, setJobFilter] = useState('')
   const [product, setProduct] = useState<Product | null>(edit && edit.sumber === 'produk' && edit.item_accurate_id
@@ -248,16 +283,18 @@ function PlanForm({ state, today, jobs, machines, onClose, onSaved }: { state: F
   const [products, setProducts] = useState<Product[]>([])
   const [searching, setSearching] = useState(false)
   const [tanggal, setTanggal] = useState(edit?.tanggal ?? today)
-  // Tidak ada shift bawaan: user memilih Shift 1, 2, dan/atau 3 sendiri
-  const [shifts, setShifts] = useState<Record<number, string>>(() => (edit ? { [edit.shift]: String(edit.quantity) } : {}))
+  // Jumlah per shift langsung diisi; shift yang jumlahnya kosong / 0 tidak disimpan
+  const [shifts, setShifts] = useState<Record<number, string>>(() => ({ 1: '', 2: '', 3: '', ...(edit ? { [edit.shift]: String(edit.quantity) } : {}) }))
   const [capacityId, setCapacityId] = useState(edit?.capacity_id ? String(edit.capacity_id) : '')
   const [customer, setCustomer] = useState(edit?.sumber === 'produk' ? edit.customer_name ?? '' : '')
-  const [unit, setUnit] = useState(edit?.sumber === 'produk' ? edit.unit ?? '' : '')
+  const [unit, setUnit] = useState(edit && edit.sumber !== 'pesanan' ? edit.unit ?? '' : preSample ? 'Pcs' : '')
   const [catatan, setCatatan] = useState(edit?.catatan ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
   const job = jobs.find((j) => j.id === jobId)
+  const sample = samples.find((s) => sampleKey(s) === sKey)
+  const shownSamples = samples.filter((s) => sampleKey(s) === sKey || !sampleFilter.trim() || [s.nama, s.nomor, s.customer, s.spek].some((v) => v?.toLowerCase().includes(sampleFilter.trim().toLowerCase())))
   useEffect(() => {
     if (sumber !== 'produk') return
     let alive = true
@@ -268,25 +305,14 @@ function PlanForm({ state, today, jobs, machines, onClose, onSaved }: { state: F
   }, [sumber, productQuery])
 
   const shownJobs = jobs.filter((j) => j.id === jobId || !jobFilter.trim() || [j.item_name, j.item_no, j.customer, j.so_number].some((v) => v?.toLowerCase().includes(jobFilter.trim().toLowerCase())))
-  const defaultPrice = sumber === 'pesanan' ? job?.unit_price ?? (edit?.sumber === 'pesanan' ? edit.unit_price : null) ?? null : product?.price ?? null
-  const unitShown = sumber === 'pesanan' ? job?.unit ?? edit?.unit ?? '' : unit || product?.unit || ''
+  const defaultPrice = sumber === 'pesanan' ? job?.unit_price ?? (edit?.sumber === 'pesanan' ? edit.unit_price : null) ?? null : sumber === 'produk' ? product?.price ?? null : null
+  const unitShown = sumber === 'pesanan' ? job?.unit ?? edit?.unit ?? '' : unit || (sumber === 'produk' ? product?.unit : 'Pcs') || ''
+  const unitOptions = [...new Map([...units, unitShown].filter(Boolean).map((u) => [u.toLowerCase(), u])).values()]
   const effPrice = defaultPrice
-  const selectedShifts = Object.keys(shifts).map(Number).sort()
+  const selectedShifts = [1, 2, 3].filter((s) => toNum(shifts[s] ?? '') > 0)
   const total = selectedShifts.reduce((a, s) => a + toNum(shifts[s] ?? ''), 0)
   const afterDue = sumber === 'pesanan' && job?.due_date && tanggal > job.due_date
 
-  function toggleShift(s: number) {
-    if (edit) return setShifts({ [s]: shifts[selectedShifts[0]] ?? '' })
-    if (shifts[s] !== undefined) {
-      const next = { ...shifts }
-      delete next[s]
-      setShifts(next)
-    } else {
-      // Shift pertama yang dipilih langsung terisi sisa pesanan (bila ada)
-      const sisa = !selectedShifts.length && sumber === 'pesanan' && job ? round2(job.quantity - job.terjadwal) : 0
-      setShifts({ ...shifts, [s]: sisa > 0 ? String(sisa) : '' })
-    }
-  }
   function splitEven() {
     const base = sumber === 'pesanan' && job ? job.quantity - job.terjadwal + (edit?.quantity ?? 0) : total
     if (!base) return
@@ -299,12 +325,16 @@ function PlanForm({ state, today, jobs, machines, onClose, onSaved }: { state: F
     setError('')
     if (sumber === 'pesanan' && !jobId) return setError('Pilih pesanan yang akan diproduksi.')
     if (sumber === 'produk' && !product) return setError('Pilih produk Accurate yang akan diproduksi.')
-    if (!selectedShifts.length) return setError('Pilih minimal satu shift (Shift 1, 2, atau 3) dan isi jumlahnya.')
+    if (sumber === 'sample' && !sample) return setError('Pilih request sample yang akan dibuat.')
+    if (!selectedShifts.length) return setError('Isi jumlah minimal di satu shift (Shift 1, 2, atau 3).')
+    if (edit && selectedShifts.length > 1) return setError('Saat mengubah rencana, isi jumlah di satu shift saja. Tambahkan shift lain lewat "Rencana baru".')
+    if (sumber !== 'pesanan' && !unitShown) return setError('Pilih satuan.')
     if (!capacityId) return setError('Pilih mesin.')
     setBusy(true)
     const body = {
       sumber, job_id: sumber === 'pesanan' ? jobId : null, item_accurate_id: sumber === 'produk' ? product?.id : null,
-      tanggal, capacity_id: Number(capacityId), customer_name: customer, unit, catatan,
+      sample_id: sumber === 'sample' ? sample?.id : null, sample_item_id: sumber === 'sample' ? sample?.item_id : null,
+      tanggal, capacity_id: Number(capacityId), customer_name: customer, unit: sumber === 'pesanan' ? '' : unitShown, catatan,
       ...(edit ? { shift: selectedShifts[0], quantity: toNum(shifts[selectedShifts[0]] ?? '') } : { rows: selectedShifts.map((s) => ({ shift: s, quantity: toNum(shifts[s] ?? '') })) }),
     }
     try {
@@ -317,7 +347,7 @@ function PlanForm({ state, today, jobs, machines, onClose, onSaved }: { state: F
   }
 
   return (
-    <Modal title={edit ? 'Ubah rencana produksi' : 'Rencana produksi baru'} subtitle="Pilih produk dari pesanan atau dari daftar produk Accurate" wide onClose={onClose}
+    <Modal title={edit ? 'Ubah rencana produksi' : 'Rencana produksi baru'} subtitle="Pilih produk dari pesanan, daftar produk Accurate, atau request sample" wide onClose={onClose}
       footer={<>
         <div className="pap-shift-total">
           <span>Jumlah <b>{qty(total, unitShown)}</b></span>
@@ -332,9 +362,35 @@ function PlanForm({ state, today, jobs, machines, onClose, onSaved }: { state: F
         <div className="pap-segmented pap-plan-source" role="radiogroup" aria-label="Sumber produk">
           <button type="button" role="radio" aria-checked={sumber === 'pesanan'} className={sumber === 'pesanan' ? 'active' : ''} onClick={() => setSumber('pesanan')}><ShoppingCart /> Dari pesanan</button>
           <button type="button" role="radio" aria-checked={sumber === 'produk'} className={sumber === 'produk' ? 'active' : ''} onClick={() => setSumber('produk')}><Package /> Dari produk Accurate</button>
+          <button type="button" role="radio" aria-checked={sumber === 'sample'} className={sumber === 'sample' ? 'active' : ''} onClick={() => { setSumber('sample'); if (!unit) setUnit('Pcs') }}><FlaskConical /> Dari request sample</button>
         </div>
 
-        {sumber === 'pesanan' ? (
+        {sumber === 'sample' ? (
+          <div className="pap-field">
+            <span>Request sample *</span>
+            <input className="pap-input" value={sampleFilter} onChange={(e) => setSampleFilter(e.target.value)} placeholder="Saring: produk, customer, nomor sample..." />
+            <select className="pap-select" value={sKey} onChange={(e) => setSKey(e.target.value)} required>
+              <option value="">— Pilih request sample ({shownSamples.length}) —</option>
+              {edit?.sample_id && !sample && <option value={sKey}>{edit.so_number} · {edit.item_name} (sample lama)</option>}
+              {shownSamples.map((s) => (
+                <option key={sampleKey(s)} value={sampleKey(s)}>{[s.nomor, s.nama, s.customer, s.tenggat ? `tenggat ${formatDate(s.tenggat)}` : null, s.rencana ? 'sudah ada rencana' : null].filter(Boolean).join(' · ')}</option>
+              ))}
+            </select>
+            {sample && (
+              <div className="pap-shift-info">
+                <span>Customer <b>{sample.customer ?? '—'}</b></span>
+                <span>Jumlah diminta <b>{sample.jumlah ?? '—'}</b></span>
+                <span>Tenggat <b>{sample.tenggat ? formatDate(sample.tenggat) : '—'}</b></span>
+                <span>Status <b>{SAMPLE_STATUS_LABEL[sample.status] ?? sample.status}</b></span>
+                {sample.spek && <span>Spek <b>{sample.spek}</b></span>}
+              </div>
+            )}
+            {!samples.length && <small className="pap-muted">Tidak ada request sample yang masih perlu dibuat.</small>}
+            <label className="pap-field"><span>Satuan *</span>
+              <select className="pap-select" value={unitShown} onChange={(e) => setUnit(e.target.value)}>{unitOptions.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+            </label>
+          </div>
+        ) : sumber === 'pesanan' ? (
           <div className="pap-field">
             <span>Pesanan *</span>
             <input className="pap-input" value={jobFilter} onChange={(e) => setJobFilter(e.target.value)} placeholder="Saring: produk, customer, nomor SO..." />
@@ -380,7 +436,12 @@ function PlanForm({ state, today, jobs, machines, onClose, onSaved }: { state: F
             )}
             <div className="pap-form-grid">
               <label className="pap-field"><span>Customer (opsional)</span><input className="pap-input" maxLength={255} value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="mis. stok / nama customer" /></label>
-              <label className="pap-field"><span>Satuan</span><input className="pap-input" maxLength={40} value={unit} onChange={(e) => setUnit(e.target.value)} placeholder={product?.unit ?? 'kg'} /></label>
+              <label className="pap-field"><span>Satuan *</span>
+                <select className="pap-select" value={unitShown} onChange={(e) => setUnit(e.target.value)}>
+                  {!unitShown && <option value="">— Pilih satuan —</option>}
+                  {unitOptions.map((u) => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </label>
             </div>
           </div>
         )}
@@ -399,15 +460,13 @@ function PlanForm({ state, today, jobs, machines, onClose, onSaved }: { state: F
         {afterDue && <Notice>Tanggal produksi setelah tanggal kirim pesanan ({formatDate(job?.due_date)}). Pastikan pengiriman masih terkejar.</Notice>}
 
         <div className="pap-field">
-          <span>Shift & jumlah *{!edit && <small className="pap-muted"> (boleh lebih dari satu shift)</small>}</span>
+          <span>Shift & jumlah *<small className="pap-muted"> {edit ? '(isi satu shift; pindahkan jumlahnya untuk ganti shift)' : '(isi jumlah di shift yang dipakai; boleh lebih dari satu, kosongkan yang tidak dipakai)'}</small></span>
           <div className="pap-plan-shifts">
             {[1, 2, 3].map((s) => (
-              <div key={s} className={`pap-plan-shift ${shifts[s] !== undefined ? 'on' : ''}`}>
-                <button type="button" className={`pap-shift-chip s${s}`} aria-pressed={shifts[s] !== undefined} onClick={() => toggleShift(s)}><b>Shift {s}</b></button>
-                {shifts[s] !== undefined
-                  ? <input className="pap-input" inputMode="decimal" required aria-label={`Jumlah Shift ${s}`} value={shifts[s]} onChange={(e) => setShifts({ ...shifts, [s]: e.target.value.replace(/[^\d.,]/g, '') })} placeholder={`0 ${unitShown}`} />
-                  : <small className="pap-muted">{edit ? 'klik untuk pindah' : 'klik untuk pilih'}</small>}
-              </div>
+              <label key={s} className={`pap-plan-shift ${toNum(shifts[s] ?? '') > 0 ? 'on' : ''}`}>
+                <span className={`pap-shift-chip s${s}`}><b>Shift {s}</b></span>
+                <input className="pap-input" inputMode="decimal" aria-label={`Jumlah Shift ${s}`} value={shifts[s] ?? ''} onChange={(e) => setShifts({ ...shifts, [s]: e.target.value.replace(/[^\d.,]/g, '') })} placeholder={`0 ${unitShown}`} />
+              </label>
             ))}
           </div>
           {!edit && <div className="pap-inline-actions"><button type="button" className="pap-btn" onClick={splitEven}>Bagi rata 3 shift</button></div>}

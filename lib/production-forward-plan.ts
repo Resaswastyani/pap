@@ -25,11 +25,29 @@ const JOB_SELECT = `SELECT j.id, j.so_number, DATE_FORMAT(so.trans_date, '%Y-%m-
   LEFT JOIN accurate_items i ON i.accurate_id = j.item_accurate_id
   LEFT JOIN customers c ON c.id = j.customer_id`
 
+export type Sumber = 'pesanan' | 'produk' | 'sample'
+// Satuan pilihan di form (dropdown): satuan barang Accurate + yang umum dipakai
+export const PLAN_UNITS = ['kg', 'Pcs', 'Lmbr', 'Roll', 'Pak', 'Bal', 'Rim', 'Lusin']
+function readUnit(v: unknown) {
+  const u = str(v, 40)
+  return u || null
+}
+// Request sample yang masih perlu dibuat (belum selesai / dikirim / disetujui / batal), satu baris per produk sample
+const SAMPLE_SELECT = `SELECT s.id, s.nomor, s.status, DATE_FORMAT(s.tenggat, '%Y-%m-%d') AS tenggat, DATE_FORMAT(s.jadwal_produksi, '%Y-%m-%d') AS jadwal_produksi,
+    COALESCE(c.name, p.nama_usaha) AS customer, i.id AS item_id, COALESCE(i.nama_produk, s.nama_produk) AS nama,
+    COALESCE(i.jumlah, s.jumlah) AS jumlah, CONCAT_WS(' · ', COALESCE(i.jenis, s.jenis), COALESCE(i.ukuran, s.ukuran), COALESCE(i.ketebalan, s.ketebalan), COALESCE(i.bahan, s.bahan), COALESCE(i.warna_cetak, s.warna_cetak)) AS spek
+  FROM sample_requests s
+  LEFT JOIN sample_request_items i ON i.sample_id = s.id
+  LEFT JOIN prospects p ON p.id = s.prospect_id
+  LEFT JOIN customers c ON c.id = s.customer_id`
+export const SAMPLE_OPEN = "s.status IN ('diajukan', 'dijadwalkan', 'diproduksi', 'revisi')"
+
 const serializeEntry = (e: Row) => {
   const quantity = Number(e.quantity)
   const price = num(e.unit_price)
   return {
-    id: Number(e.id), tanggal: String(e.tanggal), shift: Number(e.shift), sumber: String(e.sumber) as 'pesanan' | 'produk', job_id: num(e.job_id),
+    id: Number(e.id), tanggal: String(e.tanggal), shift: Number(e.shift), sumber: String(e.sumber) as Sumber, job_id: num(e.job_id),
+    sample_id: num(e.sample_id), sample_item_id: num(e.sample_item_id),
     item_accurate_id: num(e.item_accurate_id), item_no: (e.item_no as string) ?? null, item_name: String(e.item_name),
     customer_name: (e.customer_name as string) ?? null, so_number: (e.so_number as string) ?? null, due_date: (e.due_date as string) ?? null,
     quantity, unit: (e.unit as string) ?? null, unit_price: price, nilai: price === null ? null : quantity * price, catatan: (e.catatan as string) || null,
@@ -59,10 +77,24 @@ export async function loadForwardPlan() {
     ? await db.query<Row[]>('SELECT job_id, SUM(quantity) AS qty FROM production_plan_entries WHERE job_id IN (?) GROUP BY job_id', [ids])
     : [[] as Row[]]
   const plannedBy = new Map(planned.map((p) => [Number(p.job_id), Number(p.qty)]))
+  // Request sample yang masih perlu dibuat + jumlah yang sudah direncanakan per produk sample
+  const [samples] = await db.query<Row[]>(`${SAMPLE_SELECT} WHERE ${SAMPLE_OPEN} ORDER BY s.tenggat IS NULL, s.tenggat, s.id, i.sort_order, i.id LIMIT 500`)
+  const [samplePlanned] = await db.query<Row[]>('SELECT sample_id, sample_item_id, SUM(quantity) AS qty, COUNT(*) AS n FROM production_plan_entries WHERE sample_id IS NOT NULL GROUP BY sample_id, sample_item_id')
+  const spKey = (sid: unknown, iid: unknown) => `${Number(sid)}:${iid === null || iid === undefined ? 0 : Number(iid)}`
+  const spBy = new Map(samplePlanned.map((r) => [spKey(r.sample_id, r.sample_item_id), { qty: Number(r.qty), n: Number(r.n) }]))
+  const [unitRows] = await db.query<Row[]>("SELECT DISTINCT unit FROM accurate_items WHERE unit IS NOT NULL AND unit <> '' LIMIT 50")
+  // Satuan Accurate dulu (urutan), penulisan mengikuti PLAN_UNITS bila sama (roll -> Roll)
+  const units = [...new Map([...unitRows.map((r) => String(r.unit)), ...PLAN_UNITS].map((u) => [u.toLowerCase(), u])).values()]
   // Daftar mesin dari menu Kapasitas Produksi (pilihan wajib di form)
   const [machines] = await db.query<Row[]>('SELECT id, mesin, jenis_plastik, jumlah_mesin, lebar_min_cm, lebar_maks_cm FROM production_capacities ORDER BY urut, id')
   return {
     today,
+    units,
+    samples: samples.map((s) => ({
+      id: Number(s.id), item_id: num(s.item_id), nomor: (s.nomor as string) ?? null, status: String(s.status), tenggat: (s.tenggat as string) ?? null,
+      jadwal_produksi: (s.jadwal_produksi as string) ?? null, customer: (s.customer as string) ?? null, nama: String(s.nama), jumlah: (s.jumlah as string) ?? null,
+      spek: (s.spek as string) || null, terjadwal: spBy.get(spKey(s.id, s.item_id))?.qty ?? 0, rencana: spBy.get(spKey(s.id, s.item_id))?.n ?? 0,
+    })),
     machines: machines.map((m) => ({ id: Number(m.id), mesin: String(m.mesin), jenis_plastik: String(m.jenis_plastik), jumlah_mesin: Number(m.jumlah_mesin), lebar_min_cm: num(m.lebar_min_cm), lebar_maks_cm: num(m.lebar_maks_cm) })),
     entries: entries.map(serializeEntry),
     jobs: jobs.map((j) => {
@@ -97,7 +129,7 @@ export async function searchPlanProducts(q: string) {
 }
 
 type EntryInput = {
-  tanggal: string; shift: number; quantity: number; sumber: 'pesanan' | 'produk'; job_id: number | null; item_accurate_id: number | null
+  tanggal: string; shift: number; quantity: number; sumber: Sumber; job_id: number | null; sample_id: number | null; sample_item_id: number | null; item_accurate_id: number | null
   item_no: string | null; item_name: string; customer_name: string | null; so_number: string | null; unit: string | null; unit_price: number | null; catatan: string | null
   capacity_id: number
 }
@@ -123,7 +155,7 @@ const readQty = (v: unknown, label = '') => {
 // Isian form -> data rencana. Produk & customer diambil dari pesanan / produk Accurate di server (bukan dari browser).
 // rows: [{ shift, quantity }] untuk membuat beberapa shift sekaligus (hanya saat tambah).
 export async function readEntry(body: Record<string, unknown>) {
-  const sumber = body.sumber === 'pesanan' ? 'pesanan' : 'produk'
+  const sumber: Sumber = body.sumber === 'pesanan' ? 'pesanan' : body.sumber === 'sample' ? 'sample' : 'produk'
   const tanggal = readDate(body.tanggal)
   // Harga per satuan tidak diisi di form: otomatis harga jual pesanan / harga bawaan produk (untuk nilai rencana)
   let unitPrice: number | null = null
@@ -131,14 +163,25 @@ export async function readEntry(body: Record<string, unknown>) {
   const capacityId = Number(body.capacity_id)
   const [[machine]] = await db.query<Row[]>('SELECT id FROM production_capacities WHERE id = ?', [Number.isInteger(capacityId) ? capacityId : 0])
   if (!machine) fail(400, 'Pilih mesin (daftar mesin dari menu Kapasitas Produksi).')
-  const base: Omit<EntryInput, 'tanggal' | 'shift' | 'quantity' | 'unit_price' | 'capacity_id'> = sumber === 'pesanan'
+  const unit = readUnit(body.unit)
+  const base: Omit<EntryInput, 'tanggal' | 'shift' | 'quantity' | 'unit_price' | 'capacity_id'> = sumber === 'sample'
+    ? await (async () => {
+      // Pembuatan sample dari Request Sample (per produk sample bila request punya beberapa produk)
+      const [[s]] = await db.query<Row[]>(`${SAMPLE_SELECT} WHERE s.id = ? AND (? = 0 OR i.id = ?) LIMIT 1`, [Number(body.sample_id) || 0, Number(body.sample_item_id) || 0, Number(body.sample_item_id) || 0])
+      if (!s) fail(400, 'Pilih request sample yang akan dibuat.')
+      return {
+        sumber, job_id: null, sample_id: Number(s.id), sample_item_id: num(s.item_id), item_accurate_id: null, item_no: null, item_name: String(s.nama),
+        customer_name: (s.customer as string) ?? null, so_number: (s.nomor as string) ?? null, unit: unit ?? 'Pcs', catatan: str(body.catatan, 255) || null,
+      }
+    })()
+    : sumber === 'pesanan'
     ? await (async () => {
       const id = Number(body.job_id)
       const [[j]] = await db.query<Row[]>(`${JOB_SELECT} WHERE j.id = ?`, [Number.isInteger(id) ? id : 0])
       if (!j) fail(400, 'Pilih pesanan yang akan diproduksi.')
       if (unitPrice === null) unitPrice = num(j.unit_price)
       return {
-        sumber, job_id: Number(j.id), item_accurate_id: num(j.item_accurate_id), item_no: (j.item_no as string) ?? null, item_name: String(j.item_name),
+        sumber, job_id: Number(j.id), sample_id: null, sample_item_id: null, item_accurate_id: num(j.item_accurate_id), item_no: (j.item_no as string) ?? null, item_name: String(j.item_name),
         customer_name: (j.customer as string) ?? null, so_number: (j.so_number as string) ?? null, unit: (j.unit as string) ?? null, catatan: str(body.catatan, 255) || null,
       }
     })()
@@ -148,8 +191,8 @@ export async function readEntry(body: Record<string, unknown>) {
       if (!p) fail(400, 'Pilih produk Accurate yang akan diproduksi.')
       if (unitPrice === null) unitPrice = (await searchPlanProducts(String(p.item_no ?? p.name))).find((x) => x.id === Number(p.accurate_id))?.price ?? null
       return {
-        sumber, job_id: null, item_accurate_id: Number(p.accurate_id), item_no: (p.item_no as string) ?? null, item_name: String(p.name),
-        customer_name: str(body.customer_name, 255) || null, so_number: null, unit: str(body.unit, 40) || (p.unit as string) || null, catatan: str(body.catatan, 255) || null,
+        sumber, job_id: null, sample_id: null, sample_item_id: null, item_accurate_id: Number(p.accurate_id), item_no: (p.item_no as string) ?? null, item_name: String(p.name),
+        customer_name: str(body.customer_name, 255) || null, so_number: null, unit: unit || (p.unit as string) || null, catatan: str(body.catatan, 255) || null,
       }
     })()
   const rows = Array.isArray(body.rows) && body.rows.length
@@ -160,6 +203,13 @@ export async function readEntry(body: Record<string, unknown>) {
     : [{ shift: readShift(body.shift), quantity: readQty(body.quantity) }]
   if (new Set(rows.map((r) => r.shift)).size !== rows.length) fail(400, 'Setiap shift hanya boleh diisi sekali.')
   return rows.map((r): EntryInput => ({ ...base, tanggal, shift: r.shift, quantity: r.quantity, unit_price: unitPrice, capacity_id: capacityId }))
+}
+
+// Jadwal produksi request sample = tanggal rencana paling awal (status sample tetap diatur di menu Request Sample)
+export async function refreshSampleSchedule(sampleIds: (number | null)[]) {
+  for (const id of new Set(sampleIds.filter((x): x is number => !!x))) {
+    await db.query('UPDATE sample_requests SET jadwal_produksi = (SELECT MIN(e.tanggal) FROM production_plan_entries e WHERE e.sample_id = ?) WHERE id = ?', [id, id])
+  }
 }
 
 // Status pesanan ikut rencana: ada rencana = dijadwalkan, tidak ada = menunggu (yang sudah berjalan dibiarkan)
@@ -182,6 +232,6 @@ export const entryLabel = (e: { tanggal: string; shift: number; item_name: strin
   `${e.tanggal} Shift ${e.shift} · ${e.item_name} ${e.quantity.toLocaleString('id-ID')}${e.unit ? ` ${e.unit}` : ''}`
 
 export const entryColumns = (e: EntryInput) => ({
-  tanggal: e.tanggal, shift: e.shift, sumber: e.sumber, job_id: e.job_id, item_accurate_id: e.item_accurate_id, item_no: e.item_no, item_name: e.item_name,
+  tanggal: e.tanggal, shift: e.shift, sumber: e.sumber, job_id: e.job_id, sample_id: e.sample_id, sample_item_id: e.sample_item_id, item_accurate_id: e.item_accurate_id, item_no: e.item_no, item_name: e.item_name,
   customer_name: e.customer_name, so_number: e.so_number, quantity: e.quantity, unit: e.unit, unit_price: e.unit_price, catatan: e.catatan, capacity_id: e.capacity_id,
 })
