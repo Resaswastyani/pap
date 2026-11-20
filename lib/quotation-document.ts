@@ -73,7 +73,7 @@ export function quotationDocumentHtml({ q, items, doc, signatures }: Awaited<Ret
   <td class="logo"><img src="${esc(logoSrc)}" alt="" width="120"></td>
   <td><h1>${esc(perusahaan)}</h1><p>Flexible Plastic Packaging Manufacture</p>${doc.alamat ? `<p>${esc(doc.alamat)}</p>` : ''}${telepon.length ? `<p>Telp/WA: ${telepon.map(esc).join(' · ')}</p>` : ''}${doc.email ? `<p>${esc(doc.email)}</p>` : ''}</td>
 </tr></tbody></table>
-<p class="pap-sheet-date">${doc.kota ? `${esc(doc.kota)}, ` : ''}${tanggal(tanggalDok)}${jenis === 'penawaran' ? `<br>Berlaku s/d ${tanggal(q.berlaku_sampai)}` : ''}</p>
+<p class="pap-sheet-date">${doc.kota ? `${esc(doc.kota)}, ` : ''}${tanggal(tanggalDok)}</p>
 <h2 class="pap-sheet-title">${JUDUL[jenis]}</h2>
 ${QUOTATION_APPROVAL_REQUIRED && jenis === 'penawaran' && q.status === 'draft' && q.approval !== 'disetujui' ? '<p class="pap-sheet-draft">DRAFT — belum disetujui Kepala Marketing / GM, jangan dikirim ke customer</p>' : ''}
 <table class="pap-sheet-meta"><tbody>
