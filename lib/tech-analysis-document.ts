@@ -33,7 +33,8 @@ export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, l
   const frek = a.frekuensi === 'sekali' ? 'Hanya 1x order' : a.frekuensi === 'rutin' ? `Order rutin per ${a.rutin_bulan ?? '…'} bulan` : 'Hanya 1x Order / Order Rutin per …. Bln'
   const used = a.proses.filter((p) => p.dipakai)
   const totalProd = used.reduce((s, p) => s + (p.produktivitas ?? 0), 0)
-  const paraf = (name: string | null, at: string | null) => (name ? `<b>${esc(name)}</b>, ${tgl(at)}` : '<span class="ta1-blank short">&nbsp;</span>')
+  // Nama penandatangan di bawah garis tanda tangan (kosong = ruang isi tangan)
+  const sign = (name: string | null) => (name ? `<b>${esc(name)}</b>` : '<span class="ta1-muted">( ........................................ )</span>')
 
   return `<div class="pap-sheet pap-ta ta-v1">
 <table class="pap-sheet-head"><tbody><tr>
@@ -72,17 +73,30 @@ export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, l
   ${used.length ? `<tfoot><tr><td></td><td colspan="3"><b>${used.length} proses dipakai</b></td><td class="r"><b>${totalProd ? n(totalProd) : ''}</b></td></tr></tfoot>` : ''}
 </table>
 
+</div>
+<br class="ta1-pb" clear="all" style="page-break-before:always">
+<div class="pap-sheet pap-ta ta-v1 ta1-page2">
+<table class="ta1-p2head"><tbody><tr>
+  <td><b>Analisa Aspek Tehnik Atas Rencana Order Baru / Spec Baru</b><div class="ta1-muted">${esc(a.nama_produk)} · ${esc(a.nama_customer)}</div></td>
+  <td class="no">No. <b>${esc(a.nomor)}</b><div class="ta1-muted">Halaman 2</div></td>
+</tr></tbody></table>
+
+<p class="ta1-h">Kesimpulan Analisa Tehnis Produksi dan Rekomendasi dari Dept Tehnik</p>
 <table class="ta1-concl"><tbody>
-  <tr class="hd"><td colspan="2"><b>Kesimpulan Analisa Tehnis Produksi dan Rekomendasi dari Dept Tehnik</b></td><td class="paraf">Tanggal &amp; Paraf = ${paraf(a.teknik_name, a.teknik_at)}</td></tr>
-  <tr><td class="no">1</td><td colspan="2"><b>Bisa / Tidak Bisa Diproduksi dengan Produktivitas yg optimal</b> = ${a.bisa_produksi ? esc(BISA_LABEL[a.bisa_produksi]) : '<span class="ta1-muted">&#9744; Bisa &nbsp; &#9744; Bisa bersyarat &nbsp; &#9744; Tidak bisa</span>'}<div class="exp">Penjelasan = ${val(br(a.penjelasan_produksi))}</div></td></tr>
-  <tr><td class="no">2</td><td colspan="2"><b>Tingkat Kesulitan untuk memenuhi Kwalitas</b> = ${a.kesulitan_kualitas ? esc(KUALITAS_LABEL[a.kesulitan_kualitas]) : '<span class="ta1-muted">&#9744; Mudah &nbsp; &#9744; Sedang &nbsp; &#9744; Sulit</span>'}<div class="exp">Penjelasan = ${val(br(a.penjelasan_kualitas))}</div></td></tr>
-  <tr><td class="no">3</td><td colspan="2"><b>Catatan2 Penting Lainnya</b><div class="exp">${val(br(a.catatan_lain))}</div></td></tr>
+  <tr><td class="no">1</td><td><b>Bisa / Tidak Bisa Diproduksi dengan Produktivitas yg optimal</b> = ${a.bisa_produksi ? esc(BISA_LABEL[a.bisa_produksi]) : '<span class="ta1-muted">&#9744; Bisa &nbsp; &#9744; Bisa bersyarat &nbsp; &#9744; Tidak bisa</span>'}<div class="exp">Penjelasan = ${val(br(a.penjelasan_produksi))}</div></td></tr>
+  <tr><td class="no">2</td><td><b>Tingkat Kesulitan untuk memenuhi Kwalitas</b> = ${a.kesulitan_kualitas ? esc(KUALITAS_LABEL[a.kesulitan_kualitas]) : '<span class="ta1-muted">&#9744; Mudah &nbsp; &#9744; Sedang &nbsp; &#9744; Sulit</span>'}<div class="exp">Penjelasan = ${val(br(a.penjelasan_kualitas))}</div></td></tr>
+  <tr><td class="no">3</td><td><b>Catatan2 Penting Lainnya</b><div class="exp">${val(br(a.catatan_lain))}</div></td></tr>
 </tbody></table>
 
-<table class="ta1-rek"><tbody><tr>
-  <td><b>Rekomendasi dari Direksi</b> = ${val(br(a.rekomendasi_direksi))}</td>
-  <td class="paraf">Tanggal &amp; Paraf = ${paraf(a.direksi_name, a.direksi_at)}</td>
-</tr></tbody></table>
+<p class="ta1-h">Rekomendasi dari Direksi</p>
+<table class="ta1-rek"><tbody><tr><td>${val(br(a.rekomendasi_direksi))}</td></tr></tbody></table>
+
+<table class="ta1-sign"><tbody>
+  <tr class="role"><td>Dibuat oleh,<div>Dept Marketing</div></td><td>Dianalisa oleh,<div>Dept Tehnik</div></td><td>Rekomendasi,<div>Direksi</div></td></tr>
+  <tr class="space"><td>${a.tanggal_serah ? '<span class="ta1-stamp">Diserahkan</span>' : '&nbsp;'}</td><td>${a.teknik_name ? '<span class="ta1-stamp">Diparaf digital</span>' : '&nbsp;'}</td><td>${a.direksi_name ? '<span class="ta1-stamp">Diparaf digital</span>' : '&nbsp;'}</td></tr>
+  <tr class="name"><td>${sign(a.created_name)}</td><td>${sign(a.teknik_name)}</td><td>${sign(a.direksi_name)}</td></tr>
+  <tr class="date"><td>Tanggal: ${tgl(a.tanggal_serah) || '……………………'}</td><td>Tanggal: ${tgl(a.teknik_at) || '……………………'}</td><td>Tanggal: ${tgl(a.direksi_at) || '……………………'}</td></tr>
+</tbody></table>
 </div>`
 }
 
@@ -121,6 +135,16 @@ body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #1b1d2e; }
 .ta1-concl td.no { width: 14pt; text-align: right; font-weight: bold; }
 .ta1-concl td.paraf, .ta1-rek td.paraf { width: 32%; }
 .ta1-concl .exp { margin-top: 2pt; color: #333; }
-.ta1-rek { width: 100%; border-collapse: collapse; margin-top: 10pt; }
-.ta1-rek td { padding: 6pt 5pt; border-top: 1.5pt solid #1f2a5a; border-bottom: 1px solid #e3e5ee; vertical-align: top; font-size: 10pt; }
+.ta1-p2head { width: 100%; border-collapse: collapse; border-bottom: 1.5pt solid #1f2a5a; margin-bottom: 10pt; }
+.ta1-p2head td { padding: 0 0 4pt; vertical-align: bottom; }
+.ta1-p2head td.no { width: 28%; text-align: right; }
+.ta1-rek { width: 100%; border-collapse: collapse; }
+.ta1-rek td { height: 60pt; padding: 6pt; border: 1px solid #9aa0b4; vertical-align: top; }
+.ta1-sign { width: 100%; border-collapse: collapse; margin-top: 18pt; }
+.ta1-sign td { width: 33%; padding: 2pt 10pt; text-align: center; vertical-align: top; }
+.ta1-sign tr.role div { color: #666; font-size: 8.5pt; }
+.ta1-sign tr.space td { height: 56pt; vertical-align: middle; }
+.ta1-sign tr.name td { border-top: 1px solid #1b1d2e; padding-top: 3pt; }
+.ta1-sign tr.date td { color: #555; font-size: 8.5pt; }
+.ta1-stamp { padding: 1pt 6pt; border: 1px dashed #12a37a; color: #0b7a5a; font-size: 8pt; }
 `

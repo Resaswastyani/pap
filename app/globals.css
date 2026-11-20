@@ -3336,3 +3336,25 @@ a.pap-row-action { text-decoration:none; }
   .ta-v1 .ta1-proc th, .ta-v1 .ta1-proc tr.on td, .ta-v1 .ta1-spec tr.grp td { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .ta-v1 .ta1-proc tr, .ta-v1 .ta1-concl tr { break-inside:avoid; }
 }
+
+/* Analisa Teknik halaman 2: kesimpulan, rekomendasi Direksi & tanda tangan */
+.ta1-pb { display:none; }
+.pap-print .pap-sheet.ta1-page2 { margin-top:18px; }
+@media print { .pap-sheet.ta1-page2 { margin-top:0; break-before:page; page-break-before:always; } }
+.ta-v1 .ta1-p2head { width:100%; margin-bottom:14px; border-bottom:2px solid #1f2a5a; }
+.ta-v1 .ta1-p2head td { padding:0 0 6px; vertical-align:bottom; }
+.ta-v1 .ta1-p2head td.no { width:28%; text-align:right; }
+.ta-v1 .ta1-page2 .ta1-concl { margin-top:0; }
+.ta-v1 .ta1-rek { width:100%; margin-top:0; }
+.ta-v1 .ta1-rek td { height:90px; padding:8px 10px; border:1px solid #9aa0b4; border-radius:0; vertical-align:top; font-size:12px; }
+.ta-v1 .ta1-sign { width:100%; margin-top:28px; table-layout:fixed; }
+.ta-v1 .ta1-sign td { padding:2px 14px; text-align:center; vertical-align:top; }
+.ta-v1 .ta1-sign tr.role td { font-weight:700; }
+.ta-v1 .ta1-sign tr.role div { color:#5f6478; font-size:11px; font-weight:400; }
+.ta-v1 .ta1-sign tr.space td { height:78px; vertical-align:middle; }
+.ta-v1 .ta1-sign tr.name td { padding-top:5px; border-top:1px solid #1b1d2e; background-clip:content-box; }
+.ta-v1 .ta1-sign tr.name td { border-top:0; }
+.ta-v1 .ta1-sign tr.name td > * { display:inline-block; min-width:80%; padding-top:5px; border-top:1px solid #1b1d2e; }
+.ta-v1 .ta1-sign tr.date td { color:#5f6478; font-size:11px; }
+.ta-v1 .ta1-stamp { padding:2px 8px; border:1px dashed #12a37a; border-radius:6px; color:#0b7a5a; font-size:10.5px; font-weight:700; }
+@media print { .ta-v1 .ta1-sign { break-inside:avoid; } }
