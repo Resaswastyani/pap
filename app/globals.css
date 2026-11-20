@@ -3085,3 +3085,10 @@ button.pap-ap-gantt-label { cursor:pointer; }
   .pap-doc-preview .pap-modal-foot .pap-primary-button { flex:1; justify-content:center; }
 }
 .pap-plan-shift > .pap-shift-chip { align-self:flex-start; width:auto; }
+
+/* Lampiran: tempel screenshot (Ctrl+V) & pratinjau gambar */
+.pap-paste-hint { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 12px; border:1.5px dashed rgb(124 92 252 / .45); border-radius:10px; background:rgb(124 92 252 / .05); color:var(--pap-muted); font-size:12.5px; }
+.pap-paste-hint svg { width:16px; height:16px; color:#7050e7; flex:none; }
+.pap-paste-hint kbd, .pap-paste-note kbd { padding:1px 6px; border:1px solid var(--pap-border); border-bottom-width:2px; border-radius:5px; background:var(--pap-surface); font:600 11px/1.4 inherit; color:var(--pap-text); }
+.pap-attach-thumb { width:40px; height:40px; object-fit:cover; border-radius:6px; border:1px solid var(--pap-border); flex:none; }
+.pap-paste-note { margin:0 0 8px; font-size:12px; }
