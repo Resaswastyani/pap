@@ -3258,3 +3258,27 @@ a.pap-row-action { text-decoration:none; }
   .ta-v2 .ta-proc th, .ta-v2 .ta-sec-no, .ta-v2 .ta-check.on, .ta-v2 .ta-badge, .ta-v2 .ta-qno, .ta-v2 .ta-proc tr.on td, .ta-v2 .ta-sec-title, .ta-v2 .ta-spec td.k, .ta-v2 .ta-concl td.q { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .ta-v2 .ta-proc tr, .ta-v2 .ta-concl tr, .ta-v2 .ta-sign { break-inside:avoid; }
 }
+
+/* Lembar Analisa Teknik di layar HP / tablet kecil: tata letak mengalir (bukan A4 diperkecil); cetak tetap A4 */
+.ta-v2 .ta-title { font-weight:800; }
+@media screen and (max-width:820px) {
+  .pap-print .pap-sheet.ta-v2 { width:auto; max-width:100%; zoom:1; padding:20px 14px; font-size:12.5px; }
+  .ta-v2 .pap-sheet-head td.logo img { width:72px; height:auto; }
+  .ta-v2 .pap-sheet-head h1 { font-size:16px; }
+  .ta-v2 .ta-titlebar, .ta-v2 .ta-titlebar tbody, .ta-v2 .ta-titlebar tr, .ta-v2 .ta-titlebar > tbody > tr > td { display:block; width:100%; }
+  .ta-v2 .ta-meta-cell { margin-top:10px; }
+  .ta-v2 .ta-title { font-size:21px; }
+  .ta-v2 .ta-spec, .ta-v2 .ta-spec tbody { display:block; width:100%; }
+  .ta-v2 .ta-spec tr { display:grid; grid-template-columns:minmax(96px,36%) minmax(0,1fr); }
+  .ta-v2 .ta-spec td.k, .ta-v2 .ta-spec td.v { width:auto; }
+  .ta-v2 .ta-spec td[colspan] { grid-column:2; }
+  .ta-v2 .ta-proc { display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .ta-v2 .ta-proc td.m { min-width:170px; }
+  .ta-v2 .ta-proc th, .ta-v2 .ta-proc td { white-space:nowrap; }
+  .ta-v2 .ta-proc td:nth-child(5) { white-space:normal; min-width:140px; }
+  .ta-v2 .ta-concl, .ta-v2 .ta-concl tbody, .ta-v2 .ta-concl tr, .ta-v2 .ta-concl td { display:block; width:100% !important; }
+  .ta-v2 .ta-concl td.q { border-bottom:0; }
+  .ta-v2 .ta-sign td { padding:3px 4px; font-size:11px; }
+  .ta-v2 .ta-sign-name td + td { border-left-width:6px; }
+  .ta-v2 .ta-sec-title span { display:block; margin-left:0; }
+}
