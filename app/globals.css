@@ -3366,3 +3366,8 @@ a.pap-row-action { text-decoration:none; }
 .pap-quote-prospect > .pap-combo { flex:1; min-width:0; }
 .pap-quote-prospect > .pap-btn { flex:none; white-space:nowrap; }
 .pap-quote-options { display:flex; flex-direction:column; align-items:flex-start; gap:10px; }
+
+/* Quotation: diskon (% / Rp) */
+.pap-quote-diskon { display:flex; gap:6px; }
+.pap-quote-diskon .pap-select { flex:none; width:72px; }
+.pap-quote-diskon .pap-input { flex:1; min-width:0; }

@@ -21,7 +21,7 @@ export async function quotationHash(quotationId: number, user: UserProfile) {
 function hashOf(q: Awaited<ReturnType<typeof loadQuotation>>, items: Awaited<ReturnType<typeof loadQuotationItems>>) {
   const content = {
     nomor: q.nomor, tanggal: String(q.tanggal).slice(0, 10), berlaku: String(q.berlaku_sampai).slice(0, 10), kepada: q.kepada, kontak: q.kontak ?? '', alamat: q.alamat ?? '',
-    ppn: q.pakai_ppn ? Number(q.ppn_persen) : 0, ...(q.pakai_ongkir ? { ongkir_per_kg: Number(q.ongkir_per_kg), ...(q.ongkir_berat_kg ? { ongkir_berat_kg: Number(q.ongkir_berat_kg) } : {}) } : {}), subtotal: Number(q.subtotal), total: Number(q.total), syarat: q.syarat ?? '',
+    ppn: q.pakai_ppn ? Number(q.ppn_persen) : 0, ...(q.pakai_ongkir ? { ongkir_per_kg: Number(q.ongkir_per_kg), ...(q.ongkir_berat_kg ? { ongkir_berat_kg: Number(q.ongkir_berat_kg) } : {}) } : {}), ...(q.pakai_diskon ? { diskon: Number(q.diskon), diskon_tipe: q.diskon_tipe, diskon_nilai: Number(q.diskon_nilai) } : {}), subtotal: Number(q.subtotal), total: Number(q.total), syarat: q.syarat ?? '',
     items: items.map((i) => [i.nama_produk, i.spesifikasi ?? '', Number(i.qty), i.satuan, Number(i.harga_satuan)]),
   }
   return createHash('sha256').update(JSON.stringify(content)).digest('hex')

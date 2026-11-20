@@ -24,7 +24,7 @@ const ApprovalBadge = ({ q, show = true }: { q: Pick<Quotation, 'status' | 'appr
 
 type Quotation = {
   id: number; nomor: string; prospect_id: number | null; customer_id: number | null; kepada: string; kontak: string | null; telepon: string | null; whatsapp: string | null
-  alamat: string | null; tanggal: string; berlaku_hari: number; berlaku_sampai: string; status: Status; pakai_ppn: boolean; ppn_persen: number; pakai_ongkir?: boolean; ongkir_per_kg?: number | null; ongkir_berat_kg?: number | null; ongkir_kirim?: number
+  alamat: string | null; tanggal: string; berlaku_hari: number; berlaku_sampai: string; status: Status; pakai_ppn: boolean; ppn_persen: number; pakai_diskon?: boolean; diskon_tipe?: 'persen' | 'nominal'; diskon_nilai?: number | null; diskon?: number; pakai_ongkir?: boolean; ongkir_per_kg?: number | null; ongkir_berat_kg?: number | null; ongkir_kirim?: number
   subtotal: number; ppn: number; total: number; syarat: string | null; catatan: string | null; alasan: string | null; created_by: number
   created_name: string; sent_at: string | null; created_at: string; prospect_name: string | null; customer_no: string | null; item_count: number
   order_nomor: string | null; proforma_nomor: string | null; tanggal_kirim: string | null; dp_persen: number | null; expedition_id: number | null
@@ -191,6 +191,7 @@ export function QuotationForm({ user, edit, copy, prefill, onClose, onSaved }: {
     kepada: base?.kepada ?? pp?.nama_usaha ?? '', kontak: base?.kontak ?? pp?.kontak_nama ?? '', telepon: base?.telepon ?? '', whatsapp: base?.whatsapp ?? pp?.telepon ?? '',
     alamat: base?.alamat ?? [pp?.alamat, pp?.kota].filter(Boolean).join(', '), tanggal: edit?.tanggal ?? today(), berlaku_hari: String(base?.berlaku_hari ?? 14),
     syarat: base?.syarat ?? '', catatan: base?.catatan ?? '', pakai_ppn: base ? base.pakai_ppn : true,
+    pakai_diskon: !!base?.pakai_diskon, diskon_tipe: (base?.diskon_tipe ?? 'persen') as 'persen' | 'nominal', diskon_nilai: base?.diskon_nilai ? String(base.diskon_nilai) : '',
     pakai_ongkir: !!base?.pakai_ongkir, ongkir_per_kg: base?.ongkir_per_kg ? String(base.ongkir_per_kg) : '',
     // Kosong = otomatis dari jumlah produk bersatuan kg
     ongkir_berat_kg: base?.ongkir_berat_kg ? String(base.ongkir_berat_kg) : '',
@@ -226,7 +227,10 @@ export function QuotationForm({ user, edit, copy, prefill, onClose, onSaved }: {
   const update = (key: string, patch: Partial<FormItem>) => setItems((list) => list.map((it) => (it.key === key ? { ...it, ...patch } : it)))
   const subtotal = items.reduce((n, it) => n + toNum(it.qty) * toNum(it.harga_satuan), 0)
   const ppnPersen = data?.params.ppn_persen ?? 11
-  const ppn = values.pakai_ppn ? Math.round(subtotal * ppnPersen) / 100 : 0
+  // Diskon (persen / nominal) dari subtotal; PPN dari harga setelah diskon
+  const diskon = !values.pakai_diskon ? 0 : values.diskon_tipe === 'persen' ? Math.round(subtotal * Math.min(100, toNum(values.diskon_nilai))) / 100 : Math.min(subtotal, toNum(values.diskon_nilai))
+  const setelahDiskon = subtotal - diskon
+  const ppn = values.pakai_ppn ? Math.round(setelahDiskon * ppnPersen) / 100 : 0
   // Ongkos kirim = tarif per kg x berat kiriman (default: total produk bersatuan kg), dijumlahkan ke total
   const beratAuto = items.filter((it) => it.satuan === 'kg').reduce((n, it) => n + toNum(it.qty), 0)
   const beratKirim = toNum(values.ongkir_berat_kg) || beratAuto
@@ -239,7 +243,7 @@ export function QuotationForm({ user, edit, copy, prefill, onClose, onSaved }: {
     setError('')
     try {
       const payload = {
-        ...values, ...target, berlaku_hari: Number(values.berlaku_hari) || 14, telepon_kop: teleponKop, ongkir_per_kg: values.pakai_ongkir ? toNum(values.ongkir_per_kg) : null, ongkir_berat_kg: values.pakai_ongkir ? beratKirim : null,
+        ...values, ...target, berlaku_hari: Number(values.berlaku_hari) || 14, telepon_kop: teleponKop, ongkir_per_kg: values.pakai_ongkir ? toNum(values.ongkir_per_kg) : null, ongkir_berat_kg: values.pakai_ongkir ? beratKirim : null, diskon_nilai: values.pakai_diskon ? toNum(values.diskon_nilai) : null,
         items: items.map((it) => ({ product_id: it.product_id, nama_produk: it.nama_produk, spesifikasi: it.spesifikasi, qty: it.qty, satuan: it.satuan, harga_satuan: it.harga_satuan })),
       }
       if (edit) {
@@ -276,7 +280,7 @@ export function QuotationForm({ user, edit, copy, prefill, onClose, onSaved }: {
       subtitle="Isi produk, spesifikasi, jumlah, dan harga secara manual."
       wide
       onClose={onClose}
-      footer={<><span className="pap-quote-total">Total: <b>{rupiah(subtotal + ppn + ongkirTotal)}</b></span><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="quotation-form" className="pap-primary-button" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan draft'}</button></>}
+      footer={<><span className="pap-quote-total">Total: <b>{rupiah(setelahDiskon + ppn + ongkirTotal)}</b></span><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="quotation-form" className="pap-primary-button" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan draft'}</button></>}
     >
       {(error || loadError) && <Notice onClose={() => setError('')}>{error || loadError}</Notice>}
       {notice && <Notice kind="success" onClose={() => setNotice('')}>{notice}</Notice>}
@@ -349,6 +353,13 @@ export function QuotationForm({ user, edit, copy, prefill, onClose, onSaved }: {
             const ppn = e.target.checked
             setValues((v) => ({ ...v, pakai_ppn: ppn }))
           }} /><span>Kenakan PPN {ppnPersen}%</span></label>
+          <label className="pap-check"><input type="checkbox" checked={values.pakai_diskon} onChange={(e) => { const on = e.target.checked; setValues((v) => ({ ...v, pakai_diskon: on })) }} /><span>Diskon</span></label>
+          {values.pakai_diskon && (
+            <div className="pap-quote-ongkir"><span>Besar diskon *</span><div className="pap-quote-diskon">
+              <select className="pap-select" aria-label="Jenis diskon" value={values.diskon_tipe} onChange={(e) => { const t = e.target.value as 'persen' | 'nominal'; setValues((v) => ({ ...v, diskon_tipe: t })) }}><option value="persen">%</option><option value="nominal">Rp</option></select>
+              <input className="pap-input" inputMode="decimal" required value={values.diskon_nilai} onChange={(e) => setValues((v) => ({ ...v, diskon_nilai: e.target.value.replace(/[^\d.,]/g, '') }))} placeholder={values.diskon_tipe === 'persen' ? 'mis. 5' : 'mis. 50000'} aria-label="Besar diskon" />
+            </div><small className="pap-muted">Dipotong dari subtotal; PPN dihitung dari harga setelah diskon.</small></div>
+          )}
           <label className="pap-check"><input type="checkbox" checked={values.pakai_ongkir} onChange={(e) => { const on = e.target.checked; setValues((v) => ({ ...v, pakai_ongkir: on })) }} /><span>Ongkos kirim</span></label>
           {values.pakai_ongkir && (
             <label className="pap-quote-ongkir"><span>Harga ongkir per kg (Rp) *</span><input className="pap-input" inputMode="decimal" required autoFocus value={values.ongkir_per_kg} onChange={(e) => setValues((v) => ({ ...v, ongkir_per_kg: e.target.value.replace(/[^\d.,]/g, '') }))} placeholder="mis. 1500" /></label>
@@ -357,7 +368,7 @@ export function QuotationForm({ user, edit, copy, prefill, onClose, onSaved }: {
             <label className="pap-quote-ongkir"><span>Berat kiriman (kg) *</span><input className="pap-input" inputMode="decimal" value={values.ongkir_berat_kg} onChange={(e) => setValues((v) => ({ ...v, ongkir_berat_kg: e.target.value.replace(/[^\d.,]/g, '') }))} placeholder={beratAuto ? `${kgText(beratAuto)} (otomatis dari produk kg)` : 'mis. 100'} required={!beratAuto} /><small className="pap-muted">{beratAuto && !values.ongkir_berat_kg ? 'Otomatis dari jumlah produk bersatuan kg; isi bila berbeda.' : 'Isi perkiraan berat total kiriman.'} Ongkir dijumlahkan ke total.</small></label>
           )}
           </div>
-          <dl><dt>Subtotal</dt><dd>{rupiah(subtotal)}</dd>{values.pakai_ppn && <><dt>PPN {ppnPersen}%</dt><dd>{rupiah(ppn)}</dd></>}{values.pakai_ongkir && toNum(values.ongkir_per_kg) > 0 && <><dt>Ongkos kirim<small> {rupiah(toNum(values.ongkir_per_kg))}/kg × {kgText(beratKirim)} kg</small></dt><dd>{rupiah(ongkirTotal)}</dd></>}<dt className="grand">Total</dt><dd className="grand">{rupiah(subtotal + ppn + ongkirTotal)}</dd></dl>
+          <dl><dt>Subtotal</dt><dd>{rupiah(subtotal)}</dd>{values.pakai_diskon && diskon > 0 && <><dt>Diskon{values.diskon_tipe === 'persen' ? ` ${toNum(values.diskon_nilai)}%` : ''}</dt><dd>- {rupiah(diskon)}</dd><dt>Harga setelah diskon</dt><dd>{rupiah(setelahDiskon)}</dd></>}{values.pakai_ppn && <><dt>PPN {ppnPersen}%</dt><dd>{rupiah(ppn)}</dd></>}{values.pakai_ongkir && toNum(values.ongkir_per_kg) > 0 && <><dt>Ongkos kirim<small> {rupiah(toNum(values.ongkir_per_kg))}/kg × {kgText(beratKirim)} kg</small></dt><dd>{rupiah(ongkirTotal)}</dd></>}<dt className="grand">Total</dt><dd className="grand">{rupiah(setelahDiskon + ppn + ongkirTotal)}</dd></dl>
         </div>
         <Field label="Telepon / WA perusahaan di kop surat (bisa lebih dari satu)" full>
           <MultiSelect options={teleponOptions} value={teleponKop} onChange={setTeleponKop} empty="Belum ada nomor di Template dokumen" placeholder="Semua nomor di Template dokumen" />
@@ -577,7 +588,7 @@ function QuotationDetail({ id, userName, autoEdit = false, onClose, onChanged, o
       </div>
       <div className="pap-quote-totals">
         <span />
-        <dl><dt>Subtotal</dt><dd>{rupiah(item.subtotal)}</dd>{item.pakai_ppn && <><dt>PPN {item.ppn_persen}%</dt><dd>{rupiah(item.ppn)}</dd></>}{item.pakai_ongkir && item.ongkir_per_kg ? (item.ongkir_kirim ? <><dt>Ongkos kirim<small> {rupiah(item.ongkir_per_kg)}/kg × {Number(item.ongkir_berat_kg).toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</small></dt><dd>{rupiah(item.ongkir_kirim)}</dd></> : <><dt>Ongkos kirim</dt><dd>{rupiah(item.ongkir_per_kg)} / kg</dd></>) : null}<dt className="grand">Total</dt><dd className="grand">{rupiah(item.total)}</dd></dl>
+        <dl><dt>Subtotal</dt><dd>{rupiah(item.subtotal)}</dd>{item.pakai_diskon && item.diskon ? <><dt>Diskon{item.diskon_tipe === 'persen' ? ` ${Number(item.diskon_nilai).toLocaleString('id-ID', { maximumFractionDigits: 2 })}%` : ''}</dt><dd>- {rupiah(item.diskon)}</dd><dt>Harga setelah diskon</dt><dd>{rupiah(item.subtotal - item.diskon)}</dd></> : null}{item.pakai_ppn && <><dt>PPN {item.ppn_persen}%</dt><dd>{rupiah(item.ppn)}</dd></>}{item.pakai_ongkir && item.ongkir_per_kg ? (item.ongkir_kirim ? <><dt>Ongkos kirim<small> {rupiah(item.ongkir_per_kg)}/kg × {Number(item.ongkir_berat_kg).toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</small></dt><dd>{rupiah(item.ongkir_kirim)}</dd></> : <><dt>Ongkos kirim</dt><dd>{rupiah(item.ongkir_per_kg)} / kg</dd></>) : null}<dt className="grand">Total</dt><dd className="grand">{rupiah(item.total)}</dd></dl>
       </div>
       {item.syarat && <section className="pap-detail-section"><h3>Syarat & ketentuan</h3><p className="pap-prewrap">{item.syarat}</p></section>}
       {item.catatan && <section className="pap-detail-section"><h3>Catatan internal</h3><p className="pap-prewrap">{item.catatan}</p></section>}

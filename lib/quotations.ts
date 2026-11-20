@@ -42,6 +42,8 @@ const toNumbers = (q: RowDataPacket): RowDataPacket => ({
   ...q,
   subtotal: Number(q.subtotal), ppn: Number(q.ppn), total: Number(q.total), ppn_persen: Number(q.ppn_persen),
   item_count: Number(q.item_count ?? 0), pakai_ppn: !!q.pakai_ppn,
+  pakai_diskon: !!q.pakai_diskon, diskon_tipe: q.diskon_tipe === 'nominal' ? 'nominal' : 'persen',
+  diskon_nilai: q.diskon_nilai === null || q.diskon_nilai === undefined ? null : Number(q.diskon_nilai), diskon: Number(q.diskon ?? 0),
   pakai_ongkir: !!q.pakai_ongkir, ongkir_per_kg: q.ongkir_per_kg === null || q.ongkir_per_kg === undefined ? null : Number(q.ongkir_per_kg),
   ongkir_berat_kg: q.ongkir_berat_kg === null || q.ongkir_berat_kg === undefined ? null : Number(q.ongkir_berat_kg),
   // Ongkos kirim penawaran (tarif per kg x berat) yang sudah termasuk dalam total; 0 = tidak ada / penawaran lama (per kg saja)
@@ -108,7 +110,16 @@ export async function readQuotationInput(body: Record<string, unknown>, user: Us
   const subtotal = items.reduce((n, it) => n + it.subtotal, 0)
   const pakaiPpn = body.pakai_ppn !== false
   const ppnPersen = params.ppn_persen
-  const ppn = pakaiPpn ? Math.round(subtotal * ppnPersen) / 100 : 0
+  // Diskon (persen / nominal Rp) dari subtotal; PPN dihitung dari harga setelah diskon
+  const pakaiDiskon = body.pakai_diskon === true
+  const diskonTipe = body.diskon_tipe === 'nominal' ? 'nominal' : 'persen'
+  const diskonNilai = pakaiDiskon ? toNumber(body.diskon_nilai) : null
+  if (pakaiDiskon && (!diskonNilai || diskonNilai <= 0)) fail(400, 'Isi besar diskon (atau hilangkan centang Diskon).')
+  if (pakaiDiskon && diskonTipe === 'persen' && diskonNilai! > 100) fail(400, 'Diskon persen maksimal 100%.')
+  if (pakaiDiskon && diskonTipe === 'nominal' && diskonNilai! > subtotal) fail(400, 'Diskon tidak boleh lebih besar dari subtotal.')
+  const diskon = !pakaiDiskon ? 0 : diskonTipe === 'persen' ? Math.round(subtotal * diskonNilai!) / 100 : diskonNilai!
+  const setelahDiskon = subtotal - diskon
+  const ppn = pakaiPpn ? Math.round(setelahDiskon * ppnPersen) / 100 : 0
   // Ongkos kirim per kg: bila dicentang wajib diisi (> 0)
   const pakaiOngkir = body.pakai_ongkir === true
   const ongkirPerKg = pakaiOngkir ? toNumber(body.ongkir_per_kg) : null
@@ -123,7 +134,8 @@ export async function readQuotationInput(body: Record<string, unknown>, user: Us
       prospect_id: prospectId, customer_id: customerId, kepada,
       kontak: str(body.kontak, 150) || null, telepon: str(body.telepon, 40) || null, whatsapp: str(body.whatsapp, 40) || null, alamat: str(body.alamat, 500) || null,
       tanggal, berlaku_hari: berlaku, pakai_ppn: pakaiPpn ? 1 : 0, ppn_persen: ppnPersen, pakai_ongkir: pakaiOngkir ? 1 : 0, ongkir_per_kg: ongkirPerKg, ongkir_berat_kg: ongkirBerat,
-      subtotal, ppn, total: subtotal + ppn + ongkirTotal,
+      subtotal, pakai_diskon: pakaiDiskon ? 1 : 0, diskon_tipe: pakaiDiskon ? diskonTipe : null, diskon_nilai: diskonNilai, diskon,
+      ppn, total: setelahDiskon + ppn + ongkirTotal,
       syarat: str(body.syarat, 5000) || null, rekening: str(body.rekening, 255) || null, catatan: str(body.catatan, 5000) || null,
       // Nomor Telepon / WA perusahaan yang dicetak di kop (satu per baris)
       telepon_kop: (Array.isArray(body.telepon_kop) ? body.telepon_kop.map((v) => str(v, 150)).filter(Boolean).join('\n') : '').slice(0, 1000) || null,

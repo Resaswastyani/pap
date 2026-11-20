@@ -56,6 +56,7 @@ export function quotationDocumentHtml({ q, items, doc, signatures }: Awaited<Ret
   const sign = (title: string, name: string, org: string, ttd?: QuotationSignature) => ttd
     ? `<td><p>${esc(title)}</p><div class="sig"><img src="${esc(`${origin}/api/ttd/${ttd.token}`)}" alt="Tanda tangan ${esc(ttd.nama)}" height="72"></div><p><b>${esc(ttd.nama)}</b></p>${ttd.jabatan ? `<p>${esc(ttd.jabatan)}</p>` : ''}<p>${esc(org)}</p><p class="sig-note">Ditandatangani secara digital ${esc(signedAt(ttd.signed_at))}<br>Verifikasi: ${esc(`${verifyBase}/verifikasi/ttd/${ttd.token}`)}</p></td>`
     : `<td><p>${esc(title)}</p><div class="space">&nbsp;</div><p><b>${esc(name)}</b></p><p>${esc(org)}</p></td>`
+  const pct = (n: number | null) => Number(n ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })
   const kg = (n: number | null) => Number(n ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })
   const total = (label: string, value: string, grandRow = false) => `<tr${grandRow ? ' class="grand"' : ''}><td colspan="4" class="r">${esc(label)}</td><td class="r">${esc(value)}</td></tr>`
   const pembuka = {
@@ -93,6 +94,7 @@ ${QUOTATION_APPROVAL_REQUIRED && jenis === 'penawaran' && q.status === 'draft' &
   <tbody>${items.map((it, i) => `<tr><td class="c">${i + 1}</td><td><b>${esc(it.nama_produk)}</b>${it.spesifikasi ? `<div class="spec">${esc(it.spesifikasi)}</div>` : ''}</td><td class="r">${it.qty.toLocaleString('id-ID')} ${esc(it.satuan)}</td><td class="r">${rp(it.harga_satuan, it.harga_satuan % 1 ? 2 : 0)}</td><td class="r">${rp(it.subtotal)}</td></tr>`).join('')}</tbody>
   <tfoot>
     ${total('Subtotal', rp(q.subtotal))}
+    ${q.pakai_diskon && q.diskon > 0 ? total(`Diskon${q.diskon_tipe === 'persen' ? ` ${pct(q.diskon_nilai)}%` : ''}`, `- ${rp(q.diskon)}`) + total('Harga setelah diskon', rp(q.subtotal - q.diskon)) : ''}
     ${q.pakai_ppn ? total(`PPN ${q.ppn_persen}%`, rp(q.ppn)) : ''}
     ${q.pakai_ongkir && q.ongkir_per_kg ? (q.ongkir_kirim > 0
       ? total(`Ongkos kirim (${rp(q.ongkir_per_kg, q.ongkir_per_kg % 1 ? 2 : 0)} / kg × ${kg(q.ongkir_berat_kg)} kg)`, rp(q.ongkir_kirim))
