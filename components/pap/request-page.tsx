@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Ban, CheckCircle2, Download, FileText, Hammer, Link2, Palette, Plus, RotateCcw, Search, Send, Trash2, Truck, Upload } from 'lucide-react'
+import { Ban, CheckCircle2, Download, FileText, Hammer, Link2, Palette, Pencil, Plus, RotateCcw, Search, Send, Trash2, Truck, Upload } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { ProspectSelect, type ProspectOption } from './marketing'
 import { CustomerSelect, type CustomerOption } from './product-page'
@@ -512,7 +512,7 @@ type Design = {
   product_name: string | null; design_count: number; created_at: string; updated_at?: string; can_delete?: boolean; kategori: 'klise' | 'konten'; jenis_konten: string | null
 }
 type DesignFile = { id: number; kind: 'referensi' | 'desain'; versi: number; name: string; mime: string; url?: string | null; size: number; created_at: string; uploaded_by_name: string }
-type DesignRoles = { canRequest: boolean; designer: boolean; canAccept?: boolean; isRequester?: boolean; isDesignerOf?: boolean; canDelete?: boolean }
+type DesignRoles = { canRequest: boolean; designer: boolean; canAccept?: boolean; isRequester?: boolean; isDesignerOf?: boolean; canDelete?: boolean; canEdit?: boolean }
 
 export function DesignPage({ user, focusId }: { user: UserProfile; focusId?: number | null }) {
   const [items, setItems] = useState<Design[]>([])
@@ -648,13 +648,16 @@ async function uploadDesignFile(designId: number, kind: 'referensi' | 'desain', 
 
 export type DesignPreset = { judul: string; brief: string; deadline?: string; jenis_konten?: string; content_plan_id?: number }
 
-export function DesignForm({ prospect, preset, onClose, onSaved }: { prospect?: PrefillProspect | null; preset?: DesignPreset; onClose: () => void; onSaved: (message: string, id: number) => void }) {
+// edit: ubah isi request yang sudah ada (judul, brief, deadline, ukuran/jenis konten); file & link referensi tetap di detail
+export function DesignForm({ prospect, preset, edit, onClose, onSaved }: { prospect?: PrefillProspect | null; preset?: DesignPreset; edit?: Design; onClose: () => void; onSaved: (message: string, id: number) => void }) {
   // Klise cetakan (prospek/customer, hasil ke Data Produk) atau konten digital (Marketing Digital, hasil ke bank konten)
-  const [kategori, setKategori] = useState<'klise' | 'konten'>(preset ? 'konten' : 'klise')
-  const [jenisKonten, setJenisKonten] = useState(preset?.jenis_konten ?? 'gambar')
+  const [kategori, setKategori] = useState<'klise' | 'konten'>(edit ? edit.kategori : preset ? 'konten' : 'klise')
+  const [jenisKonten, setJenisKonten] = useState(edit?.jenis_konten ?? preset?.jenis_konten ?? 'gambar')
   const [target, setTarget] = useState<{ prospect_id: number | null; customer_id: number | null }>({ prospect_id: prospect?.id ?? null, customer_id: null })
   const [product, setProduct] = useState<ProductRef | null>(null)
-  const [values, setValues] = useState({ judul: preset?.judul ?? prospect?.kebutuhan?.split(';')[0]?.trim() ?? '', ukuran: '', deadline: preset?.deadline ?? '', brief: preset?.brief ?? '' })
+  const [values, setValues] = useState(edit
+    ? { judul: edit.judul, ukuran: edit.ukuran ?? '', deadline: edit.deadline ? String(edit.deadline).slice(0, 10) : '', brief: edit.brief }
+    : { judul: preset?.judul ?? prospect?.kebutuhan?.split(';')[0]?.trim() ?? '', ukuran: '', deadline: preset?.deadline ?? '', brief: preset?.brief ?? '' })
   const [files, setFiles] = useState<File[]>([])
   const [links, setLinks] = useState<string[]>([])
   const [linkDraft, setLinkDraft] = useState('')
@@ -668,6 +671,11 @@ export function DesignForm({ prospect, preset, onClose, onSaved }: { prospect?: 
     setSaving(true)
     setError('')
     try {
+      if (edit) {
+        const res = await api<{ changed: string[] }>(`/api/designs/${edit.id}`, { method: 'PATCH', json: { ...values, jenis_konten: jenisKonten } })
+        onSaved(res.changed.length ? `Request desain ${edit.nomor} diperbarui (${res.changed.join(', ')}).` : 'Tidak ada perubahan.', edit.id)
+        return
+      }
       const invalid = checkDesignFiles(files)
       if (invalid) throw new Error(invalid)
       const payload = konten
@@ -686,15 +694,15 @@ export function DesignForm({ prospect, preset, onClose, onSaved }: { prospect?: 
   }
   return (
     <Modal
-      title={konten ? 'Request konten lainnya' : 'Request desain klise'}
+      title={edit ? `Ubah request ${edit.nomor}` : konten ? 'Request konten lainnya' : 'Request desain klise'}
       subtitle={konten ? 'Gambar / video untuk sosial media, iklan, atau blasting — dikerjakan tim Digital Marketing' : 'Brief dikirim ke tim Digital Marketing'}
       wide
       onClose={onClose}
-      footer={<><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="design-form" className="pap-primary-button" disabled={saving}><Send /> {saving ? 'Mengirim...' : 'Kirim ke Digital Marketing'}</button></>}
+      footer={<><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="design-form" className="pap-primary-button" disabled={saving}>{edit ? (saving ? 'Menyimpan...' : 'Simpan perubahan') : <><Send /> {saving ? 'Mengirim...' : 'Kirim ke Digital Marketing'}</>}</button></>}
     >
       <form id="design-form" className="pap-form-grid" onSubmit={submit}>
         {error && <div className="full"><Notice onClose={() => setError('')}>{error}</Notice></div>}
-        {!prospect && !preset && (
+        {!prospect && !preset && !edit && (
           <div className="pap-field full">
             <span>Kategori</span>
             <div className="pap-segmented">
@@ -703,8 +711,9 @@ export function DesignForm({ prospect, preset, onClose, onSaved }: { prospect?: 
             </div>
           </div>
         )}
-        {!konten && <Field label="Untuk" full><TargetPicker prospect={prospect} onChange={setTarget} /></Field>}
-        {!konten && (
+        {!konten && !edit && <Field label="Untuk" full><TargetPicker prospect={prospect} onChange={setTarget} /></Field>}
+        {!konten && edit && <Field label="Untuk" full><input className="pap-input" disabled value={edit.target_name ?? '—'} /></Field>}
+        {!konten && !edit && (
           <Field label="Produk yang sudah ada" full hint="Pilih bila ini revisi desain produk lama; desain final akan ditambahkan ke produk tersebut. Kosongkan untuk produk baru.">
             <ProductRefSelect value={product} onChange={(p) => { setProduct(p); if (p) setValues((v) => ({ ...v, judul: p.nama })) }} />
           </Field>
@@ -720,7 +729,7 @@ export function DesignForm({ prospect, preset, onClose, onSaved }: { prospect?: 
         {konten && <Field label="Ukuran / format"><input className="pap-input" maxLength={150} value={values.ukuran} onChange={set('ukuran')} placeholder="Contoh: 1080x1350 (4:5), video 9:16 30 detik" /></Field>}
         <Field label="Deadline"><input className="pap-input" type="date" value={values.deadline} onChange={set('deadline')} /></Field>
         <Field label={konten ? 'Brief konten' : 'Brief desain'} full><textarea className="pap-input" rows={4} required maxLength={10000} value={values.brief} onChange={set('brief')} placeholder={konten ? 'Pesan utama, teks/caption di gambar, CTA (nomor WA), gaya visual, referensi akun yang disukai...' : 'Isi teks (nama usaha, alamat, nomor WA), logo, posisi, gaya, warna dominan, contoh yang disukai customer...'} /></Field>
-        <Field label="File referensi (opsional)" full hint="Logo, foto produk, contoh, sketsa — semua format (PDF, gambar, AI, CDR, PSD, ZIP, dll.). Gambar > 2 MB dikompres otomatis; file lain maks 4 MB.">
+        {!edit && <><Field label="File referensi (opsional)" full hint="Logo, foto produk, contoh, sketsa — semua format (PDF, gambar, AI, CDR, PSD, ZIP, dll.). Gambar > 2 MB dikompres otomatis; file lain maks 4 MB.">
           <input className="pap-input" type="file" multiple accept={DESIGN_FILE_ACCEPT} onChange={(e) => { const list = [...(e.target.files ?? [])]; const invalid = checkDesignFiles(list); setError(invalid); setFiles(invalid ? [] : list); if (invalid) e.target.value = '' }} />
         </Field>
         <Field label="Link referensi (opsional)" full hint="Google Drive, Canva, Dropbox, contoh di Instagram, dll. Bisa lebih dari satu.">
@@ -731,7 +740,8 @@ export function DesignForm({ prospect, preset, onClose, onSaved }: { prospect?: 
               <button type="button" className="pap-btn" disabled={!/^https?:\/\/\S+$/.test(linkDraft.trim())} onClick={() => { setLinks([...links, linkDraft.trim()]); setLinkDraft('') }}><Plus /> Tambah link</button>
             </div>
           </div>
-        </Field>
+        </Field></>}
+        {edit && <p className="full pap-muted">File & link referensi ditambahkan di detail request.</p>}
       </form>
     </Modal>
   )
@@ -748,6 +758,7 @@ function DesignDetail({ id, user, onClose, onChanged, onDeleted }: { id: number;
   const [noteFiles, setNoteFiles] = useState<PendingAttachments>(emptyAttachments)
   const [finalId, setFinalId] = useState<number | null>(null)
   const designInput = useRef<HTMLInputElement>(null)
+  const [editing, setEditing] = useState(false)
   const refInput = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
@@ -849,7 +860,7 @@ function DesignDetail({ id, user, onClose, onChanged, onDeleted }: { id: number;
       subtitle={`Untuk ${item.target_name ?? '—'} · diajukan ${item.requested_name}, ${formatDate(item.created_at, true)}`}
       wide
       onClose={onClose}
-      footer={<>{open && (roles.isRequester || roles.isDesignerOf) && <button className="pap-btn danger" disabled={busy} onClick={async () => { const a = await askReason({ title: 'Batalkan request desain', label: 'Alasan pembatalan', confirmLabel: 'Batalkan request' }); if (a) act({ status: 'batal', catatan: a }, 'Request desain dibatalkan.') }}><Ban /> Batalkan</button>}{roles.canDelete && onDeleted && item && <button className="pap-btn danger" disabled={busy} onClick={async () => { if (!(await confirmDialog(`Hapus request desain ${item.nomor}? File desain & riwayatnya ikut dihapus (masuk Data Terhapus).`))) return; try { await api(`/api/designs/${item.id}`, { method: 'DELETE' }); onDeleted(`Request desain ${item.nomor} dihapus.`) } catch (e) { setError((e as Error).message) } }}><Trash2 /> Hapus</button>}<span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Tutup</button></>}
+      footer={<>{open && (roles.isRequester || roles.isDesignerOf) && <button className="pap-btn danger" disabled={busy} onClick={async () => { const a = await askReason({ title: 'Batalkan request desain', label: 'Alasan pembatalan', confirmLabel: 'Batalkan request' }); if (a) act({ status: 'batal', catatan: a }, 'Request desain dibatalkan.') }}><Ban /> Batalkan</button>}{roles.canDelete && onDeleted && item && <button className="pap-btn danger" disabled={busy} onClick={async () => { if (!(await confirmDialog(`Hapus request desain ${item.nomor}? File desain & riwayatnya ikut dihapus (masuk Data Terhapus).`))) return; try { await api(`/api/designs/${item.id}`, { method: 'DELETE' }); onDeleted(`Request desain ${item.nomor} dihapus.`) } catch (e) { setError((e as Error).message) } }}><Trash2 /> Hapus</button>}{roles.canEdit && item && <button className="pap-btn" disabled={busy} onClick={() => setEditing(true)}><Pencil /> Ubah request</button>}<span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Tutup</button></>}
     >
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       <div className="pap-detail-badges"><Badge tone={DESIGN_TONE[s]} label={DESIGN_LABEL[s]} />{item.revisi_ke > 0 && <span className="pap-status warning">Revisi ke-{item.revisi_ke}</span>}{item.designer_name && <span className="pap-status neutral">Desainer: {item.designer_name}</span>}</div>
@@ -946,6 +957,7 @@ function DesignDetail({ id, user, onClose, onChanged, onDeleted }: { id: number;
         {!refs.length && <p className="pap-muted">Tidak ada file referensi.</p>}
       </section>
       <Timeline logs={logs} labels={DESIGN_LABEL} user={user} onChanged={load} />
+      {editing && item && <DesignForm edit={item} onClose={() => setEditing(false)} onSaved={(text) => { setEditing(false); load(); onChanged(text) }} />}
     </Modal>
   )
 }

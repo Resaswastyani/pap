@@ -42,6 +42,7 @@ const toNumbers = (q: RowDataPacket): RowDataPacket => ({
   ...q,
   subtotal: Number(q.subtotal), ppn: Number(q.ppn), total: Number(q.total), ppn_persen: Number(q.ppn_persen),
   item_count: Number(q.item_count ?? 0), pakai_ppn: !!q.pakai_ppn,
+  pakai_ongkir: !!q.pakai_ongkir, ongkir_per_kg: q.ongkir_per_kg === null || q.ongkir_per_kg === undefined ? null : Number(q.ongkir_per_kg),
   ongkir: q.ongkir === null || q.ongkir === undefined ? null : Number(q.ongkir), dp_persen: q.dp_persen === null || q.dp_persen === undefined ? null : Number(q.dp_persen),
   terbayar: Number(q.terbayar ?? 0),
 }) as RowDataPacket
@@ -105,11 +106,15 @@ export async function readQuotationInput(body: Record<string, unknown>, user: Us
   const pakaiPpn = body.pakai_ppn !== false
   const ppnPersen = params.ppn_persen
   const ppn = pakaiPpn ? Math.round(subtotal * ppnPersen) / 100 : 0
+  // Ongkos kirim per kg: bila dicentang wajib diisi (> 0)
+  const pakaiOngkir = body.pakai_ongkir === true
+  const ongkirPerKg = pakaiOngkir ? toNumber(body.ongkir_per_kg) : null
+  if (pakaiOngkir && (!ongkirPerKg || ongkirPerKg <= 0)) fail(400, 'Isi harga ongkos kirim per kg (atau hilangkan centang Ongkos kirim).')
   return {
     header: {
       prospect_id: prospectId, customer_id: customerId, kepada,
       kontak: str(body.kontak, 150) || null, telepon: str(body.telepon, 40) || null, whatsapp: str(body.whatsapp, 40) || null, alamat: str(body.alamat, 500) || null,
-      tanggal, berlaku_hari: berlaku, pakai_ppn: pakaiPpn ? 1 : 0, ppn_persen: ppnPersen,
+      tanggal, berlaku_hari: berlaku, pakai_ppn: pakaiPpn ? 1 : 0, ppn_persen: ppnPersen, pakai_ongkir: pakaiOngkir ? 1 : 0, ongkir_per_kg: ongkirPerKg,
       subtotal, ppn, total: subtotal + ppn,
       syarat: str(body.syarat, 5000) || null, rekening: str(body.rekening, 255) || null, catatan: str(body.catatan, 5000) || null,
       // Nomor Telepon / WA perusahaan yang dicetak di kop (satu per baris)

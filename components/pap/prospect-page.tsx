@@ -333,7 +333,7 @@ function Kanban({ items, onOpen }: { items: Prospect[]; onOpen: (id: number) => 
   )
 }
 
-function ProspectForm({ user, initial, users, canSupervise, onClose, onSaved }: {
+export function ProspectForm({ user, initial, users, canSupervise, onClose, onSaved }: {
   user: UserProfile
   initial: Prospect | null
   users: MarketingUser[]

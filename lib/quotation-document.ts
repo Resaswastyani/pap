@@ -93,6 +93,7 @@ ${QUOTATION_APPROVAL_REQUIRED && jenis === 'penawaran' && q.status === 'draft' &
   <tfoot>
     ${total('Subtotal', rp(q.subtotal))}
     ${q.pakai_ppn ? total(`PPN ${q.ppn_persen}%`, rp(q.ppn)) : ''}
+    ${q.pakai_ongkir && q.ongkir_per_kg ? total('Ongkos kirim (per kg)', `${rp(q.ongkir_per_kg, q.ongkir_per_kg % 1 ? 2 : 0)} / kg`) : ''}
     ${ongkir > 0 ? total('Ongkos kirim', rp(ongkir)) : ''}
     ${total('TOTAL', rp(grand), true)}
     ${jenis !== 'penawaran' && q.terbayar > 0 ? total('Sudah dibayar', `- ${rp(q.terbayar)}`) : ''}
@@ -100,6 +101,7 @@ ${QUOTATION_APPROVAL_REQUIRED && jenis === 'penawaran' && q.status === 'draft' &
   </tfoot>
 </table>
 ${!q.pakai_ppn ? '<p class="pap-sheet-note">Harga belum termasuk PPN.</p>' : ''}
+${q.pakai_ongkir && q.ongkir_per_kg ? `<p class="pap-sheet-note">Ongkos kirim ${rp(q.ongkir_per_kg, q.ongkir_per_kg % 1 ? 2 : 0)} per kg dihitung dari berat kiriman dan belum termasuk dalam total.</p>` : ''}
 ${jenis !== 'penawaran' && q.catatan_order ? `<h3>Catatan pesanan</h3><p class="pre">${esc(q.catatan_order)}</p>` : ''}
 ${jenis === 'order' && dp ? `<p>Pembayaran: DP ${q.dp_persen}% sebesar <b>${rp(dp)}</b> sebelum produksi dimulai, pelunasan sebelum barang dikirim.</p>` : ''}
 ${syarat && jenis !== 'proforma' ? `<h3>Syarat &amp; ketentuan</h3><ol>${syarat}</ol>` : ''}

@@ -3358,3 +3358,11 @@ a.pap-row-action { text-decoration:none; }
 .ta-v1 .ta1-sign tr.date td { color:#5f6478; font-size:11px; }
 .ta-v1 .ta1-stamp { padding:2px 8px; border:1px dashed #12a37a; border-radius:6px; color:#0b7a5a; font-size:10.5px; font-weight:700; }
 @media print { .ta-v1 .ta1-sign { break-inside:avoid; } }
+
+/* Quotation: ongkir per kg & tombol prospek baru */
+.pap-quote-ongkir { display:flex; flex-direction:column; gap:4px; flex-basis:100%; max-width:280px; font-size:12px; font-weight:700; }
+.pap-quote-ongkir small { font-weight:400; }
+.pap-quote-prospect { display:flex; gap:8px; align-items:flex-start; }
+.pap-quote-prospect > .pap-combo { flex:1; min-width:0; }
+.pap-quote-prospect > .pap-btn { flex:none; white-space:nowrap; }
+.pap-quote-options { display:flex; flex-direction:column; align-items:flex-start; gap:10px; }

@@ -20,6 +20,17 @@ export const isDesigner = (user: UserProfile) => user.role.isAdmin || DESIGN_TEA
 export const canRequest = (user: UserProfile) => user.role.isAdmin || isGM(user) || isMarketing(user)
 // Request desain baru diterima (langsung dikerjakan & ditugaskan) atau ditolak oleh Lead Digital Marketing
 export const canAcceptDesign = (user: UserProfile) => isLeadOf(user, 'marketing_digital')
+
+// Ubah isi request desain (judul, brief, deadline, ...): pengaju, admin, dan Lead Marketing Development / Maintenance
+// untuk request yang diajukan staff kedua divisi itu. Desain yang sudah disetujui / batal tidak bisa diubah lagi.
+export const DESIGN_EDIT_TEAMS = ['marketing_development', 'marketing_maintenance']
+export async function canEditDesign(user: UserProfile, d: { requested_by: number; status: string }) {
+  if (d.status === 'disetujui' || d.status === 'batal') return false
+  if (user.role.isAdmin || d.requested_by === user.id) return true
+  if (!isLeadOf(user, ...DESIGN_EDIT_TEAMS)) return false
+  const [[r]] = await db.query<RowDataPacket[]>('SELECT d.code FROM users u JOIN divisions d ON d.id = u.division_id WHERE u.id = ?', [d.requested_by])
+  return !!r && DESIGN_EDIT_TEAMS.includes(String(r.code))
+}
 // Hapus request desain (masuk Data Terhapus): admin, GM, Lead marketing / Lead Digital Marketing, atau sales pengaju.
 // Desain yang sudah disetujui (sudah masuk Data Produk) hanya admin.
 export const canDeleteDesign = (user: UserProfile, d: { requested_by: number; status: string }) =>

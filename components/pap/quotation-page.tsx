@@ -5,7 +5,8 @@ import { Ban, CheckCircle2, Copy, FileDown, FileText, MessageCircle, Package, St
 import type { UserProfile } from '@/lib/users'
 import { rupiah } from '@/lib/hpp-calc'
 import { DocForm, useHppData } from './hpp-page'
-import { ProspectSelect, waLink, type ProspectOption } from './marketing'
+import { ProspectSelect, waLink, type MarketingUser, type ProspectOption } from './marketing'
+import { ProspectForm } from './prospect-page'
 import { PaymentForm } from './payment-page'
 import { QuotationSignatures } from './quotation-signature'
 import { CustomerSelect, type CustomerOption } from './product-page'
@@ -23,7 +24,7 @@ const ApprovalBadge = ({ q, show = true }: { q: Pick<Quotation, 'status' | 'appr
 
 type Quotation = {
   id: number; nomor: string; prospect_id: number | null; customer_id: number | null; kepada: string; kontak: string | null; telepon: string | null; whatsapp: string | null
-  alamat: string | null; tanggal: string; berlaku_hari: number; berlaku_sampai: string; status: Status; pakai_ppn: boolean; ppn_persen: number
+  alamat: string | null; tanggal: string; berlaku_hari: number; berlaku_sampai: string; status: Status; pakai_ppn: boolean; ppn_persen: number; pakai_ongkir?: boolean; ongkir_per_kg?: number | null
   subtotal: number; ppn: number; total: number; syarat: string | null; catatan: string | null; alasan: string | null; created_by: number
   created_name: string; sent_at: string | null; created_at: string; prospect_name: string | null; customer_no: string | null; item_count: number
   order_nomor: string | null; proforma_nomor: string | null; tanggal_kirim: string | null; dp_persen: number | null; expedition_id: number | null
@@ -146,7 +147,7 @@ export function QuotationPage({ user, focusId }: { user: UserProfile; focusId?: 
         </div>
         <Pager {...paged.pager} noun="penawaran" />
       </div>
-      {form && <QuotationForm edit={form.edit} copy={form.copy} onClose={() => setForm(null)} onSaved={(text, id) => { setForm(null); flash(text); setDetailId(id) }} />}
+      {form && <QuotationForm user={user} edit={form.edit} copy={form.copy} onClose={() => setForm(null)} onSaved={(text, id) => { setForm(null); flash(text); setDetailId(id) }} />}
       {detailId && (
         <QuotationDetail
           id={detailId}
@@ -176,7 +177,8 @@ const toNum = (v: string) => Number(v.replace(',', '.')) || 0
 // Teks multi-baris (pilihan di Template dokumen) -> daftar baris tidak kosong
 const lines = (text: string | null | undefined) => String(text ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
 
-export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?: Quotation & { items: Item[] }; copy?: Quotation & { items: Item[] }; prefill?: Prefill; onClose: () => void; onSaved: (message: string, id: number) => void }) {
+// user: dipakai untuk tombol "Prospek baru" (tambah prospek tanpa keluar dari form penawaran)
+export function QuotationForm({ user, edit, copy, prefill, onClose, onSaved }: { user?: UserProfile; edit?: Quotation & { items: Item[] }; copy?: Quotation & { items: Item[] }; prefill?: Prefill; onClose: () => void; onSaved: (message: string, id: number) => void }) {
   // Hanya untuk syarat default & tarif PPN dari pengaturan dokumen
   const { data, error: loadError } = useHppData()
   const base = edit ?? copy
@@ -189,13 +191,25 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
     kepada: base?.kepada ?? pp?.nama_usaha ?? '', kontak: base?.kontak ?? pp?.kontak_nama ?? '', telepon: base?.telepon ?? '', whatsapp: base?.whatsapp ?? pp?.telepon ?? '',
     alamat: base?.alamat ?? [pp?.alamat, pp?.kota].filter(Boolean).join(', '), tanggal: edit?.tanggal ?? today(), berlaku_hari: String(base?.berlaku_hari ?? 14),
     syarat: base?.syarat ?? '', catatan: base?.catatan ?? '', pakai_ppn: base ? base.pakai_ppn : true,
+    pakai_ongkir: !!base?.pakai_ongkir, ongkir_per_kg: base?.ongkir_per_kg ? String(base.ongkir_per_kg) : '',
   })
   // Nomor Telepon / WA perusahaan di kop (bisa lebih dari satu)
   const [teleponKop, setTeleponKop] = useState<string[]>(() => lines(base?.telepon_kop))
   const [items, setItems] = useState<FormItem[]>(() => (base ? base.items.map(fromItem) : pp?.products?.length ? pp.products.map((p) => blankItem(p.product_id, p.label)) : [blankItem()]))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  // Form prospek baru di atas form penawaran: daftar sales & hak bagi prospek diambil saat tombol diklik
+  const [newProspect, setNewProspect] = useState<{ users: MarketingUser[]; canSupervise: boolean } | null>(null)
   const set = (k: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [k]: e.target.value }))
+  async function openNewProspect() {
+    try {
+      const r = await api<{ users: MarketingUser[]; canSupervise: boolean }>('/api/prospects?status=semua&pageSize=1')
+      setNewProspect({ users: r.users, canSupervise: r.canSupervise })
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
 
   const teleponOptions = lines(data?.doc.telepon)
 
@@ -218,7 +232,7 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
     setError('')
     try {
       const payload = {
-        ...values, ...target, berlaku_hari: Number(values.berlaku_hari) || 14, telepon_kop: teleponKop,
+        ...values, ...target, berlaku_hari: Number(values.berlaku_hari) || 14, telepon_kop: teleponKop, ongkir_per_kg: values.pakai_ongkir ? toNum(values.ongkir_per_kg) : null,
         items: items.map((it) => ({ product_id: it.product_id, nama_produk: it.nama_produk, spesifikasi: it.spesifikasi, qty: it.qty, satuan: it.satuan, harga_satuan: it.harga_satuan })),
       }
       if (edit) {
@@ -258,6 +272,20 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
       footer={<><span className="pap-quote-total">Total: <b>{rupiah(subtotal + ppn)}</b></span><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="submit" form="quotation-form" className="pap-primary-button" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan draft'}</button></>}
     >
       {(error || loadError) && <Notice onClose={() => setError('')}>{error || loadError}</Notice>}
+      {notice && <Notice kind="success" onClose={() => setNotice('')}>{notice}</Notice>}
+      {newProspect && user && (
+        <ProspectForm
+          user={user} initial={null} users={newProspect.users} sources={[]} canSupervise={newProspect.canSupervise}
+          onClose={() => setNewProspect(null)}
+          onSaved={async (message, id) => {
+            setNewProspect(null)
+            setNotice(`${message} Prospek baru langsung dipilih untuk penawaran ini.`)
+            if (!id) return
+            const { item } = await api<{ item: ProspectOption & { telepon: string | null } }>(`/api/prospects/${id}`)
+            pickProspect(item)
+          }}
+        />
+      )}
       <form id="quotation-form" className="pap-form-grid" onSubmit={submit}>
         {!pp && (
           <div className="pap-field full">
@@ -267,7 +295,12 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
                 <button type="button" className={mode === 'prospek' ? 'active' : ''} onClick={() => setMode('prospek')}>Prospek</button>
                 <button type="button" className={mode === 'customer' ? 'active' : ''} onClick={() => setMode('customer')}>Customer</button>
               </div>
-              {mode === 'prospek' ? <ProspectSelect value={prospect} onChange={pickProspect} /> : <CustomerSelect value={customer} onChange={pickCustomer} />}
+              {mode === 'prospek' ? (
+                <div className="pap-quote-prospect">
+                  <ProspectSelect value={prospect} onChange={pickProspect} />
+                  {user && <button type="button" className="pap-btn" onClick={openNewProspect} title="Tambah prospek baru tanpa keluar dari penawaran"><Plus /> Prospek baru</button>}
+                </div>
+              ) : <CustomerSelect value={customer} onChange={pickCustomer} />}
               {base && !prospect && !customer && <small className="pap-muted">Tetap: {base.prospect_name ?? base.kepada}</small>}
             </div>
           </div>
@@ -304,11 +337,17 @@ export function QuotationForm({ edit, copy, prefill, onClose, onSaved }: { edit?
         </div>
 
         <div className="pap-quote-totals full">
+          <div className="pap-quote-options">
           <label className="pap-check"><input type="checkbox" checked={values.pakai_ppn} onChange={(e) => {
             const ppn = e.target.checked
             setValues((v) => ({ ...v, pakai_ppn: ppn }))
           }} /><span>Kenakan PPN {ppnPersen}%</span></label>
-          <dl><dt>Subtotal</dt><dd>{rupiah(subtotal)}</dd>{values.pakai_ppn && <><dt>PPN {ppnPersen}%</dt><dd>{rupiah(ppn)}</dd></>}<dt className="grand">Total</dt><dd className="grand">{rupiah(subtotal + ppn)}</dd></dl>
+          <label className="pap-check"><input type="checkbox" checked={values.pakai_ongkir} onChange={(e) => { const on = e.target.checked; setValues((v) => ({ ...v, pakai_ongkir: on })) }} /><span>Ongkos kirim</span></label>
+          {values.pakai_ongkir && (
+            <label className="pap-quote-ongkir"><span>Harga ongkir per kg (Rp) *</span><input className="pap-input" inputMode="decimal" required autoFocus value={values.ongkir_per_kg} onChange={(e) => setValues((v) => ({ ...v, ongkir_per_kg: e.target.value.replace(/[^\d.,]/g, '') }))} placeholder="mis. 1500" /><small className="pap-muted">Dicetak di penawaran per kg, tidak dijumlahkan ke total.</small></label>
+          )}
+          </div>
+          <dl><dt>Subtotal</dt><dd>{rupiah(subtotal)}</dd>{values.pakai_ppn && <><dt>PPN {ppnPersen}%</dt><dd>{rupiah(ppn)}</dd></>}{values.pakai_ongkir && toNum(values.ongkir_per_kg) > 0 && <><dt>Ongkos kirim</dt><dd>{rupiah(toNum(values.ongkir_per_kg))} / kg</dd></>}<dt className="grand">Total</dt><dd className="grand">{rupiah(subtotal + ppn)}</dd></dl>
         </div>
         <Field label="Telepon / WA perusahaan di kop surat (bisa lebih dari satu)" full>
           <MultiSelect options={teleponOptions} value={teleponKop} onChange={setTeleponKop} empty="Belum ada nomor di Template dokumen" placeholder="Semua nomor di Template dokumen" />
@@ -528,7 +567,7 @@ function QuotationDetail({ id, userName, autoEdit = false, onClose, onChanged, o
       </div>
       <div className="pap-quote-totals">
         <span />
-        <dl><dt>Subtotal</dt><dd>{rupiah(item.subtotal)}</dd>{item.pakai_ppn && <><dt>PPN {item.ppn_persen}%</dt><dd>{rupiah(item.ppn)}</dd></>}<dt className="grand">Total</dt><dd className="grand">{rupiah(item.total)}</dd></dl>
+        <dl><dt>Subtotal</dt><dd>{rupiah(item.subtotal)}</dd>{item.pakai_ppn && <><dt>PPN {item.ppn_persen}%</dt><dd>{rupiah(item.ppn)}</dd></>}{item.pakai_ongkir && item.ongkir_per_kg ? <><dt>Ongkos kirim</dt><dd>{rupiah(item.ongkir_per_kg)} / kg</dd></> : null}<dt className="grand">Total</dt><dd className="grand">{rupiah(item.total)}</dd></dl>
       </div>
       {item.syarat && <section className="pap-detail-section"><h3>Syarat & ketentuan</h3><p className="pap-prewrap">{item.syarat}</p></section>}
       {item.catatan && <section className="pap-detail-section"><h3>Catatan internal</h3><p className="pap-prewrap">{item.catatan}</p></section>}
