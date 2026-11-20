@@ -111,7 +111,13 @@ export function TechAnalysisView({ user, prospectId, prefill, focusId, compact =
     <>
       {compact ? (
         <section className="pap-detail-section">
-          <div className="pap-ta-compact-head"><h3><Ruler className="pap-inline-icon" /> Analisa teknik order ({data?.items.length ?? 0})</h3>{can?.create && allowCreate && <button type="button" className="pap-btn" onClick={() => setCreating(true)}><Plus /> Analisa teknik</button>}</div>
+          <div className="pap-ta-compact-head">
+            <h3><Ruler className="pap-inline-icon" /> Analisa teknik order ({data?.items.length ?? 0})</h3>
+            <div className="pap-ta-row-actions">
+              {prospectId && <ProspectDocActions prospectId={prospectId} />}
+              {can?.create && allowCreate && <button type="button" className="pap-btn" onClick={() => setCreating(true)}><Plus /> Analisa teknik</button>}
+            </div>
+          </div>
           {!allowCreate && <p className="pap-muted pap-ta-hint">Analisa dibuat dari <b>Edit data</b> prospek: buka <b>Spek teknik</b> pada produk lalu centang <b>Minta analisa ke Dept Teknik</b>.</p>}
           {list}
         </section>
@@ -544,5 +550,17 @@ export function DocActions({ id, nomor, compact = false }: { id: number; nomor: 
       <a className="pap-btn" href={`${base}?print=1`} target="_blank" rel="noreferrer"><Printer /> Cetak</a>
       <a className="pap-primary-button" href={base} target="_blank" rel="noreferrer"><Eye /> Pratinjau PDF</a>
     </>
+  )
+}
+
+// Cetak formulir semua produk prospek (yang belum dianalisa ikut tercetak dengan bagian Teknik kosong)
+function ProspectDocActions({ prospectId }: { prospectId: number }) {
+  const base = `/cetak/analisa-teknik/prospek/${prospectId}`
+  return (
+    <span className="pap-ta-doc-icons" aria-label="Cetak formulir analisa teknik prospek">
+      <a className="pap-row-action" href={base} target="_blank" rel="noreferrer" title="Pratinjau PDF formulir semua produk"><Eye /><span>PDF</span></a>
+      <a className="pap-row-action" href={`${base}?print=1`} target="_blank" rel="noreferrer" title="Cetak formulir semua produk"><Printer /><span>Cetak</span></a>
+      <a className="pap-row-action" href={`/api/tech-analyses/prospek/${prospectId}/word`} title="Unduh Word formulir semua produk"><FileDown /><span>Word</span></a>
+    </span>
   )
 }

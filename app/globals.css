@@ -3189,3 +3189,7 @@ a.pap-row-action { text-decoration:none; }
 .pap-ta-inline-doc { display:inline-flex; flex-wrap:wrap; align-items:center; gap:6px; }
 .pap-modal-foot a.pap-btn, .pap-modal-foot a.pap-primary-button { display:inline-flex; align-items:center; gap:6px; text-decoration:none; }
 @media (max-width:640px) { .pap-ta-row-actions { justify-content:flex-start; } }
+
+/* Cetak formulir analisa teknik per prospek: satu halaman per produk */
+.pap-ta-sheets .pap-ta-sheet-wrap + .pap-ta-sheet-wrap { margin-top:18px; }
+@media print { .pap-ta-sheets .pap-ta-sheet-wrap + .pap-ta-sheet-wrap { margin-top:0; break-before:page; page-break-before:always; } }

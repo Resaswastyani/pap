@@ -212,3 +212,34 @@ export async function syncProspectAnalyses(prospectId: number, products: unknown
   }
   return out
 }
+
+// ---- Cetak formulir langsung dari prospek: satu lembar per produk ----
+// Produk yang sudah punya analisa memakai isi analisanya; yang belum memakai data prospek (bagian Teknik kosong,
+// bisa diisi tangan). Prospek tanpa produk menghasilkan satu formulir kosong bernama customer.
+export async function prospectAnalysisSheets(prospectId: number, user: UserProfile) {
+  const { loadProspect, loadProspectProducts } = await import('@/lib/marketing')
+  const p = await loadProspect(prospectId, user)
+  const [products, { items }] = await Promise.all([loadProspectProducts(prospectId), listAnalyses(new URLSearchParams({ prospect_id: String(prospectId) }))])
+  const byName = new Map(items.map((a) => [a.nama_produk.trim().toLowerCase(), a]))
+  const blank = (nama_produk: string, extra: Record<string, unknown> = {}): TechAnalysis => ({
+    id: 0, nomor: 'Belum diajukan', prospect_id: prospectId, prospect_name: String(p.nama_usaha), status: 'draft', tanggal_serah: null,
+    nama_produk, nama_customer: String(p.nama_usaha), jenis_plastik: null, panjang_cm: null, lebar_cm: null, tebal_mm: null, print_jenis: null, jumlah_warna: null,
+    kesulitan_print: null, spec_lainnya: null, qty_order: null, qty_satuan: 'kg', frekuensi: null, rutin_bulan: null, critical_to_quality: null,
+    proses: defaultProses(), bisa_produksi: null, penjelasan_produksi: null, kesulitan_kualitas: null, penjelasan_kualitas: null, catatan_lain: null,
+    teknik_oleh: null, teknik_name: null, teknik_at: null, rekomendasi_direksi: null, direksi_oleh: null, direksi_name: null, direksi_at: null,
+    created_by: user.id, created_name: user.name, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...extra,
+  }) as unknown as TechAnalysis
+  const sheets: TechAnalysis[] = (products as unknown as Record<string, unknown>[]).map((x) => {
+    const found = byName.get(String(x.label).trim().toLowerCase())
+    if (found) return found
+    const cycle = x.cycle_nilai ? Number(x.cycle_nilai) : null
+    return blank(String(x.label), {
+      jenis_plastik: (x.jenis_plastik as string) ?? null, qty_order: num(x.qty_kg),
+      spec_lainnya: (x.catatan as string) ?? null, frekuensi: cycle && (x.cycle_satuan ?? 'Bulan') === 'Bulan' ? 'rutin' : null, rutin_bulan: cycle,
+    })
+  })
+  // Analisa milik prospek yang namanya tidak cocok dengan produk saat ini tetap ikut
+  for (const a of items) if (!sheets.includes(a)) sheets.push(a)
+  if (!sheets.length) sheets.push(blank(''))
+  return { prospect: { id: prospectId, nama_usaha: String(p.nama_usaha) }, sheets }
+}
