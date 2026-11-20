@@ -10,12 +10,14 @@ import { api, confirmDialog, formatDate, Modal, Notice, Pager, RowActions, usePa
 type Entry = {
   id: number; tanggal: string; shift: number; sumber: 'pesanan' | 'produk'; job_id: number | null; item_accurate_id: number | null; item_no: string | null; item_name: string
   customer_name: string | null; so_number: string | null; due_date: string | null; quantity: number; unit: string | null; unit_price: number | null; nilai: number | null; catatan: string | null
+  capacity_id: number | null; mesin: string | null
 }
+type Machine = { id: number; mesin: string; jenis_plastik: string; jumlah_mesin: number; lebar_min_cm: number | null; lebar_maks_cm: number | null }
 type Job = {
   id: number; so_number: string | null; so_date: string | null; due_date: string | null; item_accurate_id: number | null; item_name: string; item_no: string | null; customer: string | null
   quantity: number; unit: string | null; unit_price: number | null; nilai: number | null; prioritas: string; terjadwal: number
 }
-type PlanRes = { today: string; entries: Entry[]; jobs: Job[]; can: { plan: boolean } }
+type PlanRes = { today: string; machines: Machine[]; entries: Entry[]; jobs: Job[]; can: { plan: boolean } }
 type Product = { id: number; item_no: string | null; name: string; unit: string | null; price: number | null; price_source: string | null }
 
 const RANGES = [7, 14, 30] as const
@@ -88,7 +90,7 @@ export function ForwardPlanView() {
   const match = (...values: (string | null)[]) => !query || values.some((v) => v?.toLowerCase().includes(query))
   const can = data?.can.plan ?? false
 
-  const entries = useMemo(() => (data?.entries ?? []).filter((e) => e.tanggal <= end && (!shiftFilter || e.shift === shiftFilter) && match(e.item_name, e.item_no, e.customer_name, e.so_number, e.catatan)),
+  const entries = useMemo(() => (data?.entries ?? []).filter((e) => e.tanggal <= end && (!shiftFilter || e.shift === shiftFilter) && match(e.item_name, e.item_no, e.customer_name, e.so_number, e.catatan, e.mesin)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, end, shiftFilter, query])
   const byDate = useMemo(() => {
@@ -182,7 +184,7 @@ export function ForwardPlanView() {
                 </tr>,
                 ...list.map((e) => (
                   <tr key={e.id}>
-                    <td><span className={`pap-shift-chip s${e.shift}`}><b>Shift {e.shift}</b></span>{e.catatan && <div className="pap-cell-sub">{e.catatan}</div>}</td>
+                    <td><span className={`pap-shift-chip s${e.shift}`}><b>Shift {e.shift}</b></span>{e.mesin ? <div className="pap-cell-sub">{e.mesin}</div> : <div className="pap-cell-sub pap-text-warning">Mesin belum dipilih</div>}{e.catatan && <div className="pap-cell-sub">{e.catatan}</div>}</td>
                     <td><div className="pap-cell-title pap-plan-item">{e.item_name}</div><div className="pap-cell-sub">{[e.item_no, e.sumber === 'pesanan' ? 'dari pesanan' : 'dari produk Accurate'].filter(Boolean).join(' · ')}</div></td>
                     <td><div>{e.customer_name ?? '—'}</div>{e.so_number && <div className="pap-cell-sub">{e.so_number}</div>}</td>
                     <td className="pap-num pap-nowrap"><strong>{qty(e.quantity, e.unit)}</strong></td>
@@ -225,7 +227,7 @@ export function ForwardPlanView() {
         </div>
       </div>
       {form && data && (
-        <PlanForm state={form} today={today} jobs={data.jobs} onClose={() => setForm(null)}
+        <PlanForm state={form} today={today} jobs={data.jobs} machines={data.machines ?? []} onClose={() => setForm(null)}
           onSaved={(msg) => { setForm(null); setNotice(msg); load() }} />
       )}
     </>
@@ -233,7 +235,7 @@ export function ForwardPlanView() {
 }
 
 // Form tambah / ubah rencana: sumber produk (pesanan / produk Accurate), tanggal, shift, jumlah, harga, catatan
-function PlanForm({ state, today, jobs, onClose, onSaved }: { state: FormState; today: string; jobs: Job[]; onClose: () => void; onSaved: (msg: string) => void }) {
+function PlanForm({ state, today, jobs, machines, onClose, onSaved }: { state: FormState; today: string; jobs: Job[]; machines: Machine[]; onClose: () => void; onSaved: (msg: string) => void }) {
   const edit = state.mode === 'ubah' ? state.entry : null
   const preJob = state.mode === 'baru' ? state.job : undefined
   const [sumber, setSumber] = useState<'pesanan' | 'produk'>(edit?.sumber ?? (preJob ? 'pesanan' : jobs.length ? 'pesanan' : 'produk'))
@@ -246,12 +248,9 @@ function PlanForm({ state, today, jobs, onClose, onSaved }: { state: FormState; 
   const [products, setProducts] = useState<Product[]>([])
   const [searching, setSearching] = useState(false)
   const [tanggal, setTanggal] = useState(edit?.tanggal ?? today)
-  const [shifts, setShifts] = useState<Record<number, string>>(() => {
-    if (edit) return { [edit.shift]: String(edit.quantity) }
-    const sisa = preJob ? round2(preJob.quantity - preJob.terjadwal) : ''
-    return { 1: String(sisa) }
-  })
-  const [price, setPrice] = useState(edit?.unit_price !== null && edit?.unit_price !== undefined ? String(edit.unit_price) : '')
+  // Tidak ada shift bawaan: user memilih Shift 1, 2, dan/atau 3 sendiri
+  const [shifts, setShifts] = useState<Record<number, string>>(() => (edit ? { [edit.shift]: String(edit.quantity) } : {}))
+  const [capacityId, setCapacityId] = useState(edit?.capacity_id ? String(edit.capacity_id) : '')
   const [customer, setCustomer] = useState(edit?.sumber === 'produk' ? edit.customer_name ?? '' : '')
   const [unit, setUnit] = useState(edit?.sumber === 'produk' ? edit.unit ?? '' : '')
   const [catatan, setCatatan] = useState(edit?.catatan ?? '')
@@ -271,7 +270,7 @@ function PlanForm({ state, today, jobs, onClose, onSaved }: { state: FormState; 
   const shownJobs = jobs.filter((j) => j.id === jobId || !jobFilter.trim() || [j.item_name, j.item_no, j.customer, j.so_number].some((v) => v?.toLowerCase().includes(jobFilter.trim().toLowerCase())))
   const defaultPrice = sumber === 'pesanan' ? job?.unit_price ?? (edit?.sumber === 'pesanan' ? edit.unit_price : null) ?? null : product?.price ?? null
   const unitShown = sumber === 'pesanan' ? job?.unit ?? edit?.unit ?? '' : unit || product?.unit || ''
-  const effPrice = price.trim() ? toNum(price) : defaultPrice
+  const effPrice = defaultPrice
   const selectedShifts = Object.keys(shifts).map(Number).sort()
   const total = selectedShifts.reduce((a, s) => a + toNum(shifts[s] ?? ''), 0)
   const afterDue = sumber === 'pesanan' && job?.due_date && tanggal > job.due_date
@@ -279,11 +278,14 @@ function PlanForm({ state, today, jobs, onClose, onSaved }: { state: FormState; 
   function toggleShift(s: number) {
     if (edit) return setShifts({ [s]: shifts[selectedShifts[0]] ?? '' })
     if (shifts[s] !== undefined) {
-      if (selectedShifts.length === 1) return
       const next = { ...shifts }
       delete next[s]
       setShifts(next)
-    } else setShifts({ ...shifts, [s]: '' })
+    } else {
+      // Shift pertama yang dipilih langsung terisi sisa pesanan (bila ada)
+      const sisa = !selectedShifts.length && sumber === 'pesanan' && job ? round2(job.quantity - job.terjadwal) : 0
+      setShifts({ ...shifts, [s]: sisa > 0 ? String(sisa) : '' })
+    }
   }
   function splitEven() {
     const base = sumber === 'pesanan' && job ? job.quantity - job.terjadwal + (edit?.quantity ?? 0) : total
@@ -297,10 +299,12 @@ function PlanForm({ state, today, jobs, onClose, onSaved }: { state: FormState; 
     setError('')
     if (sumber === 'pesanan' && !jobId) return setError('Pilih pesanan yang akan diproduksi.')
     if (sumber === 'produk' && !product) return setError('Pilih produk Accurate yang akan diproduksi.')
+    if (!selectedShifts.length) return setError('Pilih minimal satu shift (Shift 1, 2, atau 3) dan isi jumlahnya.')
+    if (!capacityId) return setError('Pilih mesin.')
     setBusy(true)
     const body = {
       sumber, job_id: sumber === 'pesanan' ? jobId : null, item_accurate_id: sumber === 'produk' ? product?.id : null,
-      tanggal, unit_price: price.trim() ? toNum(price) : null, customer_name: customer, unit, catatan,
+      tanggal, capacity_id: Number(capacityId), customer_name: customer, unit, catatan,
       ...(edit ? { shift: selectedShifts[0], quantity: toNum(shifts[selectedShifts[0]] ?? '') } : { rows: selectedShifts.map((s) => ({ shift: s, quantity: toNum(shifts[s] ?? '') })) }),
     }
     try {
@@ -383,7 +387,14 @@ function PlanForm({ state, today, jobs, onClose, onSaved }: { state: FormState; 
 
         <div className="pap-form-grid">
           <label className="pap-field"><span>Tanggal produksi *</span><input className="pap-input" type="date" required min={edit && edit.tanggal < today ? edit.tanggal : today} value={tanggal} onChange={(e) => setTanggal(e.target.value)} /></label>
-          <label className="pap-field"><span>Harga per {unitShown || 'satuan'} (Rp)</span><input className="pap-input" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d.,]/g, ''))} placeholder={defaultPrice !== null ? `${Math.round(defaultPrice)} (bawaan)` : 'isi harga'} /></label>
+          <label className="pap-field">
+            <span>Mesin *</span>
+            <select className="pap-select" required value={capacityId} onChange={(e) => setCapacityId(e.target.value)}>
+              <option value="">— Pilih mesin —</option>
+              {machines.map((m) => <option key={m.id} value={m.id}>{m.jumlah_mesin > 1 ? `${m.jumlah_mesin} ` : ''}{m.mesin} · {m.jenis_plastik}{m.lebar_maks_cm !== null ? ` · lebar ${m.lebar_min_cm !== null ? `${m.lebar_min_cm}–` : 's/d '}${m.lebar_maks_cm} cm` : ''}</option>)}
+            </select>
+            {!machines.length && <small className="pap-muted">Belum ada mesin. Tambahkan dulu di menu Kapasitas Produksi.</small>}
+          </label>
         </div>
         {afterDue && <Notice>Tanggal produksi setelah tanggal kirim pesanan ({formatDate(job?.due_date)}). Pastikan pengiriman masih terkejar.</Notice>}
 
@@ -395,13 +406,13 @@ function PlanForm({ state, today, jobs, onClose, onSaved }: { state: FormState; 
                 <button type="button" className={`pap-shift-chip s${s}`} aria-pressed={shifts[s] !== undefined} onClick={() => toggleShift(s)}><b>Shift {s}</b></button>
                 {shifts[s] !== undefined
                   ? <input className="pap-input" inputMode="decimal" required aria-label={`Jumlah Shift ${s}`} value={shifts[s]} onChange={(e) => setShifts({ ...shifts, [s]: e.target.value.replace(/[^\d.,]/g, '') })} placeholder={`0 ${unitShown}`} />
-                  : <small className="pap-muted">{edit ? 'klik untuk pindah' : 'klik untuk tambah'}</small>}
+                  : <small className="pap-muted">{edit ? 'klik untuk pindah' : 'klik untuk pilih'}</small>}
               </div>
             ))}
           </div>
           {!edit && <div className="pap-inline-actions"><button type="button" className="pap-btn" onClick={splitEven}>Bagi rata 3 shift</button></div>}
         </div>
-        <label className="pap-field"><span>Regu / operator / mesin (opsional)</span><input className="pap-input" maxLength={255} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="mis. Regu A · Mesin Blow 2" /></label>
+        <label className="pap-field"><span>Catatan khusus (opsional)</span><textarea className="pap-input" rows={2} maxLength={255} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="mis. warna khusus, prioritas kirim pagi, regu / operator" /></label>
       </form>
     </Modal>
   )

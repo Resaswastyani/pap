@@ -33,6 +33,7 @@ const serializeEntry = (e: Row) => {
     item_accurate_id: num(e.item_accurate_id), item_no: (e.item_no as string) ?? null, item_name: String(e.item_name),
     customer_name: (e.customer_name as string) ?? null, so_number: (e.so_number as string) ?? null, due_date: (e.due_date as string) ?? null,
     quantity, unit: (e.unit as string) ?? null, unit_price: price, nilai: price === null ? null : quantity * price, catatan: (e.catatan as string) || null,
+    capacity_id: num(e.capacity_id), mesin: (e.mesin as string) ?? null,
   }
 }
 
@@ -41,8 +42,8 @@ export async function loadForwardPlan() {
   const today = todayWib()
   const [[entries], [jobs]] = await Promise.all([
     db.query<Row[]>(
-      `SELECT e.*, DATE_FORMAT(e.tanggal, '%Y-%m-%d') AS tanggal, DATE_FORMAT(j.due_date, '%Y-%m-%d') AS due_date
-       FROM production_plan_entries e LEFT JOIN production_jobs j ON j.id = e.job_id
+      `SELECT e.*, DATE_FORMAT(e.tanggal, '%Y-%m-%d') AS tanggal, DATE_FORMAT(j.due_date, '%Y-%m-%d') AS due_date, ${MESIN_SQL} AS mesin
+       FROM production_plan_entries e LEFT JOIN production_jobs j ON j.id = e.job_id LEFT JOIN production_capacities m ON m.id = e.capacity_id
        WHERE e.tanggal >= ? ORDER BY e.tanggal, e.shift, e.id LIMIT 3000`,
       [today],
     ),
@@ -58,8 +59,11 @@ export async function loadForwardPlan() {
     ? await db.query<Row[]>('SELECT job_id, SUM(quantity) AS qty FROM production_plan_entries WHERE job_id IN (?) GROUP BY job_id', [ids])
     : [[] as Row[]]
   const plannedBy = new Map(planned.map((p) => [Number(p.job_id), Number(p.qty)]))
+  // Daftar mesin dari menu Kapasitas Produksi (pilihan wajib di form)
+  const [machines] = await db.query<Row[]>('SELECT id, mesin, jenis_plastik, jumlah_mesin, lebar_min_cm, lebar_maks_cm FROM production_capacities ORDER BY urut, id')
   return {
     today,
+    machines: machines.map((m) => ({ id: Number(m.id), mesin: String(m.mesin), jenis_plastik: String(m.jenis_plastik), jumlah_mesin: Number(m.jumlah_mesin), lebar_min_cm: num(m.lebar_min_cm), lebar_maks_cm: num(m.lebar_maks_cm) })),
     entries: entries.map(serializeEntry),
     jobs: jobs.map((j) => {
       const price = num(j.unit_price)
@@ -95,7 +99,10 @@ export async function searchPlanProducts(q: string) {
 type EntryInput = {
   tanggal: string; shift: number; quantity: number; sumber: 'pesanan' | 'produk'; job_id: number | null; item_accurate_id: number | null
   item_no: string | null; item_name: string; customer_name: string | null; so_number: string | null; unit: string | null; unit_price: number | null; catatan: string | null
+  capacity_id: number
 }
+// Nama mesin untuk tampilan: "2 Mesin Blow PP Kecil (PP)"
+const MESIN_SQL = "CONCAT(IF(m.jumlah_mesin > 1, CONCAT(m.jumlah_mesin, ' '), ''), m.mesin, ' (', m.jenis_plastik, ')')"
 
 const readDate = (v: unknown) => {
   const t = str(v, 10)
@@ -118,10 +125,13 @@ const readQty = (v: unknown, label = '') => {
 export async function readEntry(body: Record<string, unknown>) {
   const sumber = body.sumber === 'pesanan' ? 'pesanan' : 'produk'
   const tanggal = readDate(body.tanggal)
-  const priceRaw = body.unit_price
-  let unitPrice = priceRaw === null || priceRaw === undefined || priceRaw === '' ? null : Number(priceRaw)
-  if (unitPrice !== null && (!Number.isFinite(unitPrice) || unitPrice < 0 || unitPrice > 1e13)) fail(400, 'Harga per satuan tidak valid.')
-  const base: Omit<EntryInput, 'tanggal' | 'shift' | 'quantity' | 'unit_price'> = sumber === 'pesanan'
+  // Harga per satuan tidak diisi di form: otomatis harga jual pesanan / harga bawaan produk (untuk nilai rencana)
+  let unitPrice: number | null = null
+  // Mesin wajib, dari daftar Kapasitas Produksi
+  const capacityId = Number(body.capacity_id)
+  const [[machine]] = await db.query<Row[]>('SELECT id FROM production_capacities WHERE id = ?', [Number.isInteger(capacityId) ? capacityId : 0])
+  if (!machine) fail(400, 'Pilih mesin (daftar mesin dari menu Kapasitas Produksi).')
+  const base: Omit<EntryInput, 'tanggal' | 'shift' | 'quantity' | 'unit_price' | 'capacity_id'> = sumber === 'pesanan'
     ? await (async () => {
       const id = Number(body.job_id)
       const [[j]] = await db.query<Row[]>(`${JOB_SELECT} WHERE j.id = ?`, [Number.isInteger(id) ? id : 0])
@@ -148,7 +158,8 @@ export async function readEntry(body: Record<string, unknown>) {
       return { shift: readShift(x.shift, `Baris ${i + 1}: `), quantity: readQty(x.quantity, `Baris ${i + 1}: `) }
     })
     : [{ shift: readShift(body.shift), quantity: readQty(body.quantity) }]
-  return rows.map((r): EntryInput => ({ ...base, tanggal, shift: r.shift, quantity: r.quantity, unit_price: unitPrice }))
+  if (new Set(rows.map((r) => r.shift)).size !== rows.length) fail(400, 'Setiap shift hanya boleh diisi sekali.')
+  return rows.map((r): EntryInput => ({ ...base, tanggal, shift: r.shift, quantity: r.quantity, unit_price: unitPrice, capacity_id: capacityId }))
 }
 
 // Status pesanan ikut rencana: ada rencana = dijadwalkan, tidak ada = menunggu (yang sudah berjalan dibiarkan)
@@ -163,7 +174,7 @@ export async function refreshJobStatus(jobIds: (number | null)[], userId: number
 }
 
 export async function loadEntry(id: number) {
-  const [[e]] = await db.query<Row[]>("SELECT *, DATE_FORMAT(tanggal, '%Y-%m-%d') AS tanggal FROM production_plan_entries WHERE id = ?", [id])
+  const [[e]] = await db.query<Row[]>(`SELECT e.*, DATE_FORMAT(e.tanggal, '%Y-%m-%d') AS tanggal, ${MESIN_SQL} AS mesin FROM production_plan_entries e LEFT JOIN production_capacities m ON m.id = e.capacity_id WHERE e.id = ?`, [id])
   return e ? serializeEntry(e) : fail(404, 'Rencana produksi tidak ditemukan.')
 }
 
@@ -172,5 +183,5 @@ export const entryLabel = (e: { tanggal: string; shift: number; item_name: strin
 
 export const entryColumns = (e: EntryInput) => ({
   tanggal: e.tanggal, shift: e.shift, sumber: e.sumber, job_id: e.job_id, item_accurate_id: e.item_accurate_id, item_no: e.item_no, item_name: e.item_name,
-  customer_name: e.customer_name, so_number: e.so_number, quantity: e.quantity, unit: e.unit, unit_price: e.unit_price, catatan: e.catatan,
+  customer_name: e.customer_name, so_number: e.so_number, quantity: e.quantity, unit: e.unit, unit_price: e.unit_price, catatan: e.catatan, capacity_id: e.capacity_id,
 })
