@@ -3294,3 +3294,45 @@ a.pap-row-action { text-decoration:none; }
 .pap-design-link-row { display:flex; gap:8px; }
 .pap-design-link-row .pap-input { flex:1; min-width:0; }
 @media (max-width:560px) { .pap-design-link-row { flex-direction:column; } }
+
+/* ---------- Lembar Analisa Teknik (susunan formulir Excel, dirapikan) ---------- */
+.ta-v1 { color:#1b1d2e; font-size:12px; line-height:1.45; }
+.ta-v1 table { border-collapse:collapse; }
+.ta-v1 .ta1-title { margin:16px 0 0; color:#1f2a5a; font-size:15.5px; font-weight:800; text-align:center; text-decoration:underline; text-underline-offset:3px; }
+.ta-v1 .ta1-sub { margin:3px 0 14px; color:#5f6478; font-size:11.5px; text-align:center; }
+.ta-v1 .ta1-muted { color:#7a7f94; }
+.ta-v1 .ta1-blank { display:inline-block; min-width:150px; border-bottom:1px dotted #9aa0b4; }
+.ta-v1 .ta1-blank.short { min-width:90px; }
+.ta-v1 .ta1-info { width:100%; margin-bottom:8px; }
+.ta-v1 .ta1-info td { padding:3px 0; vertical-align:bottom; }
+.ta-v1 .ta1-info td.no { width:26%; text-align:right; white-space:nowrap; }
+.ta-v1 .ta1-spec { width:100%; table-layout:fixed; }
+.ta-v1 .ta1-spec td { padding:5px 6px; border-bottom:1px solid #e3e5ee; vertical-align:top; overflow-wrap:anywhere; }
+.ta-v1 .ta1-spec td.lbl { width:34%; }
+.ta-v1 .ta1-spec td.in { padding-left:20px; }
+.ta-v1 .ta1-spec td.eq { width:16px; padding-left:0; padding-right:0; color:#5f6478; text-align:center; }
+.ta-v1 .ta1-spec td.side { width:30%; color:#3b3f52; }
+.ta-v1 .ta1-spec tr.grp td { background:#f4f5f9; }
+.ta-v1 .ta1-h { margin:16px 0 6px; font-size:12.5px; font-weight:800; }
+.ta-v1 .ta1-h i { color:#5f6478; font-weight:400; }
+.ta-v1 .ta1-proc { width:100%; table-layout:fixed; }
+.ta-v1 .ta1-proc th, .ta-v1 .ta1-proc td { padding:5px 7px; border:1px solid #6b7085; vertical-align:top; overflow-wrap:anywhere; }
+.ta-v1 .ta1-proc th { background:#e9ebf3; font-size:11px; text-align:left; }
+.ta-v1 .ta1-proc .ck { width:28px; font-size:13px; text-align:center; }
+.ta-v1 .ta1-proc .m { width:33%; }
+.ta-v1 .ta1-proc .k { width:22%; }
+.ta-v1 .ta1-proc .r { width:16%; text-align:right; }
+.ta-v1 .ta1-proc tr.on td { background:#eefaf3; }
+.ta-v1 .ta1-proc tfoot td { background:#f4f5f9; }
+.ta-v1 .ta1-concl { width:100%; margin-top:16px; }
+.ta-v1 .ta1-concl td { padding:6px 6px; border-bottom:1px solid #e3e5ee; vertical-align:top; overflow-wrap:anywhere; }
+.ta-v1 .ta1-concl tr.hd td { border-bottom:2px solid #1f2a5a; font-size:12.5px; }
+.ta-v1 .ta1-concl td.no { width:20px; font-weight:800; text-align:right; }
+.ta-v1 .ta1-concl td.paraf, .ta-v1 .ta1-rek td.paraf { width:32%; }
+.ta-v1 .ta1-concl .exp { margin-top:3px; color:#3b3f52; }
+.ta-v1 .ta1-rek { width:100%; margin-top:12px; }
+.ta-v1 .ta1-rek td { padding:8px 6px; border-top:2px solid #1f2a5a; border-bottom:1px solid #e3e5ee; vertical-align:top; font-size:12.5px; }
+@media print {
+  .ta-v1 .ta1-proc th, .ta-v1 .ta1-proc tr.on td, .ta-v1 .ta1-spec tr.grp td { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .ta-v1 .ta1-proc tr, .ta-v1 .ta1-concl tr { break-inside:avoid; }
+}
