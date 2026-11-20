@@ -3193,3 +3193,68 @@ a.pap-row-action { text-decoration:none; }
 /* Cetak formulir analisa teknik per prospek: satu halaman per produk */
 .pap-ta-sheets .pap-ta-sheet-wrap + .pap-ta-sheet-wrap { margin-top:18px; }
 @media print { .pap-ta-sheets .pap-ta-sheet-wrap + .pap-ta-sheet-wrap { margin-top:0; break-before:page; page-break-before:always; } }
+
+/* ---------- Lembar Analisa Teknik (desain v2, halaman cetak / PDF) ---------- */
+.ta-v2 { color:#1b1d2e; font-size:12px; line-height:1.45; }
+.ta-v2 table { border-collapse:collapse; }
+.ta-v2 .ta-titlebar { width:100%; margin:14px 0 6px; }
+.ta-v2 .ta-title-cell { vertical-align:bottom; padding-right:16px; }
+.ta-v2 .ta-kicker { color:#6a4ee0; font-size:10px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+.ta-v2 .ta-title { margin:3px 0 0; color:#1f2a5a; font-size:24px; letter-spacing:-.02em; line-height:1.15; }
+.ta-v2 .ta-subtitle { color:#5f6478; font-size:13px; }
+.ta-v2 .ta-meta-cell { width:38%; vertical-align:bottom; }
+.ta-v2 .ta-meta { width:100%; overflow:hidden; border:1px solid #d9dcea; border-radius:8px; border-collapse:separate; border-spacing:0; }
+.ta-v2 .ta-meta td { padding:4px 9px; border-bottom:1px solid #eceef5; font-size:11px; }
+.ta-v2 .ta-meta tr:last-child td { border-bottom:0; }
+.ta-v2 .ta-meta td:first-child { width:42%; background:#f6f7fb; color:#6b7085; }
+.ta-v2 .ta-badge { display:inline-block; padding:2px 9px; border-radius:999px; background:#eef0f7; color:#1f2a5a; font-size:10.5px; font-weight:800; }
+.ta-v2 .st-diserahkan { background:#fff3db; color:#8a5300; } .ta-v2 .st-dianalisa { background:#ecebff; color:#4c37b8; } .ta-v2 .st-selesai { background:#dcf5ec; color:#0b7a5a; }
+.ta-v2 .v-bisa, .ta-v2 .q-mudah { background:#dcf5ec; color:#0b7a5a; }
+.ta-v2 .v-bersyarat, .ta-v2 .q-sedang { background:#fff3db; color:#8a5300; }
+.ta-v2 .v-tidak, .ta-v2 .q-sulit { background:#fde4e4; color:#b42318; }
+.ta-v2 .ta-sec { width:100%; margin:16px 0 6px; }
+.ta-v2 .ta-sec-no { width:24px; padding:4px 0; border-radius:6px 0 0 6px; background:#1f2a5a; color:#fff; font-weight:800; text-align:center; }
+.ta-v2 .ta-sec-title { padding:4px 10px; border-radius:0 6px 6px 0; background:#eef0f7; color:#1f2a5a; font-weight:800; font-size:12.5px; }
+.ta-v2 .ta-sec-title span { margin-left:6px; color:#6b7085; font-size:11px; font-weight:400; font-style:italic; }
+.ta-v2 .ta-spec { width:100%; }
+.ta-v2 .ta-spec td { padding:6px 8px; border:1px solid #e3e5ee; vertical-align:top; }
+.ta-v2 .ta-spec td.k { width:17%; background:#f6f7fb; color:#4a4f66; font-size:11px; font-weight:600; }
+.ta-v2 .ta-spec td.v { width:33%; }
+.ta-v2 .ta-ctq td.v { background:#fffaf0; }
+.ta-v2 .ta-hint { color:#8a8fa5; font-size:10px; }
+.ta-v2 .ta-blank { display:inline-block; min-width:120px; border-bottom:1px dotted #9aa0b4; }
+.ta-v2 .ta-proc { width:100%; }
+.ta-v2 .ta-proc th { padding:6px 7px; border:1px solid #1f2a5a; background:#1f2a5a; color:#fff; font-size:10.5px; text-align:left; }
+.ta-v2 .ta-proc td { padding:5px 7px; border:1px solid #d9dcea; vertical-align:top; }
+.ta-v2 .ta-proc .no { width:26px; color:#8a8fa5; text-align:center; }
+.ta-v2 .ta-proc .ck { width:38px; text-align:center; }
+.ta-v2 .ta-proc .r { text-align:right; }
+.ta-v2 .ta-proc tbody tr:nth-child(even) td { background:#fafbfd; }
+.ta-v2 .ta-proc tr.on td { background:#eefaf4 !important; }
+.ta-v2 .ta-proc tr.on td.m { font-weight:700; }
+.ta-v2 .ta-proc tfoot td { background:#f6f7fb; font-size:11px; }
+.ta-v2 .ta-check { display:inline-block; width:15px; height:15px; border:1.5px solid #9aa0b4; border-radius:4px; font-size:11px; line-height:13px; text-align:center; }
+.ta-v2 .ta-check.on { border-color:#12a37a; background:#12a37a; color:#fff; }
+.ta-v2 .ta-kec { color:#8a8fa5; font-size:10.5px; }
+.ta-v2 .ta-muted { color:#8a8fa5; }
+.ta-v2 .ta-concl { width:100%; }
+.ta-v2 .ta-concl td { padding:8px 9px; border:1px solid #e3e5ee; vertical-align:top; }
+.ta-v2 .ta-concl td.q { width:38%; background:#f6f7fb; color:#1f2a5a; font-weight:700; }
+.ta-v2 .ta-qno { display:inline-grid; place-items:center; width:18px; height:18px; margin-right:6px; border-radius:50%; background:#6a4ee0; color:#fff; font-size:10px; }
+.ta-v2 .ta-exp { margin-top:5px; } .ta-v2 .ta-exp span { color:#6b7085; }
+.ta-v2 .ta-opt { color:#4a4f66; }
+.ta-v2 .ta-rek { width:100%; }
+.ta-v2 .ta-rek td { height:52px; padding:8px 10px; border:1px solid #d9dcea; border-radius:8px; background:#fbfbfe; vertical-align:top; }
+.ta-v2 .ta-sign { width:100%; margin-top:20px; }
+.ta-v2 .ta-sign td { width:33.33%; padding:3px 12px; text-align:center; vertical-align:top; }
+.ta-v2 .ta-role { color:#6b7085; font-size:10.5px; }
+.ta-v2 .ta-sign-space td { height:58px; vertical-align:middle; }
+.ta-v2 .ta-signed { padding:2px 8px; border:1px dashed #12a37a; border-radius:6px; color:#0b7a5a; font-size:10px; font-weight:700; }
+.ta-v2 .ta-sign-name td { border-top:1.5px solid #1b1d2e; font-weight:700; }
+.ta-v2 .ta-sign-name td + td { border-left:12px solid #fff; }
+.ta-v2 .ta-sign-name div { color:#6b7085; font-size:10.5px; font-weight:400; }
+.ta-v2 .ta-foot { margin:14px 0 0; color:#9aa0b4; font-size:9.5px; text-align:center; }
+@media print {
+  .ta-v2 .ta-proc th, .ta-v2 .ta-sec-no, .ta-v2 .ta-check.on, .ta-v2 .ta-badge, .ta-v2 .ta-qno, .ta-v2 .ta-proc tr.on td, .ta-v2 .ta-sec-title, .ta-v2 .ta-spec td.k, .ta-v2 .ta-concl td.q { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .ta-v2 .ta-proc tr, .ta-v2 .ta-concl tr, .ta-v2 .ta-sign { break-inside:avoid; }
+}
