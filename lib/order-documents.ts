@@ -226,7 +226,7 @@ export async function draftOrderDocument(jenis: SoJenis, soId: number | null): P
 export function orderDocumentView(d: DocInput): DocView {
   const t = docTotals(d)
   return {
-    jenis: d.jenis, nomor: d.nomor, tanggal: d.tanggal, ref: d.jenis === 'order' ? d.po_number : d.so_number,
+    jenis: d.jenis, nomor: d.nomor, tanggal: d.tanggal, ref: d.po_number, so_ref: d.jenis === 'proforma' ? d.so_number : null,
     customer_name: d.kepada, kontak: d.kontak, telepon: d.telepon, alamat: d.alamat, ship_date: d.ship_date, ekspedisi: d.ekspedisi,
     items: d.items.map((it) => ({ ...it, total: lineTotal(it) })),
     // Ongkir per kg dicetak sebagai baris biaya: "Ongkos kirim (Rp 1.500/kg x 100 kg)"

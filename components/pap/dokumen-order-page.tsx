@@ -324,10 +324,9 @@ function DocEditor({ editing, onClose, onSaved }: { editing: Editing; onClose: (
             </Field>
             <Field label="Nomor *"><input className="pap-input" required maxLength={60} value={v.nomor} onChange={(e) => set('nomor', e.target.value)} /></Field>
             <Field label="Tanggal *"><input className="pap-input" type="date" required value={v.tanggal} onChange={(e) => set('tanggal', e.target.value)} /></Field>
-            <Field label={jenis === 'order' ? 'No. PO customer' : 'Ref. SO'}>
-              {jenis === 'order'
-                ? <input className="pap-input" maxLength={100} value={v.po_number ?? ''} onChange={(e) => set('po_number', e.target.value || null)} />
-                : <input className="pap-input" maxLength={60} value={v.so_number ?? ''} onChange={(e) => set('so_number', e.target.value || null)} />}
+            {/* Surat Order & Proforma Invoice sama-sama memakai No. PO customer; nomor SO asal tetap tersimpan otomatis */}
+            <Field label="No. PO customer" hint={jenis === 'proforma' && v.so_number ? `Ref. SO ${v.so_number}` : undefined}>
+              <input className="pap-input" maxLength={100} value={v.po_number ?? ''} onChange={(e) => set('po_number', e.target.value || null)} />
             </Field>
           </div>
           <div className="pap-po-sections">

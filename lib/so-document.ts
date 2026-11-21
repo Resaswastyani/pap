@@ -86,7 +86,7 @@ export function proformaTagihan(so: { total: number; terbayar: number; sisa: num
 
 // Isi dokumen yang siap dicetak: dari SO Accurate langsung (soToView) atau dari dokumen tersimpan (lib/order-documents)
 export type DocView = {
-  jenis: SoJenis; nomor: string; tanggal: string; ref: string | null
+  jenis: SoJenis; nomor: string; tanggal: string; ref: string | null; so_ref?: string | null
   customer_name: string; kontak: string | null; telepon: string | null; alamat: string | null; ship_date: string | null; ekspedisi: string | null
   items: { nama: string; qty: number; unit: string; harga: number; disc_pct: number | null; total: number; catatan: string | null }[]
   expenses: { nama: string; amount: number }[]
@@ -101,7 +101,7 @@ export async function soToView(so: SoDocument, jenis: SoJenis, opts: { dp?: numb
   const dp = opts.dp === undefined ? so.dp_persen : opts.dp
   return {
     jenis, nomor: soDocNomor(so, jenis), tanggal: opts.tanggalDok ?? (jenis === 'proforma' ? todayWib() : so.tanggal),
-    ref: jenis === 'order' ? so.po_number : so.nomor,
+    ref: so.po_number, so_ref: jenis === 'proforma' ? so.nomor : null,
     customer_name: so.customer_name, kontak: so.kontak, telepon: so.telepon, alamat: so.alamat, ship_date: so.ship_date, ekspedisi: so.ekspedisi,
     items: so.items, expenses: so.expenses, subtotal: so.subtotal, diskon: so.diskon,
     ppn_mode: so.taxable && so.ppn ? (so.inclusive ? 'inclusive' : 'exclusive') : 'none', ppn_rate: so.ppn_rate, ppn: so.ppn, total: so.total, terbayar: so.terbayar,
@@ -134,7 +134,8 @@ export async function orderDocumentHtml(v: DocView, logoSrc: string) {
 <h2 class="pap-sheet-title">${JUDUL[v.jenis]}</h2>
 <table class="pap-sheet-meta"><tbody>
   <tr><td>Nomor</td><td>: ${esc(v.nomor)}</td><td>Tanggal</td><td>: ${tanggal(v.tanggal)}</td></tr>
-  <tr><td>Kepada</td><td>: <b>${esc(v.customer_name)}</b></td><td>${v.jenis === 'order' ? 'No. PO' : 'Ref. SO'}</td><td>: ${esc(v.ref || '-')}</td></tr>
+  <tr><td>Kepada</td><td>: <b>${esc(v.customer_name)}</b></td><td>No. PO</td><td>: ${esc(v.ref || '-')}</td></tr>
+  ${v.so_ref ? `<tr><td>Ref. SO</td><td colspan="3">: ${esc(v.so_ref)}</td></tr>` : ''}
   ${v.kontak ? `<tr><td>Up.</td><td colspan="3">: ${esc(v.kontak)}</td></tr>` : ''}
   ${v.telepon ? `<tr><td>Telepon</td><td colspan="3">: ${esc(v.telepon)}</td></tr>` : ''}
   ${v.alamat ? `<tr><td>Alamat kirim</td><td colspan="3">: ${esc(v.alamat.replace(/\s*\n\s*/g, ', '))}</td></tr>` : ''}
