@@ -64,7 +64,7 @@ export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, l
   ${row('<b>Critical to Quality</b>', br(a.critical_to_quality))}
 </tbody></table>
 
-<p class="ta1-h">Analisa Sesuai Urutan Proses <i>(diisi oleh Tehnik)</i></p>
+<p class="ta1-h">Rekomendasi/Analisa Sesuai Urutan Proses <i>(diisi oleh Tehnik)</i></p>
 <table class="ta1-proc">
   <thead><tr><th class="ck"></th><th class="m">Mesin / Proses</th><th class="k">Kecepatan Mesin</th><th class="k2">Kec Roto Max</th><th class="k2">Jalur / Tumpuk</th><th>Keterangan Lainnya</th><th class="r">Hasil Produktivitas (Kg/Jam)</th></tr></thead>
   <tbody>${a.proses.map((p) => `<tr class="${p.dipakai ? 'on' : ''}"><td class="ck">${p.dipakai ? '&#9745;' : '&#9744;'}</td><td class="m">${esc(p.mesin)}</td><td class="k">${p.kec_label ? `${esc(p.kec_label)} = ` : ''}${p.kecepatan ? `<b>${esc(p.kecepatan)}</b>` : ''}</td><td class="k2">${p.kec_roto_max ? `<b>${esc(p.kec_roto_max)}</b>` : ''}</td><td class="k2">${p.jalur ? esc(p.jalur) : ''}</td><td>${br(p.keterangan)}</td><td class="r">${p.produktivitas !== null ? `<b>${n(p.produktivitas)}</b>` : ''}</td></tr>`).join('')}
