@@ -3376,3 +3376,37 @@ a.pap-row-action { text-decoration:none; }
 .pap-check-sub { margin-left:24px; font-size:12.5px; }
 #order-doc-form .pap-quote-totals { flex-wrap:nowrap; } #order-doc-form .pap-quote-totals dl { flex:1 1 auto; min-width:0; max-width:420px; } @media (max-width:640px) { #order-doc-form .pap-quote-totals { flex-wrap:wrap; } #order-doc-form .pap-quote-totals dl { max-width:none; width:100%; } }
 #order-doc-form .pap-quote-totals dt .pap-doc-diskon { display:inline-block; width:110px; margin-left:6px; padding-top:4px; padding-bottom:4px; }
+
+/* Prospek: centang minta analisa teknik di atas Jenis Product - Spec */
+.pap-ta-minta { display:flex; align-items:center; gap:8px; margin:0 0 8px; font-size:12.5px; font-weight:600; cursor:pointer; text-align:left; }
+.pap-ta-minta input { width:16px; height:16px; flex:none; margin:0; accent-color:#7c5cfc; }
+.pap-ta-minta small { font-weight:400; }
+.pap-prod-rows li > label.pap-ta-minta { display:flex; flex-direction:row; align-items:center; justify-content:flex-start; align-self:flex-start; text-align:left; gap:8px; }
+
+.pap-prod-top.with-check { grid-template-columns:24px 22px minmax(0, 1fr) 34px; }
+.pap-ta-minta-box { display:grid; place-items:center; height:40px; margin-bottom:0; cursor:pointer; }
+.pap-ta-minta-box input { width:18px; height:18px; margin:0; accent-color:#7c5cfc; cursor:pointer; }
+.pap-ta-minta-hint { font-weight:400; text-transform:none; letter-spacing:0; }
+.pap-prod-rows .pap-prod-top > label.pap-ta-minta-box { display:flex; flex-direction:row; align-items:center; justify-content:center; align-self:end; height:auto; margin:0 0 9px; padding:0; gap:0; }
+
+.pap-prod-head { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+.pap-prod-rows .pap-prod-head > label.pap-ta-minta { margin:0; }
+.pap-prod-top.no-number { grid-template-columns:minmax(0, 1fr) 34px; }
+.pap-ta-minta-done { font-size:12px; }
+.pap-prod-rows .pap-prod-head > label.pap-ta-minta { display:flex; flex-direction:row; align-items:center; justify-content:flex-start; text-align:left; gap:8px; }
+
+.pap-ta-need { align-self:center; font-size:12px; }
+.pap-field-error { padding:10px; margin:-10px; border:1.5px solid #dc2626; border-radius:12px; background:rgb(220 38 38 / .04); }
+
+/* Data Produk: analisa teknik di form produk */
+.pap-prod-teknik-box { display:flex; flex-direction:column; gap:8px; padding:12px; border:1px solid var(--pap-border); border-radius:12px; background:rgb(124 92 252 / .03); }
+.pap-prod-teknik-box > label.pap-ta-minta { display:flex; flex-direction:row; align-items:center; flex-wrap:wrap; gap:8px; margin:0; }
+.pap-prod-rows li .pap-prod-fields, .pap-prod-rows li .pap-prod-extra { padding-left:0; }
+
+/* Analisa teknik: kolom Kec Roto Max & Jalur / Tumpuk */
+.pap-ta-proc { grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) minmax(0,.9fr) minmax(0,1.1fr) 120px; }
+@media (max-width:900px) { .pap-ta-proc { grid-template-columns:repeat(2,minmax(0,1fr)); } .pap-ta-proc-name { grid-column:1 / -1; } }
+.ta-v1 .ta1-proc .m { width:24%; }
+.ta-v1 .ta1-proc .k { width:16%; }
+.ta-v1 .ta1-proc .k2 { width:11%; }
+.ta-v1 .ta1-proc .r { width:13%; }

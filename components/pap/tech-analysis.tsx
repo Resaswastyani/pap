@@ -15,7 +15,7 @@ const FLOW_LABEL: Record<Status, string> = { draft: 'Marketing isi spek', disera
 const BISA = { bisa: 'Bisa diproduksi (optimal)', bersyarat: 'Bisa dengan syarat', tidak: 'Tidak bisa diproduksi optimal' } as const
 const KUALITAS = { mudah: 'Mudah', sedang: 'Sedang', sulit: 'Sulit' } as const
 
-type Proses = { mesin: string; kec_label: string; dipakai: boolean; kecepatan: string; keterangan: string; produktivitas: number | null }
+type Proses = { mesin: string; kec_label: string; dipakai: boolean; kecepatan: string; kec_roto_max: string; jalur: string; keterangan: string; produktivitas: number | null }
 type Analysis = {
   id: number; nomor: string; prospect_id: number | null; prospect_name: string | null; status: Status; tanggal_serah: string | null
   nama_produk: string; nama_customer: string; jenis_plastik: string | null; panjang_cm: number | null; lebar_cm: number | null; tebal_mm: number | null
@@ -32,7 +32,8 @@ export type TaPrefill = { prospect_id: number; nama_customer: string; products: 
 const fmt = (v: number | null | undefined) => (v === null || v === undefined ? '' : String(v).replace('.', ','))
 
 // Daftar analisa (menu Analisa Teknik Order, tab di Prospek, atau bagian di detail prospek bila prospectId diisi)
-export function TechAnalysisView({ user, prospectId, prefill, focusId, compact = false, allowCreate = true }: { user: UserProfile; prospectId?: number; prefill?: TaPrefill; focusId?: number | null; compact?: boolean; allowCreate?: boolean }) {
+// sumber='produk': hanya analisa yang diajukan dari Data Produk (tab Analisa Teknik di menu Data Produk)
+export function TechAnalysisView({ user, prospectId, prefill, focusId, compact = false, allowCreate = true, sumber }: { user: UserProfile; prospectId?: number; prefill?: TaPrefill; focusId?: number | null; compact?: boolean; allowCreate?: boolean; sumber?: 'produk' }) {
   const [data, setData] = useState<ListRes | null>(null)
   const [status, setStatus] = useState<Status | ''>('')
   const [q, setQ] = useState('')
@@ -44,6 +45,7 @@ export function TechAnalysisView({ user, prospectId, prefill, focusId, compact =
     try {
       const p = new URLSearchParams()
       if (prospectId) p.set('prospect_id', String(prospectId))
+      if (sumber) p.set('sumber', sumber)
       if (status) p.set('status', status)
       if (q.trim()) p.set('q', q.trim())
       setData(await api<ListRes>(`/api/tech-analyses?${p}`))
@@ -51,7 +53,7 @@ export function TechAnalysisView({ user, prospectId, prefill, focusId, compact =
     } catch (e) {
       setError((e as Error).message)
     }
-  }, [prospectId, status, q])
+  }, [prospectId, sumber, status, q])
   useEffect(() => { const t = setTimeout(load, q ? 300 : 0); return () => clearTimeout(t) }, [load, q])
   useEffect(() => { if (focusId) setOpenId(focusId) }, [focusId])
   const paged = usePaged(data?.items ?? [], [status, q, prospectId])
@@ -85,7 +87,7 @@ export function TechAnalysisView({ user, prospectId, prefill, focusId, compact =
         )}
         <div className="pap-table-wrap">
           <table className="pap-ta-table">
-            <thead><tr><th>Nomor & produk</th><th>Customer</th><th>Spek</th><th>Kesimpulan Teknik</th><th>Status</th><th aria-label="Aksi" /></tr></thead>
+            <thead><tr><th>No. pengajuan & produk</th><th>Customer</th><th>Spek</th><th>Kesimpulan Teknik</th><th>Status</th><th aria-label="Aksi" /></tr></thead>
             <tbody>
               {paged.items.map((a) => (
                 <tr key={a.id} className="pap-clickable" tabIndex={0} onClick={() => setOpenId(a.id)} onKeyDown={(e) => e.key === 'Enter' && setOpenId(a.id)}>
@@ -243,6 +245,7 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [needBisa, setNeedBisa] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -297,7 +300,7 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
   const used = proses.filter((p) => p.dipakai)
 
   return (
-    <Modal title={`${a.nomor} · ${a.nama_produk}`} subtitle={`${a.nama_customer}${a.prospect_name && a.prospect_name !== a.nama_customer ? ` · prospek ${a.prospect_name}` : ''} · dibuat ${a.created_name ?? ''} ${formatDate(a.created_at)}`} wide onClose={onClose}
+    <Modal title={`No. Pengajuan ${a.nomor} · ${a.nama_produk}`} subtitle={`${a.nama_customer}${a.prospect_name && a.prospect_name !== a.nama_customer ? ` · prospek ${a.prospect_name}` : ''} · dibuat ${a.created_name ?? ''} ${formatDate(a.created_at)}`} wide onClose={onClose}
       footer={<>
         {can.delete && <button type="button" className="pap-btn danger" onClick={remove}><Trash2 /> Hapus</button>}
         <span className="pap-spacer" />
@@ -343,7 +346,7 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
       {tab === 'teknik' && (
         <div className="pap-ta-section">
           {a.status === 'draft' && <Notice>Belum diserahkan Marketing ke Dept Teknik.</Notice>}
-          <p className="pap-muted pap-ta-hint">Centang mesin / proses yang dipakai sesuai urutan, isi kecepatan mesin, keterangan, dan produktivitas per jam (kg).</p>
+          <p className="pap-muted pap-ta-hint">Centang mesin / proses yang dipakai sesuai urutan, isi kecepatan mesin, kecepatan roto maksimum, jalur / tumpuk, keterangan, dan hasil produktivitas per jam (kg).</p>
           <div className="pap-ta-proses-list">
             {proses.map((p, i) => (
               <div key={i} className={`pap-ta-proc ${p.dipakai ? 'on' : ''}`}>
@@ -352,16 +355,19 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
                   {p.mesin}
                 </label>
                 <label className="pap-ta-proc-f"><span>{p.kec_label || 'Kecepatan'}</span><input className="pap-input" maxLength={120} disabled={!can.teknik} value={p.kecepatan} onChange={(e) => setRow(i, { kecepatan: e.target.value, dipakai: p.dipakai || !!e.target.value })} placeholder="—" /></label>
+                <label className="pap-ta-proc-f"><span title="Kecepatan Roto Maksimum">Kec Roto Max</span><input className="pap-input" maxLength={120} disabled={!can.teknik} value={p.kec_roto_max ?? ''} onChange={(e) => setRow(i, { kec_roto_max: e.target.value, dipakai: p.dipakai || !!e.target.value })} placeholder="—" /></label>
+                <label className="pap-ta-proc-f"><span>Jalur / Tumpuk</span><input className="pap-input" maxLength={120} list="pap-ta-jalur" disabled={!can.teknik} value={p.jalur ?? ''} onChange={(e) => setRow(i, { jalur: e.target.value, dipakai: p.dipakai || !!e.target.value })} placeholder="mis. 2 jalur" /></label>
                 <label className="pap-ta-proc-f"><span>Keterangan</span><input className="pap-input" maxLength={500} disabled={!can.teknik} value={p.keterangan} onChange={(e) => setRow(i, { keterangan: e.target.value })} placeholder="—" /></label>
-                <label className="pap-ta-proc-f small"><span>Kg / jam</span><input className="pap-input" inputMode="decimal" disabled={!can.teknik} value={p.produktivitas ?? ''} onChange={(e) => { const t = e.target.value.replace(/[^\d.,]/g, ''); setRow(i, { produktivitas: t ? Number(t.replace(',', '.')) : null, dipakai: p.dipakai || !!t }) }} placeholder="0" /></label>
+                <label className="pap-ta-proc-f small"><span>Hasil Produktivitas (kg/jam)</span><input className="pap-input" inputMode="decimal" disabled={!can.teknik} value={p.produktivitas ?? ''} onChange={(e) => { const t = e.target.value.replace(/[^\d.,]/g, ''); setRow(i, { produktivitas: t ? Number(t.replace(',', '.')) : null, dipakai: p.dipakai || !!t }) }} placeholder="0" /></label>
               </div>
             ))}
           </div>
-          {can.teknik && <button type="button" className="pap-link-button pap-shift-edit" onClick={() => setProses([...proses, { mesin: 'Proses lain', kec_label: '', dipakai: true, kecepatan: '', keterangan: '', produktivitas: null }])}><Plus /> Tambah proses lain</button>}
+          <datalist id="pap-ta-jalur">{['1 jalur', '2 jalur', '3 jalur', '4 jalur', 'Tumpuk 2', 'Tumpuk 3'].map((x) => <option key={x} value={x} />)}</datalist>
+          {can.teknik && <button type="button" className="pap-link-button pap-shift-edit" onClick={() => setProses([...proses, { mesin: 'Proses lain', kec_label: '', dipakai: true, kecepatan: '', kec_roto_max: '', jalur: '', keterangan: '', produktivitas: null }])}><Plus /> Tambah proses lain</button>}
           <p className="pap-muted pap-ta-hint">{used.length} proses dipakai{used.length ? `: ${used.map((p) => p.mesin).join(' → ')}` : ''}</p>
 
           <h4 className="pap-ta-sub-h"><Wrench className="pap-inline-icon" /> Kesimpulan analisa teknis produksi</h4>
-          <div className="pap-field">
+          <div className={`pap-field ${needBisa && !tv.bisa_produksi ? 'pap-field-error' : ''}`} id={`pap-ta-bisa-${id}`}>
             <span>1. Bisa / tidak bisa diproduksi dengan produktivitas yang optimal *</span>
             <div className="pap-ta-choice">{(Object.keys(BISA) as (keyof typeof BISA)[]).map((k) => <button type="button" key={k} disabled={!can.teknik} className={`pap-ta-choice-btn ${k} ${tv.bisa_produksi === k ? 'active' : ''}`} onClick={() => setTv({ ...tv, bisa_produksi: k })}>{BISA[k]}</button>)}</div>
             <textarea className="pap-input" rows={2} maxLength={5000} disabled={!can.teknik} value={tv.penjelasan_produksi} onChange={(e) => setTv({ ...tv, penjelasan_produksi: e.target.value })} placeholder="Penjelasan" />
@@ -378,7 +384,12 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
             {(a.status === 'dianalisa' || a.status === 'selesai') && (can.direksi || user.division.code === 'teknik' || user.role.isAdmin) && <button type="button" className="pap-btn" disabled={busy} onClick={() => flow('buka', 'Analisa dibuka lagi untuk Dept Teknik.')}><Undo2 /> Buka lagi untuk Teknik</button>}
             <span className="pap-spacer" />
             {can.teknik && <button type="button" className="pap-btn" disabled={busy} onClick={() => saveTeknik(false)}><Save /> Simpan</button>}
-            {can.teknik && <button type="button" className="pap-primary-button" disabled={busy || !tv.bisa_produksi} onClick={() => saveTeknik(true)}><ClipboardCheck /> Selesai & paraf</button>}
+            {can.teknik && !tv.bisa_produksi && <small className="pap-muted pap-ta-need">Pilih poin 1 (bisa / tidak bisa diproduksi) dulu</small>}
+            {can.teknik && <button type="button" className="pap-primary-button" disabled={busy} onClick={() => {
+              // Poin 1 wajib: tunjukkan bagian yang belum diisi (bisa tertutup di atas layar)
+              if (!tv.bisa_produksi) { setNeedBisa(true); document.getElementById(`pap-ta-bisa-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return }
+              saveTeknik(true)
+            }}><ClipboardCheck /> Selesai & paraf</button>}
           </div>
         </div>
       )}
@@ -477,6 +488,18 @@ export type TeknikSpec = {
 export const emptyTeknik = (): TeknikSpec => ({ minta: false, panjang_cm: '', lebar_cm: '', tebal_mm: '', print_jenis: '', jumlah_warna: '', kesulitan_print: '', spec_lainnya: '', frekuensi: '', rutin_bulan: '', critical_to_quality: '' })
 
 // Analisa yang sudah ada untuk prospek: dipetakan per nama produk (untuk form Edit prospek)
+// Spek teknik analisa terakhir untuk satu produk Data Produk (isian awal form produk)
+export async function loadProductTeknik(productId: number): Promise<TeknikSpec | null> {
+  const r = await api<ListRes>(`/api/tech-analyses?product_id=${productId}`)
+  const a = [...r.items].sort((x, y) => y.id - x.id)[0]
+  if (!a) return null
+  return {
+    minta: true, panjang_cm: fmt(a.panjang_cm), lebar_cm: fmt(a.lebar_cm), tebal_mm: fmt(a.tebal_mm), print_jenis: a.print_jenis ?? '', jumlah_warna: fmt(a.jumlah_warna),
+    kesulitan_print: a.kesulitan_print ?? '', spec_lainnya: a.spec_lainnya ?? '', frekuensi: a.frekuensi ?? '', rutin_bulan: fmt(a.rutin_bulan), critical_to_quality: a.critical_to_quality ?? '',
+    analysis: { id: a.id, nomor: a.nomor, status: a.status },
+  }
+}
+
 export async function loadProspectTeknik(prospectId: number) {
   const r = await api<ListRes>(`/api/tech-analyses?prospect_id=${prospectId}`)
   const map = new Map<string, TeknikSpec>()
@@ -488,6 +511,23 @@ export async function loadProspectTeknik(prospectId: number) {
     })
   }
   return map
+}
+
+// Centang "Minta analisa ke Dept Teknik" di atas Jenis Product - Spec (teks di samping centang).
+// Disembunyikan bila produk sudah dianalisa / selesai.
+// compact: hanya kotak centang (di samping nomor produk), keterangan lewat tooltip & label kolom
+export function TeknikMintaCheck({ value, onChange, compact = false, saat = 'prospek' }: { value: TeknikSpec | null | undefined; onChange: (v: TeknikSpec | null) => void; compact?: boolean; saat?: 'prospek' | 'produk' }) {
+  const t = value ?? null
+  const locked = !!t?.analysis && (t.analysis.status === 'dianalisa' || t.analysis.status === 'selesai')
+  const title = locked ? `Sudah dianalisa Dept Teknik (${t!.analysis!.nomor})` : `Minta analisa ke Dept Teknik saat ${saat} disimpan (otomatis tercentang bila spek teknik diisi)`
+  if (locked && !compact) return <span className="pap-muted pap-ta-minta-done">Sudah dianalisa Dept Teknik ({t!.analysis!.nomor})</span>
+  return (
+    <label className={compact ? 'pap-ta-minta-box' : 'pap-ta-minta'} title={title}>
+      <input type="checkbox" disabled={locked} checked={locked || !!t?.minta} onChange={(e) => onChange({ ...(t ?? emptyTeknik()), minta: e.target.checked, mintaManual: true })} aria-label="Minta analisa ke Dept Teknik" />
+      {!compact && <span>Minta analisa ke Dept Teknik saat {saat} disimpan <small className="pap-muted">(otomatis tercentang bila spek teknik diisi)</small></span>}
+      {!compact && t?.analysis && <span className={`pap-status ${TONE[t.analysis.status]}`}>{t.analysis.nomor} · {STATUS[t.analysis.status]}</span>}
+    </label>
+  )
 }
 
 export function TeknikSpecPanel({ value, onChange }: { value: TeknikSpec | null | undefined; onChange: (v: TeknikSpec | null) => void }) {
@@ -516,7 +556,6 @@ export function TeknikSpecPanel({ value, onChange }: { value: TeknikSpec | null 
         <div className="pap-ta-inline-body">
           {locked ? <p className="pap-muted pap-ta-hint">Produk ini sudah dianalisa Dept Teknik ({t!.analysis!.nomor}); spek tidak bisa diubah dari sini. Lihat hasilnya di detail prospek.</p> : (
             <>
-              <label className="pap-ma-check"><input type="checkbox" checked={!!t?.minta} onChange={(e) => set({ minta: e.target.checked, mintaManual: true })} /> Minta analisa ke Dept Teknik saat prospek disimpan <small className="pap-muted">(otomatis tercentang bila spek diisi)</small></label>
               <div className="pap-ta-inline-grid">
                 <label><span>Panjang (cm)</span><input className="pap-input" inputMode="decimal" value={t?.panjang_cm ?? ''} onChange={num('panjang_cm')} /></label>
                 <label><span>Lebar (cm)</span><input className="pap-input" inputMode="decimal" value={t?.lebar_cm ?? ''} onChange={num('lebar_cm')} /></label>

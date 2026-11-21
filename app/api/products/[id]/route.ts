@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { canManageProduct, canViewProducts, requireMenu } from '@/lib/customers'
 import { db } from '@/lib/db'
+import { syncProductAnalysis } from '@/lib/tech-analysis'
 import { loadProduct, loadProductFiles, loadProductOrders, readProductInput } from '@/lib/products'
 import { renameAccurateItem } from '@/lib/materials'
 import { softDelete } from '@/lib/recycle-bin'
@@ -37,14 +38,17 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
   if (!canManageProduct(user)) fail(403, 'Anda tidak punya akses untuk mengedit produk.')
   const item = await loadProduct(await productId(ctx))
-  const input = readProductInput(await readJson(request))
+  const body = await readJson(request)
+  const input = readProductInput(body)
   // Produk dari barang Accurate: nama & kode dikirim ke Accurate lebih dulu (bila Accurate menolak, tidak ada yang berubah)
   if (item.accurate_item_id) await renameAccurateItem(item.accurate_item_id, input.nama, input.kode)
   await db.query(
     `UPDATE customer_products SET kode = ?, nama = ?, jenis = ?, spesifikasi = ?, bahan = ?, keterangan = ?, status = ?, updated_by = ? WHERE id = ?`,
     [input.kode, input.nama, input.jenis, input.spesifikasi, input.bahan, input.keterangan, input.status, user.id, item.id],
   )
-  return NextResponse.json({ item: await loadProduct(item.id) })
+  // Centang "Minta analisa ke Dept Teknik": analisa teknik per produk dibuat / diperbarui & diserahkan ke Teknik
+  const analisa = await syncProductAnalysis(item.id, body.teknik, user)
+  return NextResponse.json({ item: await loadProduct(item.id), analisa })
 })
 
 // Produk dari Accurate tidak dihapus (akan muncul lagi saat sinkron); jadikan nonaktif saja

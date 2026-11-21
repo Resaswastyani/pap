@@ -47,7 +47,7 @@ export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, l
 
 <table class="ta1-info"><tbody><tr>
   <td><b>Dibuat oleh Dept Marketing dan diserahkan ke Dept Tehnik tanggal</b> = ${val(tgl(a.tanggal_serah))}${a.created_name ? ` <span class="ta1-muted">(${esc(a.created_name)})</span>` : ''}</td>
-  <td class="no">No. <b>${esc(a.nomor)}</b></td>
+  <td class="no">No. Pengajuan <b>${esc(a.nomor)}</b></td>
 </tr></tbody></table>
 
 <table class="ta1-spec"><tbody>
@@ -66,11 +66,11 @@ export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, l
 
 <p class="ta1-h">Analisa Sesuai Urutan Proses <i>(diisi oleh Tehnik)</i></p>
 <table class="ta1-proc">
-  <thead><tr><th class="ck"></th><th class="m">Mesin / Proses</th><th class="k">Kecepatan Mesin</th><th>Keterangan Lainnya</th><th class="r">Produktivitas / Jam (Kg)</th></tr></thead>
-  <tbody>${a.proses.map((p) => `<tr class="${p.dipakai ? 'on' : ''}"><td class="ck">${p.dipakai ? '&#9745;' : '&#9744;'}</td><td class="m">${esc(p.mesin)}</td><td class="k">${p.kec_label ? `${esc(p.kec_label)} = ` : ''}${p.kecepatan ? `<b>${esc(p.kecepatan)}</b>` : ''}</td><td>${br(p.keterangan)}</td><td class="r">${p.produktivitas !== null ? `<b>${n(p.produktivitas)}</b>` : ''}</td></tr>`).join('')}
-  <tr><td class="ck">&#9744;</td><td class="m">&nbsp;</td><td class="k"></td><td></td><td class="r"></td></tr>
-  <tr><td class="ck">&#9744;</td><td class="m">&nbsp;</td><td class="k"></td><td></td><td class="r"></td></tr></tbody>
-  ${used.length ? `<tfoot><tr><td></td><td colspan="3"><b>${used.length} proses dipakai</b></td><td class="r"><b>${totalProd ? n(totalProd) : ''}</b></td></tr></tfoot>` : ''}
+  <thead><tr><th class="ck"></th><th class="m">Mesin / Proses</th><th class="k">Kecepatan Mesin</th><th class="k2">Kec Roto Max</th><th class="k2">Jalur / Tumpuk</th><th>Keterangan Lainnya</th><th class="r">Hasil Produktivitas (Kg/Jam)</th></tr></thead>
+  <tbody>${a.proses.map((p) => `<tr class="${p.dipakai ? 'on' : ''}"><td class="ck">${p.dipakai ? '&#9745;' : '&#9744;'}</td><td class="m">${esc(p.mesin)}</td><td class="k">${p.kec_label ? `${esc(p.kec_label)} = ` : ''}${p.kecepatan ? `<b>${esc(p.kecepatan)}</b>` : ''}</td><td class="k2">${p.kec_roto_max ? `<b>${esc(p.kec_roto_max)}</b>` : ''}</td><td class="k2">${p.jalur ? esc(p.jalur) : ''}</td><td>${br(p.keterangan)}</td><td class="r">${p.produktivitas !== null ? `<b>${n(p.produktivitas)}</b>` : ''}</td></tr>`).join('')}
+  <tr><td class="ck">&#9744;</td><td class="m">&nbsp;</td><td class="k"></td><td class="k2"></td><td class="k2"></td><td></td><td class="r"></td></tr>
+  <tr><td class="ck">&#9744;</td><td class="m">&nbsp;</td><td class="k"></td><td class="k2"></td><td class="k2"></td><td></td><td class="r"></td></tr></tbody>
+  ${used.length ? `<tfoot><tr><td></td><td colspan="5"><b>${used.length} proses dipakai</b></td><td class="r"><b>${totalProd ? n(totalProd) : ''}</b></td></tr></tfoot>` : ''}
 </table>
 
 </div>
@@ -127,7 +127,7 @@ body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #1b1d2e; }
 .ta1-proc th, .ta1-proc td { padding: 3pt 5pt; border: 1px solid #555; vertical-align: top; }
 .ta1-proc th { background: #e9ebf3; font-size: 8.5pt; }
 .ta1-proc td.ck { width: 16pt; text-align: center; }
-.ta1-proc td.m { width: 34%; } .ta1-proc td.k { width: 22%; } .ta1-proc td.r, .ta1-proc th.r { width: 16%; text-align: right; }
+.ta1-proc td.m { width: 24%; } .ta1-proc td.k { width: 16%; } .ta1-proc td.k2, .ta1-proc th.k2 { width: 11%; } .ta1-proc td.r, .ta1-proc th.r { width: 13%; text-align: right; }
 .ta1-proc tr.on td { background: #eefaf3; }
 .ta1-concl { width: 100%; border-collapse: collapse; margin-top: 12pt; }
 .ta1-concl td { padding: 4pt 5pt; border-bottom: 1px solid #e3e5ee; vertical-align: top; }

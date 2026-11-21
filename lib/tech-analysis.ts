@@ -29,12 +29,13 @@ export const MACHINES: { mesin: string; kec_label: string }[] = [
   { mesin: 'Sideseal Manual', kec_label: '' },
   { mesin: 'Mesin Cutting Mika', kec_label: '' },
 ]
-export type ProsesRow = { mesin: string; kec_label: string; dipakai: boolean; kecepatan: string; keterangan: string; produktivitas: number | null }
-export const defaultProses = (): ProsesRow[] => MACHINES.map((m) => ({ ...m, dipakai: false, kecepatan: '', keterangan: '', produktivitas: null }))
+// kec_roto_max: kecepatan roto maksimum; jalur: jalur / tumpuk (mis. 2 jalur, tumpuk 3)
+export type ProsesRow = { mesin: string; kec_label: string; dipakai: boolean; kecepatan: string; kec_roto_max: string; jalur: string; keterangan: string; produktivitas: number | null }
+export const defaultProses = (): ProsesRow[] => MACHINES.map((m) => ({ ...m, dipakai: false, kecepatan: '', kec_roto_max: '', jalur: '', keterangan: '', produktivitas: null }))
 
 const MARKETING = (u: UserProfile) => u.division.code === 'marketing' || u.division.code.startsWith('marketing_')
 export function requireTechAnalysis(user: UserProfile) {
-  if (!user.role.isAdmin && !user.menus.includes('prospek' as never) && !user.menus.includes('analisa-teknik' as never)) fail(403, 'Anda tidak punya akses ke Analisa Teknik Order.')
+  if (!user.role.isAdmin && !['prospek', 'analisa-teknik', 'produk'].some((m) => user.menus.includes(m as never))) fail(403, 'Anda tidak punya akses ke Analisa Teknik Order.')
 }
 export const canMarketingSection = (u: UserProfile) => u.role.isAdmin || isManagement(u) || MARKETING(u)
 export const canTeknikSection = (u: UserProfile) => u.role.isAdmin || u.division.code === 'teknik'
@@ -53,13 +54,15 @@ export function serializeAnalysis(r: Row) {
   const proses = parse<ProsesRow[]>(r.proses, [])
   return {
     id: Number(r.id), nomor: String(r.nomor), prospect_id: num(r.prospect_id), prospect_name: (r.prospect_name as string) ?? null, status: String(r.status) as TaStatus,
+    product_id: num(r.product_id),
     tanggal_serah: (r.tanggal_serah as string) ?? null,
     nama_produk: String(r.nama_produk), nama_customer: String(r.nama_customer), jenis_plastik: (r.jenis_plastik as string) ?? null,
     panjang_cm: num(r.panjang_cm), lebar_cm: num(r.lebar_cm), tebal_mm: num(r.tebal_mm), print_jenis: (r.print_jenis as 'polos' | 'print') ?? null,
     jumlah_warna: num(r.jumlah_warna), kesulitan_print: (r.kesulitan_print as string) ?? null, spec_lainnya: (r.spec_lainnya as string) ?? null,
     qty_order: num(r.qty_order), qty_satuan: (r.qty_satuan as string) ?? null, frekuensi: (r.frekuensi as 'sekali' | 'rutin') ?? null, rutin_bulan: num(r.rutin_bulan),
     critical_to_quality: (r.critical_to_quality as string) ?? null,
-    proses: proses.length ? proses : defaultProses(),
+    // Data lama tanpa kolom Kec Roto Max / Jalur-Tumpuk
+    proses: proses.length ? proses.map((p) => ({ ...p, kec_roto_max: p.kec_roto_max ?? '', jalur: p.jalur ?? '' })) : defaultProses(),
     bisa_produksi: (r.bisa_produksi as 'bisa' | 'bersyarat' | 'tidak') ?? null, penjelasan_produksi: (r.penjelasan_produksi as string) ?? null,
     kesulitan_kualitas: (r.kesulitan_kualitas as 'mudah' | 'sedang' | 'sulit') ?? null, penjelasan_kualitas: (r.penjelasan_kualitas as string) ?? null,
     catatan_lain: (r.catatan_lain as string) ?? null,
@@ -81,6 +84,10 @@ export async function listAnalyses(params: URLSearchParams) {
   const args: unknown[] = []
   const prospect = Number(params.get('prospect_id'))
   if (Number.isInteger(prospect) && prospect > 0) where.push('a.prospect_id = ?'), args.push(prospect)
+  const product = Number(params.get('product_id'))
+  if (Number.isInteger(product) && product > 0) where.push('a.product_id = ?'), args.push(product)
+  // sumber=produk: hanya analisa yang diajukan dari Data Produk
+  if (params.get('sumber') === 'produk') where.push('a.product_id IS NOT NULL')
   const status = params.get('status')
   if (status && status in TA_STATUS) where.push('a.status = ?'), args.push(status)
   const q = str(params.get('q'), 100)
@@ -90,7 +97,7 @@ export async function listAnalyses(params: URLSearchParams) {
      ORDER BY FIELD(a.status, 'diserahkan', 'dianalisa', 'draft', 'selesai'), a.updated_at DESC, a.id DESC LIMIT 500`,
     args,
   )
-  const [counts] = await db.query<Row[]>('SELECT status, COUNT(*) AS n FROM prospect_tech_analyses GROUP BY status')
+  const [counts] = await db.query<Row[]>(`SELECT status, COUNT(*) AS n FROM prospect_tech_analyses${params.get('sumber') === 'produk' ? ' WHERE product_id IS NOT NULL' : ''} GROUP BY status`)
   return { items: rows.map(serializeAnalysis), counts: Object.fromEntries(counts.map((c) => [String(c.status), Number(c.n)])) }
 }
 
@@ -134,7 +141,8 @@ export function readTeknikSection(body: Record<string, unknown>) {
   const proses: ProsesRow[] = raw.map((x) => {
     const r = (x ?? {}) as Record<string, unknown>
     return {
-      mesin: str(r.mesin, 120), kec_label: str(r.kec_label, 60), dipakai: r.dipakai === true, kecepatan: str(r.kecepatan, 120), keterangan: str(r.keterangan, 500),
+      mesin: str(r.mesin, 120), kec_label: str(r.kec_label, 60), dipakai: r.dipakai === true, kecepatan: str(r.kecepatan, 120),
+      kec_roto_max: str(r.kec_roto_max, 120), jalur: str(r.jalur, 120), keterangan: str(r.keterangan, 500),
       produktivitas: dec(r.produktivitas, `Produktivitas ${str(r.mesin, 60)}`, 1e7),
     }
   }).filter((r) => r.mesin)
@@ -211,6 +219,43 @@ export async function syncProspectAnalyses(prospectId: number, products: unknown
     await notifyAnalysis(teknik, { ...c, nama_customer: String(prospect.nama_usaha), prospect_id: prospectId }, 'Analisa teknik order baru dari Marketing', 'serah', user.id)
   }
   return out
+}
+
+// ---- Dari form Data Produk: centang "Minta analisa ke Dept Teknik" + spek teknik -> analisa per produk ----
+// Satu analisa aktif per produk; yang sudah dianalisa Teknik / selesai tidak diubah dari form produk.
+export async function syncProductAnalysis(productId: number, teknik: unknown, user: UserProfile) {
+  const t = (teknik ?? null) as Record<string, unknown> | null
+  if (!t || t.minta !== true) return null
+  const [[p]] = await db.query<Row[]>(
+    `SELECT cp.id, cp.nama, cp.jenis, cp.spesifikasi, c.name AS customer FROM customer_products cp LEFT JOIN customers c ON c.id = cp.customer_id WHERE cp.id = ?`, [productId],
+  )
+  if (!p) return null
+  const v = await readMarketingSection({
+    ...t, prospect_id: null, nama_produk: String(p.nama), nama_customer: String(p.customer ?? '-'),
+    jenis_plastik: t.jenis_plastik || p.jenis, spec_lainnya: t.spec_lainnya || p.spesifikasi, qty_satuan: t.qty_satuan || 'kg',
+  })
+  const [[cur]] = await db.query<Row[]>('SELECT id, nomor, status FROM prospect_tech_analyses WHERE product_id = ? ORDER BY id DESC LIMIT 1', [productId])
+  if (cur && (cur.status === 'dianalisa' || cur.status === 'selesai')) return { status: 'dikunci' as const, nomor: String(cur.nomor) }
+  let created: { id: number; nomor: string } | null = null
+  if (cur) {
+    await db.query(
+      `UPDATE prospect_tech_analyses SET ?, updated_by = ?${cur.status === 'draft' ? ", status = 'diserahkan', tanggal_serah = CURDATE()" : ''} WHERE id = ?`,
+      [v, user.id, cur.id],
+    )
+    if (cur.status === 'draft') created = { id: Number(cur.id), nomor: String(cur.nomor) }
+  } else {
+    const nomor = await nextAnalysisNumber()
+    const [res] = await db.query<import('mysql2').ResultSetHeader>('INSERT INTO prospect_tech_analyses SET ?', [{
+      ...v, product_id: productId, nomor, status: 'diserahkan', tanggal_serah: new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10),
+      proses: JSON.stringify(defaultProses()), created_by: user.id, updated_by: user.id,
+    }])
+    created = { id: res.insertId, nomor }
+  }
+  if (created) {
+    await notifyAnalysis(await teknikUsers(), { ...created, nama_produk: String(p.nama), nama_customer: String(p.customer ?? '-'), prospect_id: null }, 'Analisa teknik order baru (Data Produk)', 'serah', user.id)
+    return { status: 'diajukan' as const, nomor: created.nomor }
+  }
+  return { status: 'diperbarui' as const, nomor: String(cur!.nomor) }
 }
 
 // ---- Cetak formulir langsung dari prospek: satu lembar per produk ----

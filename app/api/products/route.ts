@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser, str, pageParams } from '@/lib/api'
 import { canManageProduct, canViewProducts, loadCustomer, requireMenu } from '@/lib/customers'
 import { db } from '@/lib/db'
+import { syncProductAnalysis } from '@/lib/tech-analysis'
 import { loadProduct, PRODUCT_OF_CUSTOMER, PRODUCT_SELECT, productJenisList, readProductInput, serializeProduct } from '@/lib/products'
 
 // Daftar produk (Marketing, PPIC, Produksi, Purchasing, Keuangan).
@@ -54,5 +55,6 @@ export const POST = handle(async (request: Request) => {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [customer.id, input.kode, input.nama, input.jenis, input.spesifikasi, input.bahan, input.keterangan, input.status, user.id],
   )
-  return NextResponse.json({ item: await loadProduct(result.insertId) }, { status: 201 })
+  const analisa = await syncProductAnalysis(result.insertId, body.teknik, user)
+  return NextResponse.json({ item: await loadProduct(result.insertId), analisa }, { status: 201 })
 })

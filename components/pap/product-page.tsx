@@ -1,12 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Download, ExternalLink, FileText, ImageIcon, Package, Pencil, Plus, Printer, Search, Trash2, Upload } from 'lucide-react'
+import { ClipboardList, Download, ExternalLink, FileText, ImageIcon, Package, Pencil, Plus, Printer, Search, Trash2, Upload } from 'lucide-react'
 import { PRODUCT_FILE_ACCEPT, PRODUCT_FILE_MAX_BYTES } from '@/lib/permissions'
 import type { UserProfile } from '@/lib/users'
 import { compressImage, isCompressibleImage } from './compress'
 import { AccurateSyncBar, formatNumber, formatRupiah } from './accurate'
 import { api, Field, formatDate, formatSize, Modal, Notice, Pager, RowActions, confirmDialog, FreshBadge } from './ui'
+import { loadProductTeknik, TechAnalysisView, TeknikMintaCheck, TeknikSpecPanel, type TeknikSpec } from './tech-analysis'
 
 export type Product = {
   id: number
@@ -78,6 +79,8 @@ export function ProductPage({ user, focusId }: { user: UserProfile; focusId?: nu
   const [pageSize, setPageSize] = useState(50)
   const [form, setForm] = useState<Product | 'new' | null>(null)
   const [detailId, setDetailId] = useState<number | null>(focusId ?? null)
+  // Tab: daftar produk | status pengajuan analisa teknik dari Data Produk
+  const [tab, setTab] = useState<'produk' | 'analisa'>('produk')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -124,6 +127,11 @@ export function ProductPage({ user, focusId }: { user: UserProfile; focusId?: nu
       </div>
       <AccurateSyncBar entities={['sales-order', 'sales-order-items']} canSync={canManage || user.role.isAdmin} onSynced={load} />
       {message && <Notice kind="success" onClose={() => setMessage('')}>{message}</Notice>}
+      <div className="pap-segmented pap-page-tabs" role="tablist" aria-label="Data Produk">
+        <button role="tab" aria-selected={tab === 'produk'} className={tab === 'produk' ? 'active' : ''} onClick={() => setTab('produk')}><Package /> Daftar produk</button>
+        <button role="tab" aria-selected={tab === 'analisa'} className={tab === 'analisa' ? 'active' : ''} onClick={() => setTab('analisa')}><ClipboardList /> Analisa Teknik</button>
+      </div>
+      {tab === 'analisa' ? <TechAnalysisView user={user} sumber="produk" allowCreate={false} /> : <>
       <div className="pap-table-card">
         <div className="pap-card-head"><div><h2>Daftar produk ({total})</h2><p>Diurutkan dari pesanan terakhir · klik produk untuk melihat spesifikasi, desain, dan riwayat pesanan</p></div></div>
         <div className="pap-filters">
@@ -162,6 +170,7 @@ export function ProductPage({ user, focusId }: { user: UserProfile; focusId?: nu
         </div>
         <Pager page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(v) => { setSize(v); setPage(1) }} />
       </div>
+      </>}
       {form && (
         <ProductForm
           initial={form === 'new' ? null : form}
@@ -234,7 +243,17 @@ export function ProductForm({ initial, customer, jenisList = JENIS_DEFAULT, onCl
   const [files, setFiles] = useState<File[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // Analisa teknik (opsional) seperti di form Prospek: diserahkan ke Dept Teknik saat produk disimpan
+  const [teknik, setTeknik] = useState<TeknikSpec | null>(null)
+  useEffect(() => {
+    if (!initial) return
+    let alive = true
+    loadProductTeknik(initial.id).then((t) => alive && t && setTeknik(t)).catch(() => {})
+    return () => { alive = false }
+  }, [initial])
   const set = (key: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [key]: e.target.value }))
+  const analisaText = (a?: { status: string; nomor: string } | null) =>
+    !a ? '' : a.status === 'diajukan' ? ` Analisa teknik ${a.nomor} diserahkan ke Dept Teknik.` : a.status === 'diperbarui' ? ` Spek analisa teknik ${a.nomor} diperbarui.` : ` Analisa ${a.nomor} sudah dianalisa Teknik, spek tidak diubah.`
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -242,14 +261,15 @@ export function ProductForm({ initial, customer, jenisList = JENIS_DEFAULT, onCl
     setSaving(true)
     setError('')
     try {
+      const teknikBody = teknik?.minta && !teknik.analysis?.status?.match(/dianalisa|selesai/) ? teknik : null
       if (initial) {
-        await api(`/api/products/${initial.id}`, { method: 'PATCH', json: values })
-        onSaved('Produk diperbarui.')
+        const r = await api<{ analisa?: { status: string; nomor: string } | null }>(`/api/products/${initial.id}`, { method: 'PATCH', json: { ...values, teknik: teknikBody } })
+        onSaved(`Produk diperbarui.${analisaText(r.analisa)}`)
         return
       }
-      const res = await api<{ item: Product }>('/api/products', { method: 'POST', json: { ...values, customer_id: selected!.id } })
+      const res = await api<{ item: Product; analisa?: { status: string; nomor: string } | null }>('/api/products', { method: 'POST', json: { ...values, customer_id: selected!.id, teknik: teknikBody } })
       const failed = await uploadFiles(res.item.id, files)
-      onSaved(failed.length ? `Produk dibuat, tetapi ${failed.length} desain gagal diunggah: ${failed.join(' ')}` : 'Produk ditambahkan.', res.item.id)
+      onSaved(`${failed.length ? `Produk dibuat, tetapi ${failed.length} desain gagal diunggah: ${failed.join(' ')}` : 'Produk ditambahkan.'}${analisaText(res.analisa)}`, res.item.id)
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -285,6 +305,13 @@ export function ProductForm({ initial, customer, jenisList = JENIS_DEFAULT, onCl
           </select>
         </Field>
         <Field label="Spesifikasi" full><textarea className="pap-input" rows={5} maxLength={10000} value={values.spesifikasi} onChange={set('spesifikasi')} placeholder={'Ukuran: 30 x 45 cm\nKetebalan: 0,05 mm\nModel: gusset / cut seal / side seal\nCetak: rotogravure 2 warna (merah, biru)\nKemasan: 100 pcs/pak'} /></Field>
+        <div className="pap-field full pap-prod-teknik">
+          <span>Analisa teknik (opsional)</span>
+          <div className="pap-prod-teknik-box">
+            <TeknikMintaCheck saat="produk" value={teknik} onChange={setTeknik} />
+            <TeknikSpecPanel value={teknik} onChange={setTeknik} />
+          </div>
+        </div>
         <Field label="Keterangan bahan" full><textarea className="pap-input" rows={3} maxLength={10000} value={values.bahan} onChange={set('bahan')} placeholder="Biji plastik HD, campuran, masterbatch warna, tinta, dll." /></Field>
         <Field label="Keterangan lain" full><textarea className="pap-input" rows={2} maxLength={10000} value={values.keterangan} onChange={set('keterangan')} placeholder="Catatan khusus untuk PPIC / Produksi" /></Field>
         {!initial && (

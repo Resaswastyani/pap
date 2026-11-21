@@ -9,7 +9,7 @@ import {
   type MarketingUser, type ProspectStatus, type Visit,
 } from './marketing'
 import { QuotationForm } from './quotation-page'
-import { loadProspectTeknik, TechAnalysisView, TeknikSpecPanel, type TeknikSpec } from './tech-analysis'
+import { loadProspectTeknik, TechAnalysisView, TeknikMintaCheck, TeknikSpecPanel, type TeknikSpec } from './tech-analysis'
 import { DesignForm, SampleForm } from './request-page'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, uploadPendingAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
 import { api, askReason, Field, formatDate, Modal, Notice, Pager, RowActions, useQuickAction, confirmDialog, FreshBadge } from './ui'
@@ -499,8 +499,12 @@ function ProductTable({ value, onChange }: { value: NeedItem[]; onChange: (value
         <ol className="pap-prod-rows">
           {value.map((n, i) => (
             <li key={n._k ?? i}>
-              <div className="pap-prod-top">
+              {/* Baris atas: nomor produk + centang minta analisa Teknik */}
+              <div className="pap-prod-head">
                 <span className="pap-need-no">{i + 1}</span>
+                <TeknikMintaCheck value={n.teknik} onChange={(t) => edit(i, { teknik: t })} />
+              </div>
+              <div className="pap-prod-top no-number">
                 <label className="pap-prod-spec">
                   <span>Jenis Product - Spec{n.product_id ? <em> · <Package className="pap-inline-icon" /> Data Produk</em> : null}</span>
                   <input className="pap-input" maxLength={255} value={n.label} onChange={(e) => edit(i, { label: e.target.value })} placeholder="Contoh: PP Kantong Uk. 16x75x025 2W 22 OZ" />
