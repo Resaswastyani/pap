@@ -240,7 +240,7 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
   const [tab, setTab] = useState<'spek' | 'teknik' | 'direksi'>('spek')
   const [mv, setMv] = useState<MarketingValues>(toValues())
   const [proses, setProses] = useState<Proses[]>([])
-  const [tv, setTv] = useState({ bisa_produksi: '', penjelasan_produksi: '', kesulitan_kualitas: '', penjelasan_kualitas: '', catatan_lain: '' })
+  const [tv, setTv] = useState({ kesulitan_print: '', bisa_produksi: '', penjelasan_produksi: '', kesulitan_kualitas: '', penjelasan_kualitas: '', catatan_lain: '' })
   const [rek, setRek] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -255,7 +255,7 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
       setCan(r.can)
       setMv(toValues(x))
       setProses(x.proses)
-      setTv({ bisa_produksi: x.bisa_produksi ?? '', penjelasan_produksi: x.penjelasan_produksi ?? '', kesulitan_kualitas: x.kesulitan_kualitas ?? '', penjelasan_kualitas: x.penjelasan_kualitas ?? '', catatan_lain: x.catatan_lain ?? '' })
+      setTv({ kesulitan_print: x.kesulitan_print ?? '', bisa_produksi: x.bisa_produksi ?? '', penjelasan_produksi: x.penjelasan_produksi ?? '', kesulitan_kualitas: x.kesulitan_kualitas ?? '', penjelasan_kualitas: x.penjelasan_kualitas ?? '', catatan_lain: x.catatan_lain ?? '' })
       setRek(x.rekomendasi_direksi ?? '')
       setTab((t) => (t === 'spek' && x.status === 'diserahkan' && r.can.teknik ? 'teknik' : t === 'spek' && x.status === 'dianalisa' && r.can.direksi ? 'direksi' : t))
       setError('')
@@ -346,6 +346,18 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
       {tab === 'teknik' && (
         <div className="pap-ta-section">
           {a.status === 'draft' && <Notice>Belum diserahkan Marketing ke Dept Teknik.</Notice>}
+          <div className="pap-field pap-ta-print-diff">
+            <span>Tingkat kesulitan print {a.print_jenis === 'print' ? <small className="pap-muted">· print {a.jumlah_warna ?? '…'} warna</small> : a.print_jenis === 'polos' ? <small className="pap-muted">· order polos</small> : null}</span>
+            <div className="pap-ta-print-diff-row">
+              <div className="pap-segmented" role="radiogroup" aria-label="Tingkat kesulitan print">
+                {['Mudah', 'Sedang', 'Sulit'].map((k) => {
+                  const on = tv.kesulitan_print.toLowerCase().startsWith(k.toLowerCase())
+                  return <button type="button" key={k} role="radio" aria-checked={on} disabled={!can.teknik} className={on ? 'active' : ''} onClick={() => setTv({ ...tv, kesulitan_print: on ? '' : `${k}${tv.kesulitan_print.replace(/^(mudah|sedang|sulit)s*[-·,:]?s*/i, '') ? ` · ${tv.kesulitan_print.replace(/^(mudah|sedang|sulit)s*[-·,:]?s*/i, '')}` : ''}` })}>{k}</button>
+                })}
+              </div>
+              <input className="pap-input" maxLength={255} disabled={!can.teknik} value={tv.kesulitan_print} onChange={(e) => setTv({ ...tv, kesulitan_print: e.target.value })} placeholder="mis. Sedang · register ketat, gradasi warna" aria-label="Keterangan tingkat kesulitan print" />
+            </div>
+          </div>
           <p className="pap-muted pap-ta-hint">Centang mesin / proses yang dipakai sesuai urutan, isi kecepatan mesin, kecepatan roto maksimum, jalur, tumpuk, keterangan, dan hasil produktivitas per jam (kg).</p>
           <div className="pap-ta-proses-list">
             {proses.map((p, i) => (
