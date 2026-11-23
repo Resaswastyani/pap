@@ -2823,6 +2823,13 @@
       "count": 1
     },
     {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/notifications.tsx",
+      "fingerprint": "7a01b8c2ca5f1d36",
+      "count": 1
+    },
+    {
       "rule": "eslint/no-empty",
       "engine": "lint",
       "file": "components/pap/notifications.tsx",

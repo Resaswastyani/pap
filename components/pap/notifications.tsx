@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ListTodo, Bell, BellRing, MessageSquareWarning, Ruler, Target, CalendarClock, CalendarDays, CheckCircle2, ClipboardCheck, ClipboardList, FileText, FlaskConical, MapPin, Palette, PhoneCall, Repeat, Wallet, Smartphone, UserPlus, Wrench, X, CalendarCheck, PackageMinus, ShoppingCart, LifeBuoy } from 'lucide-react'
+import { Volume2, VolumeX, ListTodo, Bell, BellRing, MessageSquareWarning, Ruler, Target, CalendarClock, CalendarDays, CheckCircle2, ClipboardCheck, ClipboardList, FileText, FlaskConical, MapPin, Palette, PhoneCall, Repeat, Wallet, Smartphone, UserPlus, Wrench, X, CalendarCheck, PackageMinus, ShoppingCart, LifeBuoy } from 'lucide-react'
 import { api } from './ui'
+import { announce, setVoiceEnabled, testVoice, useAudioUnlock, voiceEnabled } from './notif-voice'
 
 export type NotificationTarget = { meetingId?: number | null; planningId?: number | null; prospectId?: number | null; visitId?: number | null; sampleId?: number | null; designId?: number | null; customerId?: number | null; paymentId?: number | null; quotationId?: number | null; repairId?: number | null; page?: string | null; pageId?: number | null }
 
@@ -120,6 +121,18 @@ const relative = (value: string) => {
   return `${Math.floor(diff / 1440)} hari lalu`
 }
 
+// Tombol suara notifikasi (nada + dibacakan) per perangkat
+function VoiceToggle() {
+  const [voice, setVoice] = useState(voiceEnabled)
+  return (
+    <button type="button" className={`pap-notif-voice ${voice ? 'on' : ''}`} aria-pressed={voice}
+      title={voice ? 'Suara notifikasi aktif (klik untuk matikan)' : 'Suara notifikasi mati (klik untuk aktifkan)'}
+      onClick={() => { const next = !voice; setVoice(next); setVoiceEnabled(next); if (next) testVoice() }}>
+      {voice ? <Volume2 /> : <VolumeX />}<span>{voice ? 'Suara' : 'Senyap'}</span>
+    </button>
+  )
+}
+
 export function NotificationCenter({ userId, onOpen }: { userId: number; onOpen: (target: NotificationTarget) => void }) {
   const [items, setItems] = useState<Item[]>([])
   const [unread, setUnread] = useState(0)
@@ -132,6 +145,7 @@ export function NotificationCenter({ userId, onOpen }: { userId: number; onOpen:
   const [pushError, setPushError] = useState('')
   const [testing, setTesting] = useState('')
   const [showBanner, setShowBanner] = useState(false)
+  useAudioUnlock() // audio disiapkan pada klik / sentuhan pertama agar notifikasi bisa berbunyi
   const pushActiveRef = useRef(false)
   const lastSeen = useRef<number | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -151,6 +165,7 @@ export function NotificationCenter({ userId, onOpen }: { userId: number; onOpen:
         lastSeen.current = maxId
         writeLastSeen(userId, maxId)
       }
+      announce(fresh) // notifikasi baru: nada + dibacakan (bisa dimatikan di panel)
       for (const item of fresh) {
         setToasts((list) => [...list.filter((t) => t.id !== item.id), item].slice(-3))
         // Reminder tetap tampil sampai ditutup; jenis lain hilang sendiri
@@ -261,7 +276,10 @@ export function NotificationCenter({ userId, onOpen }: { userId: number; onOpen:
           <div className="pap-notif-panel" role="dialog" aria-label="Notifikasi">
             <div className="pap-notif-head">
               <strong>Notifikasi</strong>
-              {unread > 0 && <button className="pap-link-button" onClick={() => markRead({ all: true })}>Tandai semua dibaca</button>}
+              <span className="pap-notif-head-actions">
+                <VoiceToggle />
+                {unread > 0 && <button className="pap-link-button" onClick={() => markRead({ all: true })}>Tandai semua dibaca</button>}
+              </span>
             </div>
             {iosNeedsInstall ? (
               <p className="pap-notif-hint">{iosHint}</p>

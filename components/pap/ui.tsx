@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes, type Re
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Eye, EyeOff, Pencil, Search, Trash2, X } from 'lucide-react'
 import { PLANNING_STATUS, type PlanningStatus } from '@/lib/permissions'
 import { clientHintHeaders } from './client-hints'
-import { apiToast, toast } from './toast'
+import { apiToast, rememberConfirm, toast } from './toast'
 
 export { toast, ToastHost } from './toast'
 
@@ -25,7 +25,7 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
   if (rest.method && rest.method !== 'GET' && !path.startsWith('/api/notifications')) window.dispatchEvent(new Event('pap-notif-refresh'))
   const method = (rest.method ?? 'GET').toUpperCase()
   if (toastText !== false) {
-    const message = toastText ?? apiToast(path, method, data)
+    const message = toastText ?? apiToast(path, method, data, json)
     if (message) toast(message)
   }
   return data as T
@@ -79,6 +79,7 @@ function guessConfirm(o: ConfirmOptions): Required<Omit<ConfirmOptions, 'message
 
 export function confirmDialog(options: ConfirmOptions | string): Promise<boolean> {
   const o = typeof options === 'string' ? { message: options } : options
+  rememberConfirm(o.title, o.message)
   const show = confirmState.papConfirm
   // Tanpa ConfirmHost (mis. halaman cetak) kembali ke dialog bawaan browser
   if (!show) return Promise.resolve(window.confirm(typeof o.message === 'string' ? o.message : 'Lanjutkan?'))
