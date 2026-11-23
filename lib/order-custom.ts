@@ -203,13 +203,13 @@ async function usersOf(where: string) {
 export const ppicUsers = () => usersOf("d.code = 'ppic'")
 export const operasionalUsers = () => usersOf("d.code = 'produksi'")
 
-// Marketing dibuka ke menu "Form Order Custom", PPIC / Operasional ke "Checklist Order Custom"
+// Semua dibuka ke menu "Form Order Custom" (menu Produksi "Checklist Order Custom" diarsipkan; diisi lewat Dokumen Order)
 export async function notifyChecklist(userIds: (number | null)[], c: { id: number; nomor: string; nama_produk: string; nama_customer: string }, title: string, key: string, exclude?: number, marketing = false) {
   const users = [...new Set(userIds.filter((x): x is number => !!x && x !== exclude))]
   if (!users.length) return
   await pushToUsers(await notify(users, {
     type: 'order_custom', title, body: `${c.nomor} · ${c.nama_produk} · ${c.nama_customer}`,
-    page: marketing ? 'Form Order Custom' : 'Checklist Order Custom', pageId: c.id, refKey: `oc:${c.id}:${key}`,
+    page: 'Form Order Custom', pageId: c.id, refKey: `oc:${c.id}:${key}`,
   }))
 }
 

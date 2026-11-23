@@ -151,6 +151,8 @@ export function readTeknikSection(body: Record<string, unknown>) {
   }).filter((r) => r.mesin)
   return {
     proses: JSON.stringify(proses),
+    // Tingkat kesulitan print juga bisa diisi / dikoreksi Dept Teknik (kolom sama dengan isian Marketing)
+    kesulitan_print: str(body.kesulitan_print, 255) || null,
     bisa_produksi: ['bisa', 'bersyarat', 'tidak'].includes(String(body.bisa_produksi)) ? String(body.bisa_produksi) : null,
     penjelasan_produksi: str(body.penjelasan_produksi, 5000) || null,
     kesulitan_kualitas: ['mudah', 'sedang', 'sulit'].includes(String(body.kesulitan_kualitas)) ? String(body.kesulitan_kualitas) : null,

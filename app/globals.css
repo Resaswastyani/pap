@@ -3565,3 +3565,8 @@ a.pap-row-action { text-decoration:none; }
 
 /* Pratinjau cetak: tiap lembar portrait setinggi kertas A4 (794 x 1123 px) agar SO, form order, dsb. tampil seukuran sama. Cetak tetap A4. */
 @media screen { .pap-print .pap-sheet:not(.pap-sheet-landscape):not(.pap-dg-sheet) { min-height:1123px; } }
+
+/* Analisa Teknik: tingkat kesulitan print di tab Teknik */
+.pap-ta-print-diff { margin:4px 0 12px; }
+.pap-ta-print-diff-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.pap-ta-print-diff-row .pap-input { flex:1 1 260px; min-width:0; }
