@@ -273,7 +273,7 @@ function SourceSection({ h, set, onMode, onError }: { h: Header; set: (p: Partia
             <div className="pap-oc-products">
               {products.map((p, i) => {
                 const on = p.id ? h.product_id === p.id : h.nama_produk === p.label
-                return <button type="button" key={`${p.id ?? p.label}-${i}`} className={on ? 'active' : ''} onClick={() => set({ nama_produk: p.label, product_id: p.id })}>{on && <CheckCircle2 />}<b>{p.label}</b>{p.sub && <small>{p.sub}</small>}</button>
+                return <button type="button" key={`${p.id ?? p.label}-${i}`} className={on ? 'active' : ''} title={p.label} onClick={() => set({ nama_produk: p.label, product_id: p.id })}>{on && <CheckCircle2 />}<b>{p.label}</b>{p.sub && <small>{p.sub}</small>}</button>
               })}
             </div>
           ) : !loading && <small className="pap-muted">{mode === 'customer' ? 'Belum ada produk customer ini di Data Produk; ketik nama produk di bawah.' : 'Prospek belum punya daftar produk; ketik nama produk di bawah.'}</small>}

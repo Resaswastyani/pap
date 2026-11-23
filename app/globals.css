@@ -3518,7 +3518,7 @@ a.pap-row-action { text-decoration:none; }
 .pap-oc-source .pap-ta-prospect { margin:0; }
 .pap-oc-products { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:8px; }
 .pap-oc-products button { position:relative; display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-width:0; padding:9px 12px 9px 12px; border:1px solid var(--pap-border); border-radius:10px; background:transparent; color:var(--pap-text); text-align:left; cursor:pointer; }
-.pap-oc-products button b { overflow:hidden; max-width:100%; font-size:13px; text-overflow:ellipsis; white-space:nowrap; }
+.pap-oc-products button b { display:-webkit-box; overflow:hidden; max-width:100%; font-size:13px; line-height:1.35; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
 .pap-oc-products button small { color:var(--pap-muted); font-size:11.5px; }
 .pap-oc-products button svg { position:absolute; top:9px; right:9px; width:15px; color:#12a37a; }
 .pap-oc-products button.active { padding-right:30px; border-color:#12a37a; background:#12a37a12; }
