@@ -3562,3 +3562,6 @@ a.pap-row-action { text-decoration:none; }
 
 .pap-doc-jenis-order { margin:4px 0 14px; }
 .pap-doc-custom-badge { margin-left:6px; padding:1px 7px; font-size:10.5px; }
+
+/* Pratinjau cetak: tiap lembar portrait setinggi kertas A4 (794 x 1123 px) agar SO, form order, dsb. tampil seukuran sama. Cetak tetap A4. */
+@media screen { .pap-print .pap-sheet:not(.pap-sheet-landscape):not(.pap-dg-sheet) { min-height:1123px; } }
