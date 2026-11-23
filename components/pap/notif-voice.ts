@@ -74,33 +74,55 @@ export function spokenText(title: string, body: string | null) {
   return `${title}. ${tanggal(parts.join(', '))}`.replace(/\s+/g, ' ').trim()
 }
 
-let voice: SpeechSynthesisVoice | null | undefined
-function indonesianVoice() {
-  if (voice !== undefined || typeof speechSynthesis === 'undefined') return voice ?? null
-  const all = speechSynthesis.getVoices()
-  if (!all.length) return null
-  voice = all.find((v) => v.lang === 'id-ID') ?? all.find((v) => v.lang.startsWith('id')) ?? null
-  return voice
+// Daftar suara dimuat browser secara bertahap (event voiceschanged); tunggu sebentar sebelum memilih
+let voices: SpeechSynthesisVoice[] = []
+const loadVoices = () => { voices = speechSynthesis.getVoices() }
+if (typeof window !== 'undefined' && typeof speechSynthesis !== 'undefined') {
+  loadVoices()
+  speechSynthesis.addEventListener('voiceschanged', loadVoices)
+}
+function voicesReady() {
+  if (voices.length || typeof speechSynthesis === 'undefined') return Promise.resolve()
+  return new Promise<void>((resolve) => {
+    const t = setTimeout(resolve, 2000)
+    speechSynthesis.addEventListener('voiceschanged', () => { clearTimeout(t); loadVoices(); resolve() }, { once: true })
+  })
+}
+// Suara perempuan bahasa Indonesia: Google Bahasa Indonesia (Chrome), Microsoft Gadis (Edge / Windows), Damayanti (Apple)
+const FEMALE = /gadis|damayanti|google bahasa indonesia|female|wanita|perempuan/i
+const MALE = /ardi|\bmale\b|pria|laki/i
+export function indonesianVoice(): SpeechSynthesisVoice | null {
+  const id = voices.filter((v) => /^id([-_]|$)/i.test(v.lang) || /indonesia/i.test(v.name))
+  return id.find((v) => FEMALE.test(v.name) && /natural|online/i.test(v.name)) ?? id.find((v) => FEMALE.test(v.name)) ?? id.find((v) => !MALE.test(v.name)) ?? id[0] ?? null
+}
+// Nama suara yang dipakai (untuk keterangan di panel); null = perangkat tidak punya suara bahasa Indonesia
+export async function voiceInfo() {
+  await voicesReady()
+  return indonesianVoice()?.name ?? null
 }
 
-// Bunyikan & bacakan notifikasi baru (maks 3 sekaligus agar tidak terlalu panjang)
+// Bunyikan & bacakan notifikasi baru (maks 3 sekaligus agar tidak terlalu panjang).
+// Hanya dibacakan dengan suara bahasa Indonesia; bila perangkat tidak punya, cukup nada (tidak memakai suara Inggris).
 export function announce(items: { title: string; body: string | null }[]) {
   if (!items.length || !voiceEnabled()) return
   chime()
   if (typeof speechSynthesis === 'undefined') return
   const list = items.slice(-3)
   const extra = items.length - list.length
-  // Jeda sebentar setelah nada, lalu dibacakan berurutan
-  setTimeout(() => {
-    list.forEach((n, i) => {
-      const text = spokenText(n.title, n.body) + (i === list.length - 1 && extra > 0 ? ` Dan ${extra} notifikasi lainnya.` : '')
-      const u = new SpeechSynthesisUtterance(text)
-      u.lang = 'id-ID'
-      const v = indonesianVoice()
-      if (v) u.voice = v
-      speechSynthesis.speak(u)
-    })
-  }, 650)
+  void voicesReady().then(() => {
+    const v = indonesianVoice()
+    if (!v) return
+    // Jeda sebentar setelah nada, lalu dibacakan berurutan
+    setTimeout(() => {
+      list.forEach((n, i) => {
+        const u = new SpeechSynthesisUtterance(spokenText(n.title, n.body) + (i === list.length - 1 && extra > 0 ? ` Dan ${extra} notifikasi lainnya.` : ''))
+        u.voice = v
+        u.lang = v.lang
+        u.pitch = 1.05
+        speechSynthesis.speak(u)
+      })
+    }, 650)
+  })
 }
 
 // Contoh suara (tombol "Tes suara")

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Volume2, VolumeX, ListTodo, Bell, BellRing, MessageSquareWarning, Ruler, Target, CalendarClock, CalendarDays, CheckCircle2, ClipboardCheck, ClipboardList, FileText, FlaskConical, MapPin, Palette, PhoneCall, Repeat, Wallet, Smartphone, UserPlus, Wrench, X, CalendarCheck, PackageMinus, ShoppingCart, LifeBuoy } from 'lucide-react'
 import { api } from './ui'
-import { announce, setVoiceEnabled, testVoice, useAudioUnlock, voiceEnabled } from './notif-voice'
+import { announce, setVoiceEnabled, testVoice, useAudioUnlock, voiceEnabled, voiceInfo } from './notif-voice'
 
 export type NotificationTarget = { meetingId?: number | null; planningId?: number | null; prospectId?: number | null; visitId?: number | null; sampleId?: number | null; designId?: number | null; customerId?: number | null; paymentId?: number | null; quotationId?: number | null; repairId?: number | null; page?: string | null; pageId?: number | null }
 
@@ -124,9 +124,12 @@ const relative = (value: string) => {
 // Tombol suara notifikasi (nada + dibacakan) per perangkat
 function VoiceToggle() {
   const [voice, setVoice] = useState(voiceEnabled)
+  const [nama, setNama] = useState<string | null | undefined>(undefined)
+  useEffect(() => { let on = true; voiceInfo().then((n) => on && setNama(n)); return () => { on = false } }, [])
+  const ket = nama ? `suara: ${nama}` : nama === null ? 'suara bahasa Indonesia belum ada di perangkat ini, hanya nada' : ''
   return (
     <button type="button" className={`pap-notif-voice ${voice ? 'on' : ''}`} aria-pressed={voice}
-      title={voice ? 'Suara notifikasi aktif (klik untuk matikan)' : 'Suara notifikasi mati (klik untuk aktifkan)'}
+      title={`${voice ? 'Suara notifikasi aktif (klik untuk matikan)' : 'Suara notifikasi mati (klik untuk aktifkan)'}${ket ? ` · ${ket}` : ''}`}
       onClick={() => { const next = !voice; setVoice(next); setVoiceEnabled(next); if (next) testVoice() }}>
       {voice ? <Volume2 /> : <VolumeX />}<span>{voice ? 'Suara' : 'Senyap'}</span>
     </button>
