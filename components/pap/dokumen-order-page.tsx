@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { ChevronDown, ChevronUp, FilePlus2, FileText, ListTodo, Pencil, Plus, Printer, ReceiptText, Save, Search, Trash2 } from 'lucide-react'
+import { FilePlus2, FileText, ListTodo, Pencil, Plus, Printer, ReceiptText, Save, Search, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { MonthNav, monthLabel, useDebounced } from './accurate-production'
@@ -530,11 +530,11 @@ function CustomPanel({ c, customerId, defaultSpek, onChange }: { c: Custom | und
         </label>
         {cur.nomor && <span className={`pap-status ${OC_TONE[cur.status ?? 'draft']}`}>{cur.nomor} · {OC_STATUS[cur.status ?? 'draft']}</span>}
         {cur.on && <small className="pap-muted">{p.done}/{p.total} item</small>}
-        {cur.on && !locked && <button type="button" className="pap-link-button pap-shift-edit" onClick={() => onChange({ ...cur, open: !cur.open })}>{cur.open ? <><ChevronUp /> Tutup checklist</> : <><ChevronDown /> Isi checklist</>}</button>}
         {cur.id && cur.nomor && <OcDocActions id={cur.id} nomor={cur.nomor} compact />}
       </div>
       {locked && <small className="pap-muted">Sudah diserahkan ke PPIC; perubahan lewat menu Form Order Custom.</small>}
-      {cur.on && cur.open && !locked && <ChecklistEditor v={cur.isian} set={(x) => onChange({ ...cur, isian: { ...cur.isian, ...x } })} customerId={customerId} compact />}
+      {/* Isian checklist langsung terbuka begitu dicentang (tanpa tombol buka / tutup) */}
+      {cur.on && !locked && <ChecklistEditor v={cur.isian} set={(x) => onChange({ ...cur, isian: { ...cur.isian, ...x } })} customerId={customerId} compact />}
       {cur.on && !cur.id && <small className="pap-muted">Checklist dibuat saat dokumen disimpan, lalu diserahkan ke PPIC dari menu Form Order Custom.</small>}
     </div>
   )
