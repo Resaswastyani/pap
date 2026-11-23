@@ -18,7 +18,7 @@ type Jenis = 'order' | 'proforma'
 type PpnMode = 'none' | 'exclusive' | 'inclusive'
 type DocItem = { nama: string; qty: number; unit: string; harga: number; disc_pct: number | null; catatan: string | null }
 type DocData = {
-  jenis: Jenis; nomor: string; tanggal: string; so_accurate_id: number | null; so_number: string | null
+  jenis: Jenis; jenis_order: 'polos' | 'custom'; nomor: string; tanggal: string; so_accurate_id: number | null; so_number: string | null
   prospect_id: number | null; customer_id: number | null; ongkir_per_kg: number | null; berat_kg: number | null; diskon_persen: number | null
   kepada: string; customer_no: string | null; kontak: string | null; telepon: string | null; alamat: string | null; po_number: string | null
   ship_date: string | null; ekspedisi: string | null; items: DocItem[]; expenses: { nama: string; amount: number }[]
@@ -115,7 +115,7 @@ function SavedDocs({ user, reload, onEdit, onDeleted }: { user: UserProfile; rel
           <tbody>
             {paged.items.map((d) => (
               <tr key={d.id}>
-                <td className="pap-nowrap"><div className="pap-cell-title">{d.nomor}</div><div className="pap-cell-sub">{JENIS_LABEL[d.jenis]} · {formatDate(d.tanggal)}</div></td>
+                <td className="pap-nowrap"><div className="pap-cell-title">{d.nomor}</div><div className="pap-cell-sub">{JENIS_LABEL[d.jenis]} · {formatDate(d.tanggal)}{d.jenis_order === 'custom' && <span className="pap-status info pap-doc-custom-badge">Custom</span>}</div></td>
                 <td>{d.kepada}<div className="pap-cell-sub">{d.customer_no}{d.jenis === 'proforma' && d.dp_persen ? ` · DP ${d.dp_persen}%` : ''}</div></td>
                 <td className="pap-nowrap">{d.so_number ?? <span className="pap-muted">Manual</span>}</td>
                 <td className="pap-num pap-nowrap">{formatRupiah(d.total)}</td>
@@ -297,7 +297,7 @@ function DocEditor({ editing, canCustom, onClose, onSaved }: { editing: Editing;
       diskon: pakaiDiskon && diskonTipe === 'nominal' ? num(diskonNilai) : 0,
       items: lines.filter((l) => l.nama.trim()).map((l) => ({ nama: l.nama, qty: num(l.qty), unit: l.unit, harga: num(l.harga), disc_pct: num(l.disc_pct) || null, catatan: l.catatan || null })),
       expenses: costs.filter((c) => c.nama.trim() && num(c.amount)).map((c) => ({ nama: c.nama, amount: num(c.amount) })),
-      custom: canCustom ? lines.filter((l) => l.nama.trim() && custom[l.key]?.on && (!custom[l.key].status || custom[l.key].status === 'draft')).map((l) => ({ nama_produk: l.nama.trim(), isian: custom[l.key].isian })) : undefined,
+      custom: canCustom && v.jenis_order === 'custom' ? lines.filter((l) => l.nama.trim() && (custom[l.key]?.on ?? true) && (!custom[l.key].status || custom[l.key].status === 'draft')).map((l) => ({ nama_produk: l.nama.trim(), isian: custom[l.key]?.isian ?? { ...emptyIsian(), spek: v.customer_id ? 'repeat' : 'baru' } })) : undefined,
     }
     try {
       if (isNew) await api('/api/order-documents', { method: 'POST', json: body })
@@ -346,6 +346,17 @@ function DocEditor({ editing, canCustom, onClose, onSaved }: { editing: Editing;
               <input className="pap-input" maxLength={100} value={v.po_number ?? ''} onChange={(e) => set('po_number', e.target.value || null)} />
             </Field>
           </div>
+          <div className="pap-field pap-doc-jenis-order">
+            <span>Jenis order</span>
+            <div className="pap-ship-options" role="radiogroup" aria-label="Jenis order">
+              {([['polos', 'Order polos', 'Cetak Surat Order saja'], ['custom', 'Order custom', 'Isi Form Order Custom per produk; cetak SO + form order + gambar desain']] as const).map(([k, label, hint]) => (
+                <button type="button" key={k} role="radio" aria-checked={(v.jenis_order ?? 'polos') === k} className={`pap-ship-option ${(v.jenis_order ?? 'polos') === k ? 'active' : ''}`} onClick={() => set('jenis_order', k)}>
+                  {k === 'polos' ? <FileText /> : <ListTodo />}<b>{label}</b><small>{hint}</small>
+                </button>
+              ))}
+            </div>
+            {v.jenis_order === 'custom' && !canCustom && <small className="pap-muted">Form Order Custom diisi oleh Marketing yang punya akses menu Form Order Custom.</small>}
+          </div>
           <div className="pap-po-sections">
             <fieldset>
               <legend>Customer</legend>
@@ -382,7 +393,7 @@ function DocEditor({ editing, canCustom, onClose, onSaved }: { editing: Editing;
                     <input className="pap-input" required={i === 0} maxLength={500} value={l.nama} onChange={(e) => updateLine(l.key, { nama: e.target.value })} placeholder="Nama produk, mis. Kantong laundry HD" aria-label={`Nama produk ${i + 1}`} />
                     <button type="button" className="pap-icon-button" aria-label={`Hapus produk ${i + 1}`} disabled={lines.length === 1} onClick={() => setLines((list) => list.filter((x) => x.key !== l.key))}><Trash2 /></button>
                   </div>
-                  {canCustom && <CustomPanel c={custom[l.key]} customerId={v.customer_id} onChange={(c) => setCustom((m) => ({ ...m, [l.key]: c }))} defaultSpek={v.customer_id ? 'repeat' : 'baru'} />}
+                  {canCustom && v.jenis_order === 'custom' && <CustomPanel c={custom[l.key]} customerId={v.customer_id} onChange={(c) => setCustom((m) => ({ ...m, [l.key]: c }))} defaultSpek={v.customer_id ? 'repeat' : 'baru'} />}
                   <label className="pap-quote-spec"><span>Spesifikasi (dicetak di dokumen)</span><textarea className="pap-input" rows={2} maxLength={500} value={l.catatan} onChange={(e) => updateLine(l.key, { catatan: e.target.value })} placeholder="mis. HD 30 x 40 cm, 50 mikron, cetak 2 warna" /></label>
                   <div className="pap-quote-price">
                     <label><span>Jumlah</span><input className="pap-input" inputMode="decimal" required={!!l.nama} value={l.qty} onChange={(e) => updateLine(l.key, { qty: e.target.value })} placeholder="10000" /></label>
@@ -506,7 +517,8 @@ function ProformaDialog({ so, onClose }: { so: So; onClose: () => void }) {
 
 // Form Order Custom per produk di form dokumen order: centang lalu isi checklist; disimpan bersama dokumen
 function CustomPanel({ c, customerId, defaultSpek, onChange }: { c: Custom | undefined; customerId: number | null; defaultSpek: 'baru' | 'repeat'; onChange: (c: Custom) => void }) {
-  const cur: Custom = c ?? { on: false, open: false, isian: emptyIsian() }
+  // Order custom: tiap produk otomatis memakai form order (centang bisa dilepas bila produk itu polos)
+  const cur: Custom = c ?? { on: true, open: false, isian: { ...emptyIsian(), spek: defaultSpek } }
   const locked = !!cur.status && cur.status !== 'draft'
   const p = progress(cur.isian)
   return (

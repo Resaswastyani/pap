@@ -21,7 +21,7 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
   const body = await readJson(request)
   const input = await readDocInput(body)
   await updateOrderDocument(user, id, input)
-  const custom = await syncOrderDocChecklists(id, input, body.custom, user)
+  const custom = input.jenis_order === 'custom' ? await syncOrderDocChecklists(id, input, body.custom, user) : null
   return NextResponse.json({ ok: true, custom })
 })
 

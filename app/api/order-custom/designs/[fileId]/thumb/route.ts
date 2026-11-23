@@ -9,7 +9,7 @@ type Ctx = { params: Promise<{ fileId: string }> }
 // Preview desain Master Data untuk pengguna Checklist Order Custom (PPIC / Operasional tidak harus punya menu Master Data)
 export const GET = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
-  requireOrderCustom(user)
+  if (!user.menus.includes('dokumen-order' as never)) requireOrderCustom(user)
   const fileId = str((await ctx.params).fileId, 100)
   const [[file]] = await db.query<(RowDataPacket & { id: string })[]>('SELECT id FROM drive_files WHERE id = ?', [fileId])
   if (!file) fail(404, 'File tidak ditemukan.')

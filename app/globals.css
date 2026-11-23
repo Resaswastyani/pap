@@ -3551,3 +3551,14 @@ a.pap-row-action { text-decoration:none; }
 .pap-oc .oc-desain-grid { width:100%; border-collapse:separate; border-spacing:6px; }
 .pap-oc .oc-desain-grid td { width:25%; padding:4px; border:1px solid #c9ccd8; text-align:center; vertical-align:top; font-size:10.5px; }
 .pap-oc .oc-desain-grid img { display:block; max-width:100%; max-height:120px; margin:0 auto 4px; object-fit:contain; }
+
+/* Dokumen order custom: lembar Gambar Desain */
+.pap-oc-art .oc-art-sub { margin:-8px 0 16px; color:#5f6478; font-size:12px; text-align:center; }
+.pap-oc-art .oc-art { margin-bottom:18px; break-inside:avoid; page-break-inside:avoid; }
+.pap-oc-art .oc-art-img { display:flex; align-items:center; justify-content:center; min-height:120px; padding:8px; border:1px solid #c9ccd8; border-radius:6px; background:#fafbfd; }
+.pap-oc-art .oc-art-img img { max-width:100%; max-height:420px; object-fit:contain; }
+.pap-oc-art .oc-art-cap { margin:6px 0 0; font-size:12px; }
+.pap-oc-art .oc-art-cap span { color:#7a7f94; }
+
+.pap-doc-jenis-order { margin:4px 0 14px; }
+.pap-doc-custom-badge { margin-left:6px; padding:1px 7px; font-size:10.5px; }

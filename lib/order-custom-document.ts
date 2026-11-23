@@ -122,3 +122,32 @@ body { font-family: Arial, sans-serif; font-size: 10pt; color: #1b1d2e; }
 .oc-desain-grid { width: 100%; border-collapse: collapse; }
 .oc-desain-grid td { width: 25%; padding: 4pt; border: 1px solid #c9ccd8; font-size: 8.5pt; vertical-align: top; }
 `
+
+// ---------- Lampiran cetak Dokumen Order "custom": Form Order per produk + Gambar Desain ----------
+// web = halaman cetak (gambar desain dari Master Data); Word = nama file + link Google Drive
+export async function orderDocCustomAppendix(docId: number, logoSrc: string, web: boolean) {
+  const { listChecklists } = await import('@/lib/order-custom')
+  const { items } = await listChecklists(new URLSearchParams({ order_document_id: String(docId) }))
+  const sorted = [...items].sort((a, b) => a.id - b.id)
+  const settings = await orderCustomSettings()
+  const forms = sorted.map((c) => orderCustomHtml(c, settings, logoSrc, false))
+  // Desain unik dari semua checklist, dikelompokkan per produk
+  const seen = new Set<string>()
+  const designs = sorted.flatMap((c) => (c.isian.desain ?? []).filter((d) => !seen.has(d.id) && seen.add(d.id)).map((d) => ({ ...d, produk: c.nama_produk, nomor: c.nomor })))
+  const gambar = designs.length ? `<div class="pap-sheet pap-oc pap-oc-art">
+<h2 class="oc-title">GAMBAR DESAIN</h2>
+<p class="oc-art-sub">${esc(sorted[0]?.nama_customer ?? '')} · ${designs.length} desain dari Master Data (Logo &amp; Desain)</p>
+${designs.map((d, i) => `<div class="oc-art">
+  ${web ? `<div class="oc-art-img"><img src="/api/order-custom/designs/${encodeURIComponent(d.id)}/thumb?s=1200" alt=""></div>` : ''}
+  <p class="oc-art-cap"><b>${i + 1}. ${esc(d.produk)}</b> · ${esc(d.name)} <span>(${esc(d.nomor)})</span>${!web && d.web_link ? `<br><a href="${esc(d.web_link)}">${esc(d.web_link)}</a>` : ''}</p>
+</div>`).join('')}
+</div>` : ''
+  return { forms, gambar, count: sorted.length, designs: designs.length }
+}
+
+export const OC_ART_WORD_CSS = `
+.oc-art-sub { text-align: center; color: #555; font-size: 9pt; margin: 0 0 10pt; }
+.oc-art { margin-bottom: 12pt; }
+.oc-art-cap { font-size: 9.5pt; margin: 3pt 0 0; }
+.oc-art-cap span { color: #777; }
+`

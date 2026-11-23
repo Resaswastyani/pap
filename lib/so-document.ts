@@ -165,11 +165,11 @@ ${v.rekening ? `<h3>Pembayaran ke</h3><p class="pre">${esc(v.rekening)}</p><p>Mo
 }
 
 // Ekspor Word (.doc berformat HTML) untuk Surat Order / Proforma
-export function wordResponse(nomor: string, body: string) {
+export function wordResponse(nomor: string, body: string, extraCss = '') {
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="utf-8"><title>${esc(nomor)}</title>
 <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->
-<style>${WORD_CSS}</style></head><body>${body}</body></html>`
+<style>${WORD_CSS}${extraCss}</style></head><body>${body}</body></html>`
   return new Response(`﻿${html}`, {
     headers: {
       'Content-Type': 'application/msword; charset=utf-8',

@@ -19,6 +19,6 @@ export const POST = handle(async (request: Request) => {
   const input = await readDocInput(body)
   const id = await createOrderDocument(user, input)
   // Form Order Custom per produk (opsional)
-  const custom = await syncOrderDocChecklists(id, input, body.custom, user)
+  const custom = input.jenis_order === 'custom' ? await syncOrderDocChecklists(id, input, body.custom, user) : null
   return NextResponse.json({ id, custom }, { status: 201 })
 })

@@ -14,7 +14,7 @@ type PpnMode = 'none' | 'exclusive' | 'inclusive'
 export type DocItem = { nama: string; qty: number; unit: string; harga: number; disc_pct: number | null; catatan: string | null }
 export type DocExpense = { nama: string; amount: number }
 export type DocInput = {
-  jenis: SoJenis; nomor: string; tanggal: string; so_accurate_id: number | null; so_number: string | null
+  jenis: SoJenis; jenis_order: 'polos' | 'custom'; nomor: string; tanggal: string; so_accurate_id: number | null; so_number: string | null
   prospect_id: number | null; customer_id: number | null; ongkir_per_kg: number | null; berat_kg: number | null; diskon_persen: number | null
   kepada: string; customer_no: string | null; kontak: string | null; telepon: string | null; alamat: string | null; po_number: string | null
   ship_date: string | null; ekspedisi: string | null; items: DocItem[]; expenses: DocExpense[]
@@ -102,7 +102,7 @@ export async function readDocInput(body: Record<string, unknown>): Promise<DocIn
   if (diskonPct !== null && (diskonPct < 0 || diskonPct > 100)) fail(400, 'Diskon harus 0–100%.')
   const subtotal = round2(items.reduce((t, it) => t + lineTotal(it), 0))
   return {
-    jenis, nomor, tanggal, so_accurate_id: soId && soId > 0 ? soId : null, so_number: opt(body.so_number, 60),
+    jenis, jenis_order: body.jenis_order === 'custom' ? 'custom' : 'polos', nomor, tanggal, so_accurate_id: soId && soId > 0 ? soId : null, so_number: opt(body.so_number, 60),
     prospect_id: prospectId && !customerId ? prospectId : null, customer_id: customerId || null,
     ongkir_per_kg: ongkir > 0 ? round2(ongkir) : null, berat_kg: ongkir > 0 && beratRaw !== null ? Math.round(beratRaw * 1000) / 1000 : null,
     diskon_persen: diskonPct ? Math.round(diskonPct * 10000) / 10000 : null,
@@ -118,7 +118,7 @@ export async function readDocInput(body: Record<string, unknown>): Promise<DocIn
 function fromRow(r: Row) {
   const items = json<DocItem[]>(r.items, []).map((it) => ({ ...it, qty: num(it.qty), harga: num(it.harga), disc_pct: it.disc_pct ? num(it.disc_pct) : null, catatan: it.catatan ?? null, unit: it.unit ?? '' }))
   const input: DocInput = {
-    jenis: readSoJenis(r.jenis as string), nomor: String(r.nomor), tanggal: String(r.tanggal), so_accurate_id: r.so_accurate_id == null ? null : Number(r.so_accurate_id), so_number: (r.so_number as string) ?? null,
+    jenis: readSoJenis(r.jenis as string), jenis_order: r.jenis_order === 'custom' ? 'custom' : 'polos', nomor: String(r.nomor), tanggal: String(r.tanggal), so_accurate_id: r.so_accurate_id == null ? null : Number(r.so_accurate_id), so_number: (r.so_number as string) ?? null,
     prospect_id: r.prospect_id == null ? null : Number(r.prospect_id), customer_id: r.customer_id == null ? null : Number(r.customer_id),
     ongkir_per_kg: r.ongkir_per_kg == null ? null : num(r.ongkir_per_kg), berat_kg: r.berat_kg == null ? null : num(r.berat_kg),
     diskon_persen: r.diskon_persen == null ? null : num(r.diskon_persen),
@@ -153,7 +153,7 @@ export async function loadOrderDocument(id: number) {
   return fromRow(row)
 }
 
-const COLS = ['jenis', 'nomor', 'tanggal', 'so_accurate_id', 'so_number', 'prospect_id', 'customer_id', 'kepada', 'customer_no', 'kontak', 'telepon', 'alamat', 'po_number', 'ship_date', 'ekspedisi',
+const COLS = ['jenis', 'jenis_order', 'nomor', 'tanggal', 'so_accurate_id', 'so_number', 'prospect_id', 'customer_id', 'kepada', 'customer_no', 'kontak', 'telepon', 'alamat', 'po_number', 'ship_date', 'ekspedisi',
   'ongkir_per_kg', 'berat_kg', 'items', 'expenses', 'diskon', 'diskon_persen', 'ppn_mode', 'ppn_rate', 'terbayar', 'dp_persen', 'catatan', 'rekening', 'penandatangan'] as const
 const values = (d: DocInput) => COLS.map((c) => (c === 'items' || c === 'expenses' ? JSON.stringify(d[c]) : d[c]))
 
@@ -195,7 +195,7 @@ export async function draftOrderDocument(jenis: SoJenis, soId: number | null): P
     const ym = todayWib().slice(0, 7).replace('-', '.')
     const [[r]] = await db.query<Row[]>('SELECT COUNT(*) AS n FROM order_documents WHERE jenis = ? AND nomor LIKE ?', [jenis, `${prefix}-M.${ym}.%`])
     return {
-      jenis, nomor: `${prefix}-M.${ym}.${String(Number(r.n) + 1).padStart(4, '0')}`, tanggal: todayWib(), so_accurate_id: null, so_number: null,
+      jenis, jenis_order: 'polos', nomor: `${prefix}-M.${ym}.${String(Number(r.n) + 1).padStart(4, '0')}`, tanggal: todayWib(), so_accurate_id: null, so_number: null,
       prospect_id: null, customer_id: null, ongkir_per_kg: null, berat_kg: null, diskon_persen: null,
       kepada: '', customer_no: null, kontak: null, telepon: null, alamat: null, po_number: null, ship_date: null, ekspedisi: null,
       items: [{ nama: '', qty: 1, unit: 'pcs', harga: 0, disc_pct: null, catatan: null }], expenses: [], diskon: 0, ppn_mode: 'none', ppn_rate: 11, terbayar: 0, dp_persen: jenis === 'proforma' ? 50 : null,
@@ -207,7 +207,7 @@ export async function draftOrderDocument(jenis: SoJenis, soId: number | null): P
   // Diskon SO (Rupiah) diubah ke persen dari subtotal
   const soSub = so.subtotal || 0
   return {
-    jenis, nomor: soDocNomor(so, jenis), tanggal: jenis === 'proforma' ? todayWib() : so.tanggal, so_accurate_id: so.id, so_number: so.nomor,
+    jenis, jenis_order: 'polos', nomor: soDocNomor(so, jenis), tanggal: jenis === 'proforma' ? todayWib() : so.tanggal, so_accurate_id: so.id, so_number: so.nomor,
     prospect_id: null, customer_id: cust ? Number(cust.id) : null, ongkir_per_kg: null, berat_kg: null,
     diskon_persen: so.diskon && soSub ? Math.round((so.diskon / soSub) * 1000000) / 10000 : null,
     kepada: so.customer_name, customer_no: so.customer_no, kontak: so.kontak, telepon: so.telepon, alamat: so.alamat, po_number: so.po_number,
