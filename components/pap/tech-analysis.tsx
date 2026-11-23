@@ -15,7 +15,7 @@ const FLOW_LABEL: Record<Status, string> = { draft: 'Marketing isi spek', disera
 const BISA = { bisa: 'Bisa diproduksi (optimal)', bersyarat: 'Bisa dengan syarat', tidak: 'Tidak bisa diproduksi optimal' } as const
 const KUALITAS = { mudah: 'Mudah', sedang: 'Sedang', sulit: 'Sulit' } as const
 
-type Proses = { mesin: string; kec_label: string; dipakai: boolean; kecepatan: string; kec_roto_max: string; jalur: string; keterangan: string; produktivitas: number | null }
+type Proses = { mesin: string; kec_label: string; dipakai: boolean; kecepatan: string; kec_roto_max: string; jalur: string; tumpuk: string; keterangan: string; produktivitas: number | null }
 type Analysis = {
   id: number; nomor: string; prospect_id: number | null; prospect_name: string | null; status: Status; tanggal_serah: string | null
   nama_produk: string; nama_customer: string; jenis_plastik: string | null; panjang_cm: number | null; lebar_cm: number | null; tebal_mm: number | null
@@ -346,7 +346,7 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
       {tab === 'teknik' && (
         <div className="pap-ta-section">
           {a.status === 'draft' && <Notice>Belum diserahkan Marketing ke Dept Teknik.</Notice>}
-          <p className="pap-muted pap-ta-hint">Centang mesin / proses yang dipakai sesuai urutan, isi kecepatan mesin, kecepatan roto maksimum, jalur / tumpuk, keterangan, dan hasil produktivitas per jam (kg).</p>
+          <p className="pap-muted pap-ta-hint">Centang mesin / proses yang dipakai sesuai urutan, isi kecepatan mesin, kecepatan roto maksimum, jalur, tumpuk, keterangan, dan hasil produktivitas per jam (kg).</p>
           <div className="pap-ta-proses-list">
             {proses.map((p, i) => (
               <div key={i} className={`pap-ta-proc ${p.dipakai ? 'on' : ''}`}>
@@ -356,14 +356,14 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
                 </label>
                 <label className="pap-ta-proc-f"><span>{p.kec_label || 'Kecepatan'}</span><input className="pap-input" maxLength={120} disabled={!can.teknik} value={p.kecepatan} onChange={(e) => setRow(i, { kecepatan: e.target.value, dipakai: p.dipakai || !!e.target.value })} placeholder="—" /></label>
                 <label className="pap-ta-proc-f"><span title="Kecepatan Roto Maksimum">Kec Roto Max</span><input className="pap-input" maxLength={120} disabled={!can.teknik} value={p.kec_roto_max ?? ''} onChange={(e) => setRow(i, { kec_roto_max: e.target.value, dipakai: p.dipakai || !!e.target.value })} placeholder="—" /></label>
-                <label className="pap-ta-proc-f"><span>Jalur / Tumpuk</span><input className="pap-input" maxLength={120} list="pap-ta-jalur" disabled={!can.teknik} value={p.jalur ?? ''} onChange={(e) => setRow(i, { jalur: e.target.value, dipakai: p.dipakai || !!e.target.value })} placeholder="mis. 2 jalur" /></label>
+                <label className="pap-ta-proc-f small"><span>Jalur</span><input className="pap-input" maxLength={120} disabled={!can.teknik} value={p.jalur ?? ''} onChange={(e) => setRow(i, { jalur: e.target.value, dipakai: p.dipakai || !!e.target.value })} placeholder="mis. 2" /></label>
+                <label className="pap-ta-proc-f small"><span>Tumpuk</span><input className="pap-input" maxLength={120} disabled={!can.teknik} value={p.tumpuk ?? ''} onChange={(e) => setRow(i, { tumpuk: e.target.value, dipakai: p.dipakai || !!e.target.value })} placeholder="mis. 3" /></label>
                 <label className="pap-ta-proc-f"><span>Keterangan</span><input className="pap-input" maxLength={500} disabled={!can.teknik} value={p.keterangan} onChange={(e) => setRow(i, { keterangan: e.target.value })} placeholder="—" /></label>
                 <label className="pap-ta-proc-f small"><span>Hasil Produktivitas (kg/jam)</span><input className="pap-input" inputMode="decimal" disabled={!can.teknik} value={p.produktivitas ?? ''} onChange={(e) => { const t = e.target.value.replace(/[^\d.,]/g, ''); setRow(i, { produktivitas: t ? Number(t.replace(',', '.')) : null, dipakai: p.dipakai || !!t }) }} placeholder="0" /></label>
               </div>
             ))}
           </div>
-          <datalist id="pap-ta-jalur">{['1 jalur', '2 jalur', '3 jalur', '4 jalur', 'Tumpuk 2', 'Tumpuk 3'].map((x) => <option key={x} value={x} />)}</datalist>
-          {can.teknik && <button type="button" className="pap-link-button pap-shift-edit" onClick={() => setProses([...proses, { mesin: 'Proses lain', kec_label: '', dipakai: true, kecepatan: '', kec_roto_max: '', jalur: '', keterangan: '', produktivitas: null }])}><Plus /> Tambah proses lain</button>}
+          {can.teknik && <button type="button" className="pap-link-button pap-shift-edit" onClick={() => setProses([...proses, { mesin: 'Proses lain', kec_label: '', dipakai: true, kecepatan: '', kec_roto_max: '', jalur: '', tumpuk: '', keterangan: '', produktivitas: null }])}><Plus /> Tambah proses lain</button>}
           <p className="pap-muted pap-ta-hint">{used.length} proses dipakai{used.length ? `: ${used.map((p) => p.mesin).join(' → ')}` : ''}</p>
 
           <h4 className="pap-ta-sub-h"><Wrench className="pap-inline-icon" /> Kesimpulan analisa teknis produksi</h4>

@@ -29,9 +29,9 @@ export const MACHINES: { mesin: string; kec_label: string }[] = [
   { mesin: 'Sideseal Manual', kec_label: '' },
   { mesin: 'Mesin Cutting Mika', kec_label: '' },
 ]
-// kec_roto_max: kecepatan roto maksimum; jalur: jalur / tumpuk (mis. 2 jalur, tumpuk 3)
-export type ProsesRow = { mesin: string; kec_label: string; dipakai: boolean; kecepatan: string; kec_roto_max: string; jalur: string; keterangan: string; produktivitas: number | null }
-export const defaultProses = (): ProsesRow[] => MACHINES.map((m) => ({ ...m, dipakai: false, kecepatan: '', kec_roto_max: '', jalur: '', keterangan: '', produktivitas: null }))
+// kec_roto_max: kecepatan roto maksimum; jalur: jumlah jalur; tumpuk: jumlah tumpuk
+export type ProsesRow = { mesin: string; kec_label: string; dipakai: boolean; kecepatan: string; kec_roto_max: string; jalur: string; tumpuk: string; keterangan: string; produktivitas: number | null }
+export const defaultProses = (): ProsesRow[] => MACHINES.map((m) => ({ ...m, dipakai: false, kecepatan: '', kec_roto_max: '', jalur: '', tumpuk: '', keterangan: '', produktivitas: null }))
 
 const MARKETING = (u: UserProfile) => u.division.code === 'marketing' || u.division.code.startsWith('marketing_')
 export function requireTechAnalysis(user: UserProfile) {
@@ -61,8 +61,11 @@ export function serializeAnalysis(r: Row) {
     jumlah_warna: num(r.jumlah_warna), kesulitan_print: (r.kesulitan_print as string) ?? null, spec_lainnya: (r.spec_lainnya as string) ?? null,
     qty_order: num(r.qty_order), qty_satuan: (r.qty_satuan as string) ?? null, frekuensi: (r.frekuensi as 'sekali' | 'rutin') ?? null, rutin_bulan: num(r.rutin_bulan),
     critical_to_quality: (r.critical_to_quality as string) ?? null,
-    // Data lama tanpa kolom Kec Roto Max / Jalur-Tumpuk
-    proses: proses.length ? proses.map((p) => ({ ...p, kec_roto_max: p.kec_roto_max ?? '', jalur: p.jalur ?? '' })) : defaultProses(),
+    // Data lama: tanpa Kec Roto Max / Tumpuk; isian "Tumpuk 2" di kolom Jalur dulu (gabungan) dipindah ke kolom Tumpuk
+    proses: proses.length ? proses.map((p) => {
+      const lama = p.tumpuk === undefined && /tumpuk/i.test(p.jalur ?? '')
+      return { ...p, kec_roto_max: p.kec_roto_max ?? '', jalur: lama ? '' : p.jalur ?? '', tumpuk: lama ? p.jalur.replace(/tumpuk\s*/i, '').trim() : p.tumpuk ?? '' }
+    }) : defaultProses(),
     bisa_produksi: (r.bisa_produksi as 'bisa' | 'bersyarat' | 'tidak') ?? null, penjelasan_produksi: (r.penjelasan_produksi as string) ?? null,
     kesulitan_kualitas: (r.kesulitan_kualitas as 'mudah' | 'sedang' | 'sulit') ?? null, penjelasan_kualitas: (r.penjelasan_kualitas as string) ?? null,
     catatan_lain: (r.catatan_lain as string) ?? null,
@@ -142,7 +145,7 @@ export function readTeknikSection(body: Record<string, unknown>) {
     const r = (x ?? {}) as Record<string, unknown>
     return {
       mesin: str(r.mesin, 120), kec_label: str(r.kec_label, 60), dipakai: r.dipakai === true, kecepatan: str(r.kecepatan, 120),
-      kec_roto_max: str(r.kec_roto_max, 120), jalur: str(r.jalur, 120), keterangan: str(r.keterangan, 500),
+      kec_roto_max: str(r.kec_roto_max, 120), jalur: str(r.jalur, 120), tumpuk: str(r.tumpuk, 120), keterangan: str(r.keterangan, 500),
       produktivitas: dec(r.produktivitas, `Produktivitas ${str(r.mesin, 60)}`, 1e7),
     }
   }).filter((r) => r.mesin)

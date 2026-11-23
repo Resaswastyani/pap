@@ -3410,3 +3410,10 @@ a.pap-row-action { text-decoration:none; }
 .ta-v1 .ta1-proc .k { width:16%; }
 .ta-v1 .ta1-proc .k2 { width:11%; }
 .ta-v1 .ta1-proc .r { width:13%; }
+
+/* Analisa teknik: Jalur & Tumpuk terpisah */
+.pap-ta-proc { grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) 80px 80px minmax(0,1.1fr) 120px; }
+@media (max-width:900px) { .pap-ta-proc { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.ta-v1 .ta1-proc .m { width:22%; }
+.ta-v1 .ta1-proc .k2 { width:10%; }
+.ta-v1 .ta1-proc .k3 { width:7%; }
