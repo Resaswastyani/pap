@@ -71,7 +71,13 @@ export function spokenText(title: string, body: string | null) {
     const kata = jenis === 'Meeting baru' ? 'direncanakan' : jenis === 'Jadwal meeting diubah' ? 'dijadwalkan ulang' : jenis === 'Meeting dibatalkan' ? 'dibatalkan, semula' : 'segera dimulai,'
     return `Meeting ${judul} ${kata} ${waktu}${tempat ? ` di ${tempat}` : ''}.`.replace(/\s+/g, ' ')
   }
-  return `${title}. ${tanggal(parts.join(', '))}`.replace(/\s+/g, ' ').trim()
+  // Semua notifikasi lain (planning, visit, prospek, quotation, desain, pembayaran, perbaikan mesin, checklist, dll.):
+  // judul + isi, kode dokumen (OC-2026-0004, QT-2611-0011, SO-M.2026.11.0001, ...) tidak dieja, "·" jadi jeda koma
+  const kode = /\b[A-Z]{2,5}(-[A-Z]{1,3})?[-.]\d{2,4}([-.]\d{1,4}){1,3}\b/g
+  const bersih = (s: string) => tanggal(s.replace(kode, '').replace(/\s*·\s*/g, ', ').replace(/^[\s,·:]+|[\s,·:]+$/g, '')).replace(/Rp\s?/g, 'Rp ')
+  const judul = bersih(title).replace(/:\s*/g, ', ')
+  const isi = parts.map(bersih).filter(Boolean).join(', ')
+  return `${judul}.${isi ? ` ${isi}.` : ''}`.replace(/\s+/g, ' ').replace(/\s+([,.])/g, '$1').replace(/,+/g, ',').replace(/,\./g, '.').replace(/\.\./g, '.').trim()
 }
 
 // Daftar suara dimuat browser secara bertahap (event voiceschanged); tunggu sebentar sebelum memilih
