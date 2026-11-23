@@ -304,7 +304,8 @@ export function ProductForm({ initial, customer, jenisList = JENIS_DEFAULT, onCl
             <option value="nonaktif">Nonaktif</option>
           </select>
         </Field>
-        <Field label="Spesifikasi" full><textarea className="pap-input" rows={5} maxLength={10000} value={values.spesifikasi} onChange={set('spesifikasi')} placeholder={'Ukuran: 30 x 45 cm\nKetebalan: 0,05 mm\nModel: gusset / cut seal / side seal\nCetak: rotogravure 2 warna (merah, biru)\nKemasan: 100 pcs/pak'} /></Field>
+{/* Spesifikasi tidak diisi saat tambah produk (spek teknik lewat Analisa teknik); tetap bisa diubah saat edit */}
+        {initial &&         <Field label="Spesifikasi" full><textarea className="pap-input" rows={5} maxLength={10000} value={values.spesifikasi} onChange={set('spesifikasi')} placeholder={'Ukuran: 30 x 45 cm\nKetebalan: 0,05 mm\nModel: gusset / cut seal / side seal\nCetak: rotogravure 2 warna (merah, biru)\nKemasan: 100 pcs/pak'} /></Field>}
         <div className="pap-field full pap-prod-teknik">
           <span>Analisa teknik (opsional)</span>
           <div className="pap-prod-teknik-box">
