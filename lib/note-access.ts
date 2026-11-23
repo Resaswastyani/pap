@@ -65,6 +65,13 @@ export async function noteAccess(owner: NoteOwner, id: number, user: UserProfile
     if (!row) fail(404, 'Laporan kerusakan tidak ditemukan.')
     return { canAdd: true }
   }
+  if (owner === 'order_custom') {
+    // Desain plastik / cetakan / aksesoris order custom: semua yang punya menu boleh lihat; tambah oleh Marketing, PPIC, Operasional
+    const { canMarketing, canOperasional, canPpic, loadChecklist, requireOrderCustom } = await import('@/lib/order-custom')
+    requireOrderCustom(user)
+    const c = await loadChecklist(id)
+    return { canAdd: c.status !== 'selesai' && (canMarketing(user) || canPpic(user) || canOperasional(user)) }
+  }
   if (owner === 'complaint') {
     // Foto / video / dokumen keluhan customer: semua yang punya menu boleh lihat; tambah oleh pelapor, PIC, lead, GM / admin
     const { canProcess, loadComplaint, requireComplaints } = await import('@/lib/complaints')

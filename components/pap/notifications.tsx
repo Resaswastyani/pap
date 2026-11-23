@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bell, BellRing, MessageSquareWarning, Ruler, Target, CalendarClock, CalendarDays, CheckCircle2, ClipboardCheck, ClipboardList, FileText, FlaskConical, MapPin, Palette, PhoneCall, Repeat, Wallet, Smartphone, UserPlus, Wrench, X, CalendarCheck, PackageMinus, ShoppingCart, LifeBuoy } from 'lucide-react'
+import { ListTodo, Bell, BellRing, MessageSquareWarning, Ruler, Target, CalendarClock, CalendarDays, CheckCircle2, ClipboardCheck, ClipboardList, FileText, FlaskConical, MapPin, Palette, PhoneCall, Repeat, Wallet, Smartphone, UserPlus, Wrench, X, CalendarCheck, PackageMinus, ShoppingCart, LifeBuoy } from 'lucide-react'
 import { api } from './ui'
 
 export type NotificationTarget = { meetingId?: number | null; planningId?: number | null; prospectId?: number | null; visitId?: number | null; sampleId?: number | null; designId?: number | null; customerId?: number | null; paymentId?: number | null; quotationId?: number | null; repairId?: number | null; page?: string | null; pageId?: number | null }
@@ -29,7 +29,7 @@ type Item = {
 
 const POLL_MS = 30_000
 const TOAST_MS = 15_000
-const ICONS = { meeting_baru: CalendarDays, meeting_diubah: CalendarDays, meeting_reminder: CalendarClock, planning_pic: ClipboardList, planning_baru: ClipboardCheck, sistem: BellRing, prospek_baru: UserPlus, visit_reminder: MapPin, followup_due: PhoneCall, sample_update: FlaskConical, desain_update: Palette, repeat_order: Repeat, pembayaran: Wallet, quotation: FileText, perbaikan_mesin: Wrench, perawatan_mesin: CalendarCheck, stok_sparepart: PackageMinus, pengajuan_pembelian: ShoppingCart, tiket: LifeBuoy, action_plan: Target, kendala_customer: MessageSquareWarning, analisa_teknik: Ruler }
+const ICONS = { meeting_baru: CalendarDays, meeting_diubah: CalendarDays, meeting_reminder: CalendarClock, planning_pic: ClipboardList, planning_baru: ClipboardCheck, sistem: BellRing, prospek_baru: UserPlus, visit_reminder: MapPin, followup_due: PhoneCall, sample_update: FlaskConical, desain_update: Palette, repeat_order: Repeat, pembayaran: Wallet, quotation: FileText, perbaikan_mesin: Wrench, perawatan_mesin: CalendarCheck, stok_sparepart: PackageMinus, pengajuan_pembelian: ShoppingCart, tiket: LifeBuoy, action_plan: Target, kendala_customer: MessageSquareWarning, analisa_teknik: Ruler, order_custom: ListTodo }
 
 // Dipanggil setelah aksi yang mungkin membuat notifikasi (lihat api() di ui.tsx) agar lonceng langsung diperbarui
 export const REFRESH_EVENT = 'pap-notif-refresh'

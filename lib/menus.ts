@@ -19,6 +19,9 @@ export const MENU_KEYS = {
   'Repeat Order': 'repeat-order',
   'Kendala Customer': 'kendala-customer',
   'Dokumen Order': 'dokumen-order',
+  // Checklist Order Custom: menu di Marketing & Produksi memakai satu hak akses
+  'Form Order Custom': 'order-custom',
+  'Checklist Order Custom': 'order-custom',
   'KPI Marketing': 'kpi',
   'Kalender Konten': 'konten',
   Pembayaran: 'pembayaran',

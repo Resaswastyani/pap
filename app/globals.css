@@ -3417,3 +3417,95 @@ a.pap-row-action { text-decoration:none; }
 .ta-v1 .ta1-proc .m { width:22%; }
 .ta-v1 .ta1-proc .k2 { width:10%; }
 .ta-v1 .ta1-proc .k3 { width:7%; }
+
+/* ---------- Checklist Order Custom (form di SIMPAP) ---------- */
+.pap-oc-blank { display:inline-flex; align-items:center; gap:6px; padding:4px 6px 4px 10px; border:1px dashed var(--pap-border); border-radius:10px; color:var(--pap-muted); font-size:12px; }
+.pap-oc-meter { position:relative; height:6px; min-width:90px; border-radius:99px; background:rgb(127 127 127 / .14); overflow:hidden; }
+.pap-oc-meter span { position:absolute; inset:0 auto 0 0; border-radius:inherit; background:#f5a623; transition:width .25s; }
+.pap-oc-meter.full span { background:#12a37a; }
+.pap-oc-form { display:flex; flex-direction:column; gap:12px; margin:14px 0; }
+.pap-oc-progress { display:grid; grid-template-columns:auto 1fr; align-items:center; gap:14px; padding:12px 14px; border:1px solid var(--pap-border); border-radius:12px; background:var(--pap-surface); }
+.pap-oc-progress > div:first-child { display:flex; flex-direction:column; }
+.pap-oc-progress small { color:var(--pap-muted); font-size:12px; }
+.pap-oc-progress .pap-oc-meter { height:8px; }
+.pap-oc-sec { display:flex; flex-direction:column; gap:8px; padding:14px; border:1px solid var(--pap-border); border-radius:12px; background:var(--pap-surface); }
+.pap-oc-sec h4 { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:0 0 2px; font-size:14px; }
+.pap-oc-sec h4 small { color:var(--pap-muted); font-weight:500; }
+.pap-oc-req { padding:1px 8px; border-radius:99px; background:#fde8e8; color:#b42318; font-size:11px; font-weight:700; }
+.pap-oc-na { padding:1px 8px; border-radius:99px; background:rgb(127 127 127 / .14); color:var(--pap-muted); font-size:11px; font-weight:600; }
+.pap-oc-sec.na .pap-oc-line, .pap-oc-sec.na .pap-oc-opt, .pap-oc-sec.na .pap-oc-fieldline { opacity:.55; }
+.pap-oc-sec.final { border-color:#12a37a55; background:linear-gradient(0deg, #12a37a0d, #12a37a0d), var(--pap-surface); }
+.pap-oc-opt { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 14px; padding:4px 0; }
+.pap-oc-opt > span { font-weight:600; font-size:13px; }
+.pap-oc-seg button { display:inline-flex; align-items:center; gap:5px; }
+.pap-oc-seg button svg { width:14px; height:14px; }
+.pap-oc-toggles { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.pap-oc-chip { display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border:1px solid var(--pap-border); border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; user-select:none; }
+.pap-oc-chip.on { border-color:#12a37a; background:#12a37a14; color:#0b7a5a; }
+.pap-oc-chip input, .pap-oc-check input { width:17px; height:17px; accent-color:#12a37a; }
+.pap-oc-fieldline { display:grid; grid-template-columns:minmax(160px, 38%) 1fr; align-items:center; gap:10px; font-size:13px; font-weight:600; }
+.pap-oc-fieldline.short .pap-input { max-width:160px; }
+.pap-oc-line { display:grid; grid-template-columns:minmax(200px, 44%) 1fr; align-items:center; gap:10px; padding:6px 8px; border-radius:10px; border:1px solid transparent; }
+.pap-oc-line:hover { background:rgb(127 127 127 / .07); }
+.pap-oc-line.on { border-color:#12a37a40; background:#12a37a0f; }
+.pap-oc-line.strong .pap-oc-check span { font-weight:800; }
+.pap-oc-check { display:flex; align-items:center; gap:10px; font-size:13px; font-weight:600; cursor:pointer; }
+.pap-oc-ket { height:34px; font-size:13px; }
+.pap-oc-ket.solo { max-width:420px; }
+.pap-oc-returned { display:flex; gap:10px; margin-bottom:12px; padding:12px 14px; border:1px solid #f5a62366; border-radius:12px; background:#f5a62314; }
+.pap-oc-returned svg { flex:none; width:18px; color:#b26a00; }
+.pap-oc-returned p { margin:2px 0 0; white-space:pre-wrap; }
+.pap-oc-attach { margin:14px 0; }
+.pap-oc-signs { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; }
+.pap-oc-sign { display:flex; flex-direction:column; gap:3px; padding:12px 14px; border:1px solid var(--pap-border); border-radius:12px; text-align:center; }
+.pap-oc-sign > span { color:var(--pap-muted); font-size:12px; font-weight:600; }
+.pap-oc-sign b { display:inline-flex; align-items:center; justify-content:center; gap:5px; font-size:13px; }
+.pap-oc-sign b svg { width:15px; color:#12a37a; }
+.pap-oc-sign small { color:var(--pap-muted); font-size:11.5px; }
+.pap-oc-sign.done { border-color:#12a37a66; background:#12a37a0d; }
+.pap-oc-sign.current { border-color:#f5a623aa; border-style:dashed; }
+@media (max-width: 720px) {
+  .pap-oc-line, .pap-oc-fieldline { grid-template-columns:1fr; gap:6px; }
+  .pap-oc-progress { grid-template-columns:1fr; gap:8px; }
+  .pap-oc-signs { grid-template-columns:1fr; }
+  .pap-oc-opt { align-items:flex-start; flex-direction:column; }
+}
+
+/* ---------- Form Checklist Order Custom (lembar cetak / PDF) ---------- */
+.pap-oc { color:#1b1d2e; font-size:13px; }
+.pap-oc .oc-title { margin:22px 0 16px; color:#1f2a5a; font-size:21px; font-weight:500; letter-spacing:.06em; text-align:center; }
+.pap-oc .oc-meta { width:100%; margin-bottom:14px; border-collapse:collapse; }
+.pap-oc .oc-meta td { padding:3px 6px 3px 0; vertical-align:bottom; }
+.pap-oc .oc-meta td.k { width:15%; color:#5f6478; white-space:nowrap; }
+.pap-oc .oc-fill { display:inline-block; min-width:190px; border-bottom:1px dotted #8a8fa3; }
+.pap-oc .oc-fill.b { font-weight:700; }
+.pap-oc .oc-fill.wide { min-width:72%; }
+.pap-oc .oc-frame { padding:22px 26px 18px; border:1px solid #3a3d4d; }
+.pap-oc .oc-list { width:100%; border-collapse:collapse; }
+.pap-oc .oc-list td { padding:5px 0; font-size:14px; font-weight:700; vertical-align:bottom; }
+.pap-oc .oc-list tr.hd td { padding-bottom:4px; font-size:14.5px; }
+.pap-oc .oc-list tr.sec td { padding-top:18px; }
+.pap-oc .oc-list tr.opt td, .pap-oc .oc-list tr.opt b { font-weight:700; }
+.pap-oc .oc-list td.lbl { width:1%; padding-right:4px; white-space:nowrap; }
+.pap-oc .oc-list td.dots { border-bottom:1.5px dotted #3a3d4d; font-weight:400; }
+.pap-oc .oc-list td.line { border-bottom:1.5px solid #3a3d4d; font-weight:400; }
+.pap-oc .oc-list td.line.short { width:auto; }
+.pap-oc .oc-list td.ck { width:28px; padding-left:6px; text-align:right; }
+.pap-oc .oc-list tr.na td { color:#9aa0b4; }
+.pap-oc .oc-box { display:inline-block; width:17px; height:17px; border:1.5px solid #1b1d2e; color:#0b7a5a; font-size:13px; line-height:15px; text-align:center; vertical-align:-3px; }
+.pap-oc .oc-box.on { background:#eefaf3; }
+.pap-oc .val { color:#1f2a5a; font-weight:400; }
+.pap-oc .hint, .pap-oc .req { color:#5f6478; font-size:12px; font-weight:400; }
+.pap-oc .oc-note { margin:14px 0 0; font-size:12.5px; }
+.pap-oc .oc-sign { width:100%; margin-top:30px; border-collapse:collapse; table-layout:fixed; }
+.pap-oc .oc-sign td { padding:0 10px; text-align:center; vertical-align:top; }
+.pap-oc .oc-sign .role { font-size:13px; }
+.pap-oc .oc-sign .space { display:flex; align-items:center; justify-content:center; height:64px; }
+.pap-oc .oc-sign .name { padding-top:4px; border-top:1px solid #1b1d2e; font-size:12.5px; }
+.pap-oc .oc-sign .date { color:#5f6478; font-size:11px; }
+.pap-oc .oc-stamp { padding:2px 8px; border:1px dashed #12a37a; border-radius:6px; color:#0b7a5a; font-size:10.5px; font-weight:700; }
+.pap-oc .oc-foot { margin-top:8px; color:#7a7f94; font-size:11px; }
+@media print {
+  .pap-oc .oc-box, .pap-oc .oc-box.on { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .pap-oc .oc-frame { break-inside:avoid; }
+}

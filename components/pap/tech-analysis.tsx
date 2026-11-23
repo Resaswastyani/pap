@@ -425,7 +425,7 @@ export function TechAnalysisPage({ user, focusId }: { user: UserProfile; focusId
 
 // Cari & pilih prospek: nama customer & produk prospek terisi otomatis
 type ProspectHit = { id: number; nama_usaha: string; kota: string | null; kontak_nama: string | null; kebutuhan: string | null; status: string }
-function ProspectPicker({ value, onPick, onError }: { value: (TaPrefill & { nama?: string }) | undefined; onPick: (v: (TaPrefill & { nama?: string }) | undefined) => void; onError: (msg: string) => void }) {
+export function ProspectPicker({ value, onPick, onError }: { value: (TaPrefill & { nama?: string }) | undefined; onPick: (v: (TaPrefill & { nama?: string }) | undefined) => void; onError: (msg: string) => void }) {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
   const [hits, setHits] = useState<ProspectHit[]>([])
