@@ -78,10 +78,11 @@ function parseIsian(v: unknown): OcIsian {
   return { ...base, ...raw, lines: { ...base.lines, ...(raw.lines ?? {}) } }
 }
 
-const SELECT = `SELECT o.*, DATE_FORMAT(o.tanggal, '%Y-%m-%d') AS tanggal, p.nama_usaha AS prospect_name,
+const SELECT = `SELECT o.*, DATE_FORMAT(o.tanggal, '%Y-%m-%d') AS tanggal, p.nama_usaha AS prospect_name, cu.customer_no, cp.kode AS product_kode,
     uc.name AS created_name, um.name AS marketing_name, up.name AS ppic_name, uo.name AS operasional_name,
     (SELECT COUNT(*) FROM note_attachments na WHERE na.owner_type = 'order_custom' AND na.owner_id = o.id) AS lampiran
   FROM order_custom_checklists o LEFT JOIN prospects p ON p.id = o.prospect_id
+  LEFT JOIN customers cu ON cu.id = o.customer_id LEFT JOIN customer_products cp ON cp.id = o.product_id
   LEFT JOIN users uc ON uc.id = o.created_by LEFT JOIN users um ON um.id = o.marketing_oleh
   LEFT JOIN users up ON up.id = o.ppic_oleh LEFT JOIN users uo ON uo.id = o.operasional_oleh`
 
@@ -90,6 +91,7 @@ export function serializeChecklist(r: Row) {
   return {
     id: Number(r.id), nomor: String(r.nomor), status: String(r.status) as OcStatus, tanggal: String(r.tanggal),
     prospect_id: num(r.prospect_id), prospect_name: (r.prospect_name as string | null) ?? null,
+    customer_id: num(r.customer_id), customer_no: (r.customer_no as string | null) ?? null, product_id: num(r.product_id), product_kode: (r.product_kode as string | null) ?? null,
     nama_customer: String(r.nama_customer), nama_produk: String(r.nama_produk), referensi: (r.referensi as string | null) ?? null,
     isian, progress: ocProgress(isian), catatan: (r.catatan as string | null) ?? null, alasan_kembali: (r.alasan_kembali as string | null) ?? null,
     marketing_oleh: num(r.marketing_oleh), marketing_name: (r.marketing_name as string | null) ?? null, marketing_at: r.marketing_at ? String(r.marketing_at) : (null as string | null),
@@ -103,7 +105,7 @@ export type OrderChecklist = ReturnType<typeof serializeChecklist>
 
 // Formulir kosong (cetak lalu dicentang manual dengan pena)
 export const blankChecklist = (): OrderChecklist => ({
-  id: 0, nomor: '', status: 'draft', tanggal: '', prospect_id: null, prospect_name: null, nama_customer: '', nama_produk: '', referensi: null,
+  id: 0, nomor: '', status: 'draft', tanggal: '', prospect_id: null, prospect_name: null, customer_id: null, customer_no: null, product_id: null, product_kode: null, nama_customer: '', nama_produk: '', referensi: null,
   isian: emptyIsian(), progress: { done: 0, total: 0 }, catatan: null, alasan_kembali: null,
   marketing_oleh: null, marketing_name: null, marketing_at: null, ppic_oleh: null, ppic_name: null, ppic_at: null,
   operasional_oleh: null, operasional_name: null, operasional_at: null, lampiran: 0, created_by: null, created_name: null, created_at: '', updated_at: '',
@@ -161,12 +163,16 @@ export async function readHeader(body: Record<string, unknown>) {
   const nama_customer = str(body.nama_customer, 255) || fail(400, 'Isi nama customer.')
   const nama_produk = str(body.nama_produk, 255) || fail(400, 'Isi nama produk.')
   const tanggal = /^\d{4}-\d{2}-\d{2}$/.test(String(body.tanggal ?? '')) ? String(body.tanggal) : new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
-  let prospectId = num(body.prospect_id)
-  if (prospectId) {
-    const [[p]] = await db.query<Row[]>('SELECT id FROM prospects WHERE id = ?', [prospectId])
-    prospectId = p ? Number(p.id) : null
+  // Sumber data: Customer (repeat order) atau Prospek (order baru); produk dari Data Produk bila customer
+  const exists = async (table: string, id: number | null) => {
+    if (!id) return null
+    const [[x]] = await db.query<Row[]>(`SELECT id FROM ${table} WHERE id = ?`, [id])
+    return x ? Number(x.id) : null
   }
-  return { nama_customer: nama_customer!, nama_produk: nama_produk!, tanggal, prospect_id: prospectId, referensi: str(body.referensi, 150) || null, catatan: str(body.catatan, 5000) || null }
+  const customerId = await exists('customers', num(body.customer_id))
+  const prospectId = customerId ? null : await exists('prospects', num(body.prospect_id))
+  const productId = customerId ? await exists('customer_products', num(body.product_id)) : null
+  return { nama_customer: nama_customer!, nama_produk: nama_produk!, tanggal, prospect_id: prospectId, customer_id: customerId, product_id: productId, referensi: str(body.referensi, 150) || null, catatan: str(body.catatan, 5000) || null }
 }
 
 // Syarat minimal diserahkan: "Keterangan Order Custom (Wajib Ada)"

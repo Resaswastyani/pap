@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle2, ClipboardCheck, Eye, FileDown, FileText, PackageCheck, Plus, Printer, RotateCcw, Save, Search, Send, ShieldCheck, Trash2, Undo2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AttachmentPanel } from './attachments'
+import { CustomerSelect, type CustomerOption } from './product-page'
 import { ProspectPicker, type TaPrefill } from './tech-analysis'
 import { api, askReason, confirmDialog, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged } from './ui'
 
@@ -42,6 +43,7 @@ function progress(i: Isian) {
 
 type Checklist = {
   id: number; nomor: string; status: Status; tanggal: string; prospect_id: number | null; prospect_name: string | null
+  customer_id: number | null; customer_no: string | null; product_id: number | null; product_kode: string | null
   nama_customer: string; nama_produk: string; referensi: string | null; isian: Isian; progress: { done: number; total: number }
   catatan: string | null; alasan_kembali: string | null
   marketing_name: string | null; marketing_at: string | null; ppic_name: string | null; ppic_at: string | null; operasional_name: string | null; operasional_at: string | null
@@ -49,7 +51,12 @@ type Checklist = {
 }
 type ListRes = { items: Checklist[]; counts: Partial<Record<Status, number>>; can: { create: boolean; ppic: boolean; operasional: boolean } }
 type Can = { edit: boolean; header: boolean; serahkan: boolean; ppic: boolean; operasional: boolean; kembalikan: boolean; buka: boolean; attach: boolean; delete: boolean }
-type Header = { nama_customer: string; nama_produk: string; tanggal: string; referensi: string; catatan: string }
+type Header = {
+  nama_customer: string; nama_produk: string; tanggal: string; referensi: string; catatan: string
+  prospect_id: number | null; prospect_name: string | null; customer_id: number | null; customer_no: string | null; product_id: number | null
+}
+const emptyHeader = (): Header => ({ nama_customer: '', nama_produk: '', tanggal: today(), referensi: '', catatan: '', prospect_id: null, prospect_name: null, customer_id: null, customer_no: null, product_id: null })
+const headerJson = (h: Header) => ({ nama_customer: h.nama_customer, nama_produk: h.nama_produk, tanggal: h.tanggal, referensi: h.referensi, catatan: h.catatan, prospect_id: h.prospect_id, customer_id: h.customer_id, product_id: h.product_id })
 const today = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
 
 // ---------- Menu "Form Order Custom" (Marketing) & "Checklist Order Custom" (Produksi) ----------
@@ -211,11 +218,76 @@ function ChecklistEditor({ v, set, disabled }: { v: Isian; set: (patch: Partial<
   )
 }
 
+// Sumber customer & produk: Prospek (order baru) atau Customer + Data Produk (repeat order). Nama tetap bisa diketik manual.
+type Pilihan = { id: number | null; label: string; sub?: string | null }
+function SourceSection({ h, set, onMode, onError }: { h: Header; set: (p: Partial<Header>) => void; onMode: (m: 'prospek' | 'customer') => void; onError: (m: string) => void }) {
+  const [mode, setMode] = useState<'prospek' | 'customer'>(h.customer_id ? 'customer' : 'prospek')
+  const [products, setProducts] = useState<Pilihan[]>([])
+  const [loading, setLoading] = useState(false)
+  const prospect: (TaPrefill & { nama?: string }) | undefined = h.prospect_id ? { prospect_id: h.prospect_id, nama: h.prospect_name ?? h.nama_customer, nama_customer: h.nama_customer, products: products.map((p) => ({ label: p.label })) } : undefined
+  const customer: CustomerOption | null = h.customer_id ? { id: h.customer_id, name: h.nama_customer, customer_no: h.customer_no, bill_city: null } : null
+  // Daftar produk: Data Produk milik customer / produk di prospek
+  useEffect(() => {
+    let off = false
+    const done = (list: Pilihan[]) => { if (!off) { setProducts(list); setLoading(false) } }
+    if (mode === 'customer' && h.customer_id) {
+      setLoading(true)
+      api<{ items: { id: number; nama: string; kode: string | null; jenis: string | null }[] }>(`/api/products?customer=${h.customer_id}&pageSize=100`)
+        .then((r) => done(r.items.map((p) => ({ id: p.id, label: p.nama, sub: [p.kode, p.jenis].filter(Boolean).join(' · ') || null })))).catch(() => done([]))
+    } else if (mode === 'prospek' && h.prospect_id) {
+      setLoading(true)
+      api<{ item: { products?: { label: string; jenis_plastik?: string | null }[] } }>(`/api/prospects/${h.prospect_id}`)
+        .then((r) => done((r.item.products ?? []).map((p) => ({ id: null, label: p.label, sub: p.jenis_plastik ?? null })))).catch(() => done([]))
+    } else done([])
+    return () => { off = true }
+  }, [mode, h.customer_id, h.prospect_id])
+  const switchMode = (m: 'prospek' | 'customer') => {
+    if (m === mode) return
+    setMode(m)
+    set({ prospect_id: null, prospect_name: null, customer_id: null, customer_no: null, product_id: null })
+    onMode(m)
+  }
+  return (
+    <div className="pap-oc-source">
+      <div className="pap-oc-source-head">
+        <span>Data customer &amp; produk</span>
+        <div className="pap-segmented" role="radiogroup" aria-label="Sumber data">
+          <button type="button" role="radio" aria-checked={mode === 'prospek'} className={mode === 'prospek' ? 'active' : ''} onClick={() => switchMode('prospek')}>Prospek <small>· order baru</small></button>
+          <button type="button" role="radio" aria-checked={mode === 'customer'} className={mode === 'customer' ? 'active' : ''} onClick={() => switchMode('customer')}>Customer <small>· repeat order</small></button>
+        </div>
+      </div>
+      {mode === 'prospek' ? (
+        <ProspectPicker value={prospect} onError={onError} onPick={(s) => s
+          ? set({ prospect_id: s.prospect_id, prospect_name: s.nama ?? s.nama_customer, nama_customer: s.nama_customer, nama_produk: s.products[0]?.label ?? '', product_id: null })
+          : set({ prospect_id: null, prospect_name: null })} />
+      ) : (
+        <div className="pap-field">
+          <span>Customer <small className="pap-muted">(data customer Accurate; produk diambil dari Data Produk)</small></span>
+          <CustomerSelect value={customer} onChange={(x) => set({ customer_id: x.id, customer_no: x.customer_no, nama_customer: x.name, nama_produk: '', product_id: null })} />
+        </div>
+      )}
+      {(h.prospect_id || h.customer_id) && (
+        <div className="pap-field">
+          <span>Pilih produk {mode === 'customer' ? 'customer' : 'prospek'} {loading && <small className="pap-muted">memuat...</small>}</span>
+          {products.length ? (
+            <div className="pap-oc-products">
+              {products.map((p, i) => {
+                const on = p.id ? h.product_id === p.id : h.nama_produk === p.label
+                return <button type="button" key={`${p.id ?? p.label}-${i}`} className={on ? 'active' : ''} onClick={() => set({ nama_produk: p.label, product_id: p.id })}>{on && <CheckCircle2 />}<b>{p.label}</b>{p.sub && <small>{p.sub}</small>}</button>
+              })}
+            </div>
+          ) : !loading && <small className="pap-muted">{mode === 'customer' ? 'Belum ada produk customer ini di Data Produk; ketik nama produk di bawah.' : 'Prospek belum punya daftar produk; ketik nama produk di bawah.'}</small>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function HeaderFields({ h, set, disabled }: { h: Header; set: (patch: Partial<Header>) => void; disabled?: boolean }) {
   return (
     <div className="pap-form-grid">
       <Field label="Nama customer *"><input className="pap-input" required maxLength={255} disabled={disabled} value={h.nama_customer} onChange={(e) => set({ nama_customer: e.target.value })} /></Field>
-      <Field label="Nama produk *"><input className="pap-input" required maxLength={255} disabled={disabled} value={h.nama_produk} onChange={(e) => set({ nama_produk: e.target.value })} placeholder="mis. HD Jinjing Gusset Uk 45 Print Logo" /></Field>
+      <Field label="Nama produk *"><input className="pap-input" required maxLength={255} disabled={disabled} value={h.nama_produk} onChange={(e) => set({ nama_produk: e.target.value, product_id: null })} placeholder="mis. HD Jinjing Gusset Uk 45 Print Logo" /></Field>
       <Field label="Tanggal"><input className="pap-input" type="date" disabled={disabled} value={h.tanggal} onChange={(e) => set({ tanggal: e.target.value })} /></Field>
       <Field label="Ref. SO / PO / quotation (opsional)"><input className="pap-input" maxLength={150} disabled={disabled} value={h.referensi} onChange={(e) => set({ referensi: e.target.value })} placeholder="mis. SO-2611-0012" /></Field>
     </div>
@@ -224,8 +296,7 @@ function HeaderFields({ h, set, disabled }: { h: Header; set: (patch: Partial<He
 
 // ---------- Buat checklist baru (Marketing) ----------
 function ChecklistForm({ onClose, onSaved }: { onClose: () => void; onSaved: (id: number, msg: string) => void }) {
-  const [source, setSource] = useState<(TaPrefill & { nama?: string }) | undefined>()
-  const [h, setH] = useState<Header>({ nama_customer: '', nama_produk: '', tanggal: today(), referensi: '', catatan: '' })
+  const [h, setH] = useState<Header>(emptyHeader)
   const [v, setV] = useState<Isian>(emptyIsian)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -234,7 +305,7 @@ function ChecklistForm({ onClose, onSaved }: { onClose: () => void; onSaved: (id
     setBusy(true)
     setError('')
     try {
-      const res = await api<{ id: number; nomor: string }>('/api/order-custom', { method: 'POST', json: { ...h, prospect_id: source?.prospect_id ?? null, isian: v } })
+      const res = await api<{ id: number; nomor: string }>('/api/order-custom', { method: 'POST', json: { ...headerJson(h), isian: v } })
       onSaved(res.id, `Checklist ${res.nomor} dibuat. Lengkapi lalu klik "Serahkan ke PPIC".`)
     } catch (err) {
       setError((err as Error).message)
@@ -246,13 +317,7 @@ function ChecklistForm({ onClose, onSaved }: { onClose: () => void; onSaved: (id
       footer={<><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="pap-oc-form" disabled={busy}>{busy ? 'Menyimpan...' : 'Simpan draft'}</button></>}>
       <form id="pap-oc-form" onSubmit={save}>
         {error && <Notice onClose={() => setError('')}>{error}</Notice>}
-        <ProspectPicker value={source} onPick={(s) => { setSource(s); if (s) setH({ ...h, nama_customer: s.nama_customer, nama_produk: s.products[0]?.label ?? h.nama_produk }) }} onError={setError} />
-        {!!source?.products.length && (
-          <div className="pap-field full">
-            <span>Produk prospek</span>
-            <div className="pap-chip-tabs">{source.products.map((p, i) => <button type="button" key={`${p.label}-${i}`} className={h.nama_produk === p.label ? 'active' : ''} onClick={() => setH({ ...h, nama_produk: p.label })}>{p.label}</button>)}</div>
-          </div>
-        )}
+        <SourceSection h={h} set={(p) => setH((x) => ({ ...x, ...p }))} onMode={(m) => setV((x) => ({ ...x, spek: m === 'customer' ? 'repeat' : 'baru' }))} onError={setError} />
         <HeaderFields h={h} set={(p) => setH({ ...h, ...p })} />
         <ChecklistEditor v={v} set={(p) => setV({ ...v, ...p })} />
       </form>
@@ -264,7 +329,7 @@ function ChecklistForm({ onClose, onSaved }: { onClose: () => void; onSaved: (id
 function ChecklistDetail({ id, user, onClose, onChanged }: { id: number; user: UserProfile; onClose: () => void; onChanged: (msg?: string) => void }) {
   const [c, setC] = useState<Checklist | null>(null)
   const [can, setCan] = useState<Can | null>(null)
-  const [h, setH] = useState<Header>({ nama_customer: '', nama_produk: '', tanggal: '', referensi: '', catatan: '' })
+  const [h, setH] = useState<Header>(emptyHeader)
   const [v, setV] = useState<Isian>(emptyIsian)
   const [dirty, setDirty] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -276,7 +341,8 @@ function ChecklistDetail({ id, user, onClose, onChanged }: { id: number; user: U
       const r = await api<{ item: Checklist; can: Can }>(`/api/order-custom/${id}`)
       setC(r.item)
       setCan(r.can)
-      setH({ nama_customer: r.item.nama_customer, nama_produk: r.item.nama_produk, tanggal: r.item.tanggal, referensi: r.item.referensi ?? '', catatan: r.item.catatan ?? '' })
+      const x = r.item
+      setH({ nama_customer: x.nama_customer, nama_produk: x.nama_produk, tanggal: x.tanggal, referensi: x.referensi ?? '', catatan: x.catatan ?? '', prospect_id: x.prospect_id, prospect_name: x.prospect_name, customer_id: x.customer_id, customer_no: x.customer_no, product_id: x.product_id })
       setV(r.item.isian)
       setDirty(false)
       setError('')
@@ -286,7 +352,7 @@ function ChecklistDetail({ id, user, onClose, onChanged }: { id: number; user: U
   }, [id])
   useEffect(() => { load() }, [load])
 
-  const saveNow = () => api(`/api/order-custom/${id}`, { method: 'PUT', json: { ...h, prospect_id: c?.prospect_id ?? null, isian: v } })
+  const saveNow = () => api(`/api/order-custom/${id}`, { method: 'PUT', json: { ...headerJson(h), isian: v } })
   async function run(task: () => Promise<unknown>, msg: string) {
     setBusy(true)
     setError('')
@@ -358,7 +424,10 @@ function ChecklistDetail({ id, user, onClose, onChanged }: { id: number; user: U
         <DocActions id={c.id} nomor={c.nomor} compact />
       </div>
 
-      {can.header ? <HeaderFields h={h} set={(x) => { setH({ ...h, ...x }); setDirty(true) }} /> : null}
+      {can.header ? <>
+        <SourceSection key={c.id} h={h} set={(x) => { setH((y) => ({ ...y, ...x })); setDirty(true) }} onMode={(m) => { setV((y) => ({ ...y, spek: m === 'customer' ? 'repeat' : 'baru' })); setDirty(true) }} onError={setError} />
+        <HeaderFields h={h} set={(x) => { setH({ ...h, ...x }); setDirty(true) }} />
+      </> : (c.customer_id || c.prospect_id) ? <p className="pap-muted pap-ta-hint">Data dari {c.customer_id ? `customer ${c.nama_customer}${c.customer_no ? ` (${c.customer_no})` : ''}${c.product_kode ? ` · produk ${c.product_kode}` : ''}` : `prospek ${c.prospect_name ?? c.nama_customer}`}</p> : null}
       {!can.edit && c.status !== 'selesai' && <p className="pap-muted pap-ta-hint">Checklist sedang di tahap <b>{STATUS[c.status]}</b>; isian hanya bisa diubah oleh divisi di tahap tersebut.</p>}
       <ChecklistEditor v={v} set={(x) => { setV({ ...v, ...x }); setDirty(true) }} disabled={!can.edit} />
       <Field label="Catatan (dicetak)" full><textarea className="pap-input" rows={2} maxLength={5000} disabled={!can.edit} value={h.catatan} onChange={(e) => { setH({ ...h, catatan: e.target.value }); setDirty(true) }} placeholder="mis. desain final dari request desain DSN-..., warna mengikuti sampel" /></Field>
