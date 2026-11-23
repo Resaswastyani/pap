@@ -16,7 +16,8 @@ const box = (on: boolean) => `<span class="oc-box${on ? ' on' : ''}">${on ? '&#1
 
 export const orderCustomSettings = () => loadSettings('doc.')
 
-export function orderCustomHtml(c: OrderChecklist, doc: Record<string, string>, logoSrc: string) {
+// thumbs: tampilkan gambar desain Master Data (halaman cetak); Word hanya nama file + link Google Drive
+export function orderCustomHtml(c: OrderChecklist, doc: Record<string, string>, logoSrc: string, thumbs = true) {
   const perusahaan = doc.nama || 'PT. Pandawa Amerta Packindo'
   const i = c.isian
   const blank = !c.id
@@ -67,6 +68,7 @@ export function orderCustomHtml(c: OrderChecklist, doc: Record<string, string>, 
   ${OC_AKHIR.map((x) => line(x.key, x.label)).join('')}
   ${line(OC_KELENGKAPAN.key, OC_KELENGKAPAN.label)}
 </tbody></table>
+${i.desain?.length ? `<div class="oc-desain"><h3>Desain dari Master Data (${i.desain.length})</h3><table class="oc-desain-grid"><tbody>${Array.from({ length: Math.ceil(i.desain.length / 4) }, (_, r) => `<tr>${i.desain.slice(r * 4, r * 4 + 4).map((d) => `<td>${thumbs ? `<img src="/api/order-custom/designs/${encodeURIComponent(d.id)}/thumb?s=400" alt="">` : ''}${d.web_link ? `<a href="${esc(d.web_link)}">${esc(d.name)}</a>` : esc(d.name)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : ''}
 ${c.catatan ? `<p class="oc-note"><b>Catatan:</b> ${esc(c.catatan).replace(/\n/g, '<br>')}</p>` : blank ? '<p class="oc-note"><b>Catatan:</b> <span class="oc-fill wide">&nbsp;</span></p>' : ''}
 
 <table class="oc-sign"><tbody><tr>
@@ -116,4 +118,7 @@ body { font-family: Arial, sans-serif; font-size: 10pt; color: #1b1d2e; }
 .oc-sign .date { color: #555; font-size: 8.5pt; }
 .oc-stamp { border: 1px dashed #12a37a; color: #0b7a5a; font-size: 8pt; padding: 1pt 5pt; }
 .oc-foot { margin-top: 6pt; color: #777; font-size: 8.5pt; }
+.oc-desain h3 { margin: 10pt 0 4pt; font-size: 10pt; }
+.oc-desain-grid { width: 100%; border-collapse: collapse; }
+.oc-desain-grid td { width: 25%; padding: 4pt; border: 1px solid #c9ccd8; font-size: 8.5pt; vertical-align: top; }
 `

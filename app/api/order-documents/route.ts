@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { handle, readJson, requireUser, str } from '@/lib/api'
 import { createOrderDocument, listOrderDocuments, readDocInput } from '@/lib/order-documents'
+import { syncOrderDocChecklists } from '@/lib/order-custom'
 import { requireDokumenOrder } from '@/lib/so-document'
 
 // Dokumen Order tersimpan: daftar (?q=, ?jenis=order|proforma) dan buat baru
@@ -14,6 +15,10 @@ export const GET = handle(async (request: Request) => {
 export const POST = handle(async (request: Request) => {
   const user = await requireUser()
   requireDokumenOrder(user)
-  const id = await createOrderDocument(user, await readDocInput(await readJson(request)))
-  return NextResponse.json({ id }, { status: 201 })
+  const body = await readJson(request)
+  const input = await readDocInput(body)
+  const id = await createOrderDocument(user, input)
+  // Form Order Custom per produk (opsional)
+  const custom = await syncOrderDocChecklists(id, input, body.custom, user)
+  return NextResponse.json({ id, custom }, { status: 201 })
 })

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { canDeleteDoc, deleteOrderDocument, loadOrderDocument, readDocInput, updateOrderDocument } from '@/lib/order-documents'
+import { syncOrderDocChecklists } from '@/lib/order-custom'
 import { requireDokumenOrder } from '@/lib/so-document'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -16,8 +17,12 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
 export const PUT = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
   requireDokumenOrder(user)
-  await updateOrderDocument(user, await docId(ctx), await readDocInput(await readJson(request)))
-  return NextResponse.json({ ok: true })
+  const id = await docId(ctx)
+  const body = await readJson(request)
+  const input = await readDocInput(body)
+  await updateOrderDocument(user, id, input)
+  const custom = await syncOrderDocChecklists(id, input, body.custom, user)
+  return NextResponse.json({ ok: true, custom })
 })
 
 export const DELETE = handle(async (_request: Request, ctx: Ctx) => {

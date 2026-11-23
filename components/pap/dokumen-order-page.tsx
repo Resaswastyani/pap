@@ -1,13 +1,14 @@
 'use client'
 
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { FilePlus2, FileText, Pencil, Plus, Printer, ReceiptText, Save, Search, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, FilePlus2, FileText, ListTodo, Pencil, Plus, Printer, ReceiptText, Save, Search, Trash2 } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { MonthNav, monthLabel, useDebounced } from './accurate-production'
 import { api, Field, formatDate, Modal, Notice, Pager, usePaged, confirmDialog } from './ui'
 import { ProspectSelect, type ProspectOption } from './marketing'
 import { CustomerSelect, type CustomerOption } from './product-page'
+import { ChecklistEditor, DocActions as OcDocActions, emptyIsian, progress, type Isian } from './order-custom-page'
 
 // Dokumen Order: Surat Order & Proforma Invoice. Tab "Dokumen tersimpan" untuk dokumen yang dibuat, diubah, dan
 // dihapus di SIMPAP; tab "Sales order Accurate" untuk cetak langsung dari SO atau membuat dokumen tersimpan darinya.
@@ -29,6 +30,10 @@ const STATUS_TONE: Record<string, string> = { 'Menunggu diproses': 'warning', 'S
 const JENIS_LABEL: Record<Jenis, string> = { order: 'Surat Order', proforma: 'Proforma Invoice' }
 const thisMonth = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 7)
 type Editing = { id?: number; soId?: number | null; jenis: Jenis }
+// Form Order Custom per produk (checklist di menu Form Order Custom); terkunci setelah diserahkan ke PPIC
+type Custom = { on: boolean; open: boolean; isian: Isian; id?: number; nomor?: string; status?: string }
+const OC_STATUS: Record<string, string> = { draft: 'Draft', ppic: 'Di PPIC', operasional: 'Di Operasional', selesai: 'Lengkap' }
+const OC_TONE: Record<string, string> = { draft: 'neutral', ppic: 'warning', operasional: 'info', selesai: 'success' }
 
 export function DokumenOrderPage({ user }: { user: UserProfile }) {
   const [tab, setTab] = useState<'tersimpan' | 'so'>('tersimpan')
@@ -55,7 +60,7 @@ export function DokumenOrderPage({ user }: { user: UserProfile }) {
         ? <SavedDocs user={user} reload={reload} onEdit={(d) => setEditing({ id: d.id, jenis: d.jenis })} onDeleted={(d) => { setMessage(`${JENIS_LABEL[d.jenis]} ${d.nomor} dihapus.`); setReload((n) => n + 1) }} />
         : <SalesOrders onCreate={(so, jenis) => setEditing({ soId: so.id, jenis })} />}
       {editing && (
-        <DocEditor key={`${editing.id ?? 'baru'}-${editing.soId ?? 0}`} editing={editing} onClose={() => setEditing(null)}
+        <DocEditor key={`${editing.id ?? 'baru'}-${editing.soId ?? 0}`} editing={editing} canCustom={user.role.isAdmin || user.menus.includes('order-custom' as never)} onClose={() => setEditing(null)}
           onSaved={(nomor, isNew) => { setEditing(null); setTab('tersimpan'); setReload((n) => n + 1); setMessage(`Dokumen ${nomor} ${isNew ? 'disimpan' : 'diperbarui'}.`) }} />
       )}
     </>
@@ -214,7 +219,7 @@ const UNITS = ['pcs', 'kg', 'pack', 'roll', 'lembar']
 const unitOptions = (u: string) => (u && !UNITS.some((x) => x.toLowerCase() === u.toLowerCase()) ? [...UNITS, u] : UNITS)
 const kgOf = (lines: Line[]) => Math.round(lines.filter((l) => /^kg$/i.test(l.unit.trim())).reduce((t, l) => t + num(l.qty), 0) * 100) / 100
 
-function DocEditor({ editing, onClose, onSaved }: { editing: Editing; onClose: () => void; onSaved: (nomor: string, isNew: boolean) => void }) {
+function DocEditor({ editing, canCustom, onClose, onSaved }: { editing: Editing; canCustom: boolean; onClose: () => void; onSaved: (nomor: string, isNew: boolean) => void }) {
   const isNew = !editing.id
   const [jenis, setJenis] = useState<Jenis>(editing.jenis)
   const [v, setV] = useState<DocData | null>(null)
@@ -230,6 +235,7 @@ function DocEditor({ editing, onClose, onSaved }: { editing: Editing; onClose: (
   const [pakaiDiskon, setPakaiDiskon] = useState(false)
   const [diskonTipe, setDiskonTipe] = useState<'persen' | 'nominal'>('persen')
   const [diskonNilai, setDiskonNilai] = useState('')
+  const [custom, setCustom] = useState<Record<string, Custom>>({})
 
   // Dokumen baru: isian awal dari SO / kosong, dimuat ulang bila jenis diganti. Dokumen lama: dibaca sekali.
   useEffect(() => {
@@ -240,7 +246,17 @@ function DocEditor({ editing, onClose, onSaved }: { editing: Editing; onClose: (
       .then((r) => {
         if (!alive) return
         const it = r.item
-        setV(it); setLines(it.items.map(toLine)); setCosts(it.expenses.map(toCost)); setError('')
+        const ls = it.items.map(toLine)
+        setV(it); setLines(ls); setCosts(it.expenses.map(toCost)); setError('')
+        // Checklist order custom yang sudah ada untuk dokumen ini (dicocokkan per nama produk)
+        setCustom({})
+        if (!isNew && canCustom) {
+          api<{ items: { id: number; nomor: string; status: string; nama_produk: string; isian: Isian }[] }>(`/api/order-custom?order_document_id=${editing.id}`)
+            .then((r) => alive && setCustom(Object.fromEntries(ls.flatMap((l) => {
+              const c = r.items.find((x) => x.nama_produk.trim().toLowerCase() === l.nama.trim().toLowerCase())
+              return c ? [[l.key, { on: true, open: false, isian: { ...emptyIsian(), ...c.isian }, id: c.id, nomor: c.nomor, status: c.status }]] : []
+            })))).catch(() => {})
+        }
         setMode(it.prospect_id && !it.customer_id ? 'prospek' : 'customer')
         // Diskon lama dalam Rupiah diubah ke persen dari subtotal
         const sub = it.items.reduce((t, x) => t + x.qty * x.harga * (1 - (x.disc_pct ?? 0) / 100), 0)
@@ -281,6 +297,7 @@ function DocEditor({ editing, onClose, onSaved }: { editing: Editing; onClose: (
       diskon: pakaiDiskon && diskonTipe === 'nominal' ? num(diskonNilai) : 0,
       items: lines.filter((l) => l.nama.trim()).map((l) => ({ nama: l.nama, qty: num(l.qty), unit: l.unit, harga: num(l.harga), disc_pct: num(l.disc_pct) || null, catatan: l.catatan || null })),
       expenses: costs.filter((c) => c.nama.trim() && num(c.amount)).map((c) => ({ nama: c.nama, amount: num(c.amount) })),
+      custom: canCustom ? lines.filter((l) => l.nama.trim() && custom[l.key]?.on && (!custom[l.key].status || custom[l.key].status === 'draft')).map((l) => ({ nama_produk: l.nama.trim(), isian: custom[l.key].isian })) : undefined,
     }
     try {
       if (isNew) await api('/api/order-documents', { method: 'POST', json: body })
@@ -365,6 +382,7 @@ function DocEditor({ editing, onClose, onSaved }: { editing: Editing; onClose: (
                     <input className="pap-input" required={i === 0} maxLength={500} value={l.nama} onChange={(e) => updateLine(l.key, { nama: e.target.value })} placeholder="Nama produk, mis. Kantong laundry HD" aria-label={`Nama produk ${i + 1}`} />
                     <button type="button" className="pap-icon-button" aria-label={`Hapus produk ${i + 1}`} disabled={lines.length === 1} onClick={() => setLines((list) => list.filter((x) => x.key !== l.key))}><Trash2 /></button>
                   </div>
+                  {canCustom && <CustomPanel c={custom[l.key]} customerId={v.customer_id} onChange={(c) => setCustom((m) => ({ ...m, [l.key]: c }))} defaultSpek={v.customer_id ? 'repeat' : 'baru'} />}
                   <label className="pap-quote-spec"><span>Spesifikasi (dicetak di dokumen)</span><textarea className="pap-input" rows={2} maxLength={500} value={l.catatan} onChange={(e) => updateLine(l.key, { catatan: e.target.value })} placeholder="mis. HD 30 x 40 cm, 50 mikron, cetak 2 warna" /></label>
                   <div className="pap-quote-price">
                     <label><span>Jumlah</span><input className="pap-input" inputMode="decimal" required={!!l.nama} value={l.qty} onChange={(e) => updateLine(l.key, { qty: e.target.value })} placeholder="10000" /></label>
@@ -483,5 +501,29 @@ function ProformaDialog({ so, onClose }: { so: So; onClose: () => void }) {
         </div>
       )}
     </Modal>
+  )
+}
+
+// Form Order Custom per produk di form dokumen order: centang lalu isi checklist; disimpan bersama dokumen
+function CustomPanel({ c, customerId, defaultSpek, onChange }: { c: Custom | undefined; customerId: number | null; defaultSpek: 'baru' | 'repeat'; onChange: (c: Custom) => void }) {
+  const cur: Custom = c ?? { on: false, open: false, isian: emptyIsian() }
+  const locked = !!cur.status && cur.status !== 'draft'
+  const p = progress(cur.isian)
+  return (
+    <div className="pap-doc-oc">
+      <div className="pap-doc-oc-head">
+        <label className="pap-check" title={cur.id ? 'Checklist sudah dibuat; hapus dari menu Form Order Custom bila tidak dipakai' : undefined}>
+          <input type="checkbox" checked={cur.on} disabled={!!cur.id} onChange={(e) => onChange({ ...cur, on: e.target.checked, open: e.target.checked, isian: cur.isian.spek ? cur.isian : { ...cur.isian, spek: defaultSpek } })} />
+          <span><ListTodo className="pap-inline-icon" /> Form order custom (checklist)</span>
+        </label>
+        {cur.nomor && <span className={`pap-status ${OC_TONE[cur.status ?? 'draft']}`}>{cur.nomor} · {OC_STATUS[cur.status ?? 'draft']}</span>}
+        {cur.on && <small className="pap-muted">{p.done}/{p.total} item</small>}
+        {cur.on && !locked && <button type="button" className="pap-link-button pap-shift-edit" onClick={() => onChange({ ...cur, open: !cur.open })}>{cur.open ? <><ChevronUp /> Tutup checklist</> : <><ChevronDown /> Isi checklist</>}</button>}
+        {cur.id && cur.nomor && <OcDocActions id={cur.id} nomor={cur.nomor} compact />}
+      </div>
+      {locked && <small className="pap-muted">Sudah diserahkan ke PPIC; perubahan lewat menu Form Order Custom.</small>}
+      {cur.on && cur.open && !locked && <ChecklistEditor v={cur.isian} set={(x) => onChange({ ...cur, isian: { ...cur.isian, ...x } })} customerId={customerId} compact />}
+      {cur.on && !cur.id && <small className="pap-muted">Checklist dibuat saat dokumen disimpan, lalu diserahkan ke PPIC dari menu Form Order Custom.</small>}
+    </div>
   )
 }

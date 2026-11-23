@@ -42,7 +42,7 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
   const c = await loadChecklist(await checklistId(ctx))
   if (!canEdit(user, c)) fail(403, c.status === 'selesai' ? 'Checklist sudah selesai.' : `Checklist sedang di tahap ${OC_STATUS[c.status]}.`)
   const body = await readJson(request)
-  const isian = JSON.stringify(readIsian(body.isian))
+  const isian = JSON.stringify(await readIsian(body.isian))
   if (c.status === 'draft') await db.query('UPDATE order_custom_checklists SET ?, isian = ?, updated_by = ? WHERE id = ?', [await readHeader(body), isian, user.id, c.id])
   else await db.query('UPDATE order_custom_checklists SET isian = ?, catatan = ?, updated_by = ? WHERE id = ?', [isian, str(body.catatan, 5000) || null, user.id, c.id])
   await logActivity(request, user, { module: 'Order Custom', action: 'update', entity: { type: 'order_custom', id: c.id, label: c.nomor }, description: `Mengubah checklist order custom ${c.nomor}` })

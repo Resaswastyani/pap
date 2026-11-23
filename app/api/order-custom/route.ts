@@ -22,7 +22,7 @@ export const POST = handle(async (request: Request) => {
   const header = await readHeader(body)
   const nomor = await nextChecklistNumber()
   const [res] = await db.query<ResultSetHeader>('INSERT INTO order_custom_checklists SET ?', [{
-    ...header, nomor, isian: JSON.stringify(readIsian(body.isian)), created_by: user.id, updated_by: user.id,
+    ...header, nomor, isian: JSON.stringify(await readIsian(body.isian)), created_by: user.id, updated_by: user.id,
   }])
   const c = await loadChecklist(res.insertId)
   await logActivity(request, user, { module: 'Order Custom', action: 'create', entity: { type: 'order_custom', id: c.id, label: c.nomor }, description: `Checklist order custom ${c.nomor} · ${c.nama_produk} · ${c.nama_customer}` })

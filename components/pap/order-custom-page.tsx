@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, ClipboardCheck, Eye, FileDown, FileText, PackageCheck, Plus, Printer, RotateCcw, Save, Search, Send, ShieldCheck, Trash2, Undo2 } from 'lucide-react'
+import { CheckCircle2, ClipboardCheck, ExternalLink, Eye, FileDown, FileText, ImageIcon, PackageCheck, Plus, Printer, RotateCcw, Save, Search, Send, ShieldCheck, Trash2, Undo2, X } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AttachmentPanel } from './attachments'
 import { CustomerSelect, type CustomerOption } from './product-page'
@@ -23,18 +23,20 @@ const CETAKAN = [
 ] as const
 type LineKey = (typeof PLASTIK)[number]['key'] | (typeof CETAKAN)[number]['key'] | 'pantone' | 'kelengkapan'
 const LINE_KEYS: LineKey[] = [...PLASTIK.map((x) => x.key), ...CETAKAN.map((x) => x.key), 'pantone', 'kelengkapan']
-type Isian = {
+export type Desain = { id: string; name: string; mime: string; web_link: string | null }
+export type Isian = {
   spek: '' | 'baru' | 'repeat'; order_print: boolean; order_polos: boolean; jumlah_ukuran: string
   aksesoris: '' | 'ada' | 'tidak'; aksesoris_lampiran: boolean; aksesoris_ket: string
   jumlah_tabung: string; jenis_cetakan: '' | 'continue' | 'fixed'; gusset: '' | 'masuk' | 'tidak'
   lines: Record<LineKey, { cek: boolean; ket: string }>
+  desain: Desain[]
 }
-const emptyIsian = (): Isian => ({
+export const emptyIsian = (): Isian => ({
   spek: '', order_print: false, order_polos: false, jumlah_ukuran: '', aksesoris: '', aksesoris_lampiran: false, aksesoris_ket: '',
-  jumlah_tabung: '', jenis_cetakan: '', gusset: '', lines: Object.fromEntries(LINE_KEYS.map((k) => [k, { cek: false, ket: '' }])) as Isian['lines'],
+  jumlah_tabung: '', jenis_cetakan: '', gusset: '', lines: Object.fromEntries(LINE_KEYS.map((k) => [k, { cek: false, ket: '' }])) as Isian['lines'], desain: [],
 })
 // Sama dengan ocProgress di server: bagian Desain Cetakan hanya untuk orderan Print
-function progress(i: Isian) {
+export function progress(i: Isian) {
   const c: boolean[] = [!!i.spek, i.order_print || i.order_polos, !!i.jumlah_ukuran.trim(), ...PLASTIK.map((x) => i.lines[x.key].cek), !!i.aksesoris, ...(i.aksesoris === 'ada' ? [i.aksesoris_lampiran] : [])]
   if (i.order_print) c.push(!!i.jumlah_tabung.trim(), !!i.jenis_cetakan, ...CETAKAN.map((x) => i.lines[x.key].cek), !!i.gusset, i.lines.pantone.cek)
   c.push(i.lines.kelengkapan.cek)
@@ -44,6 +46,7 @@ function progress(i: Isian) {
 type Checklist = {
   id: number; nomor: string; status: Status; tanggal: string; prospect_id: number | null; prospect_name: string | null
   customer_id: number | null; customer_no: string | null; product_id: number | null; product_kode: string | null
+  order_document_id: number | null; order_doc_nomor: string | null
   nama_customer: string; nama_produk: string; referensi: string | null; isian: Isian; progress: { done: number; total: number }
   catatan: string | null; alasan_kembali: string | null
   marketing_name: string | null; marketing_at: string | null; ppic_name: string | null; ppic_at: string | null; operasional_name: string | null; operasional_at: string | null
@@ -122,7 +125,7 @@ export function OrderCustomPage({ user, focusId, group = 'MARKETING' }: { user: 
                 return (
                   <tr key={c.id} className="pap-clickable" tabIndex={0} onClick={() => setOpenId(c.id)} onKeyDown={(e) => e.key === 'Enter' && setOpenId(c.id)}>
                     <td><div className="pap-cc-nomor">{c.nomor} · {formatDate(c.tanggal)}</div><div className="pap-cell-title">{c.nama_produk}</div></td>
-                    <td><div>{c.nama_customer}</div>{c.referensi && <div className="pap-cell-sub">Ref. {c.referensi}</div>}</td>
+                    <td><div>{c.nama_customer}</div>{c.order_doc_nomor ? <div className="pap-cell-sub">Dok. order {c.order_doc_nomor}</div> : c.referensi && <div className="pap-cell-sub">Ref. {c.referensi}</div>}</td>
                     <td className="pap-cell-sub">{[c.isian.spek === 'baru' ? 'Baru' : c.isian.spek === 'repeat' ? 'Repeat order' : null, [c.isian.order_print && 'Print', c.isian.order_polos && 'Polos'].filter(Boolean).join(' + ') || null].filter(Boolean).join(' · ') || '—'}</td>
                     <td><div className={`pap-oc-meter ${pct === 100 ? 'full' : ''}`}><span style={{ width: `${pct}%` }} /></div><div className="pap-cell-sub">{c.progress.done}/{c.progress.total} item{c.lampiran ? ` · ${c.lampiran} lampiran` : ''}</div></td>
                     <td><span className={`pap-status ${TONE[c.status]}`}>{STATUS[c.status]}</span>{c.status === 'draft' && c.alasan_kembali && <div className="pap-cell-sub pap-text-warn">Dikembalikan</div>}</td>
@@ -164,13 +167,13 @@ function CheckLine({ label, value, onChange, disabled, na, strong }: { label: st
   )
 }
 
-function ChecklistEditor({ v, set, disabled }: { v: Isian; set: (patch: Partial<Isian>) => void; disabled?: boolean }) {
+export function ChecklistEditor({ v, set, disabled, customerId = null, compact = false }: { v: Isian; set: (patch: Partial<Isian>) => void; disabled?: boolean; customerId?: number | null; compact?: boolean }) {
   const line = (k: LineKey) => (val: { cek: boolean; ket: string }) => set({ lines: { ...v.lines, [k]: val } })
   const p = progress(v)
   const pct = p.total ? Math.round((p.done / p.total) * 100) : 0
   const polosOnly = v.order_polos && !v.order_print
   return (
-    <div className="pap-oc-form">
+    <div className={`pap-oc-form ${compact ? 'compact' : ''}`}>
       <div className="pap-oc-progress">
         <div><b>Kelengkapan {p.done}/{p.total}</b><small>{pct === 100 ? 'Semua item lengkap' : 'Centang item yang datanya sudah ada / sudah dicek'}</small></div>
         <div className={`pap-oc-meter ${pct === 100 ? 'full' : ''}`}><span style={{ width: `${pct}%` }} /></div>
@@ -187,6 +190,8 @@ function ChecklistEditor({ v, set, disabled }: { v: Isian; set: (patch: Partial<
           </div>
         </div>
       </section>
+
+      <DesignSection value={v.desain ?? []} onChange={(desain) => set({ desain })} disabled={disabled} customerId={customerId} />
 
       <section className="pap-oc-sec">
         <h4>Desain Plastik <small>(lampiran)</small></h4>
@@ -215,6 +220,76 @@ function ChecklistEditor({ v, set, disabled }: { v: Isian; set: (patch: Partial<
         <CheckLine label="Kelengkapan Data & Tidak ada perubahan" value={v.lines.kelengkapan} onChange={line('kelengkapan')} disabled={disabled} strong />
       </section>
     </div>
+  )
+}
+
+// ---------- Desain dari Master Data (Logo & Desain hasil sinkron Google Drive) ----------
+const thumb = (id: string, s = 300) => `/api/order-custom/designs/${encodeURIComponent(id)}/thumb?s=${s}`
+function DesignThumb({ d }: { d: Desain }) {
+  const [failed, setFailed] = useState(false)
+  return failed ? <span className="pap-oc-dz-noprev"><FileText /><small>{d.name.split('.').pop()?.toUpperCase()}</small></span> : <img src={thumb(d.id)} alt={d.name} loading="lazy" onError={() => setFailed(true)} />
+}
+function DesignSection({ value, onChange, disabled, customerId }: { value: Desain[]; onChange: (v: Desain[]) => void; disabled?: boolean; customerId: number | null }) {
+  const [picking, setPicking] = useState(false)
+  return (
+    <section className="pap-oc-sec">
+      <h4><ImageIcon className="pap-inline-icon" /> Desain dari Master Data <small>(Logo &amp; Desain)</small></h4>
+      {value.length ? (
+        <div className="pap-oc-designs">
+          {value.map((d) => (
+            <figure key={d.id} className="pap-oc-design">
+              <a href={d.web_link ?? thumb(d.id, 1200)} target="_blank" rel="noreferrer" title={`Buka ${d.name}`}><DesignThumb d={d} /></a>
+              <figcaption title={d.name}>{d.name}</figcaption>
+              {!disabled && <button type="button" className="pap-oc-design-x" aria-label={`Lepas ${d.name}`} onClick={() => onChange(value.filter((x) => x.id !== d.id))}><X /></button>}
+            </figure>
+          ))}
+        </div>
+      ) : <p className="pap-muted pap-ta-hint">{disabled ? 'Tidak ada desain dari Master Data.' : 'Belum ada desain dipilih. Ambil dari Master Data, atau lampirkan file di bagian Lampiran.'}</p>}
+      {!disabled && <button type="button" className="pap-btn pap-oc-pick" onClick={() => setPicking(true)}><Plus /> Ambil desain dari Master Data</button>}
+      {picking && <DesignPicker selected={value} customerId={customerId} onClose={() => setPicking(false)} onDone={(list) => { onChange(list); setPicking(false) }} />}
+    </section>
+  )
+}
+type DesignHit = Desain & { brand: string | null; bulan: string | null; root_label: string; customer_name: string | null }
+function DesignPicker({ selected, customerId, onClose, onDone }: { selected: Desain[]; customerId: number | null; onClose: () => void; onDone: (list: Desain[]) => void }) {
+  const [q, setQ] = useState('')
+  const [onlyCustomer, setOnlyCustomer] = useState(!!customerId)
+  const [items, setItems] = useState<DesignHit[] | null>(null)
+  const [error, setError] = useState('')
+  const [pick, setPick] = useState<Desain[]>(selected)
+  useEffect(() => {
+    setItems(null)
+    const t = setTimeout(() => {
+      const p = new URLSearchParams()
+      if (q.trim()) p.set('q', q.trim())
+      if (onlyCustomer && customerId) p.set('customer', String(customerId))
+      api<{ items: DesignHit[] }>(`/api/order-custom/designs?${p}`).then((r) => { setItems(r.items); setError('') }).catch((e) => setError((e as Error).message))
+    }, q ? 300 : 0)
+    return () => clearTimeout(t)
+  }, [q, onlyCustomer, customerId])
+  const has = (id: string) => pick.some((x) => x.id === id)
+  const toggle = (d: DesignHit) => setPick(has(d.id) ? pick.filter((x) => x.id !== d.id) : pick.length >= 12 ? pick : [...pick, { id: d.id, name: d.name, mime: d.mime, web_link: d.web_link }])
+  return (
+    <Modal title="Ambil desain dari Master Data" subtitle="Logo & Desain hasil sinkron Google Drive · pilih satu atau beberapa (maks 12)" wide onClose={onClose}
+      footer={<><span className="pap-muted">{pick.length} dipilih</span><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button type="button" className="pap-primary-button" onClick={() => onDone(pick)}><CheckCircle2 /> Pakai desain</button></>}>
+      {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      <div className="pap-filters">
+        <label className="pap-filter-search"><Search /><input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama file, brand, atau customer..." /></label>
+        {customerId && <label className="pap-check"><input type="checkbox" checked={onlyCustomer} onChange={(e) => setOnlyCustomer(e.target.checked)} /><span>Hanya desain customer ini</span></label>}
+      </div>
+      <div className="pap-oc-gallery">
+        {(items ?? []).map((d) => (
+          <button type="button" key={d.id} className={`pap-oc-gitem ${has(d.id) ? 'on' : ''}`} onClick={() => toggle(d)} aria-pressed={has(d.id)} title={d.name}>
+            <span className="pap-oc-gimg"><DesignThumb d={d} />{has(d.id) && <CheckCircle2 className="pap-oc-gcheck" />}</span>
+            <b>{d.name}</b>
+            <small>{[d.customer_name ?? d.brand, d.bulan, d.root_label].filter(Boolean).join(' · ')}</small>
+          </button>
+        ))}
+      </div>
+      {items && !items.length && <div className="pap-empty">{onlyCustomer && customerId ? 'Belum ada desain yang terhubung ke customer ini. Hilangkan centang "Hanya desain customer ini" lalu cari nama brand / file.' : 'Desain tidak ditemukan.'}</div>}
+      {!items && !error && <div className="pap-empty">Memuat desain...</div>}
+      {pick.some((p) => p.web_link) && <p className="pap-muted pap-ta-hint"><ExternalLink className="pap-inline-icon" /> Klik gambar di checklist untuk membuka file aslinya di Google Drive.</p>}
+    </Modal>
   )
 }
 
@@ -319,7 +394,7 @@ function ChecklistForm({ onClose, onSaved }: { onClose: () => void; onSaved: (id
         {error && <Notice onClose={() => setError('')}>{error}</Notice>}
         <SourceSection h={h} set={(p) => setH((x) => ({ ...x, ...p }))} onMode={(m) => setV((x) => ({ ...x, spek: m === 'customer' ? 'repeat' : 'baru' }))} onError={setError} />
         <HeaderFields h={h} set={(p) => setH({ ...h, ...p })} />
-        <ChecklistEditor v={v} set={(p) => setV({ ...v, ...p })} />
+        <ChecklistEditor v={v} set={(p) => setV({ ...v, ...p })} customerId={h.customer_id} />
       </form>
     </Modal>
   )
@@ -427,9 +502,9 @@ function ChecklistDetail({ id, user, onClose, onChanged }: { id: number; user: U
       {can.header ? <>
         <SourceSection key={c.id} h={h} set={(x) => { setH((y) => ({ ...y, ...x })); setDirty(true) }} onMode={(m) => { setV((y) => ({ ...y, spek: m === 'customer' ? 'repeat' : 'baru' })); setDirty(true) }} onError={setError} />
         <HeaderFields h={h} set={(x) => { setH({ ...h, ...x }); setDirty(true) }} />
-      </> : (c.customer_id || c.prospect_id) ? <p className="pap-muted pap-ta-hint">Data dari {c.customer_id ? `customer ${c.nama_customer}${c.customer_no ? ` (${c.customer_no})` : ''}${c.product_kode ? ` · produk ${c.product_kode}` : ''}` : `prospek ${c.prospect_name ?? c.nama_customer}`}</p> : null}
+      </> : (c.customer_id || c.prospect_id) ? <p className="pap-muted pap-ta-hint">{c.order_doc_nomor ? `Diisi dari dokumen order ${c.order_doc_nomor} · ` : ''}Data dari {c.customer_id ? `customer ${c.nama_customer}${c.customer_no ? ` (${c.customer_no})` : ''}${c.product_kode ? ` · produk ${c.product_kode}` : ''}` : `prospek ${c.prospect_name ?? c.nama_customer}`}</p> : null}
       {!can.edit && c.status !== 'selesai' && <p className="pap-muted pap-ta-hint">Checklist sedang di tahap <b>{STATUS[c.status]}</b>; isian hanya bisa diubah oleh divisi di tahap tersebut.</p>}
-      <ChecklistEditor v={v} set={(x) => { setV({ ...v, ...x }); setDirty(true) }} disabled={!can.edit} />
+      <ChecklistEditor v={v} set={(x) => { setV({ ...v, ...x }); setDirty(true) }} disabled={!can.edit} customerId={h.customer_id} />
       <Field label="Catatan (dicetak)" full><textarea className="pap-input" rows={2} maxLength={5000} disabled={!can.edit} value={h.catatan} onChange={(e) => { setH({ ...h, catatan: e.target.value }); setDirty(true) }} placeholder="mis. desain final dari request desain DSN-..., warna mengikuti sampel" /></Field>
 
       <div className="pap-oc-attach">
@@ -451,7 +526,7 @@ function ChecklistDetail({ id, user, onClose, onChanged }: { id: number; user: U
 }
 
 // Aksi dokumen: Pratinjau PDF (tab baru), Cetak (dialog cetak langsung terbuka), Word. id 'kosong' = formulir kosong
-function DocActions({ id, nomor, compact = false }: { id: number | 'kosong'; nomor: string; compact?: boolean }) {
+export function DocActions({ id, nomor, compact = false }: { id: number | 'kosong'; nomor: string; compact?: boolean }) {
   const base = `/cetak/order-custom/${id}`
   const word = `/api/order-custom/${id}/word`
   return compact ? (

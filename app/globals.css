@@ -3522,3 +3522,32 @@ a.pap-row-action { text-decoration:none; }
 .pap-oc-products button small { color:var(--pap-muted); font-size:11.5px; }
 .pap-oc-products button svg { position:absolute; top:9px; right:9px; width:15px; color:#12a37a; }
 .pap-oc-products button.active { padding-right:30px; border-color:#12a37a; background:#12a37a12; }
+
+/* Checklist Order Custom: desain dari Master Data */
+.pap-oc-designs { display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:10px; }
+.pap-oc-design { position:relative; margin:0; overflow:hidden; border:1px solid var(--pap-border); border-radius:10px; background:var(--pap-surface); }
+.pap-oc-design > a { display:flex; align-items:center; justify-content:center; height:110px; background:rgb(127 127 127 / .08); }
+.pap-oc-design img, .pap-oc-gimg img { max-width:100%; max-height:100%; object-fit:contain; }
+.pap-oc-design figcaption { overflow:hidden; padding:6px 8px; font-size:11.5px; text-overflow:ellipsis; white-space:nowrap; }
+.pap-oc-design-x { position:absolute; top:6px; right:6px; display:grid; place-items:center; width:24px; height:24px; padding:0; border:0; border-radius:99px; background:rgb(0 0 0 / .55); color:#fff; cursor:pointer; }
+.pap-oc-design-x svg { width:14px; height:14px; }
+.pap-oc-dz-noprev { display:flex; flex-direction:column; align-items:center; gap:4px; color:var(--pap-muted); }
+.pap-oc-pick { align-self:flex-start; }
+.pap-oc-gallery { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; margin-top:12px; }
+.pap-oc-gitem { display:flex; flex-direction:column; gap:3px; min-width:0; padding:6px; border:1.5px solid var(--pap-border); border-radius:12px; background:var(--pap-surface); color:var(--pap-text); text-align:left; cursor:pointer; }
+.pap-oc-gitem.on { border-color:#12a37a; box-shadow:0 0 0 3px #12a37a22; }
+.pap-oc-gimg { position:relative; display:flex; align-items:center; justify-content:center; height:120px; border-radius:8px; background:rgb(127 127 127 / .08); overflow:hidden; }
+.pap-oc-gcheck { position:absolute; top:6px; right:6px; width:22px; height:22px; border-radius:99px; background:#fff; color:#12a37a; }
+.pap-oc-gitem b { overflow:hidden; font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+.pap-oc-gitem small { overflow:hidden; color:var(--pap-muted); font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.pap-oc-form.compact { margin:10px 0 4px; }
+/* Dokumen Order: form order custom per produk */
+.pap-doc-oc { margin-top:8px; padding-top:8px; border-top:1px dashed var(--pap-border); }
+.pap-doc-oc-head { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.pap-doc-oc-head .pap-status { font-size:11px; }
+/* Lembar cetak: desain terpilih */
+.pap-oc .oc-desain { margin-top:14px; }
+.pap-oc .oc-desain h3 { margin:0 0 6px; font-size:13px; }
+.pap-oc .oc-desain-grid { width:100%; border-collapse:separate; border-spacing:6px; }
+.pap-oc .oc-desain-grid td { width:25%; padding:4px; border:1px solid #c9ccd8; text-align:center; vertical-align:top; font-size:10.5px; }
+.pap-oc .oc-desain-grid img { display:block; max-width:100%; max-height:120px; margin:0 auto 4px; object-fit:contain; }
