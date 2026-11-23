@@ -1,0 +1,24 @@
+# aislop — pemindai kualitas kode (deterministik, tanpa LLM). https://github.com/scanaislop/aislop
+# Jalankan:  pnpm quality        (laporan lengkap)
+#            pnpm quality:ci     (gerbang CI: gagal bila skor turun / ada temuan BARU di luar baseline)
+#            pnpm quality:baseline   (catat ulang temuan lama yang sudah ditinjau)
+exclude:
+  - "public/**"        # service worker & aset statis
+  - "db/**"            # migrasi SQL
+  - "scripts/**"       # skrip operasional sekali jalan
+  - ".next/**"
+  - "next-env.d.ts"
+
+rules:
+  # Ditinjau 2026-11-23: semua query memakai parameter `?`; bagian yang disisipkan ke string SQL hanya
+  # potongan konstanta / nama kolom dari kode (whitelist), bukan input pengguna. Tetap dilaporkan sebagai peringatan.
+  security/sql-injection: warning
+  # Lembar cetak (Quotation, SO, Analisa Teknik, Form Order) dibangun dari template yang meng-escape semua data.
+  security/dangerously-set-innerhtml: warning
+  # Komentar penjelasan berbahasa Indonesia sengaja dipertahankan untuk tim.
+  ai-slop/narrative-comment: "off"
+  security/hardcoded-secret: error
+
+ci:
+  failBelow: 55
+  baseline: .aislop/ci-baseline.json

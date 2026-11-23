@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Ban, CheckCircle2, Download, FileText, Hammer, Link2, Palette, Pencil, Plus, RotateCcw, Search, Send, Trash2, Truck, Upload } from 'lucide-react'
+import { Ban, CheckCircle2, Download, FileText, Hammer, Link2, Pencil, Plus, RotateCcw, Search, Send, Trash2, Truck, Upload } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { ProspectSelect, type ProspectOption } from './marketing'
 import { CustomerSelect, type CustomerOption } from './product-page'

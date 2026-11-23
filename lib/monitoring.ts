@@ -104,7 +104,6 @@ const div = (key: string, nama: string, menu: string, metrics: Metric[], catatan
 export async function divisionPerformance(periode: string) {
   const dari = `${periode}-01`
   const sampai = monthEnd(periode)
-  const today = todayWib()
   const q = async (sql: string, args: unknown[] = []) => (await db.query<Row[]>(sql, args))[0][0] ?? {}
   const [mk, qt, so, fgs, pr, po, rep, mt, att, emp, lv, kpi, plan] = await Promise.all([
     q(`SELECT SUM(created_at BETWEEN ? AND ? + INTERVAL 1 DAY) AS lead, SUM(status = 'order_pertama' AND updated_at BETWEEN ? AND ? + INTERVAL 1 DAY) AS closing,

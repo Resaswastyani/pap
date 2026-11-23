@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 import { fail, handle, int, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'
-import { canSupervise } from '@/lib/marketing'
-import { readLink } from '@/lib/marketing'
+import { canSupervise, readLink } from '@/lib/marketing'
 import { PRODUCT_FILE_MAX_BYTES } from '@/lib/permissions'
 import { DESIGN_TEAM, divisionUsers, isDesigner, leadDmUsers, loadDesign, notifyRequest, requireRequestMenu } from '@/lib/requests'
 

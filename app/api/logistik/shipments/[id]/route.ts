@@ -1,4 +1,4 @@
-import type { ResultSetHeader, RowDataPacket } from 'mysql2'
+import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
 import { db } from '@/lib/db'

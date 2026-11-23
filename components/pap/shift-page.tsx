@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CalendarDays, CalendarPlus, CalendarX, ChevronLeft, ChevronRight, Clock, Download, ExternalLink, FileSpreadsheet, Moon, Pencil, Plus, RefreshCw, Search, Sun, Sunrise, Trash2, Truck, Upload, UserPlus, Users } from 'lucide-react'
+import { CalendarDays, CalendarPlus, CalendarX, ChevronLeft, ChevronRight, Clock, Download, ExternalLink, FileSpreadsheet, Moon, Pencil, RefreshCw, Search, Sun, Sunrise, Trash2, Truck, Upload, UserPlus, Users } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
-import { api, Field, formatDate, Modal, Notice, confirmDialog } from './ui'
+import { api, Field, formatDate, Modal, Notice, confirmDialog, toast } from './ui'
 
 // kode: "1" / "2" / "3" (shift), "" (OFF / libur), "normal1", "driver1", ...; "_" = tanggal tanpa data
 type Code = { kode: string; label: string; jam: string | null }
@@ -400,7 +400,10 @@ function UploadShift({ nextMonth, onClose, onImported }: { nextMonth: string; on
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json.error ?? 'Gagal membaca file.')
       if (mode === 'preview') setPreview(json)
-      else onImported(`Jadwal ${preview?.schedules.map((s) => monthLabel(s.periode)).join(', ')} tersimpan (${json.karyawan} baris karyawan)${json.warning ? '.' : ' dan ditulis ke spreadsheet Google Drive.'}`, preview?.schedules.at(-1)?.periode ?? nextMonth, json.warning)
+      else {
+        toast('Jadwal shift berhasil diunggah')
+        onImported(`Jadwal ${preview?.schedules.map((s) => monthLabel(s.periode)).join(', ')} tersimpan (${json.karyawan} baris karyawan)${json.warning ? '.' : ' dan ditulis ke spreadsheet Google Drive.'}`, preview?.schedules.at(-1)?.periode ?? nextMonth, json.warning)
+      }
     } catch (e) {
       setError((e as Error).message)
       if (mode === 'preview') setPreview(null)

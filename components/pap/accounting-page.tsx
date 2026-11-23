@@ -1,9 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import {
-  AlertTriangle, ArrowDownLeft, ArrowUpRight, Banknote, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, HandCoins, Landmark, Lock, LockOpen, Pencil, Plus, Printer, Download, FileSpreadsheet, Upload, RefreshCw, Scale, Search, Target, Trash2, TrendingDown, TrendingUp, Wallet,
-} from 'lucide-react'
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Banknote, CheckCircle2, ChevronLeft, ChevronRight, HandCoins, Landmark, Lock, LockOpen, Pencil, Plus, Printer, Download, FileSpreadsheet, Upload, RefreshCw, Scale, Search, Target, Trash2, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
 import { MonthNav, monthLabel, useDebounced } from './accurate-production'
@@ -16,7 +14,6 @@ const short = (v: number) => (Math.abs(v) >= 1e9 ? `Rp ${formatNumber(v / 1e9, 2
 const pct = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${formatNumber(v, 1)}%`)
 const thisMonth = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 7)
 const today = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
-const addDays = (d: string, n: number) => new Date(Date.parse(d) + n * 86400e3).toISOString().slice(0, 10)
 
 function Heading({ title, children, actions }: { title: string; children: string; actions?: React.ReactNode }) {
   return (
@@ -85,7 +82,6 @@ type Summary = {
   kas: { total: number; akun: number }; piutang: { total: number; faktur: number; lewat_tempo: number; aging: { key: string; label: string; nilai: number }[] }; hutang: { total: number; faktur: number; lewat_tempo: number }
   dso: number | null; dpo: number | null; targets: Record<string, number>
 }
-const change = (cur: number, prev?: number) => (prev ? `${cur >= prev ? '▲' : '▼'} ${formatNumber(Math.abs(((cur - prev) / Math.abs(prev)) * 100), 1)}% dari bulan lalu` : '')
 
 export function FinanceSummaryPage(_props: { user: UserProfile }) {
   const [tahun, setTahun] = useState(thisYear())

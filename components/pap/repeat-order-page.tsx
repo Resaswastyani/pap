@@ -38,7 +38,7 @@ export function RepeatOrderPage({ user, focusId }: { user: UserProfile; focusId?
   const [items, setItems] = useState<Row[]>([])
   const [summary, setSummary] = useState<Partial<Record<Status, number>>>({})
   const [due, setDue] = useState({ today: 0, overdue: 0 })
-  const [inactiveDays, setInactiveDays] = useState(90)
+  const [, setInactiveDays] = useState(90)
   const [users, setUsers] = useState<MarketingUser[]>([])
   const [seesAll, setSeesAll] = useState(false)
   const [status, setStatus] = useState('perlu')

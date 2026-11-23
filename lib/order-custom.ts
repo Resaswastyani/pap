@@ -204,7 +204,7 @@ export const ppicUsers = () => usersOf("d.code = 'ppic'")
 export const operasionalUsers = () => usersOf("d.code = 'produksi'")
 
 // Semua dibuka ke menu "Form Order Custom" (menu Produksi "Checklist Order Custom" diarsipkan; diisi lewat Dokumen Order)
-export async function notifyChecklist(userIds: (number | null)[], c: { id: number; nomor: string; nama_produk: string; nama_customer: string }, title: string, key: string, exclude?: number, marketing = false) {
+export async function notifyChecklist(userIds: (number | null)[], c: { id: number; nomor: string; nama_produk: string; nama_customer: string }, title: string, key: string, exclude?: number, _marketing = false) {
   const users = [...new Set(userIds.filter((x): x is number => !!x && x !== exclude))]
   if (!users.length) return
   await pushToUsers(await notify(users, {

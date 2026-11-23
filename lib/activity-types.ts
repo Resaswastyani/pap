@@ -4,6 +4,7 @@ export const ACTIVITY_ACTIONS = {
   update: 'Ubah',
   delete: 'Hapus',
   upload: 'Unggah file',
+  // aislop-ignore-next-line security/hardcoded-secret -- label aksi log aktivitas, bukan kata sandi
   password: 'Ganti password',
   permission: 'Ubah permission',
   checkin: 'Check-in',

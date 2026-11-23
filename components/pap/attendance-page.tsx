@@ -8,7 +8,7 @@ import { MonthNav, monthLabel } from './accurate-production'
 import { ColumnChart } from './charts'
 import { HrSheetSync } from './hrd-page'
 import { ReportDownloadButton } from './report-download'
-import { api, formatDate, Modal, Notice, Pager, usePaged } from './ui'
+import { api, formatDate, Modal, Notice, Pager, toast, usePaged } from './ui'
 
 // Absensi dari laporan kehadiran HRIS Altius (mesin Fingerspot): harian & rekap bulanan, terlambat, lembur, upah lembur
 
@@ -319,7 +319,10 @@ function UploadAttendance({ onClose, onImported }: { onClose: () => void; onImpo
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json.error ?? 'Gagal membaca file.')
       if (mode === 'preview') setPreview(json)
-      else onImported(`Absensi tersimpan: ${json.baris} baris kehadiran, ${json.karyawan} karyawan (${formatDate(json.dari)} – ${formatDate(json.sampai)}).`, json.sampai)
+      else {
+        toast('Laporan kehadiran berhasil diunggah')
+        onImported(`Absensi tersimpan: ${json.baris} baris kehadiran, ${json.karyawan} karyawan (${formatDate(json.dari)} – ${formatDate(json.sampai)}).`, json.sampai)
+      }
     } catch (e) {
       setError((e as Error).message)
     } finally {

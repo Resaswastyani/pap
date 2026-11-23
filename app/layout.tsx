@@ -45,7 +45,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://www.google.com" />
         <link rel="preconnect" href="https://www.gstatic.com" />
         {/* Splash logo hanya sekali per pembukaan aplikasi (sesi); dijalankan sebelum halaman tampil */}
-        <script dangerouslySetInnerHTML={{ __html: "try{if(sessionStorage.getItem('pap-splash'))document.documentElement.classList.add('pap-no-splash');else sessionStorage.setItem('pap-splash','1')}catch(e){}" }} />
+        <script dangerouslySetInnerHTML={{ __html: "try{if(sessionStorage.getItem('pap-splash'))document.documentElement.classList.add('pap-no-splash');else sessionStorage.setItem('pap-splash','1')}catch(e){document.documentElement.classList.remove('pap-no-splash')}" }} />
       </head>
       <body className="antialiased">
         {STAGING && <div className="pap-staging-bar" role="note">STAGING · server uji coba, bukan data resmi. Perubahan di sini tidak masuk ke SIMPAP utama.</div>}

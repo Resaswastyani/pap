@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
-import { db } from '@/lib/db'
 import { canManageHr, canViewPayroll } from '@/lib/hrd'
 import { updatePayroll } from '@/lib/payroll'
 import type { UserProfile } from '@/lib/users'

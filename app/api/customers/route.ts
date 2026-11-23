@@ -1,6 +1,6 @@
 import type { RowDataPacket } from 'mysql2'
 import { NextResponse } from 'next/server'
-import { fail, handle, int, readJson, requireUser, str, pageParams } from '@/lib/api'
+import { fail, handle, readJson, requireUser, str, pageParams } from '@/lib/api'
 import { db } from '@/lib/db'
 import { SECTORS, sectorSql } from '@/lib/sectors'
 import { canManageCustomer, canViewCustomers, CRM_CASE, ensureCustomerCycles, CRM_INACTIVE_DAYS, CRM_STATUS, CUSTOMER_SELECT, readCustomerInput, requireMenu, saveCustomerToAccurate, upsertLocalCustomer } from '@/lib/customers'

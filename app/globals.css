@@ -3570,3 +3570,21 @@ a.pap-row-action { text-decoration:none; }
 .pap-ta-print-diff { margin:4px 0 12px; }
 .pap-ta-print-diff-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 .pap-ta-print-diff-row .pap-input { flex:1 1 260px; min-width:0; }
+
+/* Toast: pemberitahuan setelah tambah / ubah / hapus data */
+.pap-toasts { position:fixed; right:20px; bottom:20px; z-index:2000; display:flex; flex-direction:column; align-items:flex-end; gap:8px; pointer-events:none; }
+.pap-toast { display:flex; align-items:center; gap:10px; max-width:min(420px, calc(100vw - 32px)); padding:11px 12px 11px 14px; border:1px solid var(--pap-border); border-left:4px solid #12a37a; border-radius:12px; background:var(--pap-surface); color:var(--pap-text); box-shadow:0 12px 32px rgb(0 0 0 / .18); font-size:13px; font-weight:600; line-height:1.4; pointer-events:auto; animation:pap-toast-in .22s ease-out; }
+.pap-toast.error { border-left-color:#e5484d; }
+.pap-toast.info { border-left-color:#7c5cfc; }
+.pap-toast-icon { flex:none; width:18px; height:18px; color:#12a37a; }
+.pap-toast.error .pap-toast-icon { color:#e5484d; }
+.pap-toast.info .pap-toast-icon { color:#7c5cfc; }
+.pap-toast b { color:var(--pap-muted); font-weight:700; }
+.pap-toast button { display:grid; flex:none; place-items:center; width:24px; height:24px; margin-left:2px; padding:0; border:0; border-radius:8px; background:transparent; color:var(--pap-muted); cursor:pointer; }
+.pap-toast button:hover { background:rgb(127 127 127 / .14); }
+.pap-toast button svg { width:14px; height:14px; }
+@keyframes pap-toast-in { from { opacity:0; transform:translateY(10px) scale(.98); } to { opacity:1; transform:none; } }
+@media (max-width:760px) { .pap-toasts { right:12px; left:12px; bottom:84px; align-items:stretch; } .pap-toast { max-width:none; } }
+@media (prefers-reduced-motion: reduce) { .pap-toast { animation:none; } }
+@media print { .pap-toasts { display:none; } }
+.pap-toasts { margin:0; }

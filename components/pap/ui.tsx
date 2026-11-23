@@ -4,10 +4,14 @@ import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes, type Re
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Eye, EyeOff, Pencil, Search, Trash2, X } from 'lucide-react'
 import { PLANNING_STATUS, type PlanningStatus } from '@/lib/permissions'
 import { clientHintHeaders } from './client-hints'
+import { apiToast, toast } from './toast'
 
-// Panggil API JSON; lempar Error berisi pesan dari server bila gagal
-export async function api<T = unknown>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
-  const { json, ...rest } = init
+export { toast, ToastHost } from './toast'
+
+// Panggil API JSON; lempar Error berisi pesan dari server bila gagal.
+// Tambah / ubah / hapus yang berhasil otomatis menampilkan toast; toast: 'teks' untuk kalimat sendiri, false untuk tanpa toast.
+export async function api<T = unknown>(path: string, init: RequestInit & { json?: unknown; toast?: string | false } = {}): Promise<T> {
+  const { json, toast: toastText, ...rest } = init
   // Model HP untuk log aktivitas (Chrome Android menyamarkannya di User-Agent)
   const hints = await clientHintHeaders()
   const res = await fetch(path, {
@@ -19,6 +23,11 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
   if (!res.ok) throw new Error(data.error ?? `Permintaan gagal (${res.status}).`)
   // Aksi yang mengubah data bisa membuat notifikasi baru (mis. meeting/planning dibuat): segarkan lonceng
   if (rest.method && rest.method !== 'GET' && !path.startsWith('/api/notifications')) window.dispatchEvent(new Event('pap-notif-refresh'))
+  const method = (rest.method ?? 'GET').toUpperCase()
+  if (toastText !== false) {
+    const message = toastText ?? apiToast(path, method, data)
+    if (message) toast(message)
+  }
   return data as T
 }
 

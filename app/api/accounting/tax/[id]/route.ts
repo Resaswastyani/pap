@@ -1,8 +1,6 @@
-import type { ResultSetHeader } from 'mysql2'
 import { NextResponse } from 'next/server'
 import { fail, handle, int, requireUser } from '@/lib/api'
 import { canManageAccounting, requireAccounting } from '@/lib/accounting'
-import { db } from '@/lib/db'
 import { softDelete } from '@/lib/recycle-bin'
 
 type Ctx = { params: Promise<{ id: string }> }

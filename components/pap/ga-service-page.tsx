@@ -23,7 +23,6 @@ type Summary = { aktif: number; terlambat: number; segera: number; bulan_ini: nu
 type Data = { items: Schedule[]; riwayat: Riwayat[]; summary: Summary; barang: Barang[]; users: Person[]; can: { manage: boolean } }
 
 export const SERVICE_TONE: Record<Status, string> = { terlambat: 'danger', segera: 'warning', terjadwal: 'info', selesai: 'neutral' }
-const STATUS_LABEL: Record<Status, string> = { terlambat: 'Terlambat', segera: 'Segera', terjadwal: 'Terjadwal', selesai: 'Selesai / nonaktif' }
 const JENIS_SARAN = ['Cuci AC', 'Isi freon AC', 'Servis berkala', 'Ganti oli', 'Tune up', 'Ganti ban', 'Ganti filter', 'Kalibrasi', 'Pembersihan', 'Cek aki']
 const INTERVAL = [1, 2, 3, 4, 6, 12, 24]
 const today = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)

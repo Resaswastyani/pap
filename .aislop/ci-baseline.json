@@ -1,0 +1,5017 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "app/api/accounting/tax/digunggung/import/route.ts",
+      "fingerprint": "5d05ed61b6ee8898",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/double-type-assertion",
+      "engine": "ai-slop",
+      "file": "app/api/action-plan/route.ts",
+      "fingerprint": "b2610b1d287de306",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "app/api/complaints/[id]/route.ts",
+      "fingerprint": "9924981848516717",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/double-type-assertion",
+      "engine": "ai-slop",
+      "file": "app/api/content/[id]/route.ts",
+      "fingerprint": "a575b226bc872368",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/double-type-assertion",
+      "engine": "ai-slop",
+      "file": "app/api/content/[id]/route.ts",
+      "fingerprint": "e70bf9100896d640",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/double-type-assertion",
+      "engine": "ai-slop",
+      "file": "app/api/content/route.ts",
+      "fingerprint": "8fa1ee40acf5d269",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/customers/route.ts",
+      "fingerprint": "55f68e1e3aaaede5",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/customers/route.ts",
+      "fingerprint": "66911206bde7e72f",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/customers/route.ts",
+      "fingerprint": "c22c0ce642cb0b0c",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "app/api/designs/[id]/status/route.ts",
+      "fingerprint": "80519db22752f138",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/ga/belanja/route.ts",
+      "fingerprint": "70536b62254de82d",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/ga/belanja/route.ts",
+      "fingerprint": "e63946d5fb1abdcb",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/ga/inventaris/route.ts",
+      "fingerprint": "2bfefa68da61391d",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/ga/inventaris/route.ts",
+      "fingerprint": "70929c4c2aba327c",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/ga/inventaris/route.ts",
+      "fingerprint": "a8e7823f25e9bff1",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/ga/inventaris/route.ts",
+      "fingerprint": "abd1e6a71a1de989",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "app/api/ga/requests/[id]/route.ts",
+      "fingerprint": "5172059cb38e14e5",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/hardcoded-url",
+      "engine": "ai-slop",
+      "file": "app/api/hrd/training/[id]/route.ts",
+      "fingerprint": "e2319f99c025278d",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/hardcoded-url",
+      "engine": "ai-slop",
+      "file": "app/api/hrd/training/materials/[mid]/thumb/route.ts",
+      "fingerprint": "75cd9c57d41ce943",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/hardcoded-url",
+      "engine": "ai-slop",
+      "file": "app/api/hrd/training/materials/route.ts",
+      "fingerprint": "317a64db6806dea9",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/maintenance/checkup/route.ts",
+      "fingerprint": "07e7f2400ca7dc4d",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/maintenance/checkup/route.ts",
+      "fingerprint": "5223ee82ff9a9817",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/maintenance/checkup/route.ts",
+      "fingerprint": "a021fe86a2554042",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/maintenance/checkup/route.ts",
+      "fingerprint": "ba514c5dbb18900b",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/maintenance/checkup/route.ts",
+      "fingerprint": "d9e87c97155563b4",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/maintenance/route.ts",
+      "fingerprint": "152426bd0e766825",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/maintenance/route.ts",
+      "fingerprint": "7c037cc424db12ac",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/maintenance/route.ts",
+      "fingerprint": "8fb04e504f170115",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/maintenance/route.ts",
+      "fingerprint": "b015240742240335",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/meetings/[id]/route.ts",
+      "fingerprint": "62b19f8fb76f066b",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/meetings/[id]/route.ts",
+      "fingerprint": "689c2f8968d0ed7f",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/meetings/[id]/route.ts",
+      "fingerprint": "a2739bcd774732e1",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/meetings/[id]/route.ts",
+      "fingerprint": "a756fbd22c6e0f5c",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/meetings/[id]/route.ts",
+      "fingerprint": "d1e94df7266f3337",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/meetings/[id]/route.ts",
+      "fingerprint": "e60b2cb12fa9cb4d",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/meetings/[id]/route.ts",
+      "fingerprint": "fac2b8fbf78c8520",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "app/api/meetings/[id]/route.ts",
+      "fingerprint": "ab05734d8ff02a2b",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/meetings/route.ts",
+      "fingerprint": "1a501cc37820ed43",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/meetings/route.ts",
+      "fingerprint": "2ff291e70940cb04",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/meetings/route.ts",
+      "fingerprint": "45c8764ae4a1ddd8",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/meetings/route.ts",
+      "fingerprint": "b31d6d2cae07539c",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/meetings/route.ts",
+      "fingerprint": "bfd62f5712aff282",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/meetings/route.ts",
+      "fingerprint": "e1e60dd18848bf16",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/meetings/route.ts",
+      "fingerprint": "ec2d2fb85a91cbe4",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/order-custom/designs/route.ts",
+      "fingerprint": "6922b41f9620d6a0",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/order-custom/designs/route.ts",
+      "fingerprint": "d20b0d02b3759545",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/planning/[id]/route.ts",
+      "fingerprint": "5ac3edeccfdc96ff",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/planning/[id]/route.ts",
+      "fingerprint": "b3281d800e6098d9",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "app/api/planning/[id]/route.ts",
+      "fingerprint": "d965da016c8a5992",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/planning/route.ts",
+      "fingerprint": "951c2c77e338dcb7",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/planning/route.ts",
+      "fingerprint": "bcf4540271ec25e8",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "app/api/preferences/layout/route.ts",
+      "fingerprint": "ca33f970ce0c7be1",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/production/[id]/route.ts",
+      "fingerprint": "03d9db9b358856ee",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/production/[id]/route.ts",
+      "fingerprint": "06116dc05145b428",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/production/[id]/route.ts",
+      "fingerprint": "113ce6914d7c290f",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/production/[id]/route.ts",
+      "fingerprint": "49c0b64a9e89fd5f",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/production/[id]/route.ts",
+      "fingerprint": "98e591521c69a162",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/production/[id]/route.ts",
+      "fingerprint": "cbd5212272db9949",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/production/[id]/route.ts",
+      "fingerprint": "ef036d142ae3c72b",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "app/api/production/[id]/route.ts",
+      "fingerprint": "79f6e7fad989e43b",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "app/api/production/[id]/stages/route.ts",
+      "fingerprint": "15451958e4d77d82",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "app/api/production/[id]/stages/route.ts",
+      "fingerprint": "fc04965c8e1d28b9",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/production/results/route.ts",
+      "fingerprint": "08f488a2b3081c51",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/production/results/route.ts",
+      "fingerprint": "1dd7cf7cb298e281",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/production/results/route.ts",
+      "fingerprint": "8647ad64c48b40f2",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/production/route.ts",
+      "fingerprint": "4039c2ade89edcbd",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/production/route.ts",
+      "fingerprint": "46f7568c587c966f",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/production/route.ts",
+      "fingerprint": "60c8950bc2307e0c",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/products/route.ts",
+      "fingerprint": "130fb45497eed878",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/products/route.ts",
+      "fingerprint": "3168fa82dd155e10",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/products/route.ts",
+      "fingerprint": "878609ae57994104",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/products/route.ts",
+      "fingerprint": "acadacc609f85d35",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "app/api/prospects/[id]/route.ts",
+      "fingerprint": "076247dfcf07bce7",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/purchase-requests/route.ts",
+      "fingerprint": "a0d99ae7f9432c0b",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/purchasing/materials/route.ts",
+      "fingerprint": "239c2bd3333e0ee2",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/purchasing/materials/route.ts",
+      "fingerprint": "7fefcd919770dc3a",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/purchasing/orders/route.ts",
+      "fingerprint": "972ccf7a2d99d749",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/purchasing/payables/route.ts",
+      "fingerprint": "6ca53ca57ad462f6",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/purchasing/payables/route.ts",
+      "fingerprint": "d18508f5642a8545",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/purchasing/prices/route.ts",
+      "fingerprint": "239c2bd3333e0ee2",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/purchasing/prices/route.ts",
+      "fingerprint": "5a0b1e2000d4362d",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "app/api/push/subscribe/route.ts",
+      "fingerprint": "ca33f970ce0c7be1",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/recycle-bin/purge/route.ts",
+      "fingerprint": "1995882813741604",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/recycle-bin/purge/route.ts",
+      "fingerprint": "6b174250dcdcf3a0",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/recycle-bin/purge/route.ts",
+      "fingerprint": "b9fdfb8a1146d006",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/recycle-bin/restore/route.ts",
+      "fingerprint": "1995882813741604",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/recycle-bin/restore/route.ts",
+      "fingerprint": "6b174250dcdcf3a0",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/recycle-bin/restore/route.ts",
+      "fingerprint": "b9fdfb8a1146d006",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/recycle-bin/restore/route.ts",
+      "fingerprint": "f8741bfdfd6a81e5",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/recycle-bin/route.ts",
+      "fingerprint": "29946486e15925d4",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/recycle-bin/route.ts",
+      "fingerprint": "9348b6f4d0b4f90d",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/recycle-bin/route.ts",
+      "fingerprint": "ef21533ad8f62649",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/repairs/[id]/route.ts",
+      "fingerprint": "0ac1d10f994c421e",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/repairs/[id]/route.ts",
+      "fingerprint": "2eea92ebee2c7f7e",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/repairs/[id]/route.ts",
+      "fingerprint": "41cec2558edae082",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/repairs/[id]/route.ts",
+      "fingerprint": "439054018021fb6e",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/repairs/[id]/route.ts",
+      "fingerprint": "47eeaaf37e6d7405",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/repairs/[id]/route.ts",
+      "fingerprint": "c4c7d078876c4d28",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/repairs/[id]/route.ts",
+      "fingerprint": "daaeb58f61c6d8c7",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/repairs/[id]/route.ts",
+      "fingerprint": "e7a1cc4d3d73ac16",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "app/api/repairs/[id]/route.ts",
+      "fingerprint": "f8b5f59bbd36712b",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/repairs/route.ts",
+      "fingerprint": "7d80a4419db6f3c6",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/repairs/route.ts",
+      "fingerprint": "ae36e2a381a0303a",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/repairs/route.ts",
+      "fingerprint": "bb176f0a3c9d1c2b",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/repairs/route.ts",
+      "fingerprint": "ec07f8f1a889f9a9",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/hardcoded-url",
+      "engine": "ai-slop",
+      "file": "app/api/sop/[id]/thumb/route.ts",
+      "fingerprint": "617453fe0f8bc5eb",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/stock/route.ts",
+      "fingerprint": "0012ccf9ea5f0b14",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/stock/route.ts",
+      "fingerprint": "c813759d8f67f0d2",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "app/api/tech-analyses/[id]/route.ts",
+      "fingerprint": "9924981848516717",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/tech-items/route.ts",
+      "fingerprint": "17800a49b3c35d19",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/tech-items/route.ts",
+      "fingerprint": "f163dca01ddb0520",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/tech-items/route.ts",
+      "fingerprint": "fe8ba000a7bb51e8",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/tickets/route.ts",
+      "fingerprint": "16df3ea42c649fb5",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/tickets/route.ts",
+      "fingerprint": "82f2db9b3a30b778",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/tickets/route.ts",
+      "fingerprint": "ad682471bcf7b083",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/tickets/route.ts",
+      "fingerprint": "af26237d02e02666",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/tickets/route.ts",
+      "fingerprint": "fbe0defe6baf6bcc",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/users/[id]/route.ts",
+      "fingerprint": "151a26501dfa853a",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/users/[id]/route.ts",
+      "fingerprint": "355b32bf98a5bbc8",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/users/[id]/route.ts",
+      "fingerprint": "6f048ce190a56f32",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/users/[id]/route.ts",
+      "fingerprint": "7112f74993c7fe10",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/users/[id]/route.ts",
+      "fingerprint": "cb78dd7115375ef2",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/users/[id]/route.ts",
+      "fingerprint": "ee37fca4045d17a4",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/users/[id]/route.ts",
+      "fingerprint": "f56b6692e952b7cb",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "app/api/users/[id]/route.ts",
+      "fingerprint": "3ce08f68ad5f457f",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/users/activity/route.ts",
+      "fingerprint": "07f9f1f37dfdf478",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/users/activity/route.ts",
+      "fingerprint": "779af83378ff65f0",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "app/api/users/activity/route.ts",
+      "fingerprint": "a9dfb467727f73a5",
+      "count": 1
+    },
+    {
+      "rule": "security/dangerously-set-innerhtml",
+      "engine": "security",
+      "file": "app/cetak/analisa-teknik/[id]/page.tsx",
+      "fingerprint": "93aeb1bd80d57d84",
+      "count": 1
+    },
+    {
+      "rule": "security/dangerously-set-innerhtml",
+      "engine": "security",
+      "file": "app/cetak/analisa-teknik/prospek/[id]/page.tsx",
+      "fingerprint": "7805dbebba02025b",
+      "count": 1
+    },
+    {
+      "rule": "security/dangerously-set-innerhtml",
+      "engine": "security",
+      "file": "app/cetak/dokumen-order/[id]/page.tsx",
+      "fingerprint": "c104cdd444ee9f8b",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "app/cetak/faktur/[id]/page.tsx",
+      "fingerprint": "c40588e8b96541f4",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "app/cetak/faktur/[id]/page.tsx",
+      "fingerprint": "25215a8e6d3ad8e3",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "app/cetak/hasil-produksi/page.tsx",
+      "fingerprint": "18a695805b00893a",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "app/cetak/hasil-produksi/page.tsx",
+      "fingerprint": "18a695805b00893a",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "app/cetak/kapasitas-produksi/page.tsx",
+      "fingerprint": "18a695805b00893a",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "app/cetak/kapasitas-produksi/page.tsx",
+      "fingerprint": "888ce8a0e8490ae1",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "app/cetak/kapasitas-produksi/page.tsx",
+      "fingerprint": "18a695805b00893a",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "app/cetak/kerusakan/page.tsx",
+      "fingerprint": "18a695805b00893a",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "app/cetak/kerusakan/page.tsx",
+      "fingerprint": "1b113a16e80e3cd9",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "app/cetak/kerusakan/page.tsx",
+      "fingerprint": "18a695805b00893a",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "app/cetak/laporan-gaji/page.tsx",
+      "fingerprint": "5dd4aea95750cf10",
+      "count": 1
+    },
+    {
+      "rule": "react/static-components",
+      "engine": "lint",
+      "file": "app/cetak/laporan-keuangan/page.tsx",
+      "fingerprint": "43465e02e3185c24",
+      "count": 1
+    },
+    {
+      "rule": "react/static-components",
+      "engine": "lint",
+      "file": "app/cetak/laporan-keuangan/page.tsx",
+      "fingerprint": "6c2e4bdd2f474ed5",
+      "count": 1
+    },
+    {
+      "rule": "react/static-components",
+      "engine": "lint",
+      "file": "app/cetak/laporan-keuangan/page.tsx",
+      "fingerprint": "9c03329824a6e196",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "app/cetak/lembar-perawatan/page.tsx",
+      "fingerprint": "18a695805b00893a",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "app/cetak/lembar-perawatan/page.tsx",
+      "fingerprint": "18a695805b00893a",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "app/cetak/lembar-perawatan/page.tsx",
+      "fingerprint": "2c7a6c0c9ac6b027",
+      "count": 1
+    },
+    {
+      "rule": "security/dangerously-set-innerhtml",
+      "engine": "security",
+      "file": "app/cetak/order-custom/[id]/page.tsx",
+      "fingerprint": "fdfe3c985c89575c",
+      "count": 1
+    },
+    {
+      "rule": "security/dangerously-set-innerhtml",
+      "engine": "security",
+      "file": "app/cetak/pengajuan-ga/[id]/page.tsx",
+      "fingerprint": "abcafd3ed309fb70",
+      "count": 1
+    },
+    {
+      "rule": "security/dangerously-set-innerhtml",
+      "engine": "security",
+      "file": "app/cetak/pengajuan-pembelian/[id]/page.tsx",
+      "fingerprint": "abcafd3ed309fb70",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "app/cetak/perawatan/page.tsx",
+      "fingerprint": "18a695805b00893a",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "app/cetak/perawatan/page.tsx",
+      "fingerprint": "18a695805b00893a",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "app/cetak/ppn-digunggung/page.tsx",
+      "fingerprint": "2167fcf3b65d8add",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "app/cetak/produk/[id]/page.tsx",
+      "fingerprint": "2137a0af56b1b723",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "app/cetak/produk/[id]/page.tsx",
+      "fingerprint": "8ebe6962fd28acec",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "app/cetak/produk/[id]/page.tsx",
+      "fingerprint": "e6293b49fb151316",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "app/cetak/prospek/page.tsx",
+      "fingerprint": "47d3dd2fd2a60f56",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "app/cetak/prospek/page.tsx",
+      "fingerprint": "47d3dd2fd2a60f56",
+      "count": 1
+    },
+    {
+      "rule": "security/dangerously-set-innerhtml",
+      "engine": "security",
+      "file": "app/cetak/quotation/[id]/page.tsx",
+      "fingerprint": "017252087e9642db",
+      "count": 1
+    },
+    {
+      "rule": "security/dangerously-set-innerhtml",
+      "engine": "security",
+      "file": "app/cetak/sales-order/[id]/page.tsx",
+      "fingerprint": "abcafd3ed309fb70",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "app/cetak/slip-gaji/page.tsx",
+      "fingerprint": "e5f7cd9e41727f8a",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "app/cetak/surat-jalan/[id]/page.tsx",
+      "fingerprint": "fbef5fa1cff171ed",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "app/cetak/surat-jalan/[id]/page.tsx",
+      "fingerprint": "25215a8e6d3ad8e3",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "app/kebijakan-privasi/page.tsx",
+      "fingerprint": "6dc46d64ecdc7d54",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "app/layout.tsx",
+      "fingerprint": "e6293b49fb151316",
+      "count": 1
+    },
+    {
+      "rule": "security/dangerously-set-innerhtml",
+      "engine": "security",
+      "file": "app/layout.tsx",
+      "fingerprint": "37476ff20147ceb6",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "app/lupa-password/page.tsx",
+      "fingerprint": "6dc46d64ecdc7d54",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "app/verifikasi/ttd/[token]/page.tsx",
+      "fingerprint": "8213ee6b952a42ad",
+      "count": 1
+    },
+    {
+      "rule": "complexity/file-too-large",
+      "engine": "code-quality",
+      "file": "components/pap/accounting-page.tsx",
+      "fingerprint": "message:acc412ddac35058f",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/accounting-page.tsx",
+      "fingerprint": "6d7d89d3df9aab0d",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/accounting-page.tsx",
+      "fingerprint": "a5e1600a1d2b2f5d",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/accounting-page.tsx",
+      "fingerprint": "bd0d7c8dfb5d9367",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/accounting-page.tsx",
+      "fingerprint": "c58cd952566ea209",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/accounting-page.tsx",
+      "fingerprint": "1842225b564ae8c8",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/accounting-page.tsx",
+      "fingerprint": "4e22c5e007775164",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/accounting-page.tsx",
+      "fingerprint": "894bfbb3cba68409",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/accounting-page.tsx",
+      "fingerprint": "9944def6a6a08c2f",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/accounting-page.tsx",
+      "fingerprint": "aeba9fa721a0cadc",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/accounting-page.tsx",
+      "fingerprint": "b7c6ae682b76b652",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-autofocus",
+      "engine": "lint",
+      "file": "components/pap/accounting-page.tsx",
+      "fingerprint": "6d0584f372017632",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/accounting-page.tsx",
+      "fingerprint": "fa0f0d30e397cea8",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/accounting-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "react/static-components",
+      "engine": "lint",
+      "file": "components/pap/accounting-page.tsx",
+      "fingerprint": "3a3b70ecb830159b",
+      "count": 1
+    },
+    {
+      "rule": "react/static-components",
+      "engine": "lint",
+      "file": "components/pap/accounting-page.tsx",
+      "fingerprint": "408299314be10748",
+      "count": 1
+    },
+    {
+      "rule": "react/static-components",
+      "engine": "lint",
+      "file": "components/pap/accounting-page.tsx",
+      "fingerprint": "69c76e05cc17686b",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/accurate-production.tsx",
+      "fingerprint": "761ab3fbeff7a7cf",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/accurate-production.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 2
+    },
+    {
+      "rule": "ai-slop/hardcoded-url",
+      "engine": "ai-slop",
+      "file": "components/pap/action-plan-page.tsx",
+      "fingerprint": "e8d4c334a24beac5",
+      "count": 1
+    },
+    {
+      "rule": "complexity/file-too-large",
+      "engine": "code-quality",
+      "file": "components/pap/action-plan-page.tsx",
+      "fingerprint": "message:acc412ddac35058f",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/action-plan-page.tsx",
+      "fingerprint": "611559473d8d62c3",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/action-plan-page.tsx",
+      "fingerprint": "40f25e4d2e55e74c",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/action-plan-page.tsx",
+      "fingerprint": "e072c4ec65c24b0d",
+      "count": 1
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/action-plan-page.tsx",
+      "fingerprint": "4381ee502c83e0b8",
+      "count": 1
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/action-plan-page.tsx",
+      "fingerprint": "7aa5b99b4f1c4a8e",
+      "count": 1
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/action-plan-page.tsx",
+      "fingerprint": "8ff3743df643a5b2",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/ai-assistant.tsx",
+      "fingerprint": "1c782ba0c27d6d81",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/ai-assistant.tsx",
+      "fingerprint": "6a3bbc077e19ae27",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/ai-assistant.tsx",
+      "fingerprint": "93f9e2b2c79e59ae",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/ai-assistant.tsx",
+      "fingerprint": "cf4171115c1bd9eb",
+      "count": 1
+    },
+    {
+      "rule": "complexity/deep-nesting",
+      "engine": "code-quality",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "56aea4aaef4108cc",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "56aea4aaef4108cc",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "032194c22e44ce00",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "19f6eb059608813f",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "347a04f6e7fe833e",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "48a6fca93e322128",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "4cb857aa4e6bcbe8",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "98cf40c62133b0e6",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "ca33f970ce0c7be1",
+      "count": 3
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "cc06ebc6be09071e",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "d803ed2136d76048",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-autofocus",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "736fed9ca77084c8",
+      "count": 1
+    },
+    {
+      "rule": "next/no-html-link-for-pages",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "cf33577c12f6f2b2",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "736fed9ca77084c8",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "cf33577c12f6f2b2",
+      "count": 1
+    },
+    {
+      "rule": "react/refs",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "0015233188bf297c",
+      "count": 1
+    },
+    {
+      "rule": "react/refs",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "29676becaf698b2a",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "2f1eeac4526fddd3",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "4a1d6ad4dca80734",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "d2fc4a7aec36cb41",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "d803ed2136d76048",
+      "count": 1
+    },
+    {
+      "rule": "unicorn/no-useless-fallback-in-spread",
+      "engine": "lint",
+      "file": "components/pap/app-shell.tsx",
+      "fingerprint": "4c6267af1d2a82c0",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-autofocus",
+      "engine": "lint",
+      "file": "components/pap/attachments.tsx",
+      "fingerprint": "1f9e481310ca5f26",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/attachments.tsx",
+      "fingerprint": "1ad9c4c3338a39b7",
+      "count": 1
+    },
+    {
+      "rule": "react/refs",
+      "engine": "lint",
+      "file": "components/pap/attachments.tsx",
+      "fingerprint": "2034335820a88d6a",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/attachments.tsx",
+      "fingerprint": "39d7fc3ce60e117a",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/attendance-page.tsx",
+      "fingerprint": "9bc0f38199440103",
+      "count": 1
+    },
+    {
+      "rule": "react/preserve-manual-memoization",
+      "engine": "lint",
+      "file": "components/pap/attendance-page.tsx",
+      "fingerprint": "db254b10da5fe80b",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/belanja-page.tsx",
+      "fingerprint": "88e9b7d03be41101",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/belanja-page.tsx",
+      "fingerprint": "8f7adf56e0c5b5d2",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/belanja-page.tsx",
+      "fingerprint": "c470972bbbfaf081",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/belanja-page.tsx",
+      "fingerprint": "e6b5baa5688c3f9a",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/belanja-page.tsx",
+      "fingerprint": "79ad41eadb1bd940",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/capacity-page.tsx",
+      "fingerprint": "086752382a61dbc7",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/capacity-page.tsx",
+      "fingerprint": "173dcb8434f70efd",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/capacity-page.tsx",
+      "fingerprint": "4d66d65d77bf3624",
+      "count": 1
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/capacity-page.tsx",
+      "fingerprint": "8ff3743df643a5b2",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/capacity-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 2
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/charts.tsx",
+      "fingerprint": "bc930a104d71ab0c",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/complaint-page.tsx",
+      "fingerprint": "0daaca858d9638c0",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/complaint-page.tsx",
+      "fingerprint": "297283dfad526208",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/complaint-page.tsx",
+      "fingerprint": "4dceaf6502690e5b",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/complaint-page.tsx",
+      "fingerprint": "72c2b89eb28f2268",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/complaint-page.tsx",
+      "fingerprint": "96b22d0557b90e12",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/complaint-page.tsx",
+      "fingerprint": "d6a5ecd64ae3c193",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/complaint-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/complaint-page.tsx",
+      "fingerprint": "e7a342d62547afee",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/content-page.tsx",
+      "fingerprint": "e1777b66e7f4d63d",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/content-page.tsx",
+      "fingerprint": "6153cf4e4e6b1eb6",
+      "count": 1
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/content-page.tsx",
+      "fingerprint": "ac384c9da9680ced",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/content-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/content-page.tsx",
+      "fingerprint": "f125c35df62b38df",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-autofocus",
+      "engine": "lint",
+      "file": "components/pap/customer-cycle.tsx",
+      "fingerprint": "2061c87933053e54",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/customer-page.tsx",
+      "fingerprint": "ae67c39629ba736e",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/customer-page.tsx",
+      "fingerprint": "10950eed9c51d5c9",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/customer-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/hidden-fallback",
+      "engine": "ai-slop",
+      "file": "components/pap/damage-log.tsx",
+      "fingerprint": "25a3f75ebb75ee0c",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/damage-log.tsx",
+      "fingerprint": "039f4d82104cc8ef",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/damage-log.tsx",
+      "fingerprint": "0ec33fed93df3787",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/damage-log.tsx",
+      "fingerprint": "991493e86946329d",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-autofocus",
+      "engine": "lint",
+      "file": "components/pap/damage-log.tsx",
+      "fingerprint": "fc3446b71b4d72a4",
+      "count": 1
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/damage-log.tsx",
+      "fingerprint": "7aa5b99b4f1c4a8e",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/damage-log.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/damage-log.tsx",
+      "fingerprint": "f125c35df62b38df",
+      "count": 1
+    },
+    {
+      "rule": "complexity/file-too-large",
+      "engine": "code-quality",
+      "file": "components/pap/dashboard-page.tsx",
+      "fingerprint": "message:acc412ddac35058f",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/dashboard-page.tsx",
+      "fingerprint": "8fcc82e7b8b6eda6",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/dashboard-page.tsx",
+      "fingerprint": "b88aabb77c52ff52",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/dashboard-page.tsx",
+      "fingerprint": "1276ae42f75f4ef4",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/dashboard-page.tsx",
+      "fingerprint": "ce7c1751d7a5565f",
+      "count": 1
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/dashboard-page.tsx",
+      "fingerprint": "37352abcc835ba12",
+      "count": 1
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/dashboard-page.tsx",
+      "fingerprint": "e4d3a25de17c6018",
+      "count": 1
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/dashboard-page.tsx",
+      "fingerprint": "eabd6287b3d26d14",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/division-menus.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "complexity/deep-nesting",
+      "engine": "code-quality",
+      "file": "components/pap/dokumen-order-page.tsx",
+      "fingerprint": "e9a8145d5dd4a82c",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/dokumen-order-page.tsx",
+      "fingerprint": "9f7f363933d596e3",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/dokumen-order-page.tsx",
+      "fingerprint": "e9a8145d5dd4a82c",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/dokumen-order-page.tsx",
+      "fingerprint": "06833b6d7c52b683",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-autofocus",
+      "engine": "lint",
+      "file": "components/pap/dokumen-order-page.tsx",
+      "fingerprint": "a6ef174d42b2e016",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/dokumen-order-page.tsx",
+      "fingerprint": "2fe02b0df12a5411",
+      "count": 1
+    },
+    {
+      "rule": "react-hooks/exhaustive-deps",
+      "engine": "lint",
+      "file": "components/pap/dokumen-order-page.tsx",
+      "fingerprint": "615997415e1a9dc0",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/dokumen-order-page.tsx",
+      "fingerprint": "1f99ca8fc54085ec",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/dokumen-order-page.tsx",
+      "fingerprint": "869160ee51eff799",
+      "count": 2
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/employee-extra.tsx",
+      "fingerprint": "9a4b17586d5c14ab",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/employee-form.tsx",
+      "fingerprint": "d9abde1f93144ffa",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/redundant-type-coercion",
+      "engine": "ai-slop",
+      "file": "components/pap/faktur-page.tsx",
+      "fingerprint": "8b7457cba11e2fb8",
+      "count": 1
+    },
+    {
+      "rule": "complexity/deep-nesting",
+      "engine": "code-quality",
+      "file": "components/pap/faktur-page.tsx",
+      "fingerprint": "49865394b3603c26",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/faktur-page.tsx",
+      "fingerprint": "49865394b3603c26",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/faktur-page.tsx",
+      "fingerprint": "9b7ea031ddd4ce4c",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/faktur-page.tsx",
+      "fingerprint": "11772c9a9f051993",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/faktur-page.tsx",
+      "fingerprint": "655054e2d9b43c1c",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/faktur-page.tsx",
+      "fingerprint": "ee1ed9ef84e37365",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/faktur-page.tsx",
+      "fingerprint": "91d118a366d61162",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/formulation-page.tsx",
+      "fingerprint": "5d8de4ac68e7f27c",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/formulation-page.tsx",
+      "fingerprint": "1438aaef13b3c51e",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/formulation-page.tsx",
+      "fingerprint": "698fd1e40c138864",
+      "count": 1
+    },
+    {
+      "rule": "complexity/deep-nesting",
+      "engine": "code-quality",
+      "file": "components/pap/ga-page.tsx",
+      "fingerprint": "1fb707cc6094be2b",
+      "count": 1
+    },
+    {
+      "rule": "complexity/deep-nesting",
+      "engine": "code-quality",
+      "file": "components/pap/ga-page.tsx",
+      "fingerprint": "5b427ae67b8bf675",
+      "count": 1
+    },
+    {
+      "rule": "complexity/file-too-large",
+      "engine": "code-quality",
+      "file": "components/pap/ga-page.tsx",
+      "fingerprint": "message:acc412ddac35058f",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/ga-page.tsx",
+      "fingerprint": "1fb707cc6094be2b",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/ga-page.tsx",
+      "fingerprint": "5b427ae67b8bf675",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/ga-page.tsx",
+      "fingerprint": "ff91f58a0e17eb8f",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/ga-page.tsx",
+      "fingerprint": "2707f1fc40cae429",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/ga-page.tsx",
+      "fingerprint": "64c5057cfd408ff0",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/ga-page.tsx",
+      "fingerprint": "9de87fb4d2c651b6",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/ga-page.tsx",
+      "fingerprint": "dfedd57e2feb0c10",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/ga-page.tsx",
+      "fingerprint": "5bfb92d4d86334bc",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/ga-service-page.tsx",
+      "fingerprint": "0b4b4e237fe26c78",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/ga-service-page.tsx",
+      "fingerprint": "2a56372222873f42",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/ga-service-page.tsx",
+      "fingerprint": "cbf0a2fd974947d0",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/ga-service-page.tsx",
+      "fingerprint": "bf04ee703a887835",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/ga-service-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/global-search.tsx",
+      "fingerprint": "1b4860780ee46120",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/global-search.tsx",
+      "fingerprint": "770c749534bcc4d0",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/global-search.tsx",
+      "fingerprint": "436b04f7d962c0b3",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/global-search.tsx",
+      "fingerprint": "6a737592d7826865",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/global-search.tsx",
+      "fingerprint": "bda54e964d5c69ac",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/hpp-page.tsx",
+      "fingerprint": "5b10313b19485fef",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/hidden-fallback",
+      "engine": "ai-slop",
+      "file": "components/pap/hrd-page.tsx",
+      "fingerprint": "8d5af786bf622616",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/hrd-page.tsx",
+      "fingerprint": "8731c7014d316577",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/hrd-page.tsx",
+      "fingerprint": "9de87fb4d2c651b6",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/hrd-page.tsx",
+      "fingerprint": "f125c35df62b38df",
+      "count": 1
+    },
+    {
+      "rule": "complexity/deep-nesting",
+      "engine": "code-quality",
+      "file": "components/pap/inventaris-page.tsx",
+      "fingerprint": "57fc43f230e9d177",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/inventaris-page.tsx",
+      "fingerprint": "57fc43f230e9d177",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/inventaris-page.tsx",
+      "fingerprint": "76888cb4d3e7924d",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/inventaris-page.tsx",
+      "fingerprint": "621d434f0f28438e",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/inventaris-page.tsx",
+      "fingerprint": "6f96bd14969fb720",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/inventaris-page.tsx",
+      "fingerprint": "de1c67ed5502db11",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-autofocus",
+      "engine": "lint",
+      "file": "components/pap/inventaris-page.tsx",
+      "fingerprint": "275b514aa72de9c1",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/inventaris-page.tsx",
+      "fingerprint": "3f3c8f70c4ef2531",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/inventaris-page.tsx",
+      "fingerprint": "6badb886cb7d50f7",
+      "count": 1
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/inventaris-page.tsx",
+      "fingerprint": "535013850e9265dc",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/inventaris-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/jobdesk.tsx",
+      "fingerprint": "84f44a0eafbad732",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/kpi-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/logistik-page.tsx",
+      "fingerprint": "38133e33900a99f2",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/logistik-page.tsx",
+      "fingerprint": "4ea6a5b867e69cd2",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/logistik-page.tsx",
+      "fingerprint": "b024c1d932edb67c",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/logistik-page.tsx",
+      "fingerprint": "3e06835547f12b9c",
+      "count": 1
+    },
+    {
+      "rule": "complexity/deep-nesting",
+      "engine": "code-quality",
+      "file": "components/pap/machine-page.tsx",
+      "fingerprint": "fa75faacc476d497",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/machine-page.tsx",
+      "fingerprint": "c861a9c2b763dccc",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/machine-page.tsx",
+      "fingerprint": "fa75faacc476d497",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/machine-page.tsx",
+      "fingerprint": "75b2807088f89029",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/machine-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/machine-page.tsx",
+      "fingerprint": "f125c35df62b38df",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/maintenance-page.tsx",
+      "fingerprint": "27045d971b51c365",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/maintenance-page.tsx",
+      "fingerprint": "cced90778af50e59",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/maintenance-page.tsx",
+      "fingerprint": "3dd143d71242dc2a",
+      "count": 1
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/maintenance-page.tsx",
+      "fingerprint": "7aa5b99b4f1c4a8e",
+      "count": 2
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/maintenance-sheet.tsx",
+      "fingerprint": "53631a0cf676b1d4",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/maintenance-sheet.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/maintenance-sheet.tsx",
+      "fingerprint": "f125c35df62b38df",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/hardcoded-url",
+      "engine": "ai-slop",
+      "file": "components/pap/marketing.tsx",
+      "fingerprint": "7461c3547648e977",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/marketing.tsx",
+      "fingerprint": "7e1f241c858c9b11",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-autofocus",
+      "engine": "lint",
+      "file": "components/pap/marketing.tsx",
+      "fingerprint": "54d2664ed7d817cf",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/marketing.tsx",
+      "fingerprint": "ae369c3b42cb17fe",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/marketing.tsx",
+      "fingerprint": "b048b1d8a421eae0",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/marketing.tsx",
+      "fingerprint": "a84a3cff47721226",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "components/pap/master-data-page.tsx",
+      "fingerprint": "5e374ef5c5a356d1",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "components/pap/master-data-page.tsx",
+      "fingerprint": "ca33f970ce0c7be1",
+      "count": 1
+    },
+    {
+      "rule": "next/no-html-link-for-pages",
+      "engine": "lint",
+      "file": "components/pap/master-data-page.tsx",
+      "fingerprint": "fd60fa8d5d559ffa",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/master-data-page.tsx",
+      "fingerprint": "68902d52ef514a0c",
+      "count": 1
+    },
+    {
+      "rule": "react/preserve-manual-memoization",
+      "engine": "lint",
+      "file": "components/pap/master-data-page.tsx",
+      "fingerprint": "db254b10da5fe80b",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/master-data-page.tsx",
+      "fingerprint": "0f9904b2f76a913b",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/master-data-page.tsx",
+      "fingerprint": "60368b45ceb8a80d",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/master-data-page.tsx",
+      "fingerprint": "8b03d19ac91cd8a4",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/master-data-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/material-analysis.tsx",
+      "fingerprint": "a81c7d861013d0f3",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/material-analysis.tsx",
+      "fingerprint": "673fb1b4e1a0e44e",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/material-analysis.tsx",
+      "fingerprint": "a14e14a34e9f1327",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/material-analysis.tsx",
+      "fingerprint": "e9916037ffa52689",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-autofocus",
+      "engine": "lint",
+      "file": "components/pap/material-analysis.tsx",
+      "fingerprint": "0e4fad5392117e8e",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/material-analysis.tsx",
+      "fingerprint": "6049d2f5a116af55",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/material-analysis.tsx",
+      "fingerprint": "c6c48c672ebd1bbd",
+      "count": 1
+    },
+    {
+      "rule": "react/preserve-manual-memoization",
+      "engine": "lint",
+      "file": "components/pap/material-analysis.tsx",
+      "fingerprint": "f53465e15ad4f39e",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/material-analysis.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/material-list.tsx",
+      "fingerprint": "29d7e6b56c71bed3",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/material-list.tsx",
+      "fingerprint": "3c23950e11aa02ac",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/material-list.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/click-events-have-key-events",
+      "engine": "lint",
+      "file": "components/pap/material-projection.tsx",
+      "fingerprint": "3733705c5737c9f4",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/material-projection.tsx",
+      "fingerprint": "2a07ac91d4672f74",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/material-projection.tsx",
+      "fingerprint": "a2e8cc529bfda25b",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-noninteractive-element-interactions",
+      "engine": "lint",
+      "file": "components/pap/material-projection.tsx",
+      "fingerprint": "31bce1d58a2fd21f",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-noninteractive-tabindex",
+      "engine": "lint",
+      "file": "components/pap/material-projection.tsx",
+      "fingerprint": "31bce1d58a2fd21f",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-static-element-interactions",
+      "engine": "lint",
+      "file": "components/pap/material-projection.tsx",
+      "fingerprint": "3733705c5737c9f4",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/material-projection.tsx",
+      "fingerprint": "36389178012bb102",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/material-projection.tsx",
+      "fingerprint": "92a81a378c639150",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/material-projection.tsx",
+      "fingerprint": "96b22d0557b90e12",
+      "count": 2
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/material-projection.tsx",
+      "fingerprint": "c6c48c672ebd1bbd",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/material-projection.tsx",
+      "fingerprint": "f8084152eabbf3a0",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/material-projection.tsx",
+      "fingerprint": "497a86ea91a37fb4",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/material-projection.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "complexity/deep-nesting",
+      "engine": "code-quality",
+      "file": "components/pap/meeting-page.tsx",
+      "fingerprint": "6348a8097174f794",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/meeting-page.tsx",
+      "fingerprint": "241819a12deb5922",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/meeting-page.tsx",
+      "fingerprint": "6348a8097174f794",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "components/pap/meeting-page.tsx",
+      "fingerprint": "ca33f970ce0c7be1",
+      "count": 3
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/meeting-page.tsx",
+      "fingerprint": "5ede61a62d336911",
+      "count": 1
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/meeting-page.tsx",
+      "fingerprint": "c24f5f347dc58334",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/meeting-page.tsx",
+      "fingerprint": "60e207ee2547b9ed",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/meeting-page.tsx",
+      "fingerprint": "83126fd7841916f7",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/meeting-page.tsx",
+      "fingerprint": "ed41373c7d4906e2",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/monitoring-page.tsx",
+      "fingerprint": "c54b50023ace6bbf",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/monitoring-page.tsx",
+      "fingerprint": "91d118a366d61162",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/monthly-orders-page.tsx",
+      "fingerprint": "91d118a366d61162",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "components/pap/notifications.tsx",
+      "fingerprint": "ca33f970ce0c7be1",
+      "count": 5
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/notifications.tsx",
+      "fingerprint": "969ea588e30e0eee",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/notifications.tsx",
+      "fingerprint": "ecfba7361b928977",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/notifications.tsx",
+      "fingerprint": "115bcadefeb1d697",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-autofocus",
+      "engine": "lint",
+      "file": "components/pap/order-custom-page.tsx",
+      "fingerprint": "90af54187f934dc8",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/order-custom-page.tsx",
+      "fingerprint": "0a50d65ca13f24f9",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/order-custom-page.tsx",
+      "fingerprint": "6cc3265cc72ee55b",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/order-custom-page.tsx",
+      "fingerprint": "b8b712c55004b3a9",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/order-custom-page.tsx",
+      "fingerprint": "f3b1278d132dea80",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/order-custom-page.tsx",
+      "fingerprint": "6bb723b03b1495d8",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/order-custom-page.tsx",
+      "fingerprint": "869160ee51eff799",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/order-custom-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/order-custom-page.tsx",
+      "fingerprint": "ed41373c7d4906e2",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/payment-page.tsx",
+      "fingerprint": "1d0830ce6d4f57f9",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/payroll-page.tsx",
+      "fingerprint": "910b1262b04b760f",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/payroll-page.tsx",
+      "fingerprint": "da2b886358bfe9cb",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/payroll-page.tsx",
+      "fingerprint": "fdf7d678ff83fb2f",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/payroll-page.tsx",
+      "fingerprint": "33b5f6e2b66c38a1",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/payroll-page.tsx",
+      "fingerprint": "589aedd14c63e048",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/photo-picker.tsx",
+      "fingerprint": "59f6320c77cf7429",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-autofocus",
+      "engine": "lint",
+      "file": "components/pap/planning-page.tsx",
+      "fingerprint": "a2990b6d09143a5f",
+      "count": 1
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/planning-page.tsx",
+      "fingerprint": "b5bfbc176ff8acf0",
+      "count": 1
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/planning-page.tsx",
+      "fingerprint": "c4521dbdccdf5dc8",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/planning-page.tsx",
+      "fingerprint": "60e207ee2547b9ed",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/planning-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/product-page.tsx",
+      "fingerprint": "5d484bb0594baeb9",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/product-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/production-forward-plan.tsx",
+      "fingerprint": "33573d32f73acf50",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/production-forward-plan.tsx",
+      "fingerprint": "9b1e20e1caea19d1",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-autofocus",
+      "engine": "lint",
+      "file": "components/pap/production-forward-plan.tsx",
+      "fingerprint": "d8b389a128a3bdf3",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/production-forward-plan.tsx",
+      "fingerprint": "73065d910f3a5660",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/production-forward-plan.tsx",
+      "fingerprint": "d364d373525ef0cf",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/production-forward-plan.tsx",
+      "fingerprint": "de83512db832bc77",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/production-forward-plan.tsx",
+      "fingerprint": "ee68dfdaea7f6576",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/production-forward-plan.tsx",
+      "fingerprint": "f50577a944988c26",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/production-forward-plan.tsx",
+      "fingerprint": "a0f24780b95d8289",
+      "count": 1
+    },
+    {
+      "rule": "complexity/file-too-large",
+      "engine": "code-quality",
+      "file": "components/pap/production-page.tsx",
+      "fingerprint": "message:acc412ddac35058f",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/production-page.tsx",
+      "fingerprint": "4b106d8d3683d9c8",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/production-page.tsx",
+      "fingerprint": "766aa6f1097fe3f3",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/production-page.tsx",
+      "fingerprint": "7fed78d58bf48587",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-autofocus",
+      "engine": "lint",
+      "file": "components/pap/production-page.tsx",
+      "fingerprint": "c1d1cdfaa3154dec",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/production-page.tsx",
+      "fingerprint": "56b50b78d7f83c43",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/production-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/production-page.tsx",
+      "fingerprint": "ed41373c7d4906e2",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/double-type-assertion",
+      "engine": "ai-slop",
+      "file": "components/pap/prospect-page.tsx",
+      "fingerprint": "5b641183f7f601a9",
+      "count": 1
+    },
+    {
+      "rule": "complexity/file-too-large",
+      "engine": "code-quality",
+      "file": "components/pap/prospect-page.tsx",
+      "fingerprint": "message:acc412ddac35058f",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/prospect-page.tsx",
+      "fingerprint": "3894671b068602a8",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/prospect-page.tsx",
+      "fingerprint": "712eee46a554201e",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/prospect-page.tsx",
+      "fingerprint": "4ad98262c29e1516",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/prospect-page.tsx",
+      "fingerprint": "5b46eafeb9a33de9",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/prospect-page.tsx",
+      "fingerprint": "a31b70fe1692e77a",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/prospect-page.tsx",
+      "fingerprint": "6c752c3220500fbd",
+      "count": 1
+    },
+    {
+      "rule": "react-hooks/exhaustive-deps",
+      "engine": "lint",
+      "file": "components/pap/prospect-page.tsx",
+      "fingerprint": "1da46809262addf4",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/prospect-page.tsx",
+      "fingerprint": "04d27a7d235c0dc7",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/prospect-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/prospect-page.tsx",
+      "fingerprint": "eb20ba553d9b584d",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/purchase-request-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/purchasing-forms.tsx",
+      "fingerprint": "942dc417f2719e3e",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/purchasing-forms.tsx",
+      "fingerprint": "aa82a6ee67c918a5",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/purchasing-forms.tsx",
+      "fingerprint": "c55eca82e84c811e",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/purchasing-page.tsx",
+      "fingerprint": "82e33b782ca58c7f",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/purchasing-page.tsx",
+      "fingerprint": "a99674546008ccd2",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/purchasing-page.tsx",
+      "fingerprint": "9de87fb4d2c651b6",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/purchasing-page.tsx",
+      "fingerprint": "4e26b9fb47514dd5",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/purchasing-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/purchasing-page.tsx",
+      "fingerprint": "e9d9dc638ce02f19",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/quick-report.tsx",
+      "fingerprint": "dab0c09f65c3541d",
+      "count": 1
+    },
+    {
+      "rule": "complexity/file-too-large",
+      "engine": "code-quality",
+      "file": "components/pap/quotation-page.tsx",
+      "fingerprint": "message:acc412ddac35058f",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-autofocus",
+      "engine": "lint",
+      "file": "components/pap/quotation-page.tsx",
+      "fingerprint": "ee6a6d5816386e86",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/quotation-page.tsx",
+      "fingerprint": "9bf4ceab1dba9636",
+      "count": 1
+    },
+    {
+      "rule": "react-hooks/exhaustive-deps",
+      "engine": "lint",
+      "file": "components/pap/quotation-page.tsx",
+      "fingerprint": "5ff1604a22ff15b2",
+      "count": 1
+    },
+    {
+      "rule": "react-hooks/exhaustive-deps",
+      "engine": "lint",
+      "file": "components/pap/quotation-page.tsx",
+      "fingerprint": "dd3752c0bf117849",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/quotation-page.tsx",
+      "fingerprint": "cf47e177866163f2",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/quotation-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/quotation-signature.tsx",
+      "fingerprint": "6927b3acc1c0267f",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/quotation-signature.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "code-quality/duplicate-block",
+      "engine": "code-quality",
+      "file": "components/pap/recycle-bin-page.tsx",
+      "fingerprint": "80e8cc91824a8484",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/recycle-bin-page.tsx",
+      "fingerprint": "8f9f42d6045394f2",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/recycle-bin-page.tsx",
+      "fingerprint": "993cd3bbde232868",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/recycle-bin-page.tsx",
+      "fingerprint": "da2c007c6a5bd462",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/recycle-bin-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/repair-page.tsx",
+      "fingerprint": "58f60cbeb0cfce81",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/repair-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/repeat-order-page.tsx",
+      "fingerprint": "45a065d6701a5c7a",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/repeat-order-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/hardcoded-url",
+      "engine": "ai-slop",
+      "file": "components/pap/request-page.tsx",
+      "fingerprint": "bc7f3a853539a9b2",
+      "count": 1
+    },
+    {
+      "rule": "code-quality/duplicate-block",
+      "engine": "code-quality",
+      "file": "components/pap/request-page.tsx",
+      "fingerprint": "35d75f022f53f8d3",
+      "count": 1
+    },
+    {
+      "rule": "complexity/file-too-large",
+      "engine": "code-quality",
+      "file": "components/pap/request-page.tsx",
+      "fingerprint": "message:acc412ddac35058f",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/request-page.tsx",
+      "fingerprint": "20093b66693fe433",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/request-page.tsx",
+      "fingerprint": "7df02517d07bfecb",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/request-page.tsx",
+      "fingerprint": "175b5240bcb74a6b",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/request-page.tsx",
+      "fingerprint": "3f3087bffc09523e",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/request-page.tsx",
+      "fingerprint": "3f3087bffc09523e",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/request-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 2
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/results-page.tsx",
+      "fingerprint": "87512fa2de61aa7e",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/results-page.tsx",
+      "fingerprint": "97e3b5bac92adbf7",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/results-page.tsx",
+      "fingerprint": "3bb324f07e4a650c",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/results-page.tsx",
+      "fingerprint": "8cfdee7d8db9e891",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/results-page.tsx",
+      "fingerprint": "587c59420492adea",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/results-page.tsx",
+      "fingerprint": "c2b02e73368069b6",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/results-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/roles-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "complexity/file-too-large",
+      "engine": "code-quality",
+      "file": "components/pap/sdm-page.tsx",
+      "fingerprint": "message:acc412ddac35058f",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/sdm-page.tsx",
+      "fingerprint": "78fedbd25a91f1c8",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/sdm-page.tsx",
+      "fingerprint": "96635c8227694620",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/sdm-page.tsx",
+      "fingerprint": "9e1d249c01b13aa3",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/sdm-page.tsx",
+      "fingerprint": "0804c7ee98db05d3",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/sdm-page.tsx",
+      "fingerprint": "9dcf282af3efee65",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/sdm-page.tsx",
+      "fingerprint": "5fd0a22021f77f3d",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/sdm-page.tsx",
+      "fingerprint": "dc8b0546a7960fdd",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/hidden-fallback",
+      "engine": "ai-slop",
+      "file": "components/pap/settings-page.tsx",
+      "fingerprint": "408f56454e245b04",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/hidden-fallback",
+      "engine": "ai-slop",
+      "file": "components/pap/settings-page.tsx",
+      "fingerprint": "b454b3a2a40f5e62",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/settings-page.tsx",
+      "fingerprint": "8f493706bbd5ac3e",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/settings-page.tsx",
+      "fingerprint": "e318dc7e65817bc2",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/settings-page.tsx",
+      "fingerprint": "57ee0cf81575a05c",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/settings-page.tsx",
+      "fingerprint": "48dc9ac5018d7008",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/shift-page.tsx",
+      "fingerprint": "57a4c46bb15701fd",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/shift-page.tsx",
+      "fingerprint": "643cda5a1be967c8",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/shift-page.tsx",
+      "fingerprint": "dce648397277c239",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/shift-page.tsx",
+      "fingerprint": "fe34e7946fd61c38",
+      "count": 1
+    },
+    {
+      "rule": "react-hooks/exhaustive-deps",
+      "engine": "lint",
+      "file": "components/pap/shift-page.tsx",
+      "fingerprint": "8180cfbd2ba5be58",
+      "count": 1
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/shift-page.tsx",
+      "fingerprint": "8ff3743df643a5b2",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/shift-page.tsx",
+      "fingerprint": "9a96dae6b2dc6cc5",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/shift-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/shift-page.tsx",
+      "fingerprint": "f125c35df62b38df",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/signature-pad.tsx",
+      "fingerprint": "ce1c778e10c08cd8",
+      "count": 1
+    },
+    {
+      "rule": "unicorn/prefer-string-starts-ends-with",
+      "engine": "lint",
+      "file": "components/pap/signature-pad.tsx",
+      "fingerprint": "503edf8400dbc752",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/hardcoded-url",
+      "engine": "ai-slop",
+      "file": "components/pap/sop-page.tsx",
+      "fingerprint": "9704f211c97c7069",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/sop-page.tsx",
+      "fingerprint": "8bc89acdd77da758",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/sop-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/sparepart-page.tsx",
+      "fingerprint": "53c2cd7fd9f784cf",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/sparepart-page.tsx",
+      "fingerprint": "ecf52645112c665d",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-autofocus",
+      "engine": "lint",
+      "file": "components/pap/sparepart-page.tsx",
+      "fingerprint": "9451c1e6b58a83df",
+      "count": 1
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/sparepart-page.tsx",
+      "fingerprint": "7aa5b99b4f1c4a8e",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/sparepart-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/stock-page.tsx",
+      "fingerprint": "5a364a4cb79d0c98",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/stock-page.tsx",
+      "fingerprint": "7387cdce2f0e0c51",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/tech-analysis.tsx",
+      "fingerprint": "9529733ff287c68c",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/tech-analysis.tsx",
+      "fingerprint": "7bf10ad36fbe29da",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/tech-analysis.tsx",
+      "fingerprint": "96b22d0557b90e12",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/tech-analysis.tsx",
+      "fingerprint": "bd2502c2d00df9fb",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/tech-analysis.tsx",
+      "fingerprint": "bf410aadb3b1d80c",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/tech-analysis.tsx",
+      "fingerprint": "faee14734990fa24",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/tech-analysis.tsx",
+      "fingerprint": "6bb723b03b1495d8",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/tech-analysis.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/ticket-page.tsx",
+      "fingerprint": "c340de1327426bf7",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/ticket-page.tsx",
+      "fingerprint": "4a89fa2574ac3ea7",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/ticket-page.tsx",
+      "fingerprint": "55168fe5e57c8ed9",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/ticket-page.tsx",
+      "fingerprint": "55535c804e6248ce",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/double-type-assertion",
+      "engine": "ai-slop",
+      "file": "components/pap/training-materi.tsx",
+      "fingerprint": "9dce1b7aedccbe0f",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/training-materi.tsx",
+      "fingerprint": "581f6c607f7e7564",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/media-has-caption",
+      "engine": "lint",
+      "file": "components/pap/training-materi.tsx",
+      "fingerprint": "dd9fdcb5e8ed479a",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/training-materi.tsx",
+      "fingerprint": "82dad2dada847826",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/training-materi.tsx",
+      "fingerprint": "89afe66fb6e6e714",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/training-page.tsx",
+      "fingerprint": "6a99369774f33c4c",
+      "count": 1
+    },
+    {
+      "rule": "next/no-img-element",
+      "engine": "lint",
+      "file": "components/pap/training-page.tsx",
+      "fingerprint": "4cc755de633e4c86",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/training-programs.tsx",
+      "fingerprint": "0391372204fa9078",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/training-programs.tsx",
+      "fingerprint": "652d93c2b0c584a4",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-interactive-element-to-noninteractive-role",
+      "engine": "lint",
+      "file": "components/pap/training-programs.tsx",
+      "fingerprint": "c687b5581e57cd8b",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/training-programs.tsx",
+      "fingerprint": "06401c8ec0a74d0c",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/training-programs.tsx",
+      "fingerprint": "185a493d43dd7358",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/training-programs.tsx",
+      "fingerprint": "32814db12a69a010",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/training-programs.tsx",
+      "fingerprint": "338d98f5bdcf0fd1",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/training-programs.tsx",
+      "fingerprint": "5a3af21f48824e74",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/training-programs.tsx",
+      "fingerprint": "a4fb172fd59a5b45",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/training-programs.tsx",
+      "fingerprint": "ae9a5811973ad919",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/training-programs.tsx",
+      "fingerprint": "c687b5581e57cd8b",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/training-programs.tsx",
+      "fingerprint": "d20f26b0d3435fd6",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/click-events-have-key-events",
+      "engine": "lint",
+      "file": "components/pap/training-sessions.tsx",
+      "fingerprint": "709f2fb1042e7d24",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/click-events-have-key-events",
+      "engine": "lint",
+      "file": "components/pap/training-sessions.tsx",
+      "fingerprint": "b6a21f43b2e13717",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-noninteractive-element-interactions",
+      "engine": "lint",
+      "file": "components/pap/training-sessions.tsx",
+      "fingerprint": "709f2fb1042e7d24",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-static-element-interactions",
+      "engine": "lint",
+      "file": "components/pap/training-sessions.tsx",
+      "fingerprint": "b6a21f43b2e13717",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/double-type-assertion",
+      "engine": "ai-slop",
+      "file": "components/pap/ui.tsx",
+      "fingerprint": "290db5cce53d5919",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/double-type-assertion",
+      "engine": "ai-slop",
+      "file": "components/pap/ui.tsx",
+      "fingerprint": "bc11ca9e57076543",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/ui.tsx",
+      "fingerprint": "6a77b886e30a1322",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/ui.tsx",
+      "fingerprint": "d1bdc2e131500c2a",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "components/pap/ui.tsx",
+      "fingerprint": "6728a1e602a89646",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/click-events-have-key-events",
+      "engine": "lint",
+      "file": "components/pap/ui.tsx",
+      "fingerprint": "9503a0fb46f08c30",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-autofocus",
+      "engine": "lint",
+      "file": "components/pap/ui.tsx",
+      "fingerprint": "7f05ce4a09d1e51f",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-static-element-interactions",
+      "engine": "lint",
+      "file": "components/pap/ui.tsx",
+      "fingerprint": "77beca2d5c3ef75c",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-static-element-interactions",
+      "engine": "lint",
+      "file": "components/pap/ui.tsx",
+      "fingerprint": "9503a0fb46f08c30",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-static-element-interactions",
+      "engine": "lint",
+      "file": "components/pap/ui.tsx",
+      "fingerprint": "c45674b25485ac98",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/prefer-tag-over-role",
+      "engine": "lint",
+      "file": "components/pap/ui.tsx",
+      "fingerprint": "ec040991a1d5f0d3",
+      "count": 1
+    },
+    {
+      "rule": "react/refs",
+      "engine": "lint",
+      "file": "components/pap/ui.tsx",
+      "fingerprint": "299ea501f3950b5a",
+      "count": 1
+    },
+    {
+      "rule": "react/refs",
+      "engine": "lint",
+      "file": "components/pap/ui.tsx",
+      "fingerprint": "39358b1717f8eb6f",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/ui.tsx",
+      "fingerprint": "bf940637fc94db06",
+      "count": 1
+    },
+    {
+      "rule": "unicorn/prefer-string-starts-ends-with",
+      "engine": "lint",
+      "file": "components/pap/ui.tsx",
+      "fingerprint": "8bd30883fc5761b6",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/user-activity.tsx",
+      "fingerprint": "dcebae8c65387368",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/user-activity.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/users-page.tsx",
+      "fingerprint": "75b75f6316195d5b",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/users-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/control-has-associated-label",
+      "engine": "lint",
+      "file": "components/pap/vendor-price-list.tsx",
+      "fingerprint": "fe61b490e1be1aac",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/vendor-price-list.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/click-events-have-key-events",
+      "engine": "lint",
+      "file": "components/pap/visit-page.tsx",
+      "fingerprint": "0ca07200ad1d429e",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/click-events-have-key-events",
+      "engine": "lint",
+      "file": "components/pap/visit-page.tsx",
+      "fingerprint": "43b92cec9a304d1e",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-noninteractive-element-interactions",
+      "engine": "lint",
+      "file": "components/pap/visit-page.tsx",
+      "fingerprint": "0ca07200ad1d429e",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-static-element-interactions",
+      "engine": "lint",
+      "file": "components/pap/visit-page.tsx",
+      "fingerprint": "43b92cec9a304d1e",
+      "count": 1
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/visit-page.tsx",
+      "fingerprint": "2cc2ebdb65659964",
+      "count": 1
+    },
+    {
+      "rule": "react/purity",
+      "engine": "lint",
+      "file": "components/pap/visit-page.tsx",
+      "fingerprint": "320333d436670742",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/visit-page.tsx",
+      "fingerprint": "e5768825dc63875a",
+      "count": 1
+    },
+    {
+      "rule": "unicorn/prefer-string-starts-ends-with",
+      "engine": "lint",
+      "file": "lib/accounting-input.ts",
+      "fingerprint": "5092082c474244b1",
+      "count": 1
+    },
+    {
+      "rule": "complexity/file-too-large",
+      "engine": "code-quality",
+      "file": "lib/accounting.ts",
+      "fingerprint": "message:96b0128c3491727f",
+      "count": 1
+    },
+    {
+      "rule": "complexity/file-too-large",
+      "engine": "code-quality",
+      "file": "lib/accurate-sync.ts",
+      "fingerprint": "message:96b0128c3491727f",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/accurate-sync.ts",
+      "fingerprint": "9924981848516717",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "lib/accurate.ts",
+      "fingerprint": "ca33f970ce0c7be1",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/double-type-assertion",
+      "engine": "ai-slop",
+      "file": "lib/action-plan.ts",
+      "fingerprint": "57ec8ad81e2ea870",
+      "count": 1
+    },
+    {
+      "rule": "complexity/file-too-large",
+      "engine": "code-quality",
+      "file": "lib/action-plan.ts",
+      "fingerprint": "message:96b0128c3491727f",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/action-plan.ts",
+      "fingerprint": "9924981848516717",
+      "count": 1
+    },
+    {
+      "rule": "complexity/file-too-large",
+      "engine": "code-quality",
+      "file": "lib/activity.ts",
+      "fingerprint": "message:96b0128c3491727f",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "lib/activity.ts",
+      "fingerprint": "ba1dedcb465f07e2",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/double-type-assertion",
+      "engine": "ai-slop",
+      "file": "lib/ai-assistant.ts",
+      "fingerprint": "175191e9bc328e67",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/ai-assistant.ts",
+      "fingerprint": "f84ccf37cfcd3c45",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/attachments.ts",
+      "fingerprint": "35389c220d41e375",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/attachments.ts",
+      "fingerprint": "4fac74fd04939892",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/attachments.ts",
+      "fingerprint": "c9d1369c76fb65e3",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/attendance.ts",
+      "fingerprint": "9924981848516717",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/double-type-assertion",
+      "engine": "ai-slop",
+      "file": "lib/background.ts",
+      "fingerprint": "1bb027d28e468546",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "lib/belanja-parse.ts",
+      "fingerprint": "b5a44d7f703981b5",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "lib/bpjs-report.ts",
+      "fingerprint": "d581955f7fdad927",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/bpjs-report.ts",
+      "fingerprint": "e9d16f6cfabd71ee",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/complaints.ts",
+      "fingerprint": "20261749d00a9c66",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/complaints.ts",
+      "fingerprint": "2e9d3d0a33a0b994",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/complaints.ts",
+      "fingerprint": "a51544b789e37d47",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/complaints.ts",
+      "fingerprint": "b1842bffc4a76302",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/complaints.ts",
+      "fingerprint": "bf3a9842041e1337",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/complaints.ts",
+      "fingerprint": "f65132111f5ccf28",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "lib/cron-log.ts",
+      "fingerprint": "ca33f970ce0c7be1",
+      "count": 2
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "lib/cron-log.ts",
+      "fingerprint": "da8c59f2adee26c8",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/customers.ts",
+      "fingerprint": "9924981848516717",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/damage-log.ts",
+      "fingerprint": "5fac96a2e5e46103",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/damage-log.ts",
+      "fingerprint": "8536984f021e3d59",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/damage-log.ts",
+      "fingerprint": "a93a42b73c1a7686",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/damage-log.ts",
+      "fingerprint": "cc23c19a04ae9521",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/damage-log.ts",
+      "fingerprint": "cd0b5829d4001aed",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/damage-log.ts",
+      "fingerprint": "eb5047f2fc9f95e6",
+      "count": 1
+    },
+    {
+      "rule": "unicorn/no-useless-spread",
+      "engine": "lint",
+      "file": "lib/damage-log.ts",
+      "fingerprint": "1970d2586f43b031",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/double-type-assertion",
+      "engine": "ai-slop",
+      "file": "lib/db.ts",
+      "fingerprint": "e0effdfd8ab5eddb",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/db.ts",
+      "fingerprint": "ee9f73f6cf5cb7d0",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/double-type-assertion",
+      "engine": "ai-slop",
+      "file": "lib/drive.ts",
+      "fingerprint": "29efc105e54a8799",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/double-type-assertion",
+      "engine": "ai-slop",
+      "file": "lib/drive.ts",
+      "fingerprint": "33bdeab621a2244e",
+      "count": 1
+    },
+    {
+      "rule": "complexity/file-too-large",
+      "engine": "code-quality",
+      "file": "lib/drive.ts",
+      "fingerprint": "message:96b0128c3491727f",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/drive.ts",
+      "fingerprint": "9924981848516717",
+      "count": 2
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/employees.ts",
+      "fingerprint": "df471f211c5f32fe",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/formulations.ts",
+      "fingerprint": "90a1d1f7320ffa6a",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/formulations.ts",
+      "fingerprint": "c7da906df64b6342",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/ga-service.ts",
+      "fingerprint": "698f4df478f95403",
+      "count": 1
+    },
+    {
+      "rule": "complexity/file-too-large",
+      "engine": "code-quality",
+      "file": "lib/ga.ts",
+      "fingerprint": "message:96b0128c3491727f",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/ga.ts",
+      "fingerprint": "4f99aaf6eaea3b1b",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/ga.ts",
+      "fingerprint": "694ca1c132074594",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/ga.ts",
+      "fingerprint": "7b1480638d4f70ee",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/hrd.ts",
+      "fingerprint": "b37d00067d642a56",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/hrd.ts",
+      "fingerprint": "fc04965c8e1d28b9",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "lib/inventaris-import.ts",
+      "fingerprint": "e804831e39bd6538",
+      "count": 1
+    },
+    {
+      "rule": "unicorn/prefer-string-starts-ends-with",
+      "engine": "lint",
+      "file": "lib/inventaris-import.ts",
+      "fingerprint": "5d5ec13f6ed2523c",
+      "count": 1
+    },
+    {
+      "rule": "unicorn/prefer-string-starts-ends-with",
+      "engine": "lint",
+      "file": "lib/inventaris-import.ts",
+      "fingerprint": "a086c013f648ddc6",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/invoice-net.ts",
+      "fingerprint": "9924981848516717",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/hardcoded-url",
+      "engine": "ai-slop",
+      "file": "lib/it-status.ts",
+      "fingerprint": "e38feeaec8017009",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/logistik.ts",
+      "fingerprint": "0a5cb6a12f115ae6",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/logistik.ts",
+      "fingerprint": "7bc0120d4c21a3c2",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/logistik.ts",
+      "fingerprint": "9924981848516717",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "lib/machine-sheet.ts",
+      "fingerprint": "b4186289f60e4793",
+      "count": 1
+    },
+    {
+      "rule": "unicorn/prefer-string-starts-ends-with",
+      "engine": "lint",
+      "file": "lib/machine-sheet.ts",
+      "fingerprint": "758219867a8fe75a",
+      "count": 1
+    },
+    {
+      "rule": "unicorn/prefer-string-starts-ends-with",
+      "engine": "lint",
+      "file": "lib/machine-sheet.ts",
+      "fingerprint": "d2dedf56f7545686",
+      "count": 1
+    },
+    {
+      "rule": "unicorn/prefer-string-starts-ends-with",
+      "engine": "lint",
+      "file": "lib/machine-sheet.ts",
+      "fingerprint": "d9e538adea36273b",
+      "count": 1
+    },
+    {
+      "rule": "complexity/file-too-large",
+      "engine": "code-quality",
+      "file": "lib/marketing.ts",
+      "fingerprint": "message:96b0128c3491727f",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/marketing.ts",
+      "fingerprint": "648c0dfc692fbf18",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/marketing.ts",
+      "fingerprint": "c9315cf44e414f55",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/marketing.ts",
+      "fingerprint": "ca1415e3bcc502eb",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "lib/material-analysis.ts",
+      "fingerprint": "d9a6900cd02290d7",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/hidden-fallback",
+      "engine": "ai-slop",
+      "file": "lib/material-projection.ts",
+      "fingerprint": "028c166e87ded316",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "lib/monitoring.ts",
+      "fingerprint": "ededa0e052cf82f9",
+      "count": 1
+    },
+    {
+      "rule": "unicorn/no-single-promise-in-promise-methods",
+      "engine": "lint",
+      "file": "lib/monitoring.ts",
+      "fingerprint": "029b5a21f0481df4",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "lib/order-custom.ts",
+      "fingerprint": "449d7ce78f0db19d",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/order-custom.ts",
+      "fingerprint": "57ae326e6907f379",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/order-custom.ts",
+      "fingerprint": "91d51774e07495f1",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/order-custom.ts",
+      "fingerprint": "c294c17428bcb195",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/order-custom.ts",
+      "fingerprint": "d820efda673fb10d",
+      "count": 1
+    },
+    {
+      "rule": "unicorn/no-useless-fallback-in-spread",
+      "engine": "lint",
+      "file": "lib/order-custom.ts",
+      "fingerprint": "8c6e8d52cefb5728",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/hidden-fallback",
+      "engine": "ai-slop",
+      "file": "lib/order-documents.ts",
+      "fingerprint": "a75c084cd7d93fe5",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/order-documents.ts",
+      "fingerprint": "ba9245fb5a918612",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "lib/payroll-report.ts",
+      "fingerprint": "1099add7430e1d33",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "lib/payroll-weekly.ts",
+      "fingerprint": "ca33f970ce0c7be1",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "lib/payroll.ts",
+      "fingerprint": "af93a9e79bdf0e1d",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/payroll.ts",
+      "fingerprint": "9924981848516717",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/payroll.ts",
+      "fingerprint": "e6c0d218eebedc47",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "lib/planning.ts",
+      "fingerprint": "ca33f970ce0c7be1",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/purchasing-write.ts",
+      "fingerprint": "a469df0c52925042",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/hardcoded-url",
+      "engine": "ai-slop",
+      "file": "lib/recaptcha.ts",
+      "fingerprint": "f0695cbf1f2315a0",
+      "count": 1
+    },
+    {
+      "rule": "complexity/too-many-params",
+      "engine": "code-quality",
+      "file": "lib/recycle-bin.ts",
+      "fingerprint": "89270417ad55d9e3",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/recycle-bin.ts",
+      "fingerprint": "112378b86dfdf363",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/recycle-bin.ts",
+      "fingerprint": "63f6a8a1d3a428c0",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/recycle-bin.ts",
+      "fingerprint": "bca4fa7d3b0e46b7",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/requests.ts",
+      "fingerprint": "6bbac880eb7aa812",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/sales-invoices.ts",
+      "fingerprint": "3586f628884e3654",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/sales-invoices.ts",
+      "fingerprint": "d59e72bfaf12706b",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/sales-invoices.ts",
+      "fingerprint": "cd35fb2824e1370d",
+      "count": 1
+    },
+    {
+      "rule": "unicorn/no-useless-fallback-in-spread",
+      "engine": "lint",
+      "file": "lib/sheet-write.ts",
+      "fingerprint": "7afa9d38686b2d62",
+      "count": 1
+    },
+    {
+      "rule": "unicorn/no-useless-fallback-in-spread",
+      "engine": "lint",
+      "file": "lib/sheet-write.ts",
+      "fingerprint": "891a64879d4418d2",
+      "count": 1
+    },
+    {
+      "rule": "complexity/file-too-large",
+      "engine": "code-quality",
+      "file": "lib/shift-schedule.ts",
+      "fingerprint": "message:96b0128c3491727f",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-empty",
+      "engine": "lint",
+      "file": "lib/shift-schedule.ts",
+      "fingerprint": "ca33f970ce0c7be1",
+      "count": 2
+    },
+    {
+      "rule": "ai-slop/double-type-assertion",
+      "engine": "ai-slop",
+      "file": "lib/tech-analysis.ts",
+      "fingerprint": "27557f6fa57e4390",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/double-type-assertion",
+      "engine": "ai-slop",
+      "file": "lib/tech-analysis.ts",
+      "fingerprint": "9420456bc4893be4",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/double-type-assertion",
+      "engine": "ai-slop",
+      "file": "lib/tech-analysis.ts",
+      "fingerprint": "d5e90c62d24fbf68",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/hidden-fallback",
+      "engine": "ai-slop",
+      "file": "lib/tech-analysis.ts",
+      "fingerprint": "1838bc90251bf9e7",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/tech-analysis.ts",
+      "fingerprint": "6e40e7e147c979ef",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/tech-analysis.ts",
+      "fingerprint": "a784b601589757c1",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/tech-analysis.ts",
+      "fingerprint": "a8fcc9f5cae2c5c6",
+      "count": 1
+    },
+    {
+      "rule": "eslint/no-unused-expressions",
+      "engine": "lint",
+      "file": "lib/tech-analysis.ts",
+      "fingerprint": "d0aac22651124fc4",
+      "count": 1
+    },
+    {
+      "rule": "security/sql-injection",
+      "engine": "security",
+      "file": "lib/tech-analysis.ts",
+      "fingerprint": "9924981848516717",
+      "count": 2
+    },
+    {
+      "rule": "ai-slop/hardcoded-url",
+      "engine": "ai-slop",
+      "file": "lib/training.ts",
+      "fingerprint": "f7a42f0804d9e447",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/double-type-assertion",
+      "engine": "ai-slop",
+      "file": "lib/users.ts",
+      "fingerprint": "952fded37cb0a950",
+      "count": 1
+    },
+    {
+      "rule": "knip/skipped",
+      "engine": "code-quality",
+      "file": "package.json",
+      "fingerprint": "message:afa23e90d1b253b4",
+      "count": 1
+    },
+    {
+      "rule": "security/dependency-audit-skipped",
+      "engine": "security",
+      "file": "package.json",
+      "fingerprint": "message:8915f36cb7c3b150",
+      "count": 1
+    }
+  ]
+}

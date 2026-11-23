@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Award, Calculator, ClipboardList, ExternalLink, FileSpreadsheet, Pencil, Plus, RefreshCw, Search, Settings, Trash2, UserCheck, UserMinus, Users, Wallet } from 'lucide-react'
+import { AlertTriangle, Award, Calculator, ExternalLink, FileSpreadsheet, Pencil, Plus, RefreshCw, Search, Settings, Trash2, UserCheck, UserMinus, Users, Wallet } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { formatNumber, formatRupiah } from './accurate'
 import { EmployeeForm } from './employee-form'
@@ -38,7 +38,6 @@ const GRADE_TONE: Record<string, string> = { A: 'success', B: 'info', C: 'warnin
 const today = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
 const daysUntil = (iso: string) => Math.round((Date.parse(iso) - Date.parse(today())) / 86_400_000)
 const rp = (v: number | null | undefined) => (v === null || v === undefined ? '—' : formatRupiah(v))
-const short = (v: number) => (v >= 1e6 ? `Rp ${formatNumber(v / 1e6, 1)} jt` : formatRupiah(v))
 
 function Tiles({ tiles }: { tiles: { label: string; value: string; note: string; icon: typeof Users; tone: string; active?: boolean; onClick?: () => void }[] }) {
   return (

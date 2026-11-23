@@ -1,0 +1,23 @@
+# Gerbang kualitas kode: aislop (deterministik, tanpa LLM). Gagal bila skor < ci.failBelow atau ada temuan BARU
+# di luar baseline (.aislop/ci-baseline.json). Konfigurasi: .aislop/config.yml
+name: aislop
+
+on:
+  pull_request:
+  push:
+    branches: [main, staging]
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: aislop ci
+        run: npx --yes aislop@0.20.0 ci --human
