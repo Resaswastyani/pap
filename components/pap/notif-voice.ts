@@ -101,8 +101,33 @@ export async function voiceInfo() {
   return indonesianVoice()?.name ?? null
 }
 
+// Suara dari server (/api/tts, Gemini TTS): diputar berurutan lewat AudioContext yang sudah disiapkan saat klik pertama.
+// Gagal (server belum dikonfigurasi / kuota habis): cukup nada.
+let serverQueue: Promise<void> = Promise.resolve()
+function playServer(texts: string[]) {
+  serverQueue = serverQueue.then(async () => {
+    for (const text of texts) {
+      try {
+        const res = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) })
+        if (!res.ok || !audio) return
+        const buf = await audio.decodeAudioData(await res.arrayBuffer())
+        await new Promise<void>((done) => {
+          const src = audio!.createBufferSource()
+          src.buffer = buf
+          src.connect(audio!.destination)
+          src.onended = () => done()
+          src.start()
+        })
+      } catch {
+        return // jaringan / audio gagal: berhenti, nada sudah berbunyi
+      }
+    }
+  })
+  return serverQueue
+}
+
 // Bunyikan & bacakan notifikasi baru (maks 3 sekaligus agar tidak terlalu panjang).
-// Hanya dibacakan dengan suara bahasa Indonesia; bila perangkat tidak punya, cukup nada (tidak memakai suara Inggris).
+// Dibacakan dengan suara bahasa Indonesia perangkat; bila tidak ada, suara perempuan dari server (Gemini). Tidak memakai suara Inggris.
 export function announce(items: { title: string; body: string | null }[]) {
   if (!items.length || !voiceEnabled()) return
   chime()
@@ -111,7 +136,8 @@ export function announce(items: { title: string; body: string | null }[]) {
   const extra = items.length - list.length
   void voicesReady().then(() => {
     const v = indonesianVoice()
-    if (!v) return
+    // Perangkat tanpa suara Indonesia: suara perempuan dari server (Gemini)
+    if (!v) return void playServer(list.map((n, i) => spokenText(n.title, n.body) + (i === list.length - 1 && extra > 0 ? ` Dan ${extra} notifikasi lainnya.` : '')))
     // Jeda sebentar setelah nada, lalu dibacakan berurutan
     setTimeout(() => {
       list.forEach((n, i) => {

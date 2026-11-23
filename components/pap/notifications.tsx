@@ -126,7 +126,7 @@ function VoiceToggle() {
   const [voice, setVoice] = useState(voiceEnabled)
   const [nama, setNama] = useState<string | null | undefined>(undefined)
   useEffect(() => { let on = true; voiceInfo().then((n) => on && setNama(n)); return () => { on = false } }, [])
-  const ket = nama ? `suara: ${nama}` : nama === null ? 'suara bahasa Indonesia belum ada di perangkat ini, hanya nada' : ''
+  const ket = nama ? `suara: ${nama}` : nama === null ? 'suara perempuan bahasa Indonesia dari server SIMPAP' : ''
   return (
     <button type="button" className={`pap-notif-voice ${voice ? 'on' : ''}`} aria-pressed={voice}
       title={`${voice ? 'Suara notifikasi aktif (klik untuk matikan)' : 'Suara notifikasi mati (klik untuk aktifkan)'}${ket ? ` · ${ket}` : ''}`}
