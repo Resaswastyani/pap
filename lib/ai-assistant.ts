@@ -24,7 +24,7 @@ const has = (u: UserProfile, ...menus: string[]) => menus.some((m) => (u.menus a
 const SALES_MENUS = ['customer', 'repeat-order', 'order-bulanan', 'keuangan', 'laporan-keuangan']
 const num = (v: unknown) => Math.round(Number(v ?? 0))
 const SECTOR_KEYS = SECTORS.map((s) => s.key)
-const sectorArg: Schema = { type: 'STRING', enum: [...SECTOR_KEYS], description: 'Sektor customer: laundry, beras, umum (Sektor Umum), lainnya. Kosongkan untuk semua sektor.' }
+const sectorArg: Schema = { type: 'STRING', enum: [...SECTOR_KEYS], description: 'Sektor customer: laundry, beras, umum (Sektor Umum). Kosongkan untuk semua sektor.' }
 const sectorFilter = (args: Args, col = 'c.category') => {
   const s = String(args.sektor ?? '')
   return SECTOR_KEYS.includes(s as never) ? { sql: ` AND ${sectorSql(col)} = ?`, params: [s] } : { sql: '', params: [] as string[] }
@@ -270,7 +270,7 @@ Aturan:
 - Angka tentang data perusahaan WAJIB berasal dari alat (function); jangan mengarang data internal. Bila data tidak tersedia atau alat gagal, katakan terus terang.
   Untuk pertanyaan umum boleh memakai pengetahuan umum; bila informasinya bisa berubah (harga pasar, regulasi, kurs), sebutkan bahwa itu perkiraan umum dan sarankan dicek ulang.
 - Alat yang tersedia untuk pengguna ini: ${tools.map((t) => t.label).join(', ') || '(tidak ada)'}. Bila pertanyaan butuh data perusahaan di luar itu, jelaskan bahwa pengguna tidak punya akses ke menu terkait.
-- Sektor customer berasal dari kategori Accurate: (LAU) = Laundry, (BRS) = Beras, (SU) = Sektor Umum, tanpa kode = Lainnya. Pelanggan = sudah >= 2 faktur; Pembeli = 1 faktur; pasif = tidak order lebih dari ${CYCLE_PASSIVE_FACTOR}x cycle order customer itu (min. ${CYCLE_PASSIVE_MIN_DAYS} hari; cycle = median jarak order atau diisi manual; belum diketahui: ${CRM_INACTIVE_DAYS} hari).
+- Sektor customer berasal dari kategori Accurate: (LAU) = Laundry, (BRS) = Beras; customer tanpa kode yang namanya mengandung laundry / beras ikut sektor itu; selain itu (termasuk SU) = Sektor Umum. Pelanggan = sudah >= 2 faktur; Pembeli = 1 faktur; pasif = tidak order lebih dari ${CYCLE_PASSIVE_FACTOR}x cycle order customer itu (min. ${CYCLE_PASSIVE_MIN_DAYS} hari; cycle = median jarak order atau diisi manual; belum diketahui: ${CRM_INACTIVE_DAYS} hari).
 - Tulis Rupiah ringkas: Rp 1,25 M (miliar), Rp 830 jt (juta), Rp 45 rb. Pakai koma sebagai desimal.
 - Bila tren, perbandingan, atau peringkat lebih jelas dengan grafik, panggil buat_grafik (maks 3 grafik per jawaban). Nilai grafik dalam angka penuh (bukan juta).
 - Struktur jawaban analisis data: ringkasan 1-2 kalimat, lalu poin-poin temuan penting (pakai **tebal** untuk angka kunci), lalu "Rekomendasi" berupa langkah konkret (mis. customer yang perlu dihubungi, wilayah potensial, biaya yang perlu ditekan).
