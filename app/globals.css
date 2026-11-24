@@ -3625,3 +3625,6 @@ a.pap-row-action { text-decoration:none; }
 .ta-v1 .ta1-gambar { width:100%; table-layout:fixed; border-collapse:collapse; margin-bottom:10px; }
 .ta-v1 .ta1-gambar td { padding:6px; border:1px solid #6b7085; text-align:center; vertical-align:top; font-size:10.5px; overflow-wrap:anywhere; }
 .ta-v1 .ta1-gambar img { display:block; max-width:100%; max-height:150px; margin:0 auto 4px; object-fit:contain; }
+.pap-notif-voice-select { max-width:185px; height:26px; padding:0 6px; border:1px solid var(--pap-border); border-radius:8px; background:var(--pap-surface); color:var(--pap-text); font-size:11.5px; }
+.pap-notif-head { flex-wrap:wrap; gap:6px; }
+.pap-notif-head-actions { flex-wrap:wrap; justify-content:flex-end; }
