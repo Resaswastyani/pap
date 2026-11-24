@@ -87,3 +87,16 @@ export async function promoteOrderedProspects() {
   if (created.length) await pushToUsers(created)
   return { terhubung: linked, pindah, orderPertama }
 }
+
+// Pemicu kedua (selain sinkron Accurate): saat daftar prospek dibuka, paling sering sekali per 10 menit
+let lastRun = 0
+export async function promoteIfStale() {
+  if (Date.now() - lastRun < 10 * 60_000) return null
+  lastRun = Date.now()
+  try {
+    return await promoteOrderedProspects()
+  } catch (error) {
+    console.error('[prospek -> customer]', error)
+    return null
+  }
+}

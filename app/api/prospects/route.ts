@@ -4,6 +4,7 @@ import { syncProspectAnalyses } from '@/lib/tech-analysis'
 import { fail, handle, readJson, requireUser, pageParams } from '@/lib/api'
 import { db } from '@/lib/db'
 import { applyStatusFilter, areaOptions, canActProspect, plasticOptions, plasticTotals, isMarketing, logActivity, MARKETING_DIVISIONS, parseDateTime, PROSPECT_SELECT, PROSPECT_SOURCES, readSalesIds, saveProspectSales, withSales, prospectFilter, prospectScope, readProspectInput, readProspectProducts, saveProspectProducts, requireMarketing } from '@/lib/marketing'
+import { promoteIfStale } from '@/lib/prospect-promotion'
 import { notify } from '@/lib/notifications'
 import { pushToUsers } from '@/lib/push'
 
@@ -13,6 +14,8 @@ const PAGE_SIZE = 50
 export const GET = handle(async (request: Request) => {
   const user = await requireUser()
   requireMarketing(user, 'prospek')
+  // Prospek yang sudah order >= 2x di Accurate otomatis pindah ke Customer (dibatasi 1x / 10 menit)
+  await promoteIfStale()
   const url = new URL(request.url)
   const scope = prospectScope(user)
   const { where, params, plastik } = await prospectFilter(user, url.searchParams)
