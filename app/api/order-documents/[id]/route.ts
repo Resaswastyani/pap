@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { fail, handle, int, readJson, requireUser } from '@/lib/api'
-import { canDeleteDoc, deleteOrderDocument, loadOrderDocument, readDocInput, updateOrderDocument } from '@/lib/order-documents'
+import { canDeleteDoc, deleteOrderDocument, loadOrderDocument, readDocInput, requireOrderDocAccess, updateOrderDocument } from '@/lib/order-documents'
 import { syncOrderDocChecklists } from '@/lib/order-custom'
 import { requireDokumenOrder } from '@/lib/so-document'
 
@@ -9,15 +9,15 @@ const docId = async (ctx: Ctx) => int((await ctx.params).id) ?? fail(404, 'Dokum
 
 export const GET = handle(async (_request: Request, ctx: Ctx) => {
   const user = await requireUser()
-  requireDokumenOrder(user)
   const item = await loadOrderDocument(await docId(ctx))
+  await requireOrderDocAccess(user, item.quotation_id)
   return NextResponse.json({ item, can: { delete: canDeleteDoc(user, item) } })
 })
 
 export const PUT = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
-  requireDokumenOrder(user)
   const id = await docId(ctx)
+  await requireOrderDocAccess(user, (await loadOrderDocument(id)).quotation_id)
   const body = await readJson(request)
   const input = await readDocInput(body)
   await updateOrderDocument(user, id, input)

@@ -85,7 +85,7 @@ export function WaButton({ phone, text, label = 'WhatsApp' }: { phone: string | 
 
 // ---- Pilih prospek (pencarian) ----
 export type ProspectOption = { id: number; nama_usaha: string; kota: string | null; kontak_nama: string | null; alamat: string | null; status: ProspectStatus }
-export function ProspectSelect({ value, onChange }: { value: ProspectOption | null; onChange: (p: ProspectOption) => void }) {
+export function ProspectSelect({ value, onChange, optional = false }: { value: ProspectOption | null; onChange: (p: ProspectOption) => void; optional?: boolean }) {
   const [term, setTerm] = useState('')
   const [options, setOptions] = useState<ProspectOption[]>([])
   const [open, setOpen] = useState(false)
@@ -105,7 +105,7 @@ export function ProspectSelect({ value, onChange }: { value: ProspectOption | nu
         onFocus={() => { setOpen(true); setTerm('') }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onChange={(e) => setTerm(e.target.value)}
-        required={!value}
+        required={!value && !optional}
       />
       {open && (
         <ul className="pap-combo-list">

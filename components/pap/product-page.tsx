@@ -196,7 +196,7 @@ export function ProductPage({ user, focusId }: { user: UserProfile; focusId?: nu
 }
 
 // Pilih customer dengan pencarian (data customer hasil sinkron Accurate)
-export function CustomerSelect({ value, onChange }: { value: CustomerOption | null; onChange: (c: CustomerOption) => void }) {
+export function CustomerSelect({ value, onChange, optional = false }: { value: CustomerOption | null; onChange: (c: CustomerOption) => void; optional?: boolean }) {
   const [term, setTerm] = useState('')
   const [options, setOptions] = useState<CustomerOption[]>([])
   const [open, setOpen] = useState(false)
@@ -216,7 +216,7 @@ export function CustomerSelect({ value, onChange }: { value: CustomerOption | nu
         onFocus={() => { setOpen(true); setTerm('') }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onChange={(e) => setTerm(e.target.value)}
-        required={!value}
+        required={!value && !optional}
       />
       {open && (
         <ul className="pap-combo-list">

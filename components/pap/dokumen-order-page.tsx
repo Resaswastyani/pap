@@ -29,28 +29,17 @@ type SavedDoc = DocData & { id: number; created_by: number; created_by_name: str
 const STATUS_TONE: Record<string, string> = { 'Menunggu diproses': 'warning', 'Sebagian diproses': 'info', Terproses: 'success', Ditutup: 'neutral' }
 const JENIS_LABEL: Record<Jenis, string> = { order: 'Surat Order', proforma: 'Proforma Invoice' }
 const thisMonth = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 7)
-type Editing = { id?: number; soId?: number | null; quotationId?: number | null; jenis: Jenis }
+export type Editing = { id?: number; soId?: number | null; quotationId?: number | null; jenis: Jenis }
 // Form Order Custom per produk (checklist di menu Form Order Custom); terkunci setelah diserahkan ke PPIC
 type Custom = { on: boolean; open: boolean; isian: Isian; id?: number; nomor?: string; status?: string }
 const OC_STATUS: Record<string, string> = { draft: 'Draft', ppic: 'Di PPIC', operasional: 'Di Operasional', selesai: 'Lengkap' }
 const OC_TONE: Record<string, string> = { draft: 'neutral', ppic: 'warning', operasional: 'info', selesai: 'success' }
 
-export function DokumenOrderPage({ user, fromQuotation }: { user: UserProfile; fromQuotation?: { quotationId: number; jenis: Jenis } | null }) {
+export function DokumenOrderPage({ user }: { user: UserProfile }) {
   const [tab, setTab] = useState<'tersimpan' | 'so'>('tersimpan')
   const [editing, setEditing] = useState<Editing | null>(null)
   const [reload, setReload] = useState(0)
   const [message, setMessage] = useState('')
-  // Dari tombol Surat Order / Proforma Invoice di Quotation: dokumen yang sudah tersimpan dibuka untuk diedit,
-  // bila belum ada dibuat draf baru berisi data quotation
-  useEffect(() => {
-    if (!fromQuotation) return
-    let alive = true
-    const { quotationId, jenis } = fromQuotation
-    api<{ id: number | null }>(`/api/order-documents/draft?jenis=${jenis}&quotation=${quotationId}&cek=1`)
-      .then((r) => alive && setEditing(r.id ? { id: r.id, jenis } : { quotationId, jenis }))
-      .catch((e) => alive && setMessage((e as Error).message))
-    return () => { alive = false }
-  }, [fromQuotation])
 
   return (
     <>
@@ -230,7 +219,8 @@ const UNITS = ['pcs', 'kg', 'pack', 'roll', 'lembar']
 const unitOptions = (u: string) => (u && !UNITS.some((x) => x.toLowerCase() === u.toLowerCase()) ? [...UNITS, u] : UNITS)
 const kgOf = (lines: Line[]) => Math.round(lines.filter((l) => /^kg$/i.test(l.unit.trim())).reduce((t, l) => t + num(l.qty), 0) * 100) / 100
 
-function DocEditor({ editing, canCustom, onClose, onSaved }: { editing: Editing; canCustom: boolean; onClose: () => void; onSaved: (nomor: string, isNew: boolean) => void }) {
+// Form edit dokumen (juga dipakai dari Quotation: tombol Edit Surat Order / Edit Proforma Invoice)
+export function DocEditor({ editing, canCustom, onClose, onSaved }: { editing: Editing; canCustom: boolean; onClose: () => void; onSaved: (nomor: string, isNew: boolean) => void }) {
   const isNew = !editing.id
   const [jenis, setJenis] = useState<Jenis>(editing.jenis)
   const [v, setV] = useState<DocData | null>(null)
@@ -378,7 +368,7 @@ function DocEditor({ editing, canCustom, onClose, onSaved }: { editing: Editing;
                     <button type="button" className={mode === 'prospek' ? 'active' : ''} onClick={() => setMode('prospek')}>Prospek</button>
                     <button type="button" className={mode === 'customer' ? 'active' : ''} onClick={() => setMode('customer')}>Customer</button>
                   </div>
-                  {mode === 'prospek' ? <ProspectSelect value={prospect} onChange={pickProspect} /> : <CustomerSelect value={customer} onChange={pickCustomer} />}
+                  {mode === 'prospek' ? <ProspectSelect value={prospect} onChange={pickProspect} optional={!!v.prospect_id} /> : <CustomerSelect value={customer} onChange={pickCustomer} optional={!!(v.customer_id || v.customer_no)} />}
                   {!prospect && !customer && (v.customer_no || v.kepada) && <small className="pap-muted">{mode === 'customer' ? 'Daftar customer dari Accurate. ' : ''}Saat ini: {v.kepada || '—'}{v.customer_no ? ` (${v.customer_no})` : ''}</small>}
                 </div>
               </div>

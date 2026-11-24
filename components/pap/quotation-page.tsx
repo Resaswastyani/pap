@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { openDokumenFromQuotation } from './open-dokumen'
+import dynamic from 'next/dynamic'
 import { Ban, CheckCircle2, Copy, FileDown, FileText, MessageCircle, Package, Store, Pencil, Plus, Printer, Receipt, Search, Send, Settings2, Trash2, TrendingUp, Truck, Wallet, XCircle } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { rupiah } from '@/lib/hpp-calc'
@@ -12,6 +12,9 @@ import { PaymentForm } from './payment-page'
 import { QuotationSignatures } from './quotation-signature'
 import { CustomerSelect, type CustomerOption } from './product-page'
 import { api, askReason, Field, formatDate, Modal, Notice, Pager, usePaged, RowActions, confirmDialog, FreshBadge } from './ui'
+import type { Editing as DocEditing } from './dokumen-order-page'
+// Form edit Surat Order / Proforma Invoice yang sama dengan menu Dokumen Order (dimuat saat dibuka)
+const DocEditor = dynamic(() => import('./dokumen-order-page').then((m) => m.DocEditor), { ssr: false })
 
 type Status = 'draft' | 'dikirim' | 'diterima' | 'ditolak' | 'batal'
 const STATUS_LABEL: Record<Status, string> = { draft: 'Draft', dikirim: 'Dikirim', diterima: 'Diterima', ditolak: 'Ditolak', batal: 'Batal' }
@@ -153,6 +156,7 @@ export function QuotationPage({ user, focusId }: { user: UserProfile; focusId?: 
         <QuotationDetail
           id={detailId}
           userName={user.name}
+          canCustom={user.role.isAdmin || user.menus.includes('order-custom' as never)}
           autoEdit={autoEdit}
           onClose={() => setDetailId(null)}
           onChanged={flash}
@@ -410,8 +414,8 @@ function DocTemplateModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
 }
 
 // ---------------- Detail penawaran ----------------
-function QuotationDetail({ id, userName, autoEdit = false, onClose, onChanged, onEdit, onCopy, onDeleted }: {
-  id: number; userName: string; autoEdit?: boolean; onClose: () => void; onChanged: (m: string) => void
+function QuotationDetail({ id, userName, canCustom = false, autoEdit = false, onClose, onChanged, onEdit, onCopy, onDeleted }: {
+  id: number; userName: string; canCustom?: boolean; autoEdit?: boolean; onClose: () => void; onChanged: (m: string) => void
   onEdit: (q: Quotation & { items: Item[] }) => void; onCopy: (q: Quotation & { items: Item[] }) => void; onDeleted: () => void
 }) {
   const [item, setItem] = useState<Quotation | null>(null)
@@ -562,7 +566,7 @@ function QuotationDetail({ id, userName, autoEdit = false, onClose, onChanged, o
           </div>
         </div>
       )}
-      {item.status === 'diterima' && <OrderPanel item={item} canWrite={canWrite} onSaved={async (t) => { await load(); onChanged(t) }} />}
+      {item.status === 'diterima' && <OrderPanel item={item} canWrite={canWrite} canCustom={canCustom} onSaved={async (t) => { await load(); onChanged(t) }} />}
       {item.alasan && <Notice>Alasan {STATUS_LABEL[item.status].toLowerCase()}: {item.alasan}</Notice>}
       <QuotationSignatures quote={{ id: item.id, nomor: item.nomor, kepada: item.kepada, kontak: item.kontak ?? null, total: item.total, status: item.status }} userName={userName} onChanged={onChanged} />
 
@@ -600,12 +604,29 @@ function QuotationDetail({ id, userName, autoEdit = false, onClose, onChanged, o
 // ---------------- Surat Order, Proforma Invoice, pembayaran ----------------
 type Expedition = { id: number; nama: string; tujuan: string; tarif_per_kg: number | null; estimasi_hari: string | null; aktif: number }
 
-function OrderPanel({ item, canWrite, onSaved }: { item: Quotation; canWrite: boolean; onSaved: (m: string) => void }) {
+function OrderPanel({ item, canWrite, canCustom, onSaved }: { item: Quotation; canWrite: boolean; canCustom: boolean; onSaved: (m: string) => void }) {
+  // Edit Surat Order / Proforma Invoice: form Dokumen Order; hasilnya tersimpan di menu Dokumen Order
+  const [docEdit, setDocEdit] = useState<DocEditing | null>(null)
+  const [docBusy, setDocBusy] = useState(false)
+  async function openDoc(jenis: 'order' | 'proforma') {
+    setDocBusy(true)
+    setError('')
+    try {
+      // Sudah pernah disimpan: buka dokumennya; belum: draf baru berisi data quotation
+      const r = await api<{ id: number | null }>(`/api/order-documents/draft?jenis=${jenis}&quotation=${item.id}&cek=1`)
+      setDocEdit(r.id ? { id: r.id, jenis } : { quotationId: item.id, jenis })
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setDocBusy(false)
+    }
+  }
   const [editing, setEditing] = useState(!item.order_nomor)
   const [paying, setPaying] = useState(false)
   const [expeditions, setExpeditions] = useState<Expedition[]>([])
   const [v, setV] = useState({
-    pengiriman: item.pengiriman ?? (item.expedition_id ? 'ekspedisi' : 'driver_pap'), driver_nama: item.driver_nama ?? '',
+    // Pengiriman opsional: kosong bila belum dipilih; klik pilihan yang aktif untuk membatalkan
+    pengiriman: (item.pengiriman ?? (item.expedition_id ? 'ekspedisi' : '')) as NonNullable<Quotation['pengiriman']> | '', driver_nama: item.driver_nama ?? '',
     tanggal_kirim: item.tanggal_kirim ?? '', dp_persen: item.dp_persen?.toString() ?? '50', expedition_id: item.expedition_id ? String(item.expedition_id) : '',
     ongkir: item.ongkir?.toString() ?? '', catatan_order: item.catatan_order ?? '',
   })
@@ -639,10 +660,10 @@ function OrderPanel({ item, canWrite, onSaved }: { item: Quotation; canWrite: bo
           <Field label="Rencana tanggal kirim"><input className="pap-input" type="date" value={v.tanggal_kirim} onChange={set('tanggal_kirim')} /></Field>
           <Field label="DP (%)"><input className="pap-input" inputMode="decimal" value={v.dp_persen} onChange={set('dp_persen')} placeholder="50" /></Field>
           <div className="pap-field full">
-            <span>Pengiriman</span>
+            <span>Pengiriman <small className="pap-muted">(opsional · klik lagi untuk membatalkan pilihan)</small></span>
             <div className="pap-ship-options" role="radiogroup" aria-label="Cara pengiriman">
               {([['driver_pap', Truck, 'Driver PAP', 'Diantar armada / driver sendiri PT. PAP'], ['ekspedisi', Package, 'Ekspedisi', 'Dikirim lewat ekspedisi / cargo'], ['ambil', Store, 'Diambil sendiri', 'Customer mengambil ke pabrik']] as const).map(([k, Icon, label, hint]) => (
-                <button type="button" key={k} role="radio" aria-checked={v.pengiriman === k} className={`pap-ship-option ${v.pengiriman === k ? 'active' : ''}`} onClick={() => setV((x) => ({ ...x, pengiriman: k }))}>
+                <button type="button" key={k} role="radio" aria-checked={v.pengiriman === k} className={`pap-ship-option ${v.pengiriman === k ? 'active' : ''}`} onClick={() => setV((x) => ({ ...x, pengiriman: x.pengiriman === k ? '' : k }))}>
                   <Icon /><b>{label}</b><small>{hint}</small>
                 </button>
               ))}
@@ -674,12 +695,15 @@ function OrderPanel({ item, canWrite, onSaved }: { item: Quotation; canWrite: bo
           <div className="pap-inline-actions pap-wrap">
             {canWrite && <button className="pap-btn" onClick={() => setEditing(true)}><Pencil /> Ubah data order</button>}
             <span className="pap-spacer" />
-            {/* Dibuka di menu Dokumen Order untuk diedit dulu, lalu dicetak dari sana */}
-            <button type="button" className="pap-btn" title="Edit & cetak di menu Dokumen Order" onClick={() => openDokumenFromQuotation({ quotationId: item.id, jenis: 'order', fallbackUrl: docLinks(item.id, 'order').pdf })}><Printer /> Surat Order</button>
-            <button type="button" className="pap-btn" title="Edit & cetak di menu Dokumen Order" onClick={() => openDokumenFromQuotation({ quotationId: item.id, jenis: 'proforma', fallbackUrl: docLinks(item.id, 'proforma').pdf })}><Printer /> Proforma Invoice</button>
+            <button type="button" className="pap-btn" disabled={docBusy} title="Edit lalu simpan ke menu Dokumen Order" onClick={() => openDoc('order')}><Pencil /> Edit Surat Order</button>
+            <button type="button" className="pap-btn" disabled={docBusy} title="Edit lalu simpan ke menu Dokumen Order" onClick={() => openDoc('proforma')}><Pencil /> Edit Proforma Invoice</button>
             {sisa > 0 && <button className="pap-primary-button" onClick={() => setPaying(true)}><Wallet /> Konfirmasi pembayaran</button>}
           </div>
         </>
+      )}
+      {docEdit && (
+        <DocEditor key={`${docEdit.id ?? 'baru'}-${docEdit.jenis}`} editing={docEdit} canCustom={canCustom} onClose={() => setDocEdit(null)}
+          onSaved={(nomor, isNew) => { setDocEdit(null); onSaved(`${nomor} ${isNew ? 'disimpan' : 'diperbarui'} di menu Dokumen Order.`) }} />
       )}
       {paying && (
         <PaymentForm

@@ -5,7 +5,7 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { fail, int, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { loadSettings } from '@/lib/hpp'
-import { type DocView, loadSoDocument, proformaTagihan, readSoJenis, soDocNomor, type SoJenis, todayWib } from '@/lib/so-document'
+import { type DocView, loadSoDocument, proformaTagihan, readSoJenis, requireDokumenOrder, soDocNomor, type SoJenis, todayWib } from '@/lib/so-document'
 import { loadQuotation, loadQuotationItems } from '@/lib/quotations'
 import { isManagement, type UserProfile } from '@/lib/users'
 import { softDelete } from '@/lib/recycle-bin'
@@ -224,6 +224,14 @@ export async function draftOrderDocument(jenis: SoJenis, soId: number | null): P
     terbayar: so.terbayar, dp_persen: jenis === 'proforma' && !so.terbayar ? (so.dp_persen && so.dp_persen < 100 ? so.dp_persen : null) : null,
     catatan: so.keterangan.replace(/\n\s*\n+/g, '\n').trim() || null, ...base,
   }
+}
+
+// Akses dokumen: menu Dokumen Order; dokumen yang tertaut Quotation juga boleh dibuka / disimpan pengguna menu Quotation
+// yang bisa melihat quotation tersebut (Surat Order & Proforma diedit dari menu Quotation)
+export async function requireOrderDocAccess(user: UserProfile, quotationId: number | null | undefined) {
+  if (user.menus.includes('dokumen-order' as never)) return
+  if (quotationId && user.menus.includes('quotation' as never)) { await loadQuotation(quotationId, user); return }
+  requireDokumenOrder(user)
 }
 
 // Dokumen yang sudah tersimpan untuk quotation ini (per jenis); null = belum ada
