@@ -3605,3 +3605,7 @@ a.pap-row-action { text-decoration:none; }
 .pap-notif-voice svg { width:14px; height:14px; }
 .pap-notif-voice.on { border-color:#12a37a66; color:#0b7a5a; background:#12a37a12; }
 .pap-toast-logo { background:#f1f3fa url(/logo-mark.png) center / 28px no-repeat; }
+
+.pap-notif-voice-select { max-width:185px; height:26px; padding:0 6px; border:1px solid var(--pap-border); border-radius:8px; background:var(--pap-surface); color:var(--pap-text); font-size:11.5px; }
+.pap-notif-head { flex-wrap:wrap; gap:6px; }
+.pap-notif-head-actions { flex-wrap:wrap; justify-content:flex-end; }

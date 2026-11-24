@@ -14,6 +14,24 @@ const MONTHS: Record<string, string> = {
 export function voiceEnabled() {
   try { return localStorage.getItem(KEY) !== 'off' } catch { return true }
 }
+// Pilihan suara: suara perempuan dari server (Gemini) atau suara bawaan perangkat
+export const VOICE_OPTIONS = [
+  { id: 'Laomedeia', label: 'Laomedeia · ceria & semangat' },
+  { id: 'Zephyr', label: 'Zephyr · cerah & energik' },
+  { id: 'Autonoe', label: 'Autonoe · cerah' },
+  { id: 'Leda', label: 'Leda · muda & segar' },
+  { id: 'Aoede', label: 'Aoede · santai' },
+  { id: 'Kore', label: 'Kore · tegas' },
+  { id: 'perangkat', label: 'Suara bawaan perangkat (offline)' },
+] as const
+const NAME_KEY = 'pap-notif-voice-name'
+export function voiceChoice(): string {
+  try { const v = localStorage.getItem(NAME_KEY); return v && VOICE_OPTIONS.some((o) => o.id === v) ? v : 'Laomedeia' } catch { return 'Laomedeia' }
+}
+export function setVoiceChoice(id: string) {
+  try { localStorage.setItem(NAME_KEY, id) } catch { /* penyimpanan diblokir: pakai bawaan */ }
+}
+
 export function setVoiceEnabled(on: boolean) {
   try { localStorage.setItem(KEY, on ? 'on' : 'off') } catch { /* penyimpanan diblokir: tetap default aktif */ }
   if (!on && typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()
@@ -114,7 +132,7 @@ function playServer(texts: string[]) {
   serverQueue = serverQueue.then(async () => {
     for (const text of texts) {
       try {
-        const res = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) })
+        const res = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice: voiceChoice() === 'perangkat' ? undefined : voiceChoice() }) })
         if (!res.ok || !audio) return
         const buf = await audio.decodeAudioData(await res.arrayBuffer())
         await new Promise<void>((done) => {
@@ -141,7 +159,8 @@ export function announce(items: { title: string; body: string | null }[]) {
   const list = items.slice(-3)
   const extra = items.length - list.length
   void voicesReady().then(() => {
-    const v = indonesianVoice()
+    // Suara Gemini dipilih (bawaan: Laomedeia): selalu dari server; "Suara bawaan perangkat": suara Indonesia perangkat bila ada
+    const v = voiceChoice() === 'perangkat' ? indonesianVoice() : null
     // Perangkat tanpa suara Indonesia: suara perempuan dari server (Gemini)
     if (!v) return void playServer(list.map((n, i) => spokenText(n.title, n.body) + (i === list.length - 1 && extra > 0 ? ` Dan ${extra} notifikasi lainnya.` : '')))
     // Jeda sebentar setelah nada, lalu dibacakan berurutan
@@ -160,5 +179,5 @@ export function announce(items: { title: string; body: string | null }[]) {
 // Contoh suara (tombol "Tes suara")
 export function testVoice() {
   unlockAudio()
-  announce([{ title: 'Notifikasi SIMPAP', body: 'Suara notifikasi aktif' }])
+  announce([{ title: 'Halo, semangat kerja hari ini', body: 'Suara notifikasi SIMPAP sudah aktif' }])
 }
