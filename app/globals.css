@@ -3656,3 +3656,13 @@ a.pap-row-action { text-decoration:none; }
 .pap-sector-select.umum, .pap-sector-pill.umum { border-color:var(--viz-s3, #4fbf9f); color:#1d7f63; background-color:rgb(79 191 159 / .12); }
 .pap-sector-select.lainnya, .pap-sector-pill.lainnya { border-color:var(--viz-s4, #9a9cb0); color:#5f6478; background-color:rgb(154 156 176 / .14); }
 .pap-sector-pill { display:inline-block; padding:4px 10px; border:1px solid var(--pap-border); border-radius:99px; font-size:12px; font-weight:700; }
+
+/* Kolom Kategori ringkas agar kolom Aksi (Detail / Ubah) tetap muat */
+.pap-sector-cell { min-width:0; width:128px; }
+.pap-sector-select { width:128px; height:30px; padding:0 26px 0 10px; font-size:12px; }
+.pap-sector-cell small { padding-left:10px; }
+
+/* Daftar customer: kolom lebih rapat agar Aksi (Detail / Ubah) muat di layar laptop */
+.pap-customer-table th, .pap-customer-table td { padding-left:14px; padding-right:14px; }
+.pap-sector-cell { width:142px; }
+.pap-sector-select { width:142px; padding-right:24px; }

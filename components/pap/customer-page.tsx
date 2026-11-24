@@ -148,8 +148,8 @@ export function CustomerPage({ user }: { user: UserProfile }) {
         </div>
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
-          <table>
-            <thead><tr><th>Customer</th><th>Kategori</th><th>Kontak</th><th>Transaksi</th><th>Status</th><th>Produk</th><th className="pap-actions-col">Aksi</th></tr></thead>
+          <table className="pap-customer-table">
+            <thead><tr><th>Customer</th><th>Kategori</th><th>Kontak</th><th>Transaksi</th><th>Status · produk</th><th className="pap-actions-col">Aksi</th></tr></thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
@@ -157,8 +157,7 @@ export function CustomerPage({ user }: { user: UserProfile }) {
                   <td onClick={(e) => e.stopPropagation()}><SectorCell item={item} canEdit={canManage} onChanged={(sektor_manual, sektor) => setItems((list) => list.map((x) => (x.id === item.id ? { ...x, sektor_manual, sektor } : x)))} /></td>
                   <td><div className="pap-cell-sub">{item.mobile_phone ?? item.work_phone ?? '—'}</div><div className="pap-cell-sub">{item.email ?? ''}</div></td>
                   <td className="pap-nowrap">{item.order_count ? <><strong>{item.order_count}×</strong> · {formatDate(item.last_order)}<div className="pap-cell-sub">{cycleText(item) ? `Cycle ${cycleText(item)}${item.cycle_manual_days ? ' (manual)' : ''}` : 'Cycle belum ketahuan'}</div></> : <span className="pap-muted">Belum ada</span>}</td>
-                  <td><CrmBadge value={item.crm_status} /></td>
-                  <td className="pap-nowrap">{item.product_count ? `${item.product_count} produk` : <span className="pap-muted">—</span>}</td>
+                  <td><CrmBadge value={item.crm_status} /><div className="pap-cell-sub">{item.product_count ? `${item.product_count} produk` : 'Belum ada produk'}</div></td>
                   <td className="pap-actions-cell"><RowActions label={item.name} onView={() => setDetailId(item.id)} onEdit={canManage ? () => setForm(item) : undefined} /></td>
                 </tr>
               ))}
@@ -363,7 +362,7 @@ function SectorCell({ item, canEdit, onChanged }: { item: Customer; canEdit: boo
     setBusy(true)
     try {
       // Server mengembalikan kategori yang berlaku (manual atau hasil identifikasi otomatis)
-      const r = await api<{ sektor: SectorKey; sektor_manual: SectorKey | null }>(`/api/customers/${item.id}/sektor`, { method: 'PATCH', json: { sektor: v } })
+      const r = await api<{ sektor: SectorKey; sektor_manual: SectorKey | null }>(`/api/customers/${item.id}/sektor`, { method: 'PATCH', json: { sektor: v === 'otomatis' ? '' : v } })
       onChanged(r.sektor_manual, r.sektor)
     } catch (e) {
       toast((e as Error).message, 'error')
@@ -373,12 +372,14 @@ function SectorCell({ item, canEdit, onChanged }: { item: Customer; canEdit: boo
   }
   return (
     <div className="pap-sector-cell">
-      <select className={`pap-select pap-sector-select ${current ?? ''}`} value={item.sektor_manual ?? ''} disabled={busy} aria-label={`Kategori ${item.name}`} title={item.sektor_manual ? 'Dipilih manual' : 'Otomatis dari kategori Accurate / nama customer'}
+      {/* Tampil nama kategori yang berlaku; pilih kategori lain untuk mengubah, atau "Otomatis" untuk kembali ke identifikasi otomatis */}
+      <select className={`pap-select pap-sector-select ${current ?? ''}`} value={current ?? ''} disabled={busy} aria-label={`Kategori ${item.name}`} title={item.sektor_manual ? 'Dipilih manual' : 'Otomatis dari kategori Accurate / nama customer'}
         onChange={(e) => change(e.target.value)}>
-        <option value="">Otomatis · {label}</option>
+        {!current && <option value="">—</option>}
         {SECTORS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+        {item.sektor_manual && <option value="otomatis">↺ Kembali otomatis</option>}
       </select>
-      {item.sektor_manual && <small className="pap-muted">manual</small>}
+      <small className="pap-muted">{busy ? 'menyimpan…' : item.sektor_manual ? 'manual' : 'otomatis'}</small>
     </div>
   )
 }
