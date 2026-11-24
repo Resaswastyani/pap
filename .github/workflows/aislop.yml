@@ -31,3 +31,14 @@ jobs:
           COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm install --frozen-lockfile --ignore-scripts
       - name: aislop ci
         run: pnpm exec aislop ci --human
+      # Bila gagal: tulis tiap temuan BARU sebagai anotasi (tampil di tab Summary / pull request)
+      - name: Anotasi temuan baru
+        if: failure()
+        run: |
+          pnpm exec aislop ci > aislop-ci.json 2>/dev/null || true
+          node -e "
+            const j = JSON.parse(require('fs').readFileSync('aislop-ci.json', 'utf8'))
+            console.log('Skor', j.score, JSON.stringify(j.baseline))
+            for (const d of j.diagnostics.filter((d) => d.baselined !== true))
+              console.log('::warning file=' + d.filePath + ',line=' + (d.line || 1) + '::' + d.rule + ' — ' + String(d.message).slice(0, 180))
+          "
