@@ -394,7 +394,7 @@ export function DashboardPage({ user, onNavigate }: { user: UserProfile; onNavig
                 {thisMonth?.omzet
                   ? <BarList max={thisMonth.omzet} items={sectorNow.map((s) => ({ key: s.key, label: sektor === s.key ? `${s.label} · dipilih` : s.label, value: s.row?.omzet ?? 0, tone: s.tone, onClick: () => pickToggle(s.key), display: `${shortRp(s.row?.omzet ?? 0)} · ${(((s.row?.omzet ?? 0) / thisMonth.omzet) * 100).toFixed(0)}%` }))} />
                   : <p className="pap-muted">Belum ada {unit} bulan ini.</p>}
-                <small className="pap-muted">Sektor dari kategori customer di Accurate (LAU, BRS) atau nama customer (mengandung laundry / beras); selain itu Sektor Umum.</small>
+                <small className="pap-muted">Sektor dari kategori customer di Accurate (LAU, BRS) atau nama customer (mengandung laundry / beras); Lainnya: PT Tarunakusuma Purinusa; selain itu Sektor Umum.</small>
               </div>
             </div>
           </section>
