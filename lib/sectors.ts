@@ -1,4 +1,5 @@
-// Sektor customer untuk laporan penjualan (Laundry, Beras, Sektor Umum). Identifikasi berurutan:
+// Sektor customer untuk laporan penjualan (Laundry, Beras, Sektor Umum, Lainnya). Identifikasi berurutan:
+//   0. Kategori yang dipilih manual di menu Customer (kolom customers.sektor_manual)
 //   1. Kode kategori customer di Accurate: "Pelanggan (LAU)" -> Laundry, "Pembeli (BRS)" -> Beras
 //   2. Nama customer: mengandung "laundr" / "londri" / "loundr" -> Laundry; "beras" -> Beras
 //      (mis. "Kak Tasya - Laundry 99 Manado" tanpa kode kategori tetap masuk Laundry)
@@ -20,9 +21,9 @@ const LAINNYA_NAME = ['tarunakusuma']
 
 // Ekspresi SQL: kolom kategori customer (+ nama customer) -> kunci sektor.
 // Nama default diturunkan dari kolom kategori: c.category -> c.name, MAX(c.category) -> MAX(c.name).
-export const sectorSql = (category: string, name = category.replace(/category/g, 'name')) => {
+export const sectorSql = (category: string, name = category.replace(/category/g, 'name'), manual = category.replace(/category/g, 'sektor_manual')) => {
   const nameLike = (words: string[]) => words.map((w) => `LOWER(COALESCE(${name}, '')) LIKE '%${w}%'`).join(' OR ')
-  return `CASE WHEN ${category} LIKE '%(LAU)%' THEN 'laundry' WHEN ${category} LIKE '%(BRS)%' THEN 'beras'
+  return `CASE WHEN ${manual} IN (${SECTORS.map((s) => `'${s.key}'`).join(', ')}) THEN ${manual} WHEN ${category} LIKE '%(LAU)%' THEN 'laundry' WHEN ${category} LIKE '%(BRS)%' THEN 'beras'
     WHEN ${nameLike(LAUNDRY_NAME)} THEN 'laundry' WHEN ${nameLike(BERAS_NAME)} THEN 'beras' WHEN ${nameLike(LAINNYA_NAME)} THEN 'lainnya' ELSE 'umum' END`
 }
 

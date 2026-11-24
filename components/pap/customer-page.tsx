@@ -7,7 +7,7 @@ import type { UserProfile } from '@/lib/users'
 import { AccurateSyncBar, formatRupiah } from './accurate'
 import { ProductDetail, ProductForm, type Product } from './product-page'
 import { CycleField, cycleText, type CycleInfo } from './customer-cycle'
-import { api, Field, formatDate, Modal, Notice, Pager, RowActions, FreshBadge } from './ui'
+import { api, Field, formatDate, Modal, Notice, Pager, RowActions, FreshBadge, toast } from './ui'
 
 type CrmStatus = 'pelanggan' | 'pembeli' | 'prospek' | 'pelanggan_nonaktif' | 'pembeli_nonaktif'
 export type Customer = CycleInfo & {
@@ -17,6 +17,7 @@ export type Customer = CycleInfo & {
   customer_no: string | null
   name: string
   category: string | null
+  sektor_manual?: SectorKey | null
   sektor?: SectorKey
   email: string | null
   mobile_phone: string | null
@@ -148,11 +149,12 @@ export function CustomerPage({ user }: { user: UserProfile }) {
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Customer</th><th>Kontak</th><th>Transaksi</th><th>Status</th><th>Produk</th><th className="pap-actions-col">Aksi</th></tr></thead>
+            <thead><tr><th>Customer</th><th>Kategori</th><th>Kontak</th><th>Transaksi</th><th>Status</th><th>Produk</th><th className="pap-actions-col">Aksi</th></tr></thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
-                  <td><div className="pap-cell-title">{item.name}<FreshBadge item={{ created_at: item.created_at }} /></div><div className="pap-cell-sub">{item.customer_no ?? 'Belum ada nomor'}{item.sektor ? ` · ${SECTOR_LABEL[item.sektor]}` : ''}{item.category ? ` · ${item.category}` : ''}</div></td>
+                  <td><div className="pap-cell-title">{item.name}<FreshBadge item={{ created_at: item.created_at }} /></div><div className="pap-cell-sub">{item.customer_no ?? 'Belum ada nomor'}{item.category ? ` · ${item.category}` : ''}</div></td>
+                  <td onClick={(e) => e.stopPropagation()}><SectorCell item={item} canEdit={canManage} onChanged={(sektor_manual, sektor) => setItems((list) => list.map((x) => (x.id === item.id ? { ...x, sektor_manual, sektor } : x)))} /></td>
                   <td><div className="pap-cell-sub">{item.mobile_phone ?? item.work_phone ?? '—'}</div><div className="pap-cell-sub">{item.email ?? ''}</div></td>
                   <td className="pap-nowrap">{item.order_count ? <><strong>{item.order_count}×</strong> · {formatDate(item.last_order)}<div className="pap-cell-sub">{cycleText(item) ? `Cycle ${cycleText(item)}${item.cycle_manual_days ? ' (manual)' : ''}` : 'Cycle belum ketahuan'}</div></> : <span className="pap-muted">Belum ada</span>}</td>
                   <td><CrmBadge value={item.crm_status} /></td>
@@ -347,5 +349,36 @@ function CustomerDetail({ id, onClose, onEdit, onChanged }: { id: number; onClos
         />
       )}
     </Modal>
+  )
+}
+
+// Kolom Kategori di daftar customer: pilih Laundry / Beras / Sektor Umum / Lainnya, atau Otomatis
+// (kode kategori Accurate & nama customer). Tersimpan di SIMPAP, tidak tertimpa sinkron Accurate.
+function SectorCell({ item, canEdit, onChanged }: { item: Customer; canEdit: boolean; onChanged: (manual: SectorKey | null, sektor: SectorKey | undefined) => void }) {
+  const [busy, setBusy] = useState(false)
+  const current = item.sektor
+  const label = current ? SECTOR_LABEL[current] : '—'
+  if (!canEdit) return <span className={`pap-sector-pill ${current ?? ''}`}>{label}</span>
+  async function change(v: string) {
+    setBusy(true)
+    try {
+      // Server mengembalikan kategori yang berlaku (manual atau hasil identifikasi otomatis)
+      const r = await api<{ sektor: SectorKey; sektor_manual: SectorKey | null }>(`/api/customers/${item.id}/sektor`, { method: 'PATCH', json: { sektor: v } })
+      onChanged(r.sektor_manual, r.sektor)
+    } catch (e) {
+      toast((e as Error).message, 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="pap-sector-cell">
+      <select className={`pap-select pap-sector-select ${current ?? ''}`} value={item.sektor_manual ?? ''} disabled={busy} aria-label={`Kategori ${item.name}`} title={item.sektor_manual ? 'Dipilih manual' : 'Otomatis dari kategori Accurate / nama customer'}
+        onChange={(e) => change(e.target.value)}>
+        <option value="">Otomatis · {label}</option>
+        {SECTORS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+      </select>
+      {item.sektor_manual && <small className="pap-muted">manual</small>}
+    </div>
   )
 }

@@ -3194,13 +3194,6 @@
       "count": 1
     },
     {
-      "rule": "jsx-a11y/control-has-associated-label",
-      "engine": "lint",
-      "file": "components/pap/prospect-page.tsx",
-      "fingerprint": "a31b70fe1692e77a",
-      "count": 1
-    },
-    {
       "rule": "jsx-a11y/prefer-tag-over-role",
       "engine": "lint",
       "file": "components/pap/prospect-page.tsx",
@@ -3211,7 +3204,7 @@
       "rule": "react-hooks/exhaustive-deps",
       "engine": "lint",
       "file": "components/pap/prospect-page.tsx",
-      "fingerprint": "1da46809262addf4",
+      "fingerprint": "dd3752c0bf117849",
       "count": 1
     },
     {

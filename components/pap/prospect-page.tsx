@@ -333,6 +333,9 @@ function Kanban({ items, onOpen }: { items: Prospect[]; onOpen: (id: number) => 
   )
 }
 
+// Bidang usaha prospek: sama dengan sektor customer (laporan penjualan)
+const BIDANG_USAHA = ['Laundry', 'Beras', 'Sektor Umum', 'Lainnya']
+
 export function ProspectForm({ user, initial, users, canSupervise, onClose, onSaved }: {
   user: UserProfile
   initial: Prospect | null
@@ -418,7 +421,14 @@ export function ProspectForm({ user, initial, users, canSupervise, onClose, onSa
           <div className="full"><Notice onClose={() => setDuplicate('')}>{duplicate} <button type="button" className="pap-link-button" onClick={(e) => { setDuplicate(''); submit(e as unknown as React.FormEvent, true) }}>Tetap simpan</button></Notice></div>
         )}
         <Field label="Nama Customer"><input className="pap-input" required maxLength={200} value={values.nama_usaha} onChange={set('nama_usaha')} placeholder="Contoh: PT. Star Global Interpack" /></Field>
-        <Field label="Bidang Usaha"><input className="pap-input" list="pap-sektor" maxLength={120} value={values.sektor} onChange={set('sektor')} placeholder="Plastik Cup, RPA, Briket, Garmen..." /></Field>
+        <Field label="Bidang Usaha">
+          <select className="pap-select" value={values.sektor} onChange={set('sektor')}>
+            <option value="">Pilih bidang usaha…</option>
+            {BIDANG_USAHA.map((x) => <option key={x} value={x}>{x}</option>)}
+            {/* Nilai lama di luar 4 pilihan tetap terlihat sampai diganti */}
+            {values.sektor && !BIDANG_USAHA.includes(values.sektor) && <option value={values.sektor}>{values.sektor} (lama)</option>}
+          </select>
+        </Field>
         <Field label="Alamat dll" full><input className="pap-input" maxLength={500} value={values.alamat} onChange={set('alamat')} placeholder="Alamat lengkap atau kota" /></Field>
         <Field label="Nama Kontak PIC"><input className="pap-input" maxLength={150} value={values.kontak_nama} onChange={set('kontak_nama')} placeholder="Contoh: Ibu Surti - Purchasing" /></Field>
         <Field label="Nomor WhatsApp" hint="Format 08xx / 62xx, dipakai untuk tombol WhatsApp."><input className="pap-input" inputMode="tel" maxLength={40} value={values.telepon} onChange={set('telepon')} /></Field>
@@ -442,7 +452,6 @@ export function ProspectForm({ user, initial, users, canSupervise, onClose, onSa
             ? <AttachmentPanel title="Lampiran tersimpan" basePath={`/api/prospects/${initial.id}/attachments`} fileBase="/api/prospects/attachments" canAdd currentUserId={user.id} isAdmin={user.role.isAdmin} allowVideo />
             : <AttachmentInput value={attachments} onChange={setAttachments} allowVideo />}
         </Field>
-        <datalist id="pap-sektor">{['Plastik Cup', 'RPA', 'Briket', 'Garmen Lokal', 'Apparel & Shoes', 'Snack', 'Laundry', 'F&B / Kuliner', 'Retail / Toko', 'Distributor', 'Pabrik'].map((x) => <option key={x} value={x} />)}</datalist>
         <datalist id="pap-payment">{['TOP 30 Days', 'TOP 60 Days', 'COD Full Quantity PO', 'DP 50% Pelunasan COD', 'DP 50% Pelunasan sblm kirim', 'DP 30% Pelunasan COD'].map((x) => <option key={x} value={x} />)}</datalist>
       </form>
     </Modal>
