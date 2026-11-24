@@ -3641,7 +3641,8 @@ a.pap-row-action { text-decoration:none; }
 .ta-v1.ta1-page3 .ta1-gambar img { max-height:300px; }
 
 /* Analisa Teknik: Gambar Produk satu halaman penuh per gambar */
-.ta-v1 .ta1-fig { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:10px; border:1px solid #6b7085; }
-.ta-v1 .ta1-fig img { display:block; width:auto; max-width:100%; max-height:860px; object-fit:contain; }
+.ta-v1 .ta1-fig { box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:10px; border:1px solid #6b7085; }
+/* gambar diperbesar memenuhi area halaman (proporsi tetap) */
+.ta-v1 .ta1-fig img { display:block; width:100%; height:820px; object-fit:contain; }
 .ta-v1 .ta1-fig p { margin:0; color:#3b3f52; font-size:11.5px; text-align:center; overflow-wrap:anywhere; }
-@media print { .ta-v1 .ta1-fig { break-inside:avoid; } .ta-v1 .ta1-fig img { max-height:228mm; } }
+@media print { .ta-v1 .ta1-fig { break-inside:avoid; } .ta-v1 .ta1-fig img { height:215mm; } }
