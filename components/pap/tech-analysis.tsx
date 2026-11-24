@@ -17,7 +17,9 @@ const FLOW_LABEL: Record<Status, string> = { draft: 'Marketing isi spek', disera
 const BISA = { bisa: 'Bisa diproduksi (optimal)', bersyarat: 'Bisa dengan syarat', tidak: 'Tidak bisa diproduksi optimal' } as const
 const KUALITAS = { mudah: 'Mudah', sedang: 'Sedang', sulit: 'Sulit' } as const
 
-type Proses = { mesin: string; kec_label: string; dipakai: boolean; kecepatan: string; kec_roto_max: string; jalur: string; tumpuk: string; keterangan: string; produktivitas: number | null }
+type Proses = { mesin: string; kec_label: string; dipakai: boolean; kecepatan: string; kec_roto_max: string; jalur: string; tumpuk: string; warna?: string; keterangan: string; produktivitas: number | null }
+// Mesin Inline Blow-Roto (4 mesin): isian Jumlah Warna menggantikan Jalur & Tumpuk
+const isRotoMesin = (m: string) => /^inline blow/i.test(m.trim())
 type Analysis = {
   id: number; nomor: string; prospect_id: number | null; prospect_name: string | null; status: Status; tanggal_serah: string | null
   nama_produk: string; nama_customer: string; jenis_plastik: string | null; panjang_cm: number | null; lebar_cm: number | null; tebal_mm: number | null
@@ -311,7 +313,7 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
   const [tab, setTab] = useState<'spek' | 'teknik' | 'direksi'>('spek')
   const [mv, setMv] = useState<MarketingValues>(toValues())
   const [proses, setProses] = useState<Proses[]>([])
-  const [tv, setTv] = useState({ kesulitan_print: '', roto: '' as '' | 'dengan' | 'tanpa', bisa_produksi: '', penjelasan_produksi: '', kesulitan_kualitas: '', penjelasan_kualitas: '', catatan_lain: '' })
+  const [tv, setTv] = useState({ kesulitan_print: '', bisa_produksi: '', penjelasan_produksi: '', kesulitan_kualitas: '', penjelasan_kualitas: '', catatan_lain: '' })
   const [rek, setRek] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -326,7 +328,7 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
       setCan(r.can)
       setMv(toValues(x))
       setProses(x.proses)
-      setTv({ kesulitan_print: x.kesulitan_print ?? '', roto: x.roto ?? '', bisa_produksi: x.bisa_produksi ?? '', penjelasan_produksi: x.penjelasan_produksi ?? '', kesulitan_kualitas: x.kesulitan_kualitas ?? '', penjelasan_kualitas: x.penjelasan_kualitas ?? '', catatan_lain: x.catatan_lain ?? '' })
+      setTv({ kesulitan_print: x.kesulitan_print ?? '', bisa_produksi: x.bisa_produksi ?? '', penjelasan_produksi: x.penjelasan_produksi ?? '', kesulitan_kualitas: x.kesulitan_kualitas ?? '', penjelasan_kualitas: x.penjelasan_kualitas ?? '', catatan_lain: x.catatan_lain ?? '' })
       setRek(x.rekomendasi_direksi ?? '')
       setTab((t) => (t === 'spek' && x.status === 'diserahkan' && r.can.teknik ? 'teknik' : t === 'spek' && x.status === 'dianalisa' && r.can.direksi ? 'direksi' : t))
       setError('')
@@ -431,15 +433,7 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
               <input className="pap-input" maxLength={255} disabled={!can.teknik} value={tv.kesulitan_print} onChange={(e) => setTv({ ...tv, kesulitan_print: e.target.value })} placeholder="mis. Sedang · register ketat, gradasi warna" aria-label="Keterangan tingkat kesulitan print" />
             </div>
           </div>
-          <div className="pap-field pap-ta-roto">
-            <span>Proses roto</span>
-            <div className="pap-ta-roto-opts">
-              {(['dengan', 'tanpa'] as const).map((k) => (
-                <label key={k} className="pap-check"><input type="checkbox" checked={tv.roto === k} disabled={!can.teknik} onChange={(e) => setTv({ ...tv, roto: e.target.checked ? k : '' })} /><span>{k === 'dengan' ? 'Dengan roto' : 'Tanpa roto'}</span></label>
-              ))}
-            </div>
-          </div>
-          <p className="pap-muted pap-ta-hint">Centang mesin / proses yang dipakai sesuai urutan, isi kecepatan mesin, kecepatan roto maksimum, jalur, tumpuk, keterangan, dan hasil produktivitas per jam (kg).</p>
+          <p className="pap-muted pap-ta-hint">Centang mesin / proses yang dipakai sesuai urutan, lalu isi kecepatan mesin, kecepatan roto maksimum, jalur & tumpuk (mesin Inline Blow-Roto: jumlah warna), keterangan, dan hasil produktivitas per jam (kg).</p>
           <div className="pap-ta-proses-list">
             {proses.map((p, i) => (
               <div key={i} className={`pap-ta-proc ${p.dipakai ? 'on' : ''}`}>
@@ -447,16 +441,23 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
                   <input type="checkbox" checked={p.dipakai} disabled={!can.teknik} onChange={(e) => setRow(i, { dipakai: e.target.checked })} />
                   {p.mesin}
                 </label>
+                {/* Isian baru muncul setelah mesin dicentang */}
+                {p.dipakai && <>
                 <label className="pap-ta-proc-f"><span>{p.kec_label || 'Kecepatan'}</span><input className="pap-input" maxLength={120} disabled={!can.teknik} value={p.kecepatan} onChange={(e) => setRow(i, { kecepatan: e.target.value, dipakai: p.dipakai || !!e.target.value })} placeholder="—" /></label>
                 <label className="pap-ta-proc-f"><span title="Kecepatan Roto Maksimum">Kec Roto Max</span><input className="pap-input" maxLength={120} disabled={!can.teknik} value={p.kec_roto_max ?? ''} onChange={(e) => setRow(i, { kec_roto_max: e.target.value, dipakai: p.dipakai || !!e.target.value })} placeholder="—" /></label>
-                <label className="pap-ta-proc-f small"><span>Jalur</span><input className="pap-input" maxLength={120} disabled={!can.teknik} value={p.jalur ?? ''} onChange={(e) => setRow(i, { jalur: e.target.value, dipakai: p.dipakai || !!e.target.value })} placeholder="mis. 2" /></label>
-                <label className="pap-ta-proc-f small"><span>Tumpuk</span><input className="pap-input" maxLength={120} disabled={!can.teknik} value={p.tumpuk ?? ''} onChange={(e) => setRow(i, { tumpuk: e.target.value, dipakai: p.dipakai || !!e.target.value })} placeholder="mis. 3" /></label>
+                {isRotoMesin(p.mesin)
+                  ? <label className="pap-ta-proc-f span2"><span>Jumlah Warna</span><input className="pap-input" maxLength={120} disabled={!can.teknik} value={p.warna ?? ''} onChange={(e) => setRow(i, { warna: e.target.value })} placeholder="mis. 4" /></label>
+                  : <>
+                    <label className="pap-ta-proc-f small"><span>Jalur</span><input className="pap-input" maxLength={120} disabled={!can.teknik} value={p.jalur ?? ''} onChange={(e) => setRow(i, { jalur: e.target.value })} placeholder="mis. 2" /></label>
+                    <label className="pap-ta-proc-f small"><span>Tumpuk</span><input className="pap-input" maxLength={120} disabled={!can.teknik} value={p.tumpuk ?? ''} onChange={(e) => setRow(i, { tumpuk: e.target.value })} placeholder="mis. 3" /></label>
+                  </>}
                 <label className="pap-ta-proc-f"><span>Keterangan</span><input className="pap-input" maxLength={500} disabled={!can.teknik} value={p.keterangan} onChange={(e) => setRow(i, { keterangan: e.target.value })} placeholder="—" /></label>
                 <label className="pap-ta-proc-f small"><span>Hasil Produktivitas (kg/jam)</span><input className="pap-input" inputMode="decimal" disabled={!can.teknik} value={p.produktivitas ?? ''} onChange={(e) => { const t = e.target.value.replace(/[^\d.,]/g, ''); setRow(i, { produktivitas: t ? Number(t.replace(',', '.')) : null, dipakai: p.dipakai || !!t }) }} placeholder="0" /></label>
+                </>}
               </div>
             ))}
           </div>
-          {can.teknik && <button type="button" className="pap-link-button pap-shift-edit" onClick={() => setProses([...proses, { mesin: 'Proses lain', kec_label: '', dipakai: true, kecepatan: '', kec_roto_max: '', jalur: '', tumpuk: '', keterangan: '', produktivitas: null }])}><Plus /> Tambah proses lain</button>}
+          {can.teknik && <button type="button" className="pap-link-button pap-shift-edit" onClick={() => setProses([...proses, { mesin: 'Proses lain', kec_label: '', dipakai: true, kecepatan: '', kec_roto_max: '', jalur: '', tumpuk: '', warna: '', keterangan: '', produktivitas: null }])}><Plus /> Tambah proses lain</button>}
           <p className="pap-muted pap-ta-hint">{used.length} proses dipakai{used.length ? `: ${used.map((p) => p.mesin).join(' → ')}` : ''}</p>
 
           <h4 className="pap-ta-sub-h"><Wrench className="pap-inline-icon" /> Kesimpulan analisa teknis produksi</h4>

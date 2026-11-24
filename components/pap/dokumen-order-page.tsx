@@ -18,7 +18,7 @@ type Jenis = 'order' | 'proforma'
 type PpnMode = 'none' | 'exclusive' | 'inclusive'
 type DocItem = { nama: string; qty: number; unit: string; harga: number; disc_pct: number | null; catatan: string | null }
 type DocData = {
-  jenis: Jenis; jenis_order: 'polos' | 'custom'; nomor: string; tanggal: string; so_accurate_id: number | null; so_number: string | null
+  jenis: Jenis; jenis_order: 'polos' | 'custom'; nomor: string; tanggal: string; so_accurate_id: number | null; so_number: string | null; quotation_id?: number | null
   prospect_id: number | null; customer_id: number | null; ongkir_per_kg: number | null; berat_kg: number | null; diskon_persen: number | null
   kepada: string; customer_no: string | null; kontak: string | null; telepon: string | null; alamat: string | null; po_number: string | null
   ship_date: string | null; ekspedisi: string | null; items: DocItem[]; expenses: { nama: string; amount: number }[]
@@ -29,17 +29,28 @@ type SavedDoc = DocData & { id: number; created_by: number; created_by_name: str
 const STATUS_TONE: Record<string, string> = { 'Menunggu diproses': 'warning', 'Sebagian diproses': 'info', Terproses: 'success', Ditutup: 'neutral' }
 const JENIS_LABEL: Record<Jenis, string> = { order: 'Surat Order', proforma: 'Proforma Invoice' }
 const thisMonth = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 7)
-type Editing = { id?: number; soId?: number | null; jenis: Jenis }
+type Editing = { id?: number; soId?: number | null; quotationId?: number | null; jenis: Jenis }
 // Form Order Custom per produk (checklist di menu Form Order Custom); terkunci setelah diserahkan ke PPIC
 type Custom = { on: boolean; open: boolean; isian: Isian; id?: number; nomor?: string; status?: string }
 const OC_STATUS: Record<string, string> = { draft: 'Draft', ppic: 'Di PPIC', operasional: 'Di Operasional', selesai: 'Lengkap' }
 const OC_TONE: Record<string, string> = { draft: 'neutral', ppic: 'warning', operasional: 'info', selesai: 'success' }
 
-export function DokumenOrderPage({ user }: { user: UserProfile }) {
+export function DokumenOrderPage({ user, fromQuotation }: { user: UserProfile; fromQuotation?: { quotationId: number; jenis: Jenis } | null }) {
   const [tab, setTab] = useState<'tersimpan' | 'so'>('tersimpan')
   const [editing, setEditing] = useState<Editing | null>(null)
   const [reload, setReload] = useState(0)
   const [message, setMessage] = useState('')
+  // Dari tombol Surat Order / Proforma Invoice di Quotation: dokumen yang sudah tersimpan dibuka untuk diedit,
+  // bila belum ada dibuat draf baru berisi data quotation
+  useEffect(() => {
+    if (!fromQuotation) return
+    let alive = true
+    const { quotationId, jenis } = fromQuotation
+    api<{ id: number | null }>(`/api/order-documents/draft?jenis=${jenis}&quotation=${quotationId}&cek=1`)
+      .then((r) => alive && setEditing(r.id ? { id: r.id, jenis } : { quotationId, jenis }))
+      .catch((e) => alive && setMessage((e as Error).message))
+    return () => { alive = false }
+  }, [fromQuotation])
 
   return (
     <>
@@ -60,7 +71,7 @@ export function DokumenOrderPage({ user }: { user: UserProfile }) {
         ? <SavedDocs user={user} reload={reload} onEdit={(d) => setEditing({ id: d.id, jenis: d.jenis })} onDeleted={(d) => { setMessage(`${JENIS_LABEL[d.jenis]} ${d.nomor} dihapus.`); setReload((n) => n + 1) }} />
         : <SalesOrders onCreate={(so, jenis) => setEditing({ soId: so.id, jenis })} />}
       {editing && (
-        <DocEditor key={`${editing.id ?? 'baru'}-${editing.soId ?? 0}`} editing={editing} canCustom={user.role.isAdmin || user.menus.includes('order-custom' as never)} onClose={() => setEditing(null)}
+        <DocEditor key={`${editing.id ?? 'baru'}-${editing.soId ?? 0}-${editing.quotationId ?? 0}`} editing={editing} canCustom={user.role.isAdmin || user.menus.includes('order-custom' as never)} onClose={() => setEditing(null)}
           onSaved={(nomor, isNew) => { setEditing(null); setTab('tersimpan'); setReload((n) => n + 1); setMessage(`Dokumen ${nomor} ${isNew ? 'disimpan' : 'diperbarui'}.`) }} />
       )}
     </>
@@ -241,7 +252,7 @@ function DocEditor({ editing, canCustom, onClose, onSaved }: { editing: Editing;
   useEffect(() => {
     let alive = true
     setV(null)
-    const url = isNew ? `/api/order-documents/draft?jenis=${jenis}${editing.soId ? `&so=${editing.soId}` : ''}` : `/api/order-documents/${editing.id}`
+    const url = isNew ? `/api/order-documents/draft?jenis=${jenis}${editing.soId ? `&so=${editing.soId}` : ''}${editing.quotationId ? `&quotation=${editing.quotationId}` : ''}` : `/api/order-documents/${editing.id}`
     api<{ item: DocData }>(url)
       .then((r) => {
         if (!alive) return
@@ -267,7 +278,7 @@ function DocEditor({ editing, canCustom, onClose, onSaved }: { editing: Editing;
       })
       .catch((e) => alive && setError(e.message))
     return () => { alive = false }
-  }, [isNew, jenis, editing.id, editing.soId])
+  }, [isNew, jenis, editing.id, editing.soId, editing.quotationId])
 
   const set = <K extends keyof DocData>(k: K, value: DocData[K]) => setV((cur) => (cur ? { ...cur, [k]: value } : cur))
   const totals = useMemo(() => {
@@ -325,7 +336,7 @@ function DocEditor({ editing, canCustom, onClose, onSaved }: { editing: Editing;
     } : cur))
   }
 
-  const title = isNew ? (editing.soId ? 'Buat dokumen dari SO' : 'Buat dokumen order') : `Ubah ${JENIS_LABEL[jenis]}`
+  const title = isNew ? (editing.soId ? 'Buat dokumen dari SO' : editing.quotationId ? `Buat ${JENIS_LABEL[jenis]} dari Quotation` : 'Buat dokumen order') : `Ubah ${JENIS_LABEL[jenis]}`
   return (
     <Modal wide title={title} subtitle={v ? `${v.nomor}${v.so_number ? ` · dari ${v.so_number}` : ''}` : undefined} onClose={onClose}
       footer={<><span className="pap-spacer" /><button className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="order-doc-form" disabled={busy || !v}><Save /> {busy ? 'Menyimpan...' : 'Simpan'}</button></>}>

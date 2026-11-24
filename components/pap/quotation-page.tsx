@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { openDokumenFromQuotation } from './open-dokumen'
 import { Ban, CheckCircle2, Copy, FileDown, FileText, MessageCircle, Package, Store, Pencil, Plus, Printer, Receipt, Search, Send, Settings2, Trash2, TrendingUp, Truck, Wallet, XCircle } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { rupiah } from '@/lib/hpp-calc'
@@ -673,8 +674,9 @@ function OrderPanel({ item, canWrite, onSaved }: { item: Quotation; canWrite: bo
           <div className="pap-inline-actions pap-wrap">
             {canWrite && <button className="pap-btn" onClick={() => setEditing(true)}><Pencil /> Ubah data order</button>}
             <span className="pap-spacer" />
-            <a className="pap-btn" href={docLinks(item.id, 'order').pdf} target="_blank" rel="noreferrer"><Printer /> Surat Order</a>
-            <a className="pap-btn" href={docLinks(item.id, 'proforma').pdf} target="_blank" rel="noreferrer"><Printer /> Proforma Invoice</a>
+            {/* Dibuka di menu Dokumen Order untuk diedit dulu, lalu dicetak dari sana */}
+            <button type="button" className="pap-btn" title="Edit & cetak di menu Dokumen Order" onClick={() => openDokumenFromQuotation({ quotationId: item.id, jenis: 'order', fallbackUrl: docLinks(item.id, 'order').pdf })}><Printer /> Surat Order</button>
+            <button type="button" className="pap-btn" title="Edit & cetak di menu Dokumen Order" onClick={() => openDokumenFromQuotation({ quotationId: item.id, jenis: 'proforma', fallbackUrl: docLinks(item.id, 'proforma').pdf })}><Printer /> Proforma Invoice</button>
             {sisa > 0 && <button className="pap-primary-button" onClick={() => setPaying(true)}><Wallet /> Konfirmasi pembayaran</button>}
           </div>
         </>

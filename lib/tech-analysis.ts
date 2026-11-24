@@ -30,8 +30,8 @@ export const MACHINES: { mesin: string; kec_label: string }[] = [
   { mesin: 'Mesin Cutting Mika', kec_label: '' },
 ]
 // kec_roto_max: kecepatan roto maksimum; jalur: jumlah jalur; tumpuk: jumlah tumpuk
-export type ProsesRow = { mesin: string; kec_label: string; dipakai: boolean; kecepatan: string; kec_roto_max: string; jalur: string; tumpuk: string; keterangan: string; produktivitas: number | null }
-export const defaultProses = (): ProsesRow[] => MACHINES.map((m) => ({ ...m, dipakai: false, kecepatan: '', kec_roto_max: '', jalur: '', tumpuk: '', keterangan: '', produktivitas: null }))
+export type ProsesRow = { mesin: string; kec_label: string; dipakai: boolean; kecepatan: string; kec_roto_max: string; jalur: string; tumpuk: string; warna: string; keterangan: string; produktivitas: number | null }
+export const defaultProses = (): ProsesRow[] => MACHINES.map((m) => ({ ...m, dipakai: false, kecepatan: '', kec_roto_max: '', jalur: '', tumpuk: '', warna: '', keterangan: '', produktivitas: null }))
 
 const MARKETING = (u: UserProfile) => u.division.code === 'marketing' || u.division.code.startsWith('marketing_')
 export function requireTechAnalysis(user: UserProfile) {
@@ -72,7 +72,7 @@ export function serializeAnalysis(r: Row) {
     // Data lama: tanpa Kec Roto Max / Tumpuk; isian "Tumpuk 2" di kolom Jalur dulu (gabungan) dipindah ke kolom Tumpuk
     proses: proses.length ? proses.map((p) => {
       const lama = p.tumpuk === undefined && /tumpuk/i.test(p.jalur ?? '')
-      return { ...p, kec_roto_max: p.kec_roto_max ?? '', jalur: lama ? '' : p.jalur ?? '', tumpuk: lama ? p.jalur.replace(/tumpuk\s*/i, '').trim() : p.tumpuk ?? '' }
+      return { ...p, kec_roto_max: p.kec_roto_max ?? '', jalur: lama ? '' : p.jalur ?? '', tumpuk: lama ? p.jalur.replace(/tumpuk\s*/i, '').trim() : p.tumpuk ?? '', warna: p.warna ?? '' }
     }) : defaultProses(),
     bisa_produksi: (r.bisa_produksi as 'bisa' | 'bersyarat' | 'tidak') ?? null, penjelasan_produksi: (r.penjelasan_produksi as string) ?? null,
     kesulitan_kualitas: (r.kesulitan_kualitas as 'mudah' | 'sedang' | 'sulit') ?? null, penjelasan_kualitas: (r.penjelasan_kualitas as string) ?? null,
@@ -182,13 +182,12 @@ export function readTeknikSection(body: Record<string, unknown>) {
     const r = (x ?? {}) as Record<string, unknown>
     return {
       mesin: str(r.mesin, 120), kec_label: str(r.kec_label, 60), dipakai: r.dipakai === true, kecepatan: str(r.kecepatan, 120),
-      kec_roto_max: str(r.kec_roto_max, 120), jalur: str(r.jalur, 120), tumpuk: str(r.tumpuk, 120), keterangan: str(r.keterangan, 500),
+      kec_roto_max: str(r.kec_roto_max, 120), jalur: str(r.jalur, 120), tumpuk: str(r.tumpuk, 120), warna: str(r.warna, 120), keterangan: str(r.keterangan, 500),
       produktivitas: dec(r.produktivitas, `Produktivitas ${str(r.mesin, 60)}`, 1e7),
     }
   }).filter((r) => r.mesin)
   return {
     proses: JSON.stringify(proses),
-    roto: body.roto === 'dengan' || body.roto === 'tanpa' ? String(body.roto) : null,
     // Tingkat kesulitan print juga bisa diisi / dikoreksi Dept Teknik (kolom sama dengan isian Marketing)
     kesulitan_print: str(body.kesulitan_print, 255) || null,
     bisa_produksi: ['bisa', 'bersyarat', 'tidak'].includes(String(body.bisa_produksi)) ? String(body.bisa_produksi) : null,

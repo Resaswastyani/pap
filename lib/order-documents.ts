@@ -6,6 +6,7 @@ import { fail, int, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { loadSettings } from '@/lib/hpp'
 import { type DocView, loadSoDocument, proformaTagihan, readSoJenis, soDocNomor, type SoJenis, todayWib } from '@/lib/so-document'
+import { loadQuotation, loadQuotationItems } from '@/lib/quotations'
 import { isManagement, type UserProfile } from '@/lib/users'
 import { softDelete } from '@/lib/recycle-bin'
 
@@ -15,6 +16,8 @@ export type DocItem = { nama: string; qty: number; unit: string; harga: number; 
 export type DocExpense = { nama: string; amount: number }
 export type DocInput = {
   jenis: SoJenis; jenis_order: 'polos' | 'custom'; nomor: string; tanggal: string; so_accurate_id: number | null; so_number: string | null
+  // Quotation asal (Surat Order / Proforma dari Quotation yang diterima)
+  quotation_id: number | null
   prospect_id: number | null; customer_id: number | null; ongkir_per_kg: number | null; berat_kg: number | null; diskon_persen: number | null
   kepada: string; customer_no: string | null; kontak: string | null; telepon: string | null; alamat: string | null; po_number: string | null
   ship_date: string | null; ekspedisi: string | null; items: DocItem[]; expenses: DocExpense[]
@@ -102,7 +105,7 @@ export async function readDocInput(body: Record<string, unknown>): Promise<DocIn
   if (diskonPct !== null && (diskonPct < 0 || diskonPct > 100)) fail(400, 'Diskon harus 0–100%.')
   const subtotal = round2(items.reduce((t, it) => t + lineTotal(it), 0))
   return {
-    jenis, jenis_order: body.jenis_order === 'custom' ? 'custom' : 'polos', nomor, tanggal, so_accurate_id: soId && soId > 0 ? soId : null, so_number: opt(body.so_number, 60),
+    jenis, jenis_order: body.jenis_order === 'custom' ? 'custom' : 'polos', nomor, tanggal, so_accurate_id: soId && soId > 0 ? soId : null, so_number: opt(body.so_number, 60), quotation_id: int(body.quotation_id) || null,
     prospect_id: prospectId && !customerId ? prospectId : null, customer_id: customerId || null,
     ongkir_per_kg: ongkir > 0 ? round2(ongkir) : null, berat_kg: ongkir > 0 && beratRaw !== null ? Math.round(beratRaw * 1000) / 1000 : null,
     diskon_persen: diskonPct ? Math.round(diskonPct * 10000) / 10000 : null,
@@ -118,7 +121,7 @@ export async function readDocInput(body: Record<string, unknown>): Promise<DocIn
 function fromRow(r: Row) {
   const items = json<DocItem[]>(r.items, []).map((it) => ({ ...it, qty: num(it.qty), harga: num(it.harga), disc_pct: it.disc_pct ? num(it.disc_pct) : null, catatan: it.catatan ?? null, unit: it.unit ?? '' }))
   const input: DocInput = {
-    jenis: readSoJenis(r.jenis as string), jenis_order: r.jenis_order === 'custom' ? 'custom' : 'polos', nomor: String(r.nomor), tanggal: String(r.tanggal), so_accurate_id: r.so_accurate_id == null ? null : Number(r.so_accurate_id), so_number: (r.so_number as string) ?? null,
+    jenis: readSoJenis(r.jenis as string), jenis_order: r.jenis_order === 'custom' ? 'custom' : 'polos', nomor: String(r.nomor), tanggal: String(r.tanggal), so_accurate_id: r.so_accurate_id == null ? null : Number(r.so_accurate_id), so_number: (r.so_number as string) ?? null, quotation_id: r.quotation_id == null ? null : Number(r.quotation_id),
     prospect_id: r.prospect_id == null ? null : Number(r.prospect_id), customer_id: r.customer_id == null ? null : Number(r.customer_id),
     ongkir_per_kg: r.ongkir_per_kg == null ? null : num(r.ongkir_per_kg), berat_kg: r.berat_kg == null ? null : num(r.berat_kg),
     diskon_persen: r.diskon_persen == null ? null : num(r.diskon_persen),
@@ -153,7 +156,7 @@ export async function loadOrderDocument(id: number) {
   return fromRow(row)
 }
 
-const COLS = ['jenis', 'jenis_order', 'nomor', 'tanggal', 'so_accurate_id', 'so_number', 'prospect_id', 'customer_id', 'kepada', 'customer_no', 'kontak', 'telepon', 'alamat', 'po_number', 'ship_date', 'ekspedisi',
+const COLS = ['jenis', 'jenis_order', 'nomor', 'tanggal', 'so_accurate_id', 'so_number', 'quotation_id', 'prospect_id', 'customer_id', 'kepada', 'customer_no', 'kontak', 'telepon', 'alamat', 'po_number', 'ship_date', 'ekspedisi',
   'ongkir_per_kg', 'berat_kg', 'items', 'expenses', 'diskon', 'diskon_persen', 'ppn_mode', 'ppn_rate', 'terbayar', 'dp_persen', 'catatan', 'rekening', 'penandatangan'] as const
 const values = (d: DocInput) => COLS.map((c) => (c === 'items' || c === 'expenses' ? JSON.stringify(d[c]) : d[c]))
 
@@ -195,7 +198,7 @@ export async function draftOrderDocument(jenis: SoJenis, soId: number | null): P
     const ym = todayWib().slice(0, 7).replace('-', '.')
     const [[r]] = await db.query<Row[]>('SELECT COUNT(*) AS n FROM order_documents WHERE jenis = ? AND nomor LIKE ?', [jenis, `${prefix}-M.${ym}.%`])
     return {
-      jenis, jenis_order: 'polos', nomor: `${prefix}-M.${ym}.${String(Number(r.n) + 1).padStart(4, '0')}`, tanggal: todayWib(), so_accurate_id: null, so_number: null,
+      jenis, jenis_order: 'polos', nomor: `${prefix}-M.${ym}.${String(Number(r.n) + 1).padStart(4, '0')}`, tanggal: todayWib(), so_accurate_id: null, so_number: null, quotation_id: null,
       prospect_id: null, customer_id: null, ongkir_per_kg: null, berat_kg: null, diskon_persen: null,
       kepada: '', customer_no: null, kontak: null, telepon: null, alamat: null, po_number: null, ship_date: null, ekspedisi: null,
       items: [{ nama: '', qty: 1, unit: 'pcs', harga: 0, disc_pct: null, catatan: null }], expenses: [], diskon: 0, ppn_mode: 'none', ppn_rate: 11, terbayar: 0, dp_persen: jenis === 'proforma' ? 50 : null,
@@ -207,7 +210,7 @@ export async function draftOrderDocument(jenis: SoJenis, soId: number | null): P
   // Diskon SO (Rupiah) diubah ke persen dari subtotal
   const soSub = so.subtotal || 0
   return {
-    jenis, jenis_order: 'polos', nomor: soDocNomor(so, jenis), tanggal: jenis === 'proforma' ? todayWib() : so.tanggal, so_accurate_id: so.id, so_number: so.nomor,
+    jenis, jenis_order: 'polos', nomor: soDocNomor(so, jenis), tanggal: jenis === 'proforma' ? todayWib() : so.tanggal, so_accurate_id: so.id, so_number: so.nomor, quotation_id: null,
     prospect_id: null, customer_id: cust ? Number(cust.id) : null, ongkir_per_kg: null, berat_kg: null,
     diskon_persen: so.diskon && soSub ? Math.round((so.diskon / soSub) * 1000000) / 10000 : null,
     kepada: so.customer_name, customer_no: so.customer_no, kontak: so.kontak, telepon: so.telepon, alamat: so.alamat, po_number: so.po_number,
@@ -220,6 +223,46 @@ export async function draftOrderDocument(jenis: SoJenis, soId: number | null): P
     expenses: so.expenses, diskon: so.diskon, ppn_mode: so.taxable && so.ppn ? (so.inclusive ? 'inclusive' : 'exclusive') : 'none', ppn_rate: so.ppn_rate || 11,
     terbayar: so.terbayar, dp_persen: jenis === 'proforma' && !so.terbayar ? (so.dp_persen && so.dp_persen < 100 ? so.dp_persen : null) : null,
     catatan: so.keterangan.replace(/\n\s*\n+/g, '\n').trim() || null, ...base,
+  }
+}
+
+// Dokumen yang sudah tersimpan untuk quotation ini (per jenis); null = belum ada
+export async function quotationDocumentId(quotationId: number, jenis: SoJenis, nomor?: string | null) {
+  const [[r]] = await db.query<Row[]>(
+    'SELECT id FROM order_documents WHERE jenis = ? AND (quotation_id = ? OR (quotation_id IS NULL AND nomor = ?)) ORDER BY quotation_id IS NULL, id DESC LIMIT 1',
+    [jenis, quotationId, nomor ?? ''],
+  )
+  return r ? Number(r.id) : null
+}
+
+// Isian awal Surat Order / Proforma Invoice dari Quotation yang sudah Diterima (data order: nomor, pengiriman, DP, ongkir)
+export async function draftFromQuotation(jenis: SoJenis, quotationId: number, user: UserProfile): Promise<DocInput> {
+  const q = await loadQuotation(quotationId, user) as Record<string, unknown>
+  if (!q.order_nomor) fail(400, 'Surat order belum dibuat. Buka penawaran yang sudah Diterima lalu isi data order.')
+  const [items, doc] = await Promise.all([loadQuotationItems(quotationId), loadSettings('doc.')])
+  const n = (v: unknown) => (v == null || v === '' ? null : Number(v))
+  const via = q.pengiriman === 'driver_pap' ? `Armada PT. Pandawa Amerta Packindo${q.driver_nama ? ` (${q.driver_nama})` : ''}`
+    : q.expedition_name ? String(q.expedition_name) : q.pengiriman === 'ambil' ? 'Diambil sendiri oleh customer' : null
+  const ongkirPerKg = q.pakai_ongkir ? n(q.ongkir_per_kg) : null
+  const ongkirLain = n(q.ongkir) ?? 0
+  const dp = n(q.dp_persen)
+  const terbayar = n(q.terbayar) ?? 0
+  return {
+    jenis, jenis_order: 'polos', nomor: String(jenis === 'order' ? q.order_nomor : q.proforma_nomor || q.order_nomor),
+    tanggal: jenis === 'proforma' ? todayWib() : String(q.order_at ?? q.tanggal ?? todayWib()).slice(0, 10), so_accurate_id: null, so_number: null, quotation_id: quotationId,
+    prospect_id: q.customer_id ? null : n(q.prospect_id), customer_id: n(q.customer_id),
+    ongkir_per_kg: ongkirPerKg && ongkirPerKg > 0 ? ongkirPerKg : null, berat_kg: ongkirPerKg ? n(q.ongkir_berat_kg) : null,
+    diskon_persen: q.pakai_diskon && q.diskon_tipe === 'persen' ? n(q.diskon_nilai) : null,
+    kepada: String(q.kepada ?? ''), customer_no: (q.customer_no as string) ?? null, kontak: (q.kontak as string) ?? null,
+    telepon: (q.telepon as string) || (q.whatsapp as string) || null, alamat: (q.alamat as string) ?? null, po_number: null,
+    ship_date: q.tanggal_kirim ? String(q.tanggal_kirim).slice(0, 10) : null, ekspedisi: via,
+    items: items.map((it) => ({ nama: it.nama_produk, qty: it.qty, unit: it.satuan, harga: it.harga_satuan, disc_pct: null, catatan: it.spesifikasi || null })),
+    expenses: ongkirLain > 0 ? [{ nama: 'Ongkos kirim', amount: ongkirLain }] : [],
+    diskon: q.pakai_diskon && q.diskon_tipe !== 'persen' ? Number(q.diskon ?? 0) : 0,
+    ppn_mode: q.pakai_ppn ? 'exclusive' : 'none', ppn_rate: n(q.ppn_persen) || 11, terbayar,
+    dp_persen: jenis === 'proforma' && !terbayar && dp && dp < 100 ? dp : null,
+    catatan: (q.catatan_order as string) || null,
+    rekening: jenis === 'proforma' ? (q.rekening as string) || doc.rekening || null : null, penandatangan: doc.penandatangan || null,
   }
 }
 

@@ -3138,6 +3138,7 @@ button.pap-ap-gantt-label { cursor:pointer; }
 .pap-ta-proc-name input { flex:none; width:17px; height:17px; accent-color:#7c5cfc; }
 .pap-ta-proc-f { display:flex; flex-direction:column; gap:3px; min-width:0; font-size:10px; color:var(--pap-muted); }
 .pap-ta-proc-f .pap-input { min-height:34px; padding-top:6px; padding-bottom:6px; font-size:12px; }
+.pap-ta-proc-f.span2 { grid-column:span 2; }
 .pap-ta-choice { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; }
 .pap-ta-choice-btn { padding:7px 12px; border:1.5px solid var(--pap-border); border-radius:999px; background:var(--pap-surface); color:var(--pap-text); font-size:12px; font-weight:700; cursor:pointer; }
 .pap-ta-choice-btn.active.bisa, .pap-ta-choice-btn.active.q-mudah { border-color:#1db98a; background:rgb(29 185 138 / .12); color:#0f8f6a; }
