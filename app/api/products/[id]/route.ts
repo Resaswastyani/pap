@@ -43,8 +43,8 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   // Produk dari barang Accurate: nama & kode dikirim ke Accurate lebih dulu (bila Accurate menolak, tidak ada yang berubah)
   if (item.accurate_item_id) await renameAccurateItem(item.accurate_item_id, input.nama, input.kode)
   await db.query(
-    `UPDATE customer_products SET kode = ?, nama = ?, jenis = ?, spesifikasi = ?, bahan = ?, keterangan = ?, status = ?, updated_by = ? WHERE id = ?`,
-    [input.kode, input.nama, input.jenis, input.spesifikasi, input.bahan, input.keterangan, input.status, user.id, item.id],
+    `UPDATE customer_products SET kode = ?, nama = ?, jenis = ?, qty = ?, qty_satuan = ?, spesifikasi = ?, bahan = ?, keterangan = ?, status = ?, updated_by = ? WHERE id = ?`,
+    [input.kode, input.nama, input.jenis, input.qty, input.qty_satuan, input.spesifikasi, input.bahan, input.keterangan, input.status, user.id, item.id],
   )
   // Centang "Minta analisa ke Dept Teknik": analisa teknik per produk dibuat / diperbarui & diserahkan ke Teknik
   const analisa = await syncProductAnalysis(item.id, body.teknik, user)

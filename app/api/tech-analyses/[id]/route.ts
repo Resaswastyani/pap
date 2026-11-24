@@ -4,7 +4,7 @@ import { fail, handle, int, readJson, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { softDelete } from '@/lib/recycle-bin'
 import {
-  canDireksiSection, canMarketingSection, canTeknikSection, direksiUsers, loadAnalysis, notifyAnalysis, readMarketingSection, readTeknikSection, requireTechAnalysis, TA_STATUS, teknikUsers,
+  canDireksiSection, canSubmitSection, canTeknikSection, direksiUsers, loadAnalysis, notifyAnalysis, readMarketingSection, readTeknikSection, requireTechAnalysis, TA_STATUS, teknikUsers,
 } from '@/lib/tech-analysis'
 import { isManagement } from '@/lib/users'
 
@@ -18,7 +18,7 @@ export const GET = handle(async (_request: Request, ctx: Ctx) => {
   return NextResponse.json({
     item: a,
     can: {
-      marketing: canMarketingSection(user) && a.status !== 'selesai',
+      marketing: canSubmitSection(user) && a.status !== 'selesai',
       teknik: canTeknikSection(user) && a.status !== 'draft' && a.status !== 'selesai',
       direksi: canDireksiSection(user) && (a.status === 'dianalisa' || a.status === 'selesai'),
       delete: user.role.isAdmin || isManagement(user) || (a.created_by === user.id && a.status === 'draft'),
@@ -33,7 +33,7 @@ export const PUT = handle(async (request: Request, ctx: Ctx) => {
   const a = await loadAnalysis(await analysisId(ctx))
   const body = await readJson(request)
   if (body.bagian === 'marketing') {
-    if (!canMarketingSection(user)) fail(403, 'Bagian ini diisi oleh Marketing.')
+    if (!canSubmitSection(user)) fail(403, 'Bagian ini diisi oleh Marketing / PPIC.')
     if (a.status === 'selesai') fail(400, 'Analisa sudah selesai (ada rekomendasi Direksi).')
     await db.query('UPDATE prospect_tech_analyses SET ?, updated_by = ? WHERE id = ?', [await readMarketingSection(body), user.id, a.id])
     await logActivity(request, user, { module: 'Prospek', action: 'update', entity: { type: 'tech_analysis', id: a.id, label: a.nomor }, description: `Mengubah spek order analisa teknik ${a.nomor}` })
@@ -78,13 +78,13 @@ export const PATCH = handle(async (request: Request, ctx: Ctx) => {
   const body = await readJson(request)
   let to: keyof typeof TA_STATUS
   if (body.action === 'serahkan') {
-    if (!canMarketingSection(user)) fail(403, 'Diserahkan oleh Marketing.')
+    if (!canSubmitSection(user)) fail(403, 'Diserahkan oleh Marketing / PPIC.')
     if (a.status !== 'draft') fail(400, 'Analisa sudah diserahkan ke Teknik.')
     to = 'diserahkan'
     await db.query("UPDATE prospect_tech_analyses SET status = 'diserahkan', tanggal_serah = CURDATE(), updated_by = ? WHERE id = ?", [user.id, a.id])
-    await notifyAnalysis(await teknikUsers(), a, 'Analisa teknik order baru dari Marketing', 'serah', user.id)
+    await notifyAnalysis(await teknikUsers(), a, `Analisa teknik order baru dari ${a.sumber === 'ppic' ? 'PPIC' : 'Marketing'}`, 'serah', user.id)
   } else if (body.action === 'tarik') {
-    if (!canMarketingSection(user)) fail(403, 'Ditarik oleh Marketing.')
+    if (!canSubmitSection(user)) fail(403, 'Ditarik oleh Marketing / PPIC.')
     if (a.status !== 'diserahkan') fail(400, 'Hanya analisa yang belum dianalisa Teknik yang bisa ditarik.')
     to = 'draft'
     await db.query("UPDATE prospect_tech_analyses SET status = 'draft', updated_by = ? WHERE id = ?", [user.id, a.id])

@@ -1,14 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, ClipboardCheck, Eye, FileDown, Plus, Printer, Ruler, Save, Search, Send, Trash2, Undo2, Wrench } from 'lucide-react'
+import { CheckCircle2, ClipboardCheck, Eye, FileDown, ImageIcon, Plus, Printer, Ruler, Save, Search, Send, Trash2, Undo2, Wrench, X } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { api, confirmDialog, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged } from './ui'
+import { AttachmentInput, AttachmentPanel, emptyAttachments, pendingCount, uploadPendingAttachments, type PendingAttachments } from './attachments'
+import { DesignPicker, DesignThumb, type Desain } from './order-custom-page'
 
 // Analisa Aspek Teknik atas Rencana Order Baru / Spec Baru: Marketing -> Dept Teknik -> Direksi, cetak PDF & Word
 
 type Status = 'draft' | 'diserahkan' | 'dianalisa' | 'selesai'
-const STATUS: Record<Status, string> = { draft: 'Draft Marketing', diserahkan: 'Di Dept Teknik', dianalisa: 'Menunggu Direksi', selesai: 'Selesai' }
+const STATUS: Record<Status, string> = { draft: 'Draft', diserahkan: 'Di Dept Teknik', dianalisa: 'Menunggu Direksi', selesai: 'Selesai' }
 const TONE: Record<Status, string> = { draft: 'neutral', diserahkan: 'warning', dianalisa: 'info', selesai: 'success' }
 const FLOW: Status[] = ['draft', 'diserahkan', 'dianalisa', 'selesai']
 const FLOW_LABEL: Record<Status, string> = { draft: 'Marketing isi spek', diserahkan: 'Teknik analisa', dianalisa: 'Direksi rekomendasi', selesai: 'Selesai' }
@@ -24,8 +26,9 @@ type Analysis = {
   proses: Proses[]; bisa_produksi: keyof typeof BISA | null; penjelasan_produksi: string | null; kesulitan_kualitas: keyof typeof KUALITAS | null; penjelasan_kualitas: string | null
   catatan_lain: string | null; teknik_name: string | null; teknik_at: string | null; rekomendasi_direksi: string | null; direksi_name: string | null; direksi_at: string | null
   created_by: number | null; created_name: string | null; created_at: string; updated_at: string
+  sumber?: string | null; customer_id?: number | null; so_number?: string | null; jumlah_gambar?: number | null; desain?: Desain[]; roto?: 'dengan' | 'tanpa' | null
 }
-type ListRes = { items: Analysis[]; counts: Partial<Record<Status, number>>; can: { create: boolean; teknik: boolean; direksi: boolean } }
+type ListRes = { items: Analysis[]; counts: Partial<Record<Status, number>>; can: { create: boolean; ppic?: boolean; teknik: boolean; direksi: boolean } }
 type Can = { marketing: boolean; teknik: boolean; direksi: boolean; delete: boolean }
 export type TaPrefill = { prospect_id: number; nama_customer: string; products: { label: string; jenis_plastik?: string | null; qty_kg?: number | string | null; catatan?: string | null }[] }
 
@@ -33,7 +36,8 @@ const fmt = (v: number | null | undefined) => (v === null || v === undefined ? '
 
 // Daftar analisa (menu Analisa Teknik Order, tab di Prospek, atau bagian di detail prospek bila prospectId diisi)
 // sumber='produk': hanya analisa yang diajukan dari Data Produk (tab Analisa Teknik di menu Data Produk)
-export function TechAnalysisView({ user, prospectId, prefill, focusId, compact = false, allowCreate = true, sumber }: { user: UserProfile; prospectId?: number; prefill?: TaPrefill; focusId?: number | null; compact?: boolean; allowCreate?: boolean; sumber?: 'produk' }) {
+// sumber='marketing': pengajuan Marketing (menu Pengajuan Analisa Teknik); 'ppic': pengajuan PPIC dari Sales Order (tombol Ajukan dari SO)
+export function TechAnalysisView({ user, prospectId, prefill, focusId, compact = false, allowCreate = true, sumber }: { user: UserProfile; prospectId?: number; prefill?: TaPrefill; focusId?: number | null; compact?: boolean; allowCreate?: boolean; sumber?: 'produk' | 'marketing' | 'ppic' }) {
   const [data, setData] = useState<ListRes | null>(null)
   const [status, setStatus] = useState<Status | ''>('')
   const [q, setQ] = useState('')
@@ -75,8 +79,8 @@ export function TechAnalysisView({ user, prospectId, prefill, focusId, compact =
       <div className={compact ? 'pap-ta-compact' : 'pap-table-card'}>
         {!compact && (
           <div className="pap-card-head">
-            <div><h2>Analisa teknik order baru / spec baru</h2><p>Spek order dari Marketing dianalisa Dept Teknik per urutan proses mesin, lalu diberi rekomendasi Direksi. Bisa dicetak PDF & Word.</p></div>
-            {can?.create && <button className="pap-primary-button" onClick={() => setCreating(true)}><Plus /> Analisa baru</button>}
+            <div><h2>{sumber === 'ppic' ? 'Pengajuan analisa teknik PPIC' : 'Analisa teknik order baru / spec baru'}</h2><p>{sumber === 'ppic' ? 'Pengajuan dari Sales Order Accurate (customer & produk sudah terisi), dianalisa Dept Teknik lalu diberi rekomendasi Direksi.' : 'Spek order dari Marketing dianalisa Dept Teknik per urutan proses mesin, lalu diberi rekomendasi Direksi. Bisa dicetak PDF & Word.'}</p></div>
+            {allowCreate && (sumber === 'ppic' ? can?.ppic : can?.create) && <button className="pap-primary-button" onClick={() => setCreating(true)}><Plus /> {sumber === 'ppic' ? 'Ajukan dari Sales Order' : 'Analisa baru'}</button>}
           </div>
         )}
         {!compact && (
@@ -92,7 +96,7 @@ export function TechAnalysisView({ user, prospectId, prefill, focusId, compact =
               {paged.items.map((a) => (
                 <tr key={a.id} className="pap-clickable" tabIndex={0} onClick={() => setOpenId(a.id)} onKeyDown={(e) => e.key === 'Enter' && setOpenId(a.id)}>
                   <td><div className="pap-cc-nomor">{a.nomor} · {formatDate(a.created_at)}</div><div className="pap-cell-title">{a.nama_produk}</div></td>
-                  <td><div>{a.nama_customer}</div>{a.created_name && <div className="pap-cell-sub">oleh {a.created_name}</div>}</td>
+                  <td><div>{a.nama_customer}</div><div className="pap-cell-sub">{[a.so_number, a.created_name && `oleh ${a.created_name}`, a.sumber === 'ppic' ? 'PPIC' : null].filter(Boolean).join(' · ')}</div></td>
                   <td className="pap-cell-sub">{[a.jenis_plastik, a.panjang_cm && a.lebar_cm ? `${fmt(a.panjang_cm)}×${fmt(a.lebar_cm)} cm` : null, a.tebal_mm ? `${fmt(a.tebal_mm)} mm` : null, a.print_jenis === 'print' ? `print ${a.jumlah_warna ?? ''} wrn` : a.print_jenis === 'polos' ? 'polos' : null].filter(Boolean).join(' · ') || '—'}</td>
                   <td>{a.bisa_produksi ? <span className={`pap-ta-verdict ${a.bisa_produksi}`}>{BISA[a.bisa_produksi]}</span> : <span className="pap-muted">—</span>}{a.kesulitan_kualitas && <div className="pap-cell-sub">Kualitas: {KUALITAS[a.kesulitan_kualitas]}</div>}</td>
                   <td><span className={`pap-status ${TONE[a.status]}`}>{STATUS[a.status]}</span></td>
@@ -124,7 +128,8 @@ export function TechAnalysisView({ user, prospectId, prefill, focusId, compact =
           {list}
         </section>
       ) : list}
-      {creating && <TechAnalysisForm prefill={prefill} onClose={() => setCreating(false)} onSaved={(id, msg) => { setCreating(false); setNotice(msg); load(); setOpenId(id) }} />}
+      {creating && sumber === 'ppic' && <PpicAnalysisForm onClose={() => setCreating(false)} onSaved={(msg) => { setCreating(false); setNotice(msg); load() }} />}
+      {creating && sumber !== 'ppic' && <TechAnalysisForm prefill={prefill} onClose={() => setCreating(false)} onSaved={(id, msg) => { setCreating(false); setNotice(msg); load(); setOpenId(id) }} />}
       {openId && <TechAnalysisDetail id={openId} user={user} onClose={() => setOpenId(null)} onChanged={(msg) => { if (msg) setNotice(msg); load() }} />}
     </>
   )
@@ -134,16 +139,19 @@ export function TechAnalysisView({ user, prospectId, prefill, focusId, compact =
 type MarketingValues = {
   nama_produk: string; nama_customer: string; jenis_plastik: string; panjang_cm: string; lebar_cm: string; tebal_mm: string; print_jenis: '' | 'polos' | 'print'
   jumlah_warna: string; kesulitan_print: string; spec_lainnya: string; qty_order: string; qty_satuan: string; frekuensi: '' | 'sekali' | 'rutin'; rutin_bulan: string; critical_to_quality: string
+  jumlah_gambar: string; desain: Desain[]
 }
 const toValues = (a?: Partial<Analysis>): MarketingValues => ({
   nama_produk: a?.nama_produk ?? '', nama_customer: a?.nama_customer ?? '', jenis_plastik: a?.jenis_plastik ?? '', panjang_cm: fmt(a?.panjang_cm), lebar_cm: fmt(a?.lebar_cm), tebal_mm: fmt(a?.tebal_mm),
   print_jenis: a?.print_jenis ?? '', jumlah_warna: fmt(a?.jumlah_warna), kesulitan_print: a?.kesulitan_print ?? '', spec_lainnya: a?.spec_lainnya ?? '', qty_order: fmt(a?.qty_order),
   qty_satuan: a?.qty_satuan ?? 'kg', frekuensi: a?.frekuensi ?? '', rutin_bulan: fmt(a?.rutin_bulan), critical_to_quality: a?.critical_to_quality ?? '',
+  jumlah_gambar: fmt(a?.jumlah_gambar), desain: a?.desain ?? [],
 })
 
-function MarketingFields({ v, set, disabled, products, onPickProduct }: {
+// lockNames: nama produk & customer dari Sales Order (PPIC) tidak diubah; gambar: bagian lampiran gambar di bawah form
+function MarketingFields({ v, set, disabled, products, onPickProduct, lockNames, gambar }: {
   v: MarketingValues; set: (patch: Partial<MarketingValues>) => void; disabled?: boolean
-  products?: TaPrefill['products']; onPickProduct?: (i: number) => void
+  products?: TaPrefill['products']; onPickProduct?: (i: number) => void; lockNames?: boolean; gambar?: React.ReactNode
 }) {
   const on = (k: keyof MarketingValues) => (e: { target: { value: string } }) => set({ [k]: e.target.value } as Partial<MarketingValues>)
   const numOnly = (k: keyof MarketingValues) => (e: { target: { value: string } }) => set({ [k]: e.target.value.replace(/[^\d.,]/g, '') } as Partial<MarketingValues>)
@@ -156,8 +164,8 @@ function MarketingFields({ v, set, disabled, products, onPickProduct }: {
         </div>
       )}
       <div className="pap-form-grid">
-        <Field label="Nama produk *"><input className="pap-input" required maxLength={255} disabled={disabled} value={v.nama_produk} onChange={on('nama_produk')} placeholder="mis. HD Jinjing Gusset Uk 45 Print Logo" /></Field>
-        <Field label="Nama customer *"><input className="pap-input" required maxLength={255} disabled={disabled} value={v.nama_customer} onChange={on('nama_customer')} /></Field>
+        <Field label="Nama produk *"><input className="pap-input" required maxLength={255} disabled={disabled || lockNames} value={v.nama_produk} onChange={on('nama_produk')} placeholder="mis. HD Jinjing Gusset Uk 45 Print Logo" /></Field>
+        <Field label="Nama customer *"><input className="pap-input" required maxLength={255} disabled={disabled || lockNames} value={v.nama_customer} onChange={on('nama_customer')} /></Field>
       </div>
       <h4 className="pap-ta-sub-h">Spec order</h4>
       <div className="pap-form-grid pap-ta-grid4">
@@ -175,6 +183,7 @@ function MarketingFields({ v, set, disabled, products, onPickProduct }: {
         </div>
         {v.print_jenis === 'print' && <Field label="Jumlah warna print"><input className="pap-input" inputMode="numeric" disabled={disabled} value={v.jumlah_warna} onChange={numOnly('jumlah_warna')} /></Field>}
         {v.print_jenis === 'print' && <Field label="Tingkat kesulitan print"><input className="pap-input" maxLength={255} disabled={disabled} value={v.kesulitan_print} onChange={on('kesulitan_print')} placeholder="mis. gradasi, register ketat" /></Field>}
+        <Field label="Jumlah gambar per kantong"><input className="pap-input" inputMode="numeric" disabled={disabled} value={v.jumlah_gambar} onChange={numOnly('jumlah_gambar')} placeholder="mis. 2" /></Field>
       </div>
       <Field label="Spec lainnya (airhole, pillow case, dll.)" full><textarea className="pap-input" rows={2} maxLength={5000} disabled={disabled} value={v.spec_lainnya} onChange={on('spec_lainnya')} /></Field>
       <div className="pap-form-grid pap-ta-grid4">
@@ -188,8 +197,67 @@ function MarketingFields({ v, set, disabled, products, onPickProduct }: {
         {v.frekuensi === 'rutin' && <Field label="Rutin per ... bulan"><input className="pap-input" inputMode="numeric" disabled={disabled} value={v.rutin_bulan} onChange={numOnly('rutin_bulan')} placeholder="1" /></Field>}
       </div>
       <Field label="Critical to quality" full><textarea className="pap-input" rows={2} maxLength={5000} disabled={disabled} value={v.critical_to_quality} onChange={on('critical_to_quality')} placeholder="mis. kekuatan sealing, warna logo harus sesuai, tidak boleh bau" /></Field>
+      {gambar}
     </div>
   )
+}
+
+// ---------- Gambar produk: lampiran file gambar + desain dari Master Data (Logo & Desain) ----------
+// analysisId: lampiran langsung tersimpan (detail); pending: file disimpan setelah analisa dibuat (form baru)
+export function GambarProduk({ desain, onDesain, customerId, disabled, analysisId, pending, onPending, canAdd = true }: {
+  desain: Desain[]; onDesain: (d: Desain[]) => void; customerId?: number | null; disabled?: boolean
+  analysisId?: number; pending?: PendingAttachments; onPending?: (p: PendingAttachments) => void; canAdd?: boolean
+}) {
+  const [picking, setPicking] = useState(false)
+  return (
+    <div className="pap-ta-gambar">
+      <h4 className="pap-ta-sub-h"><ImageIcon className="pap-inline-icon" /> Gambar produk</h4>
+      {analysisId
+        ? <AttachmentPanel title="File gambar" basePath={`/api/notes/tech_analysis/${analysisId}/attachments`} fileBase="/api/notes/attachments" canAdd={canAdd && !disabled} currentUserId={0} isAdmin={false} pasteImages={canAdd && !disabled} />
+        : pending && onPending && <AttachmentInput value={pending} onChange={onPending} pasteImages />}
+      <div className="pap-ta-desain">
+        <span className="pap-ta-desain-label">Desain dari Master Data <small className="pap-muted">(Logo &amp; Desain)</small></span>
+        {desain.length > 0 && (
+          <div className="pap-oc-designs">
+            {desain.map((d) => (
+              <figure key={d.id} className="pap-oc-design">
+                <a href={d.web_link ?? `/api/order-custom/designs/${encodeURIComponent(d.id)}/thumb?s=1200`} target="_blank" rel="noreferrer" title={`Buka ${d.name}`}><DesignThumb d={d} /></a>
+                <figcaption title={d.name}>{d.name}</figcaption>
+                {!disabled && <button type="button" className="pap-oc-design-x" aria-label={`Lepas ${d.name}`} onClick={() => onDesain(desain.filter((x) => x.id !== d.id))}><X /></button>}
+              </figure>
+            ))}
+          </div>
+        )}
+        {!disabled && <button type="button" className="pap-btn" onClick={() => setPicking(true)}><Search /> Cari gambar di Master Data</button>}
+        {disabled && !desain.length && <p className="pap-muted pap-ta-hint">Tidak ada desain dari Master Data.</p>}
+      </div>
+      {picking && <DesignPicker selected={desain} customerId={customerId ?? null} onClose={() => setPicking(false)} onDone={(list) => { onDesain(list); setPicking(false) }} />}
+    </div>
+  )
+}
+
+// Unggah file gambar yang belum tersimpan ke analisa (setelah analisa dibuat dari form)
+export async function uploadAnalysisImages(analysisId: number, pending: PendingAttachments) {
+  return pendingCount(pending) ? uploadPendingAttachments(`/api/notes/tech_analysis/${analysisId}/attachments`, pending) : []
+}
+
+// Setelah prospek / produk disimpan: unggah gambar per produk ke analisanya (dicari ulang per nama produk).
+// Mengembalikan teks peringatan bila ada yang gagal ('' bila semua beres / tidak ada file)
+export async function uploadTeknikFiles(list: { label: string; teknik?: TeknikSpec | null }[], find: () => Promise<Map<string, TeknikSpec>>) {
+  const todo = list.filter((p) => p.teknik?.minta && p.teknik.files && pendingCount(p.teknik.files))
+  if (!todo.length) return ''
+  try {
+    const map = await find()
+    const failed: string[] = []
+    for (const p of todo) {
+      const id = map.get(p.label.trim().toLowerCase())?.analysis?.id
+      if (!id) { failed.push(`${p.label}: analisa belum dibuat.`); continue }
+      failed.push(...(await uploadAnalysisImages(id, p.teknik!.files!)))
+    }
+    return failed.length ? ` ${failed.length} gambar analisa gagal diunggah: ${failed.join(' ')}` : ''
+  } catch (err) {
+    return ` Gambar analisa gagal diunggah: ${(err as Error).message}`
+  }
 }
 
 const fromPrefill = (prefill: TaPrefill | undefined, base: MarketingValues): MarketingValues => {
@@ -201,6 +269,7 @@ function TechAnalysisForm({ prefill, onClose, onSaved }: { prefill?: TaPrefill; 
   // Dari detail prospek: prospek sudah tertentu; dari tab / menu: pilih prospek dulu (atau isi manual)
   const [source, setSource] = useState<(TaPrefill & { nama?: string }) | undefined>(prefill)
   const [v, setV] = useState<MarketingValues>(() => fromPrefill(prefill, toValues()))
+  const [files, setFiles] = useState<PendingAttachments>(emptyAttachments)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   function pick(i: number) {
@@ -213,7 +282,8 @@ function TechAnalysisForm({ prefill, onClose, onSaved }: { prefill?: TaPrefill; 
     setError('')
     try {
       const res = await api<{ id: number; nomor: string }>('/api/tech-analyses', { method: 'POST', json: { ...v, prospect_id: source?.prospect_id ?? null } })
-      onSaved(res.id, `Analisa teknik ${res.nomor} dibuat. Lengkapi lalu klik "Serahkan ke Teknik".`)
+      const failed = await uploadAnalysisImages(res.id, files)
+      onSaved(res.id, `Analisa teknik ${res.nomor} dibuat.${failed.length ? ` ${failed.length} gambar gagal diunggah: ${failed.join(' ')}` : ''} Lengkapi lalu klik "Serahkan ke Teknik".`)
     } catch (err) {
       setError((err as Error).message)
       setBusy(false)
@@ -227,7 +297,8 @@ function TechAnalysisForm({ prefill, onClose, onSaved }: { prefill?: TaPrefill; 
         {!prefill && (
           <ProspectPicker value={source} onPick={(s) => { setSource(s); setV(s ? fromPrefill(s, { ...v, nama_produk: '', jenis_plastik: '', qty_order: '', spec_lainnya: '' }) : v) }} onError={setError} />
         )}
-        <MarketingFields v={v} set={(p) => setV({ ...v, ...p })} products={source?.products} onPickProduct={pick} />
+        <MarketingFields v={v} set={(p) => setV({ ...v, ...p })} products={source?.products} onPickProduct={pick}
+          gambar={<GambarProduk desain={v.desain} onDesain={(d) => setV({ ...v, desain: d })} pending={files} onPending={setFiles} />} />
       </form>
     </Modal>
   )
@@ -240,7 +311,7 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
   const [tab, setTab] = useState<'spek' | 'teknik' | 'direksi'>('spek')
   const [mv, setMv] = useState<MarketingValues>(toValues())
   const [proses, setProses] = useState<Proses[]>([])
-  const [tv, setTv] = useState({ kesulitan_print: '', bisa_produksi: '', penjelasan_produksi: '', kesulitan_kualitas: '', penjelasan_kualitas: '', catatan_lain: '' })
+  const [tv, setTv] = useState({ kesulitan_print: '', roto: '' as '' | 'dengan' | 'tanpa', bisa_produksi: '', penjelasan_produksi: '', kesulitan_kualitas: '', penjelasan_kualitas: '', catatan_lain: '' })
   const [rek, setRek] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -255,7 +326,7 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
       setCan(r.can)
       setMv(toValues(x))
       setProses(x.proses)
-      setTv({ kesulitan_print: x.kesulitan_print ?? '', bisa_produksi: x.bisa_produksi ?? '', penjelasan_produksi: x.penjelasan_produksi ?? '', kesulitan_kualitas: x.kesulitan_kualitas ?? '', penjelasan_kualitas: x.penjelasan_kualitas ?? '', catatan_lain: x.catatan_lain ?? '' })
+      setTv({ kesulitan_print: x.kesulitan_print ?? '', roto: x.roto ?? '', bisa_produksi: x.bisa_produksi ?? '', penjelasan_produksi: x.penjelasan_produksi ?? '', kesulitan_kualitas: x.kesulitan_kualitas ?? '', penjelasan_kualitas: x.penjelasan_kualitas ?? '', catatan_lain: x.catatan_lain ?? '' })
       setRek(x.rekomendasi_direksi ?? '')
       setTab((t) => (t === 'spek' && x.status === 'diserahkan' && r.can.teknik ? 'teknik' : t === 'spek' && x.status === 'dianalisa' && r.can.direksi ? 'direksi' : t))
       setError('')
@@ -331,7 +402,9 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
 
       {tab === 'spek' && (
         <div className="pap-ta-section">
-          <MarketingFields v={mv} set={(p) => setMv({ ...mv, ...p })} disabled={!can.marketing} />
+          <MarketingFields v={mv} set={(p) => setMv({ ...mv, ...p })} disabled={!can.marketing} lockNames={a.sumber === 'ppic'}
+            gambar={<GambarProduk desain={mv.desain} onDesain={(d) => setMv({ ...mv, desain: d })} customerId={a.customer_id} disabled={!can.marketing} analysisId={a.id} canAdd={a.status !== 'selesai'} />} />
+          {a.so_number && <p className="pap-muted pap-ta-hint">Dari Sales Order {a.so_number} (PPIC): nama produk & customer mengikuti SO Accurate.</p>}
           {can.marketing && (
             <div className="pap-inline-actions pap-wrap pap-ta-actions">
               {a.status === 'diserahkan' && <button type="button" className="pap-btn" disabled={busy} onClick={() => flow('tarik', 'Analisa ditarik kembali ke draft Marketing.')}><Undo2 /> Tarik dari Teknik</button>}
@@ -356,6 +429,14 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
                 })}
               </div>
               <input className="pap-input" maxLength={255} disabled={!can.teknik} value={tv.kesulitan_print} onChange={(e) => setTv({ ...tv, kesulitan_print: e.target.value })} placeholder="mis. Sedang · register ketat, gradasi warna" aria-label="Keterangan tingkat kesulitan print" />
+            </div>
+          </div>
+          <div className="pap-field pap-ta-roto">
+            <span>Proses roto</span>
+            <div className="pap-ta-roto-opts">
+              {(['dengan', 'tanpa'] as const).map((k) => (
+                <label key={k} className="pap-check"><input type="checkbox" checked={tv.roto === k} disabled={!can.teknik} onChange={(e) => setTv({ ...tv, roto: e.target.checked ? k : '' })} /><span>{k === 'dengan' ? 'Dengan roto' : 'Tanpa roto'}</span></label>
+              ))}
             </div>
           </div>
           <p className="pap-muted pap-ta-hint">Centang mesin / proses yang dipakai sesuai urutan, isi kecepatan mesin, kecepatan roto maksimum, jalur, tumpuk, keterangan, dan hasil produktivitas per jam (kg).</p>
@@ -494,10 +575,15 @@ export function ProspectPicker({ value, onPick, onError }: { value: (TaPrefill &
 export type TeknikSpec = {
   minta: boolean; panjang_cm: string; lebar_cm: string; tebal_mm: string; print_jenis: '' | 'polos' | 'print'; jumlah_warna: string; kesulitan_print: string
   spec_lainnya: string; frekuensi: '' | 'sekali' | 'rutin'; rutin_bulan: string; critical_to_quality: string
+  jumlah_gambar?: string; desain?: Desain[]
+  // File gambar yang belum diunggah (diunggah ke analisanya setelah prospek / produk disimpan; tidak ikut JSON)
+  files?: PendingAttachments
   analysis?: { id: number; nomor: string; status: Status } | null
   mintaManual?: boolean
 }
-export const emptyTeknik = (): TeknikSpec => ({ minta: false, panjang_cm: '', lebar_cm: '', tebal_mm: '', print_jenis: '', jumlah_warna: '', kesulitan_print: '', spec_lainnya: '', frekuensi: '', rutin_bulan: '', critical_to_quality: '' })
+export const emptyTeknik = (): TeknikSpec => ({ minta: false, panjang_cm: '', lebar_cm: '', tebal_mm: '', print_jenis: '', jumlah_warna: '', kesulitan_print: '', spec_lainnya: '', frekuensi: '', rutin_bulan: '', critical_to_quality: '', jumlah_gambar: '', desain: [] })
+// Isian teknik untuk dikirim ke server (tanpa file yang belum diunggah)
+export const teknikForSave = (t: TeknikSpec | null | undefined) => (t ? (({ files: _files, ...rest }) => rest)(t) : t)
 
 // Analisa yang sudah ada untuk prospek: dipetakan per nama produk (untuk form Edit prospek)
 // Spek teknik analisa terakhir untuk satu produk Data Produk (isian awal form produk)
@@ -508,6 +594,7 @@ export async function loadProductTeknik(productId: number): Promise<TeknikSpec |
   return {
     minta: true, panjang_cm: fmt(a.panjang_cm), lebar_cm: fmt(a.lebar_cm), tebal_mm: fmt(a.tebal_mm), print_jenis: a.print_jenis ?? '', jumlah_warna: fmt(a.jumlah_warna),
     kesulitan_print: a.kesulitan_print ?? '', spec_lainnya: a.spec_lainnya ?? '', frekuensi: a.frekuensi ?? '', rutin_bulan: fmt(a.rutin_bulan), critical_to_quality: a.critical_to_quality ?? '',
+    jumlah_gambar: fmt(a.jumlah_gambar), desain: a.desain ?? [],
     analysis: { id: a.id, nomor: a.nomor, status: a.status },
   }
 }
@@ -519,6 +606,7 @@ export async function loadProspectTeknik(prospectId: number) {
     map.set(a.nama_produk.trim().toLowerCase(), {
       minta: true, panjang_cm: fmt(a.panjang_cm), lebar_cm: fmt(a.lebar_cm), tebal_mm: fmt(a.tebal_mm), print_jenis: a.print_jenis ?? '', jumlah_warna: fmt(a.jumlah_warna),
       kesulitan_print: a.kesulitan_print ?? '', spec_lainnya: a.spec_lainnya ?? '', frekuensi: a.frekuensi ?? '', rutin_bulan: fmt(a.rutin_bulan), critical_to_quality: a.critical_to_quality ?? '',
+      jumlah_gambar: fmt(a.jumlah_gambar), desain: a.desain ?? [],
       analysis: { id: a.id, nomor: a.nomor, status: a.status },
     })
   }
@@ -550,7 +638,8 @@ export function TeknikSpecPanel({ value, onChange }: { value: TeknikSpec | null 
   const set = (patch: Partial<TeknikSpec>) => {
     const next = { ...(t ?? emptyTeknik()), ...patch }
     if (!('minta' in patch) && !next.mintaManual) {
-      next.minta = [next.panjang_cm, next.lebar_cm, next.tebal_mm, next.print_jenis, next.jumlah_warna, next.kesulitan_print, next.spec_lainnya, next.frekuensi, next.critical_to_quality].some((x) => String(x ?? '').trim())
+      next.minta = [next.panjang_cm, next.lebar_cm, next.tebal_mm, next.print_jenis, next.jumlah_warna, next.kesulitan_print, next.spec_lainnya, next.frekuensi, next.critical_to_quality, next.jumlah_gambar].some((x) => String(x ?? '').trim())
+        || !!next.desain?.length || !!(next.files && pendingCount(next.files))
     }
     onChange(next)
   }
@@ -582,8 +671,12 @@ export function TeknikSpecPanel({ value, onChange }: { value: TeknikSpec | null 
                 </label>
                 {t?.frekuensi === 'rutin' && <label><span>Rutin per … bulan</span><input className="pap-input" inputMode="numeric" value={t.rutin_bulan} onChange={num('rutin_bulan')} /></label>}
                 <label className="full"><span>Spec lainnya (airhole, pillow case, dll.)</span><input className="pap-input" maxLength={1000} value={t?.spec_lainnya ?? ''} onChange={txt('spec_lainnya')} placeholder="Kosong = pakai Spek khusus / catatan produk" /></label>
+                <label><span>Jumlah gambar / kantong</span><input className="pap-input" inputMode="numeric" value={t?.jumlah_gambar ?? ''} onChange={num('jumlah_gambar')} placeholder="mis. 2" /></label>
                 <label className="full"><span>Critical to quality</span><input className="pap-input" maxLength={1000} value={t?.critical_to_quality ?? ''} onChange={txt('critical_to_quality')} placeholder="mis. sealing kuat, warna logo sesuai" /></label>
               </div>
+              {/* Gambar per produk: file baru diunggah setelah disimpan; yang sudah tersimpan tampil di analisanya */}
+              <GambarProduk desain={t?.desain ?? []} onDesain={(d) => set({ desain: d })} analysisId={t?.analysis?.id}
+                pending={t?.analysis ? undefined : t?.files ?? emptyAttachments()} onPending={(p) => set({ files: p })} />
             </>
           )}
         </div>
@@ -619,5 +712,146 @@ function ProspectDocActions({ prospectId }: { prospectId: number }) {
       <a className="pap-row-action" href={`${base}?print=1`} target="_blank" rel="noreferrer" title="Cetak formulir semua produk"><Printer /><span>Cetak</span></a>
       <a className="pap-row-action" href={`/api/tech-analyses/prospek/${prospectId}/word`} title="Unduh Word formulir semua produk"><FileDown /><span>Word</span></a>
     </span>
+  )
+}
+
+// ---------- Menu Pengajuan Analisa Teknik (Marketing) & Analisa Teknik PPIC ----------
+export function TechAnalysisMarketingPage({ user, focusId }: { user: UserProfile; focusId?: number | null }) {
+  return (
+    <>
+      <div className="pap-page-heading">
+        <div>
+          <p className="pap-eyebrow">MARKETING</p>
+          <h1>Pengajuan Analisa Teknik</h1>
+          <span>Ajukan analisa teknik order baru / spec baru ke Dept Teknik, lengkapi spek & gambar produk, dan pantau statusnya sampai ada rekomendasi Direksi.</span>
+        </div>
+      </div>
+      <TechAnalysisView user={user} focusId={focusId} sumber="marketing" />
+    </>
+  )
+}
+
+export function TechAnalysisPpicPage({ user, focusId }: { user: UserProfile; focusId?: number | null }) {
+  return (
+    <>
+      <div className="pap-page-heading">
+        <div>
+          <p className="pap-eyebrow">PPIC</p>
+          <h1>Analisa Teknik PPIC</h1>
+          <span>Ajukan analisa teknik untuk produk yang sudah ada di Sales Order Accurate: customer & produk terisi dari SO, tinggal lengkapi spek, jumlah gambar per kantong, dan gambar produk.</span>
+        </div>
+      </div>
+      <TechAnalysisView user={user} focusId={focusId} sumber="ppic" />
+    </>
+  )
+}
+
+type SoHit = { id: number; number: string; tanggal: string | null; status: string | null; customer_name: string | null; baris: number; barang: string | null }
+type SoLine = { line_id: number; item_accurate_id: number | null; item_no: string | null; item_name: string; quantity: number | null; unit: string | null; notes: string | null; product_id: number | null; jenis: string | null; spesifikasi: string | null; sudah_diajukan: string | null }
+type SoDetail = { id: number; number: string; tanggal: string | null; customer_id: number | null; customer_name: string | null; lines: SoLine[] }
+type PpicRow = { on: boolean; v: MarketingValues; files: PendingAttachments }
+
+// Form PPIC: pilih Sales Order -> centang produk -> isi spek, jumlah gambar & gambar per produk -> ajukan ke Teknik
+function PpicAnalysisForm({ onClose, onSaved }: { onClose: () => void; onSaved: (msg: string) => void }) {
+  const [q, setQ] = useState('')
+  const [hits, setHits] = useState<SoHit[] | null>(null)
+  const [so, setSo] = useState<SoDetail | null>(null)
+  const [rows, setRows] = useState<Record<number, PpicRow>>({})
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    if (so) return
+    setHits(null)
+    const t = setTimeout(() => {
+      api<{ items: SoHit[] }>(`/api/tech-analyses/so?q=${encodeURIComponent(q.trim())}`).then((r) => { setHits(r.items); setError('') }).catch((e) => setError((e as Error).message))
+    }, q ? 300 : 0)
+    return () => clearTimeout(t)
+  }, [q, so])
+  async function pickSo(id: number) {
+    try {
+      const r = await api<{ item: SoDetail }>(`/api/tech-analyses/so?id=${id}`)
+      setSo(r.item)
+      const next: Record<number, PpicRow> = {}
+      for (const l of r.item.lines) {
+        const unit = (l.unit ?? 'kg').toLowerCase()
+        next[l.line_id] = {
+          on: !l.sudah_diajukan,
+          v: { ...toValues(), nama_produk: l.item_name, nama_customer: r.item.customer_name ?? '', jenis_plastik: l.jenis ?? '', qty_order: l.quantity !== null ? fmt(l.quantity) : '',
+            qty_satuan: ['kg', 'pcs', 'lembar', 'roll', 'pack'].includes(unit) ? unit : 'kg', spec_lainnya: l.spesifikasi ?? l.notes ?? '' },
+          files: emptyAttachments(),
+        }
+      }
+      setRows(next)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+  const chosen = so ? so.lines.filter((l) => rows[l.line_id]?.on) : []
+  const setRow = (lineId: number, patch: Partial<PpicRow>) => setRows((r) => ({ ...r, [lineId]: { ...r[lineId], ...patch } }))
+  async function submit() {
+    if (!so || !chosen.length) return setError('Centang minimal satu produk dari Sales Order.')
+    setBusy(true)
+    setError('')
+    const done: string[] = []
+    const failed: string[] = []
+    try {
+      for (const l of chosen) {
+        const row = rows[l.line_id]
+        const res = await api<{ id: number; nomor: string }>('/api/tech-analyses', {
+          method: 'POST',
+          json: { ...row.v, sumber: 'ppic', serahkan: true, customer_id: so.customer_id, so_accurate_id: so.id, so_number: so.number },
+        })
+        done.push(res.nomor)
+        failed.push(...(await uploadAnalysisImages(res.id, row.files)))
+      }
+      onSaved(`${done.length} analisa teknik diajukan ke Dept Teknik (${done.join(', ')}).${failed.length ? ` Sebagian gambar gagal diunggah: ${failed.join(' ')}` : ''}`)
+    } catch (e) {
+      setError(`${(e as Error).message}${done.length ? ` (${done.join(', ')} sudah terkirim)` : ''}`)
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal title="Ajukan analisa teknik dari Sales Order" subtitle="Customer & produk diambil dari Sales Order Accurate" wide onClose={onClose}
+      footer={<>{so && <button type="button" className="pap-btn" disabled={busy} onClick={() => { setSo(null); setRows({}) }}>Ganti Sales Order</button>}<span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button>
+        {so && <button type="button" className="pap-primary-button" disabled={busy || !chosen.length} onClick={submit}><Send /> {busy ? 'Mengajukan...' : `Ajukan ${chosen.length} produk ke Teknik`}</button>}</>}>
+      {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+      {!so ? (
+        <>
+          <label className="pap-filter-search"><Search /><input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor SO, customer, atau nama barang (180 hari terakhir)..." /></label>
+          <div className="pap-ta-so-list">
+            {(hits ?? []).map((h) => (
+              <button type="button" key={h.id} className="pap-ta-so-hit" onClick={() => pickSo(h.id)}>
+                <b>{h.number}</b><span>{h.customer_name ?? '—'} · {h.tanggal ? formatDate(h.tanggal) : ''} · {h.baris} barang</span>
+                {h.barang && <small className="pap-muted">{h.barang}</small>}
+              </button>
+            ))}
+            {hits && !hits.length && <div className="pap-empty">Sales Order tidak ditemukan. Pastikan Sales Order sudah tersinkron dari Accurate.</div>}
+            {!hits && !error && <div className="pap-empty">Memuat Sales Order...</div>}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="pap-ta-so-head"><b>{so.number}</b><span>{so.customer_name ?? '—'}{so.tanggal ? ` · ${formatDate(so.tanggal)}` : ''}</span></div>
+          {so.lines.map((l) => {
+            const row = rows[l.line_id]
+            if (!row) return null
+            return (
+              <div key={l.line_id} className={`pap-ta-so-line ${row.on ? 'on' : ''}`}>
+                <label className="pap-ta-minta">
+                  <input type="checkbox" checked={row.on} onChange={(e) => setRow(l.line_id, { on: e.target.checked })} />
+                  <span><b>{l.item_name}</b> <small className="pap-muted">{[l.item_no, l.quantity !== null ? `${fmt(l.quantity)} ${l.unit ?? ''}` : null].filter(Boolean).join(' · ')}</small></span>
+                  {l.sudah_diajukan && <span className="pap-status info">Sudah diajukan {l.sudah_diajukan}</span>}
+                </label>
+                {row.on && (
+                  <MarketingFields v={row.v} set={(p) => setRow(l.line_id, { v: { ...row.v, ...p } })} lockNames
+                    gambar={<GambarProduk desain={row.v.desain} onDesain={(d) => setRow(l.line_id, { v: { ...row.v, desain: d } })} customerId={so.customer_id} pending={row.files} onPending={(p) => setRow(l.line_id, { files: p })} />} />
+                )}
+              </div>
+            )
+          })}
+          {!so.lines.length && <div className="pap-empty">Sales Order ini belum punya baris barang (belum tersinkron).</div>}
+        </>
+      )}
+    </Modal>
   )
 }

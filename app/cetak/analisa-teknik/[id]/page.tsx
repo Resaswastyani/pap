@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { ApiError } from '@/lib/api'
-import { loadAnalysis, requireTechAnalysis } from '@/lib/tech-analysis'
+import { analysisImages, loadAnalysis, requireTechAnalysis } from '@/lib/tech-analysis'
 import { techAnalysisHtml, techAnalysisSettings } from '@/lib/tech-analysis-document'
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../../quotation/[id]/print-button'
@@ -26,7 +26,7 @@ export default async function CetakAnalisaTeknikPage({ params, searchParams }: {
     <main className="pap-print">
       <PrintButton wordUrl={`/api/tech-analyses/${a.id}/word`} hint="untuk diarsipkan / diserahkan ke Dept Teknik" autoPrint={autoPrint} />
       {/* Semua isi data sudah di-escape di template */}
-      <div dangerouslySetInnerHTML={{ __html: techAnalysisHtml(a, await techAnalysisSettings(), '/logo-pap.png') }} />
+      <div dangerouslySetInnerHTML={{ __html: techAnalysisHtml(a, await techAnalysisSettings(), '/logo-pap.png', await analysisImages(a.id)) }} />
     </main>
   )
 }

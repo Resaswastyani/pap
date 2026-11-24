@@ -3,13 +3,14 @@ import { fail, handle, int, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { fetchThumbnail } from '@/lib/drive'
 import { requireOrderCustom } from '@/lib/order-custom'
+import { hasTechAnalysisMenu } from '@/lib/tech-analysis'
 
 type Ctx = { params: Promise<{ fileId: string }> }
 
 // Preview desain Master Data untuk pengguna Checklist Order Custom (PPIC / Operasional tidak harus punya menu Master Data)
 export const GET = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
-  if (!user.menus.includes('dokumen-order' as never)) requireOrderCustom(user)
+  if (!user.menus.includes('dokumen-order' as never) && !hasTechAnalysisMenu(user)) requireOrderCustom(user)
   const fileId = str((await ctx.params).fileId, 100)
   const [[file]] = await db.query<(RowDataPacket & { id: string })[]>('SELECT id FROM drive_files WHERE id = ?', [fileId])
   if (!file) fail(404, 'File tidak ditemukan.')

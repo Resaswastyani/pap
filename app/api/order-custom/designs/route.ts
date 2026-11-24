@@ -3,12 +3,13 @@ import { NextResponse } from 'next/server'
 import { handle, int, requireUser, str } from '@/lib/api'
 import { db } from '@/lib/db'
 import { requireOrderCustom } from '@/lib/order-custom'
+import { hasTechAnalysisMenu } from '@/lib/tech-analysis'
 
 // Pilih desain dari Master Data (Logo & Desain hasil sinkron Google Drive) untuk checklist order custom.
 // ?customer= desain milik customer (folder brand yang cocok); ?q= cari nama file / brand / customer. Hanya yang bisa dipreview.
 export const GET = handle(async (request: Request) => {
   const user = await requireUser()
-  requireOrderCustom(user)
+  if (!hasTechAnalysisMenu(user)) requireOrderCustom(user)
   const p = new URL(request.url).searchParams
   const where = ["(f.mime LIKE 'image/%' OR f.mime = 'application/pdf' OR f.has_thumbnail = 1)"]
   const args: unknown[] = []

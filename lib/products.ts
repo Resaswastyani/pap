@@ -7,7 +7,7 @@ export const PRODUCT_JENIS = ['HD', 'PP', 'PE', 'Mika rigid', 'Plastik laundry',
 
 // Produk bisa berasal dari barang Accurate (accurate_item_id, dibuat otomatis dari Sales Order) atau ditambah manual.
 // customer_id = customer utama (pemesan terbanyak); semua pemesan diambil dari baris Sales Order.
-export const PRODUCT_SELECT = `SELECT p.id, p.customer_id, c.name AS customer_name, c.customer_no, p.accurate_item_id, p.kode, p.nama, p.jenis,
+export const PRODUCT_SELECT = `SELECT p.id, p.customer_id, c.name AS customer_name, c.customer_no, p.accurate_item_id, p.kode, p.nama, p.jenis, p.qty, p.qty_satuan,
   p.spesifikasi, p.bahan, p.keterangan, p.status, p.created_by, COALESCE(cr.name, 'Sinkron Accurate') AS created_by_name,
   up.name AS updated_by_name, p.created_at, p.updated_at,
   (SELECT COUNT(*) FROM customer_product_files f WHERE f.product_id = p.id) AS file_count,
@@ -27,6 +27,7 @@ export const serializeProduct = (row: RowDataPacket) => ({
   file_count: Number(row.file_count),
   customer_count: Number(row.customer_count ?? 0),
   stock: row.stock === null || row.stock === undefined ? null : Number(row.stock),
+  qty: row.qty === null || row.qty === undefined ? null : Number(row.qty),
 })
 
 // Produk yang pernah dipesan customer (lewat Sales Order) atau customer utamanya = customer ini
@@ -68,6 +69,13 @@ export async function loadProductFiles(productId: number) {
   return rows
 }
 
+function readQty(v: unknown) {
+  if (v === null || v === undefined || v === '') return null
+  const n = Number(String(v).replace(/\./g, '').replace(',', '.'))
+  if (!Number.isFinite(n) || n < 0 || n > 1e12) fail(400, 'Qty produk tidak valid.')
+  return Math.round(n * 100) / 100
+}
+
 export function readProductInput(body: Record<string, unknown>) {
   const nama = str(body.nama, 255)
   if (!nama) fail(400, 'Nama produk wajib diisi.')
@@ -80,6 +88,9 @@ export function readProductInput(body: Record<string, unknown>) {
     bahan: str(body.bahan, 10000) || null,
     keterangan: str(body.keterangan, 10000) || null,
     status,
+    // Qty produk (mis. kebutuhan / order per pesanan) + satuannya
+    qty: readQty(body.qty),
+    qty_satuan: str(body.qty_satuan, 20) || null,
   }
 }
 

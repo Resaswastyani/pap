@@ -7,7 +7,7 @@ import type { UserProfile } from '@/lib/users'
 import { compressImage, isCompressibleImage } from './compress'
 import { AccurateSyncBar, formatNumber, formatRupiah } from './accurate'
 import { api, Field, formatDate, formatSize, Modal, Notice, Pager, RowActions, confirmDialog, FreshBadge } from './ui'
-import { loadProductTeknik, TechAnalysisView, TeknikMintaCheck, TeknikSpecPanel, type TeknikSpec } from './tech-analysis'
+import { loadProductTeknik, TechAnalysisView, TeknikMintaCheck, TeknikSpecPanel, teknikForSave, uploadTeknikFiles, type TeknikSpec } from './tech-analysis'
 
 export type Product = {
   id: number
@@ -22,6 +22,8 @@ export type Product = {
   kode: string | null
   nama: string
   jenis: string | null
+  qty?: number | null
+  qty_satuan?: string | null
   spesifikasi: string | null
   bahan: string | null
   keterangan: string | null
@@ -150,13 +152,14 @@ export function ProductPage({ user, focusId }: { user: UserProfile; focusId?: nu
         {error && <div className="pap-card-notice"><Notice onClose={() => setError('')}>{error}</Notice></div>}
         <div className="pap-table-wrap">
           <table>
-            <thead><tr><th>Produk</th><th>Customer</th><th>Jenis</th><th className="pap-num">Stok</th><th>Pesanan terakhir</th><th>Desain</th><th className="pap-actions-col">Aksi</th></tr></thead>
+            <thead><tr><th>Produk</th><th>Customer</th><th>Jenis</th><th className="pap-num">Qty</th><th className="pap-num">Stok</th><th>Pesanan terakhir</th><th>Desain</th><th className="pap-actions-col">Aksi</th></tr></thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} className="pap-row-link" onClick={() => setDetailId(item.id)}>
                   <td><div className="pap-cell-title">{item.nama}<FreshBadge item={item} /></div><div className="pap-cell-sub">{item.kode ?? 'Tanpa kode'}{item.accurate_item_id ? <span className="pap-chip">Accurate</span> : <span className="pap-chip">Manual</span>}{item.status === 'nonaktif' && <span className="pap-chip">nonaktif</span>}</div></td>
                   <td>{item.customer_name ?? <span className="pap-muted">—</span>}{item.customer_count > 1 && <div className="pap-cell-sub">+{item.customer_count - 1} customer lain</div>}</td>
                   <td>{item.jenis ?? '—'}</td>
+                  <td className="pap-num pap-nowrap">{item.qty == null ? <span className="pap-muted">—</span> : `${formatNumber(item.qty)} ${item.qty_satuan ?? ''}`}</td>
                   <td className="pap-num pap-nowrap">{item.stock === null ? '—' : `${formatNumber(item.stock)} ${item.unit ?? ''}`}</td>
                   <td className="pap-nowrap">{item.last_order ? formatDate(item.last_order) : <span className="pap-muted">—</span>}</td>
                   <td className="pap-nowrap">{item.file_count ? <><FileText className="pap-inline-icon" /> {item.file_count}</> : <span className="pap-muted">{item.spesifikasi ? '—' : 'Belum lengkap'}</span>}</td>
@@ -235,6 +238,8 @@ export function ProductForm({ initial, customer, jenisList = JENIS_DEFAULT, onCl
     nama: initial?.nama ?? '',
     kode: initial?.kode ?? '',
     jenis: initial?.jenis ?? '',
+    qty: initial?.qty != null ? String(initial.qty) : '',
+    qty_satuan: initial?.qty_satuan ?? 'kg',
     spesifikasi: initial?.spesifikasi ?? '',
     bahan: initial?.bahan ?? '',
     keterangan: initial?.keterangan ?? '',
@@ -261,15 +266,20 @@ export function ProductForm({ initial, customer, jenisList = JENIS_DEFAULT, onCl
     setSaving(true)
     setError('')
     try {
-      const teknikBody = teknik?.minta && !teknik.analysis?.status?.match(/dianalisa|selesai/) ? teknik : null
+      const teknikBody = teknik?.minta && !teknik.analysis?.status?.match(/dianalisa|selesai/) ? teknikForSave(teknik) : null
+      // Gambar analisa: diunggah ke analisa terakhir produk ini setelah tersimpan
+      const gambar = (id: number) => uploadTeknikFiles([{ label: '_', teknik: teknikBody ? teknik : null }], async () => {
+        const t = await loadProductTeknik(id)
+        return new Map(t ? [['_', t]] : [])
+      })
       if (initial) {
         const r = await api<{ analisa?: { status: string; nomor: string } | null }>(`/api/products/${initial.id}`, { method: 'PATCH', json: { ...values, teknik: teknikBody } })
-        onSaved(`Produk diperbarui.${analisaText(r.analisa)}`)
+        onSaved(`Produk diperbarui.${analisaText(r.analisa)}${await gambar(initial.id)}`)
         return
       }
       const res = await api<{ item: Product; analisa?: { status: string; nomor: string } | null }>('/api/products', { method: 'POST', json: { ...values, customer_id: selected!.id, teknik: teknikBody } })
       const failed = await uploadFiles(res.item.id, files)
-      onSaved(`${failed.length ? `Produk dibuat, tetapi ${failed.length} desain gagal diunggah: ${failed.join(' ')}` : 'Produk ditambahkan.'}${analisaText(res.analisa)}`, res.item.id)
+      onSaved(`${failed.length ? `Produk dibuat, tetapi ${failed.length} desain gagal diunggah: ${failed.join(' ')}` : 'Produk ditambahkan.'}${analisaText(res.analisa)}${await gambar(res.item.id)}`, res.item.id)
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -292,6 +302,12 @@ export function ProductForm({ initial, customer, jenisList = JENIS_DEFAULT, onCl
         </Field>
         <Field label="Nama produk"><input className="pap-input" required maxLength={255} value={values.nama} onChange={set('nama')} placeholder="Contoh: Kantong HD 30x45 cetak 2 warna" /></Field>
         <Field label="Kode barang Accurate (opsional)"><input className="pap-input" maxLength={80} value={values.kode} onChange={set('kode')} placeholder="Contoh: BRG-00123" /></Field>
+        <Field label="Qty produk">
+          <div className="pap-proj-unit">
+            <input className="pap-input" inputMode="decimal" value={values.qty} onChange={(e) => setValues((v) => ({ ...v, qty: e.target.value.replace(/[^\d.,]/g, '') }))} placeholder="mis. 500" />
+            <select className="pap-select" value={values.qty_satuan} onChange={set('qty_satuan')} aria-label="Satuan qty">{['kg', 'pcs', 'lembar', 'roll', 'pack'].map((u) => <option key={u} value={u}>{u}</option>)}</select>
+          </div>
+        </Field>
         <Field label="Jenis">
           <select className="pap-select" value={values.jenis} onChange={set('jenis')}>
             <option value="">— Pilih jenis —</option>
@@ -419,6 +435,7 @@ export function ProductDetail({ id, onClose, onEdit, onChanged, onDeleted }: { i
       <dl className="pap-detail-grid">
         <div><dt>Customer utama</dt><dd>{item.customer_name ?? '—'}{item.customer_no ? ` (${item.customer_no})` : ''}</dd></div>
         <div><dt>Kode barang</dt><dd>{item.kode ?? '—'}</dd></div>
+        <div><dt>Qty produk</dt><dd>{item.qty == null ? '—' : `${formatNumber(item.qty)} ${item.qty_satuan ?? ''}`}</dd></div>
         <div><dt>Stok (fisik)</dt><dd>{item.stock === null ? '—' : `${formatNumber(item.stock)} ${item.unit ?? ''}`}</dd></div>
         <div><dt>Pesanan terakhir</dt><dd>{item.last_order ? formatDate(item.last_order) : '—'}</dd></div>
         <div><dt>Dibuat</dt><dd>{item.created_by_name} · {formatDate(item.created_at, true)}</dd></div>

@@ -225,7 +225,7 @@ export function ChecklistEditor({ v, set, disabled, customerId = null, compact =
 
 // ---------- Desain dari Master Data (Logo & Desain hasil sinkron Google Drive) ----------
 const thumb = (id: string, s = 300) => `/api/order-custom/designs/${encodeURIComponent(id)}/thumb?s=${s}`
-function DesignThumb({ d }: { d: Desain }) {
+export function DesignThumb({ d }: { d: Desain }) {
   const [failed, setFailed] = useState(false)
   return failed ? <span className="pap-oc-dz-noprev"><FileText /><small>{d.name.split('.').pop()?.toUpperCase()}</small></span> : <img src={thumb(d.id)} alt={d.name} loading="lazy" onError={() => setFailed(true)} />
 }
@@ -251,7 +251,7 @@ function DesignSection({ value, onChange, disabled, customerId }: { value: Desai
   )
 }
 type DesignHit = Desain & { brand: string | null; bulan: string | null; root_label: string; customer_name: string | null }
-function DesignPicker({ selected, customerId, onClose, onDone }: { selected: Desain[]; customerId: number | null; onClose: () => void; onDone: (list: Desain[]) => void }) {
+export function DesignPicker({ selected, customerId, onClose, onDone }: { selected: Desain[]; customerId: number | null; onClose: () => void; onDone: (list: Desain[]) => void }) {
   const [q, setQ] = useState('')
   const [onlyCustomer, setOnlyCustomer] = useState(!!customerId)
   const [items, setItems] = useState<DesignHit[] | null>(null)

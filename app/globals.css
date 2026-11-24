@@ -3116,6 +3116,20 @@ button.pap-ap-gantt-label { cursor:pointer; }
 .pap-ta-stepper { margin:4px 0 14px; grid-template-columns:repeat(4,minmax(0,1fr)); }
 .pap-ta-section { display:flex; flex-direction:column; gap:12px; }
 .pap-ta-actions { margin-top:4px; }
+.pap-ta-gambar { display:flex; flex-direction:column; gap:10px; padding:12px; border:1px dashed var(--pap-border); border-radius:12px; background:rgb(127 127 127 / .04); }
+.pap-ta-desain { display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
+.pap-ta-desain .pap-oc-designs { width:100%; }
+.pap-ta-desain-label { font-size:12px; font-weight:700; }
+.pap-ta-roto-opts { display:flex; flex-wrap:wrap; gap:8px 18px; }
+.pap-ta-so-list { display:flex; flex-direction:column; gap:6px; margin-top:10px; max-height:55vh; overflow:auto; }
+.pap-ta-so-hit { display:flex; flex-direction:column; gap:2px; align-items:flex-start; text-align:left; padding:10px 12px; border:1px solid var(--pap-border); border-radius:10px; background:var(--pap-surface); color:inherit; cursor:pointer; }
+.pap-ta-so-hit:hover { border-color:var(--pap-primary); }
+.pap-ta-so-hit span { font-size:12px; color:var(--pap-muted); }
+.pap-ta-so-hit small { font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+.pap-ta-so-head { display:flex; flex-wrap:wrap; gap:4px 10px; align-items:baseline; margin-bottom:10px; padding:10px 12px; border-radius:10px; background:rgb(127 127 127 / .08); }
+.pap-ta-so-head span { color:var(--pap-muted); font-size:13px; }
+.pap-ta-so-line { display:flex; flex-direction:column; gap:12px; margin-bottom:10px; padding:12px; border:1px solid var(--pap-border); border-radius:12px; }
+.pap-ta-so-line.on { border-color:var(--pap-primary); }
 .pap-ta-hint { margin:0; font-size:11px; line-height:1.5; }
 .pap-ta-proses-list { display:flex; flex-direction:column; gap:6px; }
 .pap-ta-proc { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.2fr) 110px; align-items:end; gap:8px; padding:8px 10px; border:1px solid var(--pap-border); border-radius:10px; }
@@ -3605,3 +3619,9 @@ a.pap-row-action { text-decoration:none; }
 .pap-notif-voice svg { width:14px; height:14px; }
 .pap-notif-voice.on { border-color:#12a37a66; color:#0b7a5a; background:#12a37a12; }
 .pap-toast-logo { background:#f1f3fa url(/logo-mark.png) center / 28px no-repeat; }
+
+/* Lembar analisa teknik: proses roto & gambar produk */
+.ta-v1 .ta1-roto { margin:2px 0 6px; font-size:12px; }
+.ta-v1 .ta1-gambar { width:100%; table-layout:fixed; border-collapse:collapse; margin-bottom:10px; }
+.ta-v1 .ta1-gambar td { padding:6px; border:1px solid #6b7085; text-align:center; vertical-align:top; font-size:10.5px; overflow-wrap:anywhere; }
+.ta-v1 .ta1-gambar img { display:block; max-width:100%; max-height:150px; margin:0 auto 4px; object-fit:contain; }

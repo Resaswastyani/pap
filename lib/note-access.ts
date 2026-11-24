@@ -72,6 +72,13 @@ export async function noteAccess(owner: NoteOwner, id: number, user: UserProfile
     const c = await loadChecklist(id)
     return { canAdd: c.status !== 'selesai' && (canMarketing(user) || canPpic(user) || canOperasional(user)) }
   }
+  if (owner === 'tech_analysis') {
+    // Gambar produk analisa teknik: pengaju (Marketing / PPIC), Teknik, dan GM; dibekukan setelah selesai
+    const { canSubmitSection, canTeknikSection, loadAnalysis, requireTechAnalysis } = await import('@/lib/tech-analysis')
+    requireTechAnalysis(user)
+    const a = await loadAnalysis(id)
+    return { canAdd: a.status !== 'selesai' && (canSubmitSection(user) || canTeknikSection(user) || a.created_by === user.id) }
+  }
   if (owner === 'complaint') {
     // Foto / video / dokumen keluhan customer: semua yang punya menu boleh lihat; tambah oleh pelapor, PIC, lead, GM / admin
     const { canProcess, loadComplaint, requireComplaints } = await import('@/lib/complaints')

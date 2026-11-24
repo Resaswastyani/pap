@@ -9,7 +9,7 @@ import {
   type MarketingUser, type ProspectStatus, type Visit,
 } from './marketing'
 import { QuotationForm } from './quotation-page'
-import { loadProspectTeknik, TechAnalysisView, TeknikMintaCheck, TeknikSpecPanel, type TeknikSpec } from './tech-analysis'
+import { loadProspectTeknik, TechAnalysisView, TeknikMintaCheck, TeknikSpecPanel, teknikForSave, uploadTeknikFiles, type TeknikSpec } from './tech-analysis'
 import { DesignForm, SampleForm } from './request-page'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, NoteFiles, pendingCount, uploadNoteAttachments, uploadPendingAttachments, type NoteAttachment, type PendingAttachments } from './attachments'
 import { api, askReason, Field, formatDate, Modal, Notice, Pager, RowActions, useQuickAction, confirmDialog, FreshBadge } from './ui'
@@ -383,15 +383,17 @@ export function ProspectForm({ user, initial, users, canSupervise, onClose, onSa
     setError('')
     try {
       const list = products.filter((p) => p.label.trim()).map(({ _k, ...p }) => ({ ...p, label: p.label.trim() }))
-      const payload = { ...values, products: list, sales_ids: canSupervise ? salesIds : undefined, force }
+      const payload = { ...values, products: list.map((p) => ({ ...p, teknik: teknikForSave(p.teknik) })), sales_ids: canSupervise ? salesIds : undefined, force }
       if (initial) {
         const res = await api<{ analisa?: { dibuat: number; diperbarui: number } | null }>(`/api/prospects/${initial.id}`, { method: 'PATCH', json: payload })
-        onSaved(`Prospek diperbarui.${analisaText(res.analisa)}`)
+        const gagal = await uploadTeknikFiles(list, () => loadProspectTeknik(initial.id))
+        onSaved(`Prospek diperbarui.${analisaText(res.analisa)}${gagal}`)
       } else {
         const res = await api<{ id: number; analisa?: { dibuat: number; diperbarui: number } | null }>('/api/prospects', { method: 'POST', json: payload })
         const total = pendingCount(attachments)
         const failed = total ? await uploadPendingAttachments(`/api/prospects/${res.id}/attachments`, attachments) : []
-        onSaved(`${failed.length ? `Prospek ditambahkan, tetapi ${failed.length} dari ${total} lampiran gagal diunggah: ${failed.join(' ')}` : `Prospek ditambahkan${total ? ` dengan ${total} lampiran` : ''}.`}${analisaText(res.analisa)}`, res.id)
+        const gagal = await uploadTeknikFiles(list, () => loadProspectTeknik(res.id))
+        onSaved(`${failed.length ? `Prospek ditambahkan, tetapi ${failed.length} dari ${total} lampiran gagal diunggah: ${failed.join(' ')}` : `Prospek ditambahkan${total ? ` dengan ${total} lampiran` : ''}.`}${analisaText(res.analisa)}${gagal}`, res.id)
       }
     } catch (err) {
       const text = (err as Error).message

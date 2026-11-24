@@ -24,8 +24,12 @@ export async function techAnalysisSettings() {
   return loadSettings('doc.')
 }
 
-export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, logoSrc: string) {
+// gambar: lampiran file gambar produk; thumbs=false (Word) = hanya nama file desain Master Data + link
+export type TaGambar = { name: string; src: string }
+export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, logoSrc: string, gambar: TaGambar[] = [], thumbs = true) {
   const perusahaan = doc.nama || 'PT. Pandawa Amerta Packindo'
+  // Pengaju: PPIC (dari Sales Order) atau Marketing
+  const dept = a.sumber === 'ppic' ? 'PPIC' : 'Marketing'
   const row = (label: string, value: string, side = '', indent = false) =>
     `<tr><td class="lbl${indent ? ' in' : ''}">${label}</td><td class="eq">=</td><td class="val">${val(value)}</td><td class="side">${side}</td></tr>`
   const print = a.print_jenis === 'polos' ? 'POLOS' : a.print_jenis === 'print' ? `Print ${a.jumlah_warna ?? '…'} warna` : ''
@@ -43,10 +47,10 @@ export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, l
 </tr></tbody></table>
 
 <h2 class="ta1-title">Analisa Aspek Tehnik Atas Rencana Order Baru / Spec Baru</h2>
-<p class="ta1-sub">Dari Dept Marketing ke Dept Tehnik</p>
+<p class="ta1-sub">Dari Dept ${dept} ke Dept Tehnik</p>
 
 <table class="ta1-info"><tbody><tr>
-  <td><b>Dibuat oleh Dept Marketing dan diserahkan ke Dept Tehnik tanggal</b> = ${val(tgl(a.tanggal_serah))}${a.created_name ? ` <span class="ta1-muted">(${esc(a.created_name)})</span>` : ''}</td>
+  <td><b>Dibuat oleh Dept ${dept} dan diserahkan ke Dept Tehnik tanggal</b> = ${val(tgl(a.tanggal_serah))}${a.created_name ? ` <span class="ta1-muted">(${esc(a.created_name)})</span>` : ''}</td>
   <td class="no">No. Pengajuan <b>${esc(a.nomor)}</b></td>
 </tr></tbody></table>
 
@@ -59,12 +63,14 @@ export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, l
   ${row('Lebar (cm)', n(a.lebar_cm), '', true)}
   ${row('Tebal (mm)', n(a.tebal_mm, 4), '', true)}
   ${row('POLOS / Jml Print', esc(print), `Tingkat Kesulitan Print = ${esc(a.kesulitan_print ?? '')}`, true)}
+  ${row('Jumlah Gambar / Kantong', a.jumlah_gambar !== null ? n(a.jumlah_gambar) : '', '', true)}
   ${row('Spec Lainnya <span class="ta1-muted">(Airhole, Pillow Case, dll)</span>', br(a.spec_lainnya), '', true)}
   ${row('<b>Qty Order</b>', qty, esc(frek))}
   ${row('<b>Critical to Quality</b>', br(a.critical_to_quality))}
 </tbody></table>
 
 <p class="ta1-h">Rekomendasi/Analisa Sesuai Urutan Proses <i>(diisi oleh Tehnik)</i></p>
+<p class="ta1-roto">Proses roto = ${a.roto === 'dengan' ? '&#9745; Dengan Roto &nbsp; &#9744; Tanpa Roto' : a.roto === 'tanpa' ? '&#9744; Dengan Roto &nbsp; &#9745; Tanpa Roto' : '&#9744; Dengan Roto &nbsp; &#9744; Tanpa Roto'}</p>
 <table class="ta1-proc">
   <thead><tr><th class="ck"></th><th class="m">Mesin / Proses</th><th class="k">Kecepatan Mesin</th><th class="k2">Kec Roto Max</th><th class="k3">Jalur</th><th class="k3">Tumpuk</th><th>Keterangan Lainnya</th><th class="r">Hasil Produktivitas (Kg/Jam)</th></tr></thead>
   <tbody>${a.proses.map((p) => `<tr class="${p.dipakai ? 'on' : ''}"><td class="ck">${p.dipakai ? '&#9745;' : '&#9744;'}</td><td class="m">${esc(p.mesin)}</td><td class="k">${p.kec_label ? `${esc(p.kec_label)} = ` : ''}${p.kecepatan ? `<b>${esc(p.kecepatan)}</b>` : ''}</td><td class="k2">${p.kec_roto_max ? `<b>${esc(p.kec_roto_max)}</b>` : ''}</td><td class="k3">${p.jalur ? esc(p.jalur) : ''}</td><td class="k3">${p.tumpuk ? esc(p.tumpuk) : ''}</td><td>${br(p.keterangan)}</td><td class="r">${p.produktivitas !== null ? `<b>${n(p.produktivitas)}</b>` : ''}</td></tr>`).join('')}
@@ -91,8 +97,9 @@ export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, l
 <p class="ta1-h">Rekomendasi dari Direksi</p>
 <table class="ta1-rek"><tbody><tr><td>${val(br(a.rekomendasi_direksi))}</td></tr></tbody></table>
 
+${gambarHtml(a, gambar, thumbs)}
 <table class="ta1-sign"><tbody>
-  <tr class="role"><td>Dibuat oleh,<div>Dept Marketing</div></td><td>Dianalisa oleh,<div>Dept Tehnik</div></td><td>Rekomendasi,<div>Direksi</div></td></tr>
+  <tr class="role"><td>Dibuat oleh,<div>Dept ${dept}</div></td><td>Dianalisa oleh,<div>Dept Tehnik</div></td><td>Rekomendasi,<div>Direksi</div></td></tr>
   <tr class="space"><td>${a.tanggal_serah ? '<span class="ta1-stamp">Diserahkan</span>' : '&nbsp;'}</td><td>${a.teknik_name ? '<span class="ta1-stamp">Diparaf digital</span>' : '&nbsp;'}</td><td>${a.direksi_name ? '<span class="ta1-stamp">Diparaf digital</span>' : '&nbsp;'}</td></tr>
   <tr class="name"><td>${sign(a.created_name)}</td><td>${sign(a.teknik_name)}</td><td>${sign(a.direksi_name)}</td></tr>
   <tr class="date"><td>Tanggal: ${tgl(a.tanggal_serah) || '……………………'}</td><td>Tanggal: ${tgl(a.teknik_at) || '……………………'}</td><td>Tanggal: ${tgl(a.direksi_at) || '……………………'}</td></tr>
@@ -125,6 +132,8 @@ body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #1b1d2e; }
 .ta1-h { margin: 12pt 0 4pt; font-weight: bold; font-size: 10pt; }
 .ta1-proc { width: 100%; border-collapse: collapse; }
 .ta1-proc th, .ta1-proc td { padding: 3pt 5pt; border: 1px solid #555; vertical-align: top; }
+.ta1-roto { margin: 2pt 0 4pt; font-size: 9pt; }
+.ta1-gambar { width: 100%; border-collapse: collapse; } .ta1-gambar td { width: 25%; padding: 3pt; border: 1px solid #999; text-align: center; vertical-align: top; font-size: 8pt; }
 .ta1-proc th { background: #e9ebf3; font-size: 8.5pt; }
 .ta1-proc td.ck { width: 16pt; text-align: center; }
 .ta1-proc td.m { width: 24%; } .ta1-proc td.k { width: 16%; } .ta1-proc td.k2, .ta1-proc th.k2 { width: 10%; } .ta1-proc td.k3, .ta1-proc th.k3 { width: 7%; } .ta1-proc td.r, .ta1-proc th.r { width: 13%; text-align: right; }
@@ -148,3 +157,13 @@ body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #1b1d2e; }
 .ta1-sign tr.date td { color: #555; font-size: 8.5pt; }
 .ta1-stamp { padding: 1pt 6pt; border: 1px dashed #12a37a; color: #0b7a5a; font-size: 8pt; }
 `
+
+// Lampiran gambar produk: desain Master Data + file gambar yang diunggah (4 per baris)
+function gambarHtml(a: TechAnalysis, files: TaGambar[], thumbs: boolean) {
+  const desain = (a.desain ?? []).map((d) => ({ name: d.name, src: `/api/order-custom/designs/${encodeURIComponent(d.id)}/thumb?s=400`, link: d.web_link }))
+  const all = [...files.map((f) => ({ ...f, link: null as string | null })), ...desain]
+  if (!all.length) return ''
+  const cell = (g: (typeof all)[number]) => `<td>${thumbs ? `<img src="${esc(g.src)}" alt="">` : ''}<div>${g.link ? `<a href="${esc(g.link)}">${esc(g.name)}</a>` : esc(g.name)}</div></td>`
+  const rows = Array.from({ length: Math.ceil(all.length / 4) }, (_, r) => `<tr>${all.slice(r * 4, r * 4 + 4).map(cell).join('')}</tr>`).join('')
+  return `<p class="ta1-h">Gambar Produk${a.jumlah_gambar ? ` <i>(${n(a.jumlah_gambar)} gambar / kantong)</i>` : ''}</p><table class="ta1-gambar"><tbody>${rows}</tbody></table>`
+}

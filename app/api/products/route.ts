@@ -51,9 +51,9 @@ export const POST = handle(async (request: Request) => {
   const customer = await loadCustomer(int(body.customer_id) ?? fail(400, 'Customer wajib dipilih.'))
   const input = readProductInput(body)
   const [result] = await db.query<ResultSetHeader>(
-    `INSERT INTO customer_products (customer_id, kode, nama, jenis, spesifikasi, bahan, keterangan, status, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [customer.id, input.kode, input.nama, input.jenis, input.spesifikasi, input.bahan, input.keterangan, input.status, user.id],
+    `INSERT INTO customer_products (customer_id, kode, nama, jenis, qty, qty_satuan, spesifikasi, bahan, keterangan, status, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [customer.id, input.kode, input.nama, input.jenis, input.qty, input.qty_satuan, input.spesifikasi, input.bahan, input.keterangan, input.status, user.id],
   )
   const analisa = await syncProductAnalysis(result.insertId, body.teknik, user)
   return NextResponse.json({ item: await loadProduct(result.insertId), analisa }, { status: 201 })

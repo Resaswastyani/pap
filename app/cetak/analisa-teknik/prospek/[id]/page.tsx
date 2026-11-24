@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { ApiError } from '@/lib/api'
-import { prospectAnalysisSheets, requireTechAnalysis } from '@/lib/tech-analysis'
+import { analysisImages, prospectAnalysisSheets, requireTechAnalysis } from '@/lib/tech-analysis'
 import { techAnalysisHtml, techAnalysisSettings } from '@/lib/tech-analysis-document'
 import { getCurrentUser } from '@/lib/users'
 import { PrintButton } from '../../../quotation/[id]/print-button'
@@ -23,12 +23,13 @@ export default async function CetakAnalisaProspekPage({ params, searchParams }: 
     throw error
   }
   const doc = await techAnalysisSettings()
+  const images = await Promise.all(data.sheets.map((a) => (a.id ? analysisImages(a.id) : Promise.resolve([]))))
   return (
     <main className="pap-print pap-ta-sheets">
       <PrintButton wordUrl={`/api/tech-analyses/prospek/${data.prospect.id}/word`} hint={`· ${data.sheets.length} formulir (${data.prospect.nama_usaha}), satu halaman per produk`} autoPrint={autoPrint} />
       {data.sheets.map((a, i) => (
         // Semua isi data sudah di-escape di template
-        <div key={`${a.id}-${i}`} className="pap-ta-sheet-wrap" dangerouslySetInnerHTML={{ __html: techAnalysisHtml(a, doc, '/logo-pap.png') }} />
+        <div key={`${a.id}-${i}`} className="pap-ta-sheet-wrap" dangerouslySetInnerHTML={{ __html: techAnalysisHtml(a, doc, '/logo-pap.png', images[i]) }} />
       ))}
     </main>
   )

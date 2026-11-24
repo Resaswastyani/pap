@@ -33,6 +33,8 @@ export const MENU_KEYS = {
   'Hasil Produksi': 'hasil-produksi',
   'Faktur Produksi': 'faktur-produksi',
   'Analisa Teknik Order': 'analisa-teknik',
+  'Pengajuan Analisa Teknik': 'analisa-teknik-mkt',
+  'Analisa Teknik PPIC': 'analisa-teknik-ppic',
   'Data Mesin': 'data-mesin',
   'Kerusakan Mesin': 'perbaikan-mesin',
   'Perawatan Mesin': 'perawatan-mesin',
@@ -95,8 +97,8 @@ export const PERMISSION_MENUS: Partial<Record<MenuKey, string>> = {
 // Tidak termasuk Pengaturan (selalu terbuka) serta menu yang disembunyikan (Tabel HPP, Pembayaran).
 export const MENU_GROUPS: { label: string; items: (keyof typeof MENU_KEYS)[] }[] = [
   { label: 'Ringkasan', items: ['Dashboard', 'Monitoring'] },
-  { label: 'Marketing', items: ['Prospek', 'Jadwal Visit', 'Request Sample', 'Request Desain', 'Customer', 'Order Bulanan', 'Repeat Order', 'Kendala Customer', 'Data Produk', 'Quotation', 'Dokumen Order', 'Kalender Konten', 'KPI Marketing'] },
-  { label: 'Produksi', items: ['Rencana Produksi', 'Kapasitas Produksi', 'Hasil Produksi', 'Faktur Produksi', 'Formulasi Produk', 'Jadwal Shift', 'Stok'] },
+  { label: 'Marketing', items: ['Prospek', 'Jadwal Visit', 'Request Sample', 'Request Desain', 'Customer', 'Order Bulanan', 'Repeat Order', 'Kendala Customer', 'Data Produk', 'Quotation', 'Dokumen Order', 'Pengajuan Analisa Teknik', 'Kalender Konten', 'KPI Marketing'] },
+  { label: 'Produksi', items: ['Rencana Produksi', 'Analisa Teknik PPIC', 'Kapasitas Produksi', 'Hasil Produksi', 'Faktur Produksi', 'Formulasi Produk', 'Jadwal Shift', 'Stok'] },
   { label: 'Logistik', items: ['Pengiriman', 'Ekspedisi'] },
   { label: 'Teknik', items: ['Analisa Teknik Order', 'Data Mesin', 'Kerusakan Mesin', 'Perawatan Mesin', 'SOP Mesin', 'Sparepart & Peralatan'] },
   { label: 'Purchasing', items: ['Pengajuan Pembelian', 'PO Pembelian', 'Supplier', 'Harga Bahan', 'Hutang Supplier'] },

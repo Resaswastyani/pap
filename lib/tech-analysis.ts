@@ -7,7 +7,7 @@ import { notify } from '@/lib/notifications'
 import { pushToUsers } from '@/lib/push'
 import { isManagement, type UserProfile } from '@/lib/users'
 
-export const TA_STATUS = { draft: 'Draft (Marketing)', diserahkan: 'Diserahkan ke Teknik', dianalisa: 'Dianalisa Teknik', selesai: 'Selesai (Direksi)' } as const
+export const TA_STATUS = { draft: 'Draft (pengaju)', diserahkan: 'Diserahkan ke Teknik', dianalisa: 'Dianalisa Teknik', selesai: 'Selesai (Direksi)' } as const
 export type TaStatus = keyof typeof TA_STATUS
 
 // Urutan mesin / proses sesuai formulir Dept Teknik
@@ -35,8 +35,14 @@ export const defaultProses = (): ProsesRow[] => MACHINES.map((m) => ({ ...m, dip
 
 const MARKETING = (u: UserProfile) => u.division.code === 'marketing' || u.division.code.startsWith('marketing_')
 export function requireTechAnalysis(user: UserProfile) {
-  if (!user.role.isAdmin && !['prospek', 'analisa-teknik', 'produk'].some((m) => user.menus.includes(m as never))) fail(403, 'Anda tidak punya akses ke Analisa Teknik Order.')
+  if (!user.role.isAdmin && !TA_MENUS.some((m) => user.menus.includes(m as never))) fail(403, 'Anda tidak punya akses ke Analisa Teknik Order.')
 }
+// Menu yang membuka Analisa Teknik Order (termasuk desain Master Data & lampiran gambarnya)
+export const TA_MENUS = ['prospek', 'analisa-teknik', 'analisa-teknik-mkt', 'analisa-teknik-ppic', 'produk']
+export const hasTechAnalysisMenu = (user: UserProfile) => user.role.isAdmin || TA_MENUS.some((m) => user.menus.includes(m as never))
+export const canPpicSection = (u: UserProfile) => u.role.isAdmin || isManagement(u) || u.division.code === 'ppic'
+// Pengaju (isi spek order & serahkan ke Teknik): Marketing atau PPIC
+export const canSubmitSection = (u: UserProfile) => canMarketingSection(u) || canPpicSection(u)
 export const canMarketingSection = (u: UserProfile) => u.role.isAdmin || isManagement(u) || MARKETING(u)
 export const canTeknikSection = (u: UserProfile) => u.role.isAdmin || u.division.code === 'teknik'
 export const canDireksiSection = (u: UserProfile) => isManagement(u)
@@ -54,7 +60,9 @@ export function serializeAnalysis(r: Row) {
   const proses = parse<ProsesRow[]>(r.proses, [])
   return {
     id: Number(r.id), nomor: String(r.nomor), prospect_id: num(r.prospect_id), prospect_name: (r.prospect_name as string) ?? null, status: String(r.status) as TaStatus,
-    product_id: num(r.product_id),
+    product_id: num(r.product_id), sumber: (r.sumber as string) ?? null, customer_id: num(r.customer_id),
+    so_accurate_id: num(r.so_accurate_id), so_number: (r.so_number as string) ?? null,
+    jumlah_gambar: num(r.jumlah_gambar), desain: parse<Desain[]>(r.desain, []), roto: (r.roto as 'dengan' | 'tanpa') ?? null,
     tanggal_serah: (r.tanggal_serah as string) ?? null,
     nama_produk: String(r.nama_produk), nama_customer: String(r.nama_customer), jenis_plastik: (r.jenis_plastik as string) ?? null,
     panjang_cm: num(r.panjang_cm), lebar_cm: num(r.lebar_cm), tebal_mm: num(r.tebal_mm), print_jenis: (r.print_jenis as 'polos' | 'print') ?? null,
@@ -89,8 +97,10 @@ export async function listAnalyses(params: URLSearchParams) {
   if (Number.isInteger(prospect) && prospect > 0) where.push('a.prospect_id = ?'), args.push(prospect)
   const product = Number(params.get('product_id'))
   if (Number.isInteger(product) && product > 0) where.push('a.product_id = ?'), args.push(product)
-  // sumber=produk: hanya analisa yang diajukan dari Data Produk
-  if (params.get('sumber') === 'produk') where.push('a.product_id IS NOT NULL')
+  // sumber=produk: diajukan dari Data Produk; ppic: dari menu PPIC (Sales Order); marketing: semua selain PPIC
+  const sumber = params.get('sumber')
+  const sumberSql = sumber === 'produk' ? 'a.product_id IS NOT NULL' : sumber === 'ppic' ? "a.sumber = 'ppic'" : sumber === 'marketing' ? "COALESCE(a.sumber, '') <> 'ppic'" : ''
+  if (sumberSql) where.push(sumberSql)
   const status = params.get('status')
   if (status && status in TA_STATUS) where.push('a.status = ?'), args.push(status)
   const q = str(params.get('q'), 100)
@@ -100,7 +110,7 @@ export async function listAnalyses(params: URLSearchParams) {
      ORDER BY FIELD(a.status, 'diserahkan', 'dianalisa', 'draft', 'selesai'), a.updated_at DESC, a.id DESC LIMIT 500`,
     args,
   )
-  const [counts] = await db.query<Row[]>(`SELECT status, COUNT(*) AS n FROM prospect_tech_analyses${params.get('sumber') === 'produk' ? ' WHERE product_id IS NOT NULL' : ''} GROUP BY status`)
+  const [counts] = await db.query<Row[]>(`SELECT a.status, COUNT(*) AS n FROM prospect_tech_analyses a${sumberSql ? ` WHERE ${sumberSql}` : ''} GROUP BY a.status`)
   return { items: rows.map(serializeAnalysis), counts: Object.fromEntries(counts.map((c) => [String(c.status), Number(c.n)])) }
 }
 
@@ -129,13 +139,40 @@ export async function readMarketingSection(body: Record<string, unknown>) {
   }
   const print = body.print_jenis === 'print' ? 'print' : body.print_jenis === 'polos' ? 'polos' : null
   const frek = body.frekuensi === 'rutin' ? 'rutin' : body.frekuensi === 'sekali' ? 'sekali' : null
+  // Kolom opsional: hanya diubah bila dikirim (form lama / sinkron prospek tidak menimpa data Sales Order)
+  const extra: Record<string, unknown> = {}
+  if ('desain' in body) extra.desain = JSON.stringify(await readDesain(body.desain))
+  if ('customer_id' in body) {
+    const cid = num(body.customer_id)
+    const [[c]] = cid ? await db.query<Row[]>('SELECT id FROM customers WHERE id = ?', [cid]) : [[undefined]]
+    extra.customer_id = c ? Number(c.id) : null
+  }
+  if ('so_accurate_id' in body) { extra.so_accurate_id = num(body.so_accurate_id); extra.so_number = str(body.so_number, 80) || null }
   return {
+    ...extra,
+    jumlah_gambar: dec(body.jumlah_gambar, 'Jumlah gambar per kantong', 100),
     prospect_id: prospectId, nama_produk: nama_produk!, nama_customer: nama_customer!, jenis_plastik: str(body.jenis_plastik, 80) || null,
     panjang_cm: dec(body.panjang_cm, 'Panjang', 100000), lebar_cm: dec(body.lebar_cm, 'Lebar', 100000), tebal_mm: dec(body.tebal_mm, 'Tebal', 1000),
     print_jenis: print, jumlah_warna: print === 'print' ? dec(body.jumlah_warna, 'Jumlah warna print', 20) : null, kesulitan_print: str(body.kesulitan_print, 255) || null,
     spec_lainnya: str(body.spec_lainnya, 5000) || null, qty_order: dec(body.qty_order, 'Qty order', 1e12), qty_satuan: str(body.qty_satuan, 20) || 'kg',
     frekuensi: frek, rutin_bulan: frek === 'rutin' ? dec(body.rutin_bulan, 'Rutin per bulan', 120) : null, critical_to_quality: str(body.critical_to_quality, 5000) || null,
   }
+}
+
+// File gambar yang diunggah pada analisa (lampiran note_attachments, hanya gambar) untuk lembar cetak
+export async function analysisImages(id: number) {
+  const [rows] = await db.query<Row[]>("SELECT id, name FROM note_attachments WHERE owner_type = 'tech_analysis' AND owner_id = ? AND kind = 'file' AND mime LIKE 'image/%' ORDER BY id LIMIT 12", [id])
+  return rows.map((r) => ({ name: String(r.name), src: `/api/notes/attachments/${Number(r.id)}` }))
+}
+
+// Desain dari Master Data (Logo & Desain hasil sinkron Google Drive): hanya id yang ada di drive_files, maks 12
+export type Desain = { id: string; name: string; mime: string; web_link: string | null }
+export async function readDesain(v: unknown): Promise<Desain[]> {
+  const list = (Array.isArray(v) ? v : []).slice(0, 12).map((x) => String((x as Record<string, unknown>)?.id ?? '')).filter(Boolean)
+  if (!list.length) return []
+  const [rows] = await db.query<Row[]>('SELECT id, name, mime, web_link FROM drive_files WHERE id IN (?)', [list])
+  const byId = new Map<string, Desain>(rows.map((r) => [String(r.id), { id: String(r.id), name: String(r.name), mime: String(r.mime ?? ''), web_link: (r.web_link as string | null) ?? null }]))
+  return list.map((id) => byId.get(id)).filter((d): d is Desain => !!d)
 }
 
 // Bagian Teknik: tabel proses + kesimpulan
@@ -151,6 +188,7 @@ export function readTeknikSection(body: Record<string, unknown>) {
   }).filter((r) => r.mesin)
   return {
     proses: JSON.stringify(proses),
+    roto: body.roto === 'dengan' || body.roto === 'tanpa' ? String(body.roto) : null,
     // Tingkat kesulitan print juga bisa diisi / dikoreksi Dept Teknik (kolom sama dengan isian Marketing)
     kesulitan_print: str(body.kesulitan_print, 255) || null,
     bisa_produksi: ['bisa', 'bersyarat', 'tidak'].includes(String(body.bisa_produksi)) ? String(body.bisa_produksi) : null,
@@ -168,10 +206,14 @@ export const teknikUsers = () => usersOf("d.code = 'teknik'")
 export const direksiUsers = () => usersOf("d.code = 'general_manager'")
 
 // Teknik / Direksi dibuka ke menu Analisa Teknik Order; Marketing (pembuat) ke prospeknya di menu Prospek
-export async function notifyAnalysis(userIds: (number | null)[], a: { id: number; nomor: string; nama_produk: string; nama_customer: string; prospect_id: number | null }, title: string, key: string, exclude?: number, toProspect = false) {
+export async function notifyAnalysis(userIds: (number | null)[], a: { id: number; nomor: string; nama_produk: string; nama_customer: string; prospect_id: number | null; sumber?: string | null }, title: string, key: string, exclude?: number, toProspect = false) {
   const users = [...new Set(userIds.filter((x): x is number => !!x && x !== exclude))]
   if (!users.length) return
-  const target = toProspect && a.prospect_id ? { page: 'Prospek', pageId: a.prospect_id, prospectId: a.prospect_id } : { page: 'Analisa Teknik Order', pageId: a.id }
+  // Pengaju dibuka ke menunya sendiri: prospek, menu PPIC, atau menu Pengajuan Analisa Teknik (Marketing)
+  const target = toProspect && a.prospect_id ? { page: 'Prospek', pageId: a.prospect_id, prospectId: a.prospect_id }
+    : toProspect && a.sumber === 'ppic' ? { page: 'Analisa Teknik PPIC', pageId: a.id }
+    : toProspect && a.sumber === 'marketing' ? { page: 'Pengajuan Analisa Teknik', pageId: a.id }
+    : { page: 'Analisa Teknik Order', pageId: a.id }
   await pushToUsers(await notify(users, {
     type: 'analisa_teknik', title, body: `${a.nomor} · ${a.nama_produk} · ${a.nama_customer}`, ...target, refKey: `at:${a.id}:${key}`,
   }))
@@ -211,7 +253,7 @@ export async function syncProspectAnalyses(prospectId: number, products: unknown
     } else {
       const nomor = await nextAnalysisNumber()
       const [res] = await db.query<import('mysql2').ResultSetHeader>('INSERT INTO prospect_tech_analyses SET ?', [{
-        ...v, nomor, status: 'diserahkan', tanggal_serah: new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10),
+        ...v, nomor, sumber: 'prospek', status: 'diserahkan', tanggal_serah: new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10),
         proses: JSON.stringify(defaultProses()), created_by: user.id, updated_by: user.id,
       }])
       existing.set(label.toLowerCase(), { id: res.insertId, nomor, nama_produk: label, status: 'diserahkan' } as unknown as Row)
@@ -251,7 +293,7 @@ export async function syncProductAnalysis(productId: number, teknik: unknown, us
   } else {
     const nomor = await nextAnalysisNumber()
     const [res] = await db.query<import('mysql2').ResultSetHeader>('INSERT INTO prospect_tech_analyses SET ?', [{
-      ...v, product_id: productId, nomor, status: 'diserahkan', tanggal_serah: new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10),
+      ...v, product_id: productId, sumber: 'produk', nomor, status: 'diserahkan', tanggal_serah: new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10),
       proses: JSON.stringify(defaultProses()), created_by: user.id, updated_by: user.id,
     }])
     created = { id: res.insertId, nomor }
