@@ -96,14 +96,13 @@ export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, l
 <p class="ta1-h">Rekomendasi dari Direksi</p>
 <table class="ta1-rek"><tbody><tr><td>${val(br(a.rekomendasi_direksi))}</td></tr></tbody></table>
 
-${gambarHtml(a, gambar, thumbs)}
 <table class="ta1-sign"><tbody>
   <tr class="role"><td>Dibuat oleh,<div>Dept ${dept}</div></td><td>Dianalisa oleh,<div>Dept Tehnik</div></td><td>Rekomendasi,<div>Direksi</div></td></tr>
   <tr class="space"><td>${a.tanggal_serah ? '<span class="ta1-stamp">Diserahkan</span>' : '&nbsp;'}</td><td>${a.teknik_name ? '<span class="ta1-stamp">Diparaf digital</span>' : '&nbsp;'}</td><td>${a.direksi_name ? '<span class="ta1-stamp">Diparaf digital</span>' : '&nbsp;'}</td></tr>
   <tr class="name"><td>${sign(a.created_name)}</td><td>${sign(a.teknik_name)}</td><td>${sign(a.direksi_name)}</td></tr>
   <tr class="date"><td>Tanggal: ${tgl(a.tanggal_serah) || '……………………'}</td><td>Tanggal: ${tgl(a.teknik_at) || '……………………'}</td><td>Tanggal: ${tgl(a.direksi_at) || '……………………'}</td></tr>
 </tbody></table>
-</div>`
+</div>${gambarPages(a, gambar, thumbs)}`
 }
 
 // CSS untuk Word (halaman cetak memakai aturan yang sama di globals.css, bagian "Lembar Analisa Teknik")
@@ -132,7 +131,7 @@ body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #1b1d2e; }
 .ta1-proc { width: 100%; border-collapse: collapse; }
 .ta1-proc th, .ta1-proc td { padding: 3pt 5pt; border: 1px solid #555; vertical-align: top; }
 .ta1-roto { margin: 2pt 0 4pt; font-size: 9pt; }
-.ta1-gambar { width: 100%; border-collapse: collapse; } .ta1-gambar td { width: 25%; padding: 3pt; border: 1px solid #999; text-align: center; vertical-align: top; font-size: 8pt; }
+.ta1-fig { border: 1px solid #999; padding: 6pt; text-align: center; } .ta1-fig img { max-width: 100%; } .ta1-fig p { margin: 4pt 0 0; font-size: 9pt; }
 .ta1-proc th { background: #e9ebf3; font-size: 8.5pt; }
 .ta1-proc td.ck { width: 16pt; text-align: center; }
 .ta1-proc td.m { width: 24%; } .ta1-proc td.k { width: 16%; } .ta1-proc td.k2, .ta1-proc th.k2 { width: 10%; } .ta1-proc td.k3, .ta1-proc th.k3 { width: 7%; } .ta1-proc td.r, .ta1-proc th.r { width: 13%; text-align: right; }
@@ -157,12 +156,21 @@ body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #1b1d2e; }
 .ta1-stamp { padding: 1pt 6pt; border: 1px dashed #12a37a; color: #0b7a5a; font-size: 8pt; }
 `
 
-// Lampiran gambar produk: desain Master Data + file gambar yang diunggah (4 per baris)
-function gambarHtml(a: TechAnalysis, files: TaGambar[], thumbs: boolean) {
-  const desain = (a.desain ?? []).map((d) => ({ name: d.name, src: `/api/order-custom/designs/${encodeURIComponent(d.id)}/thumb?s=400`, link: d.web_link }))
+// Gambar Produk: setiap gambar satu halaman A4 tersendiri (Halaman 3, 4, ...) dengan kop ringkas, gambar memenuhi halaman.
+// Sumber: file gambar yang diunggah + desain Master Data. Word (thumbs=false): nama file + link saja.
+function gambarPages(a: TechAnalysis, files: TaGambar[], thumbs: boolean) {
+  const desain = (a.desain ?? []).map((d) => ({ name: d.name, src: `/api/order-custom/designs/${encodeURIComponent(d.id)}/thumb?s=1200`, link: d.web_link }))
   const all = [...files.map((f) => ({ ...f, link: null as string | null })), ...desain]
   if (!all.length) return ''
-  const cell = (g: (typeof all)[number]) => `<td>${thumbs ? `<img src="${esc(g.src)}" alt="">` : ''}<div>${g.link ? `<a href="${esc(g.link)}">${esc(g.name)}</a>` : esc(g.name)}</div></td>`
-  const rows = Array.from({ length: Math.ceil(all.length / 4) }, (_, r) => `<tr>${all.slice(r * 4, r * 4 + 4).map(cell).join('')}</tr>`).join('')
-  return `<p class="ta1-h">Gambar Produk${a.jumlah_gambar ? ` <i>(${n(a.jumlah_gambar)} gambar / kantong)</i>` : ''}</p><table class="ta1-gambar"><tbody>${rows}</tbody></table>`
+  const per = a.jumlah_gambar ? ` · ${n(a.jumlah_gambar)} gambar / kantong` : ''
+  return all.map((g, i) => `
+<br class="ta1-pb" clear="all" style="page-break-before:always">
+<div class="pap-sheet pap-ta ta-v1 ta1-page2 ta1-page3">
+<table class="ta1-p2head"><tbody><tr>
+  <td><b>Analisa Aspek Tehnik Atas Rencana Order Baru / Spec Baru</b><div class="ta1-muted">${esc(a.nama_produk)} · ${esc(a.nama_customer)}</div></td>
+  <td class="no">No. <b>${esc(a.nomor)}</b><div class="ta1-muted">Halaman ${i + 3} · Gambar Produk${all.length > 1 ? ` ${i + 1}/${all.length}` : ''}</div></td>
+</tr></tbody></table>
+<p class="ta1-h">Gambar Produk${per ? ` <i>(${per.slice(3)})</i>` : ''}</p>
+<div class="ta1-fig">${thumbs ? `<img src="${esc(g.src)}" alt="${esc(g.name)}">` : ''}<p>${g.link ? `<a href="${esc(g.link)}">${esc(g.name)}</a>` : esc(g.name)}</p></div>
+</div>`).join('')
 }

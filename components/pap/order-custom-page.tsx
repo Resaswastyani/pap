@@ -14,6 +14,9 @@ type Status = 'draft' | 'ppic' | 'operasional' | 'selesai'
 const STATUS: Record<Status, string> = { draft: 'Draft Marketing', ppic: 'Verifikasi PPIC', operasional: 'Penerimaan Operasional', selesai: 'Lengkap & diterima' }
 const TONE: Record<Status, string> = { draft: 'neutral', ppic: 'warning', operasional: 'info', selesai: 'success' }
 const FLOW: Status[] = ['draft', 'ppic', 'operasional', 'selesai']
+// Kartu ringkasan per tahap (seragam dengan kartu statistik menu lain)
+const STAGE_ICON: Record<Status, typeof FileText> = { draft: FileText, ppic: ShieldCheck, operasional: PackageCheck, selesai: CheckCircle2 }
+const STAGE_NOTE: Record<Status, string> = { draft: 'Diisi & dicek Marketing', ppic: 'Menunggu verifikasi PPIC', operasional: 'Menunggu diterima Operasional', selesai: 'Data lengkap & diterima' }
 const FLOW_LABEL: Record<Status, string> = { draft: 'Marketing isi & cek', ppic: 'PPIC verifikasi', operasional: 'Operasional terima', selesai: 'Lengkap' }
 
 const PLASTIK = [{ key: 'bentuk', label: 'Bentuk Plastik' }, { key: 'ukuran_las', label: 'Detail Ukuran Plastik & Jarak Las' }, { key: 'ketebalan', label: 'Ketebalan plastik' }] as const
@@ -97,12 +100,16 @@ export function OrderCustomPage({ user, focusId, group = 'MARKETING' }: { user: 
       </div>
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       {notice && <Notice kind="success" onClose={() => setNotice('')}>{notice}</Notice>}
-      <div className="pap-ta-pipeline">
-        {FLOW.map((s, i) => (
-          <button key={s} type="button" className={`pap-ta-stage ${TONE[s]} ${status === s ? 'active' : ''}`} onClick={() => setStatus(status === s ? '' : s)}>
-            <b>{data?.counts[s] ?? 0}</b><span>{i + 1}. {STATUS[s]}</span>
-          </button>
-        ))}
+      <div className="pap-stat-grid four">
+        {FLOW.map((s, i) => {
+          const Icon = STAGE_ICON[s]
+          return (
+            <button key={s} type="button" className={`pap-stat-card pap-stat-button ${status === s ? 'active' : ''}`} onClick={() => setStatus(status === s ? '' : s)} aria-pressed={status === s}>
+              <div><span>{i + 1}. {STATUS[s]}</span><strong className="pap-stat-text">{data?.counts[s] ?? 0}</strong><small className="neutral">{STAGE_NOTE[s]}</small></div>
+              <div className={`pap-stat-icon stat-${i}`}><Icon /></div>
+            </button>
+          )
+        })}
       </div>
       <div className="pap-table-card">
         <div className="pap-card-head">

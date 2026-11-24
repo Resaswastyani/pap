@@ -3629,3 +3629,41 @@ a.pap-row-action { text-decoration:none; }
 .pap-notif-voice-select { max-width:185px; height:26px; padding:0 6px; border:1px solid var(--pap-border); border-radius:8px; background:var(--pap-surface); color:var(--pap-text); font-size:11.5px; }
 .pap-notif-head { flex-wrap:wrap; gap:6px; }
 .pap-notif-head-actions { flex-wrap:wrap; justify-content:flex-end; }
+
+/* Analisa Teknik: tab asal data (Prospek / Sales Order / Data Produk) */
+.pap-ta-asal { display:flex; flex-wrap:wrap; gap:6px; padding:0 20px 12px; }
+.pap-ta-asal button { display:inline-flex; align-items:center; gap:8px; padding:7px 12px; border:1px solid var(--pap-border); border-radius:99px; background:var(--pap-surface); color:var(--pap-text); font-size:13px; font-weight:600; cursor:pointer; }
+.pap-ta-asal button b { min-width:22px; padding:1px 7px; border-radius:99px; background:rgb(127 127 127 / .14); font-size:11.5px; text-align:center; }
+.pap-ta-asal button.active { border-color:#7c5cfc; background:#7c5cfc; color:#fff; }
+.pap-ta-asal button.active b { background:rgb(255 255 255 / .25); }
+/* Lembar cetak Analisa Teknik: halaman 3 Gambar Produk (gambar lebih besar) */
+.pap-print .pap-sheet.ta1-page3 { margin-top:18px; }
+@media print { .pap-sheet.ta1-page3 { margin-top:0; break-before:page; page-break-before:always; } }
+.ta-v1.ta1-page3 .ta1-gambar img { max-height:300px; }
+
+/* Analisa Teknik: Gambar Produk satu halaman penuh per gambar */
+.ta-v1 .ta1-fig { box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:10px; border:1px solid #6b7085; }
+/* gambar diperbesar memenuhi area halaman (proporsi tetap) */
+.ta-v1 .ta1-fig img { display:block; width:100%; height:820px; object-fit:contain; }
+.ta-v1 .ta1-fig p { margin:0; color:#3b3f52; font-size:11.5px; text-align:center; overflow-wrap:anywhere; }
+@media print { .ta-v1 .ta1-fig { break-inside:avoid; } .ta-v1 .ta1-fig img { height:215mm; } }
+
+/* Customer: kolom Kategori (sektor) */
+.pap-sector-cell { display:flex; flex-direction:column; gap:2px; min-width:150px; }
+.pap-sector-cell small { font-size:10.5px; }
+.pap-sector-select { height:34px; padding:0 30px 0 10px; border-radius:99px; font-size:12.5px; font-weight:700; }
+.pap-sector-select.laundry, .pap-sector-pill.laundry { border-color:var(--viz-s1, #5b8def); color:#2f5fb3; background-color:rgb(91 141 239 / .1); }
+.pap-sector-select.beras, .pap-sector-pill.beras { border-color:var(--viz-s2, #e9a07a); color:#b0582b; background-color:rgb(233 160 122 / .12); }
+.pap-sector-select.umum, .pap-sector-pill.umum { border-color:var(--viz-s3, #4fbf9f); color:#1d7f63; background-color:rgb(79 191 159 / .12); }
+.pap-sector-select.lainnya, .pap-sector-pill.lainnya { border-color:var(--viz-s4, #9a9cb0); color:#5f6478; background-color:rgb(154 156 176 / .14); }
+.pap-sector-pill { display:inline-block; padding:4px 10px; border:1px solid var(--pap-border); border-radius:99px; font-size:12px; font-weight:700; }
+
+/* Kolom Kategori ringkas agar kolom Aksi (Detail / Ubah) tetap muat */
+.pap-sector-cell { min-width:0; width:128px; }
+.pap-sector-select { width:128px; height:30px; padding:0 26px 0 10px; font-size:12px; }
+.pap-sector-cell small { padding-left:10px; }
+
+/* Daftar customer: kolom lebih rapat agar Aksi (Detail / Ubah) muat di layar laptop */
+.pap-customer-table th, .pap-customer-table td { padding-left:14px; padding-right:14px; }
+.pap-sector-cell { width:142px; }
+.pap-sector-select { width:142px; padding-right:24px; }

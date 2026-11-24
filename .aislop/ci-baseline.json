@@ -901,14 +901,14 @@
       "rule": "security/dangerously-set-innerhtml",
       "engine": "security",
       "file": "app/cetak/analisa-teknik/[id]/page.tsx",
-      "fingerprint": "93aeb1bd80d57d84",
+      "fingerprint": "54e4ce31b36edad1",
       "count": 1
     },
     {
       "rule": "security/dangerously-set-innerhtml",
       "engine": "security",
       "file": "app/cetak/analisa-teknik/prospek/[id]/page.tsx",
-      "fingerprint": "7805dbebba02025b",
+      "fingerprint": "bd5c455fc07a7bd4",
       "count": 1
     },
     {
@@ -1482,7 +1482,7 @@
       "rule": "jsx-a11y/no-autofocus",
       "engine": "lint",
       "file": "components/pap/app-shell.tsx",
-      "fingerprint": "736fed9ca77084c8",
+      "fingerprint": "f0c41c78d6ae6036",
       "count": 1
     },
     {
@@ -1496,14 +1496,14 @@
       "rule": "next/no-img-element",
       "engine": "lint",
       "file": "components/pap/app-shell.tsx",
-      "fingerprint": "736fed9ca77084c8",
+      "fingerprint": "cf33577c12f6f2b2",
       "count": 1
     },
     {
       "rule": "next/no-img-element",
       "engine": "lint",
       "file": "components/pap/app-shell.tsx",
-      "fingerprint": "cf33577c12f6f2b2",
+      "fingerprint": "f0c41c78d6ae6036",
       "count": 1
     },
     {
@@ -3005,6 +3005,20 @@
       "count": 1
     },
     {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/product-page.tsx",
+      "fingerprint": "34fcc7917e1493d8",
+      "count": 1
+    },
+    {
+      "rule": "complexity/function-too-long",
+      "engine": "code-quality",
+      "file": "components/pap/product-page.tsx",
+      "fingerprint": "7b71dc670df42016",
+      "count": 1
+    },
+    {
       "rule": "react/set-state-in-effect",
       "engine": "lint",
       "file": "components/pap/product-page.tsx",
@@ -3180,13 +3194,6 @@
       "count": 1
     },
     {
-      "rule": "jsx-a11y/control-has-associated-label",
-      "engine": "lint",
-      "file": "components/pap/prospect-page.tsx",
-      "fingerprint": "a31b70fe1692e77a",
-      "count": 1
-    },
-    {
       "rule": "jsx-a11y/prefer-tag-over-role",
       "engine": "lint",
       "file": "components/pap/prospect-page.tsx",
@@ -3197,7 +3204,7 @@
       "rule": "react-hooks/exhaustive-deps",
       "engine": "lint",
       "file": "components/pap/prospect-page.tsx",
-      "fingerprint": "1da46809262addf4",
+      "fingerprint": "dd3752c0bf117849",
       "count": 1
     },
     {
@@ -3789,10 +3796,24 @@
       "count": 1
     },
     {
+      "rule": "complexity/file-too-large",
+      "engine": "code-quality",
+      "file": "components/pap/tech-analysis.tsx",
+      "fingerprint": "message:acc412ddac35058f",
+      "count": 1
+    },
+    {
       "rule": "jsx-a11y/control-has-associated-label",
       "engine": "lint",
       "file": "components/pap/tech-analysis.tsx",
       "fingerprint": "9529733ff287c68c",
+      "count": 1
+    },
+    {
+      "rule": "jsx-a11y/no-autofocus",
+      "engine": "lint",
+      "file": "components/pap/tech-analysis.tsx",
+      "fingerprint": "ae70d1f2830c319b",
       "count": 1
     },
     {
@@ -3835,6 +3856,13 @@
       "engine": "lint",
       "file": "components/pap/tech-analysis.tsx",
       "fingerprint": "6bb723b03b1495d8",
+      "count": 1
+    },
+    {
+      "rule": "react/set-state-in-effect",
+      "engine": "lint",
+      "file": "components/pap/tech-analysis.tsx",
+      "fingerprint": "78d8e744a36f2777",
       "count": 1
     },
     {
@@ -4948,6 +4976,13 @@
       "engine": "ai-slop",
       "file": "lib/tech-analysis.ts",
       "fingerprint": "d5e90c62d24fbf68",
+      "count": 1
+    },
+    {
+      "rule": "ai-slop/duplicate-type-declaration",
+      "engine": "ai-slop",
+      "file": "lib/tech-analysis.ts",
+      "fingerprint": "61c58f4f863a8bfb",
       "count": 1
     },
     {

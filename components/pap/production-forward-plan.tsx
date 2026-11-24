@@ -90,9 +90,12 @@ export function ForwardPlanView() {
       setError((e as Error).message)
     }
   }, [])
+  // aislop-ignore-next-line react/set-state-in-effect -- memuat data dari server sekali saat halaman dibuka
   useEffect(() => { load() }, [load])
+  // Tanggal hari ini (WIB) dihitung sekali, bukan di setiap render
+  const [todayWib] = useState(() => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10))
 
-  const today = data?.today ?? new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
+  const today = data?.today ?? todayWib
   const end = addDays(today, days - 1)
   const query = q.trim().toLowerCase()
   const match = (...values: (string | null)[]) => !query || values.some((v) => v?.toLowerCase().includes(query))

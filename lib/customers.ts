@@ -84,7 +84,7 @@ export const CRM_CASE = `CASE
   WHEN DATEDIFF(CURDATE(), s.last_order) > ${PASSIVE_DAYS_SQL} THEN IF(s.order_count >= 2, 'pelanggan_nonaktif', 'pembeli_nonaktif')
   ELSE IF(s.order_count >= 2, 'pelanggan', 'pembeli') END`
 
-export const CUSTOMER_SELECT = `SELECT c.id, c.accurate_id, c.customer_no, c.name, c.category, c.email, c.mobile_phone, c.work_phone,
+export const CUSTOMER_SELECT = `SELECT c.id, c.accurate_id, c.customer_no, c.name, c.category, c.sektor_manual, c.email, c.mobile_phone, c.work_phone,
   c.bill_street, c.bill_city, c.bill_province, c.bill_zip, c.npwp_no, c.notes, c.suspended, c.synced_at, c.created_at, c.updated_at,
   COALESCE(s.order_count, 0) AS order_count, s.first_order, s.last_order, COALESCE(s.total_amount, 0) AS total_amount,
   (SELECT COUNT(*) FROM customer_products cp WHERE cp.customer_id = c.id) AS product_count,

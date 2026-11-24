@@ -1,5 +1,7 @@
 # Gerbang kualitas kode: aislop (deterministik, tanpa LLM). Gagal bila skor < ci.failBelow atau ada temuan BARU
 # di luar baseline (.aislop/ci-baseline.json). Konfigurasi: .aislop/config.yml
+# Dependency proyek diinstal dulu dan aislop dipakai dari devDependencies (versi sama dengan `pnpm quality:ci` di laptop)
+# agar hasil pemindaian di CI sama dengan di lokal.
 name: aislop
 
 on:
@@ -10,14 +12,33 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: aislop-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Install dependency (pnpm, lockfile)
+        run: |
+          corepack enable
+          COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm install --frozen-lockfile --ignore-scripts
       - name: aislop ci
-        run: npx --yes aislop@0.20.0 ci --human
+        run: pnpm exec aislop ci --human
+      # Bila gagal: tulis tiap temuan BARU sebagai anotasi (tampil di tab Summary / pull request)
+      - name: Anotasi temuan baru
+        if: failure()
+        run: |
+          pnpm exec aislop ci > aislop-ci.json 2>/dev/null || true
+          node -e "
+            const j = JSON.parse(require('fs').readFileSync('aislop-ci.json', 'utf8'))
+            console.log('Skor', j.score, JSON.stringify(j.baseline))
+            for (const d of j.diagnostics.filter((d) => d.baselined !== true))
+              console.log('::warning file=' + d.filePath + ',line=' + (d.line || 1) + '::' + d.rule + ' — ' + String(d.message).slice(0, 180))
+          "

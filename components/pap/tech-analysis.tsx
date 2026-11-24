@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, ClipboardCheck, Eye, FileDown, ImageIcon, Plus, Printer, Ruler, Save, Search, Send, Trash2, Undo2, Wrench, X } from 'lucide-react'
+import { CheckCircle2, ClipboardCheck, Eye, FileDown, FilePen, ImageIcon, Plus, Printer, Ruler, Save, Search, Send, Trash2, Undo2, Wrench, X } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { api, confirmDialog, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged } from './ui'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, pendingCount, uploadPendingAttachments, type PendingAttachments } from './attachments'
@@ -13,6 +13,9 @@ type Status = 'draft' | 'diserahkan' | 'dianalisa' | 'selesai'
 const STATUS: Record<Status, string> = { draft: 'Draft', diserahkan: 'Di Dept Teknik', dianalisa: 'Menunggu Direksi', selesai: 'Selesai' }
 const TONE: Record<Status, string> = { draft: 'neutral', diserahkan: 'warning', dianalisa: 'info', selesai: 'success' }
 const FLOW: Status[] = ['draft', 'diserahkan', 'dianalisa', 'selesai']
+// Kartu ringkasan per tahap (seragam dengan kartu statistik menu lain)
+const STAGE_ICON: Record<Status, typeof Wrench> = { draft: FilePen, diserahkan: Wrench, dianalisa: ClipboardCheck, selesai: CheckCircle2 }
+const STAGE_NOTE: Record<Status, string> = { draft: 'Disusun Marketing / PPIC', diserahkan: 'Sedang dianalisa Teknik', dianalisa: 'Perlu rekomendasi Direksi', selesai: 'Analisa lengkap' }
 const FLOW_LABEL: Record<Status, string> = { draft: 'Marketing isi spek', diserahkan: 'Teknik analisa', dianalisa: 'Direksi rekomendasi', selesai: 'Selesai' }
 const BISA = { bisa: 'Bisa diproduksi (optimal)', bersyarat: 'Bisa dengan syarat', tidak: 'Tidak bisa diproduksi optimal' } as const
 const KUALITAS = { mudah: 'Mudah', sedang: 'Sedang', sulit: 'Sulit' } as const
@@ -30,7 +33,9 @@ type Analysis = {
   created_by: number | null; created_name: string | null; created_at: string; updated_at: string
   sumber?: string | null; customer_id?: number | null; so_number?: string | null; jumlah_gambar?: number | null; desain?: Desain[]; roto?: 'dengan' | 'tanpa' | null
 }
-type ListRes = { items: Analysis[]; counts: Partial<Record<Status, number>>; can: { create: boolean; ppic?: boolean; teknik: boolean; direksi: boolean } }
+type Asal = '' | 'prospek' | 'so' | 'produk'
+const ASAL: [Asal, string][] = [['', 'Semua'], ['prospek', 'Prospek'], ['so', 'Sales Order'], ['produk', 'Data Produk']]
+type ListRes = { items: Analysis[]; counts: Partial<Record<Status, number>>; asalCounts?: Record<string, number>; can: { create: boolean; ppic?: boolean; teknik: boolean; direksi: boolean } }
 type Can = { marketing: boolean; teknik: boolean; direksi: boolean; delete: boolean }
 export type TaPrefill = { prospect_id: number; nama_customer: string; products: { label: string; jenis_plastik?: string | null; qty_kg?: number | string | null; catatan?: string | null }[] }
 
@@ -42,6 +47,7 @@ const fmt = (v: number | null | undefined) => (v === null || v === undefined ? '
 export function TechAnalysisView({ user, prospectId, prefill, focusId, compact = false, allowCreate = true, sumber }: { user: UserProfile; prospectId?: number; prefill?: TaPrefill; focusId?: number | null; compact?: boolean; allowCreate?: boolean; sumber?: 'produk' | 'marketing' | 'ppic' }) {
   const [data, setData] = useState<ListRes | null>(null)
   const [status, setStatus] = useState<Status | ''>('')
+  const [asal, setAsal] = useState<Asal>('')
   const [q, setQ] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -53,16 +59,17 @@ export function TechAnalysisView({ user, prospectId, prefill, focusId, compact =
       if (prospectId) p.set('prospect_id', String(prospectId))
       if (sumber) p.set('sumber', sumber)
       if (status) p.set('status', status)
+      if (asal) p.set('asal', asal)
       if (q.trim()) p.set('q', q.trim())
       setData(await api<ListRes>(`/api/tech-analyses?${p}`))
       setError('')
     } catch (e) {
       setError((e as Error).message)
     }
-  }, [prospectId, sumber, status, q])
+  }, [prospectId, sumber, status, asal, q])
   useEffect(() => { const t = setTimeout(load, q ? 300 : 0); return () => clearTimeout(t) }, [load, q])
   useEffect(() => { if (focusId) setOpenId(focusId) }, [focusId])
-  const paged = usePaged(data?.items ?? [], [status, q, prospectId])
+  const paged = usePaged(data?.items ?? [], [status, asal, q, prospectId])
   const can = data?.can
 
   const list = (
@@ -70,12 +77,16 @@ export function TechAnalysisView({ user, prospectId, prefill, focusId, compact =
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       {notice && <Notice kind="success" onClose={() => setNotice('')}>{notice}</Notice>}
       {!compact && (
-        <div className="pap-ta-pipeline">
-          {FLOW.map((s, i) => (
-            <button key={s} type="button" className={`pap-ta-stage ${TONE[s]} ${status === s ? 'active' : ''}`} onClick={() => setStatus(status === s ? '' : s)}>
-              <b>{data?.counts[s] ?? 0}</b><span>{i + 1}. {STATUS[s]}</span>
-            </button>
-          ))}
+        <div className="pap-stat-grid four">
+          {FLOW.map((s, i) => {
+            const Icon = STAGE_ICON[s]
+            return (
+              <button key={s} type="button" className={`pap-stat-card pap-stat-button ${status === s ? 'active' : ''}`} onClick={() => setStatus(status === s ? '' : s)} aria-pressed={status === s}>
+                <div><span>{i + 1}. {STATUS[s]}</span><strong className="pap-stat-text">{data?.counts[s] ?? 0}</strong><small className="neutral">{STAGE_NOTE[s]}</small></div>
+                <div className={`pap-stat-icon stat-${i}`}><Icon /></div>
+              </button>
+            )
+          })}
         </div>
       )}
       <div className={compact ? 'pap-ta-compact' : 'pap-table-card'}>
@@ -83,6 +94,15 @@ export function TechAnalysisView({ user, prospectId, prefill, focusId, compact =
           <div className="pap-card-head">
             <div><h2>{sumber === 'ppic' ? 'Pengajuan analisa teknik PPIC' : 'Analisa teknik order baru / spec baru'}</h2><p>{sumber === 'ppic' ? 'Pengajuan dari Sales Order Accurate (customer & produk sudah terisi), dianalisa Dept Teknik lalu diberi rekomendasi Direksi.' : 'Spek order dari Marketing dianalisa Dept Teknik per urutan proses mesin, lalu diberi rekomendasi Direksi. Bisa dicetak PDF & Word.'}</p></div>
             {allowCreate && (sumber === 'ppic' ? can?.ppic : can?.create) && <button className="pap-primary-button" onClick={() => setCreating(true)}><Plus /> {sumber === 'ppic' ? 'Ajukan dari Sales Order' : 'Analisa baru'}</button>}
+          </div>
+        )}
+        {!compact && !sumber && (
+          <div className="pap-ta-asal" role="tablist" aria-label="Asal data analisa">
+            {ASAL.filter(([k]) => k !== 'produk' || (data?.asalCounts?.produk ?? 0) > 0 || asal === 'produk').map(([k, label]) => (
+              <button key={k || 'semua'} type="button" role="tab" aria-selected={asal === k} className={asal === k ? 'active' : ''} onClick={() => setAsal(k)}>
+                {label}<b>{data?.asalCounts?.[k || 'semua'] ?? 0}</b>
+              </button>
+            ))}
           </div>
         )}
         {!compact && (
