@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, ClipboardCheck, Eye, FileDown, ImageIcon, Plus, Printer, Ruler, Save, Search, Send, Trash2, Undo2, Wrench, X } from 'lucide-react'
+import { CheckCircle2, ClipboardCheck, Eye, FileDown, FilePen, ImageIcon, Plus, Printer, Ruler, Save, Search, Send, Trash2, Undo2, Wrench, X } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { api, confirmDialog, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged } from './ui'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, pendingCount, uploadPendingAttachments, type PendingAttachments } from './attachments'
@@ -13,6 +13,9 @@ type Status = 'draft' | 'diserahkan' | 'dianalisa' | 'selesai'
 const STATUS: Record<Status, string> = { draft: 'Draft', diserahkan: 'Di Dept Teknik', dianalisa: 'Menunggu Direksi', selesai: 'Selesai' }
 const TONE: Record<Status, string> = { draft: 'neutral', diserahkan: 'warning', dianalisa: 'info', selesai: 'success' }
 const FLOW: Status[] = ['draft', 'diserahkan', 'dianalisa', 'selesai']
+// Kartu ringkasan per tahap (seragam dengan kartu statistik menu lain)
+const STAGE_ICON: Record<Status, typeof Wrench> = { draft: FilePen, diserahkan: Wrench, dianalisa: ClipboardCheck, selesai: CheckCircle2 }
+const STAGE_NOTE: Record<Status, string> = { draft: 'Disusun Marketing / PPIC', diserahkan: 'Sedang dianalisa Teknik', dianalisa: 'Perlu rekomendasi Direksi', selesai: 'Analisa lengkap' }
 const FLOW_LABEL: Record<Status, string> = { draft: 'Marketing isi spek', diserahkan: 'Teknik analisa', dianalisa: 'Direksi rekomendasi', selesai: 'Selesai' }
 const BISA = { bisa: 'Bisa diproduksi (optimal)', bersyarat: 'Bisa dengan syarat', tidak: 'Tidak bisa diproduksi optimal' } as const
 const KUALITAS = { mudah: 'Mudah', sedang: 'Sedang', sulit: 'Sulit' } as const
@@ -72,12 +75,16 @@ export function TechAnalysisView({ user, prospectId, prefill, focusId, compact =
       {error && <Notice onClose={() => setError('')}>{error}</Notice>}
       {notice && <Notice kind="success" onClose={() => setNotice('')}>{notice}</Notice>}
       {!compact && (
-        <div className="pap-ta-pipeline">
-          {FLOW.map((s, i) => (
-            <button key={s} type="button" className={`pap-ta-stage ${TONE[s]} ${status === s ? 'active' : ''}`} onClick={() => setStatus(status === s ? '' : s)}>
-              <b>{data?.counts[s] ?? 0}</b><span>{i + 1}. {STATUS[s]}</span>
-            </button>
-          ))}
+        <div className="pap-stat-grid four">
+          {FLOW.map((s, i) => {
+            const Icon = STAGE_ICON[s]
+            return (
+              <button key={s} type="button" className={`pap-stat-card pap-stat-button ${status === s ? 'active' : ''}`} onClick={() => setStatus(status === s ? '' : s)} aria-pressed={status === s}>
+                <div><span>{i + 1}. {STATUS[s]}</span><strong className="pap-stat-text">{data?.counts[s] ?? 0}</strong><small className="neutral">{STAGE_NOTE[s]}</small></div>
+                <div className={`pap-stat-icon stat-${i}`}><Icon /></div>
+              </button>
+            )
+          })}
         </div>
       )}
       <div className={compact ? 'pap-ta-compact' : 'pap-table-card'}>
