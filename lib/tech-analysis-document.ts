@@ -97,14 +97,13 @@ export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, l
 <p class="ta1-h">Rekomendasi dari Direksi</p>
 <table class="ta1-rek"><tbody><tr><td>${val(br(a.rekomendasi_direksi))}</td></tr></tbody></table>
 
-${gambarHtml(a, gambar, thumbs)}
 <table class="ta1-sign"><tbody>
   <tr class="role"><td>Dibuat oleh,<div>Dept ${dept}</div></td><td>Dianalisa oleh,<div>Dept Tehnik</div></td><td>Rekomendasi,<div>Direksi</div></td></tr>
   <tr class="space"><td>${a.tanggal_serah ? '<span class="ta1-stamp">Diserahkan</span>' : '&nbsp;'}</td><td>${a.teknik_name ? '<span class="ta1-stamp">Diparaf digital</span>' : '&nbsp;'}</td><td>${a.direksi_name ? '<span class="ta1-stamp">Diparaf digital</span>' : '&nbsp;'}</td></tr>
   <tr class="name"><td>${sign(a.created_name)}</td><td>${sign(a.teknik_name)}</td><td>${sign(a.direksi_name)}</td></tr>
   <tr class="date"><td>Tanggal: ${tgl(a.tanggal_serah) || '……………………'}</td><td>Tanggal: ${tgl(a.teknik_at) || '……………………'}</td><td>Tanggal: ${tgl(a.direksi_at) || '……………………'}</td></tr>
 </tbody></table>
-</div>`
+</div>${gambarPage(a, gambarHtml(a, gambar, thumbs))}`
 }
 
 // CSS untuk Word (halaman cetak memakai aturan yang sama di globals.css, bagian "Lembar Analisa Teknik")
@@ -157,6 +156,20 @@ body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #1b1d2e; }
 .ta1-sign tr.date td { color: #555; font-size: 8.5pt; }
 .ta1-stamp { padding: 1pt 6pt; border: 1px dashed #12a37a; color: #0b7a5a; font-size: 8pt; }
 `
+
+// Halaman 3 (bila ada gambar): Gambar Produk di lembar tersendiri dengan ukuran kertas yang sama (A4)
+function gambarPage(a: TechAnalysis, html: string) {
+  if (!html) return ''
+  return `
+<br class="ta1-pb" clear="all" style="page-break-before:always">
+<div class="pap-sheet pap-ta ta-v1 ta1-page2 ta1-page3">
+<table class="ta1-p2head"><tbody><tr>
+  <td><b>Analisa Aspek Tehnik Atas Rencana Order Baru / Spec Baru</b><div class="ta1-muted">${esc(a.nama_produk)} · ${esc(a.nama_customer)}</div></td>
+  <td class="no">No. <b>${esc(a.nomor)}</b><div class="ta1-muted">Halaman 3 · Gambar Produk</div></td>
+</tr></tbody></table>
+${html}
+</div>`
+}
 
 // Lampiran gambar produk: desain Master Data + file gambar yang diunggah (4 per baris)
 function gambarHtml(a: TechAnalysis, files: TaGambar[], thumbs: boolean) {

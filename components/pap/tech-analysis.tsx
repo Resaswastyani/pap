@@ -28,7 +28,9 @@ type Analysis = {
   created_by: number | null; created_name: string | null; created_at: string; updated_at: string
   sumber?: string | null; customer_id?: number | null; so_number?: string | null; jumlah_gambar?: number | null; desain?: Desain[]; roto?: 'dengan' | 'tanpa' | null
 }
-type ListRes = { items: Analysis[]; counts: Partial<Record<Status, number>>; can: { create: boolean; ppic?: boolean; teknik: boolean; direksi: boolean } }
+type Asal = '' | 'prospek' | 'so' | 'produk'
+const ASAL: [Asal, string][] = [['', 'Semua'], ['prospek', 'Prospek'], ['so', 'Sales Order'], ['produk', 'Data Produk']]
+type ListRes = { items: Analysis[]; counts: Partial<Record<Status, number>>; asalCounts?: Record<string, number>; can: { create: boolean; ppic?: boolean; teknik: boolean; direksi: boolean } }
 type Can = { marketing: boolean; teknik: boolean; direksi: boolean; delete: boolean }
 export type TaPrefill = { prospect_id: number; nama_customer: string; products: { label: string; jenis_plastik?: string | null; qty_kg?: number | string | null; catatan?: string | null }[] }
 
@@ -40,6 +42,7 @@ const fmt = (v: number | null | undefined) => (v === null || v === undefined ? '
 export function TechAnalysisView({ user, prospectId, prefill, focusId, compact = false, allowCreate = true, sumber }: { user: UserProfile; prospectId?: number; prefill?: TaPrefill; focusId?: number | null; compact?: boolean; allowCreate?: boolean; sumber?: 'produk' | 'marketing' | 'ppic' }) {
   const [data, setData] = useState<ListRes | null>(null)
   const [status, setStatus] = useState<Status | ''>('')
+  const [asal, setAsal] = useState<Asal>('')
   const [q, setQ] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -51,16 +54,17 @@ export function TechAnalysisView({ user, prospectId, prefill, focusId, compact =
       if (prospectId) p.set('prospect_id', String(prospectId))
       if (sumber) p.set('sumber', sumber)
       if (status) p.set('status', status)
+      if (asal) p.set('asal', asal)
       if (q.trim()) p.set('q', q.trim())
       setData(await api<ListRes>(`/api/tech-analyses?${p}`))
       setError('')
     } catch (e) {
       setError((e as Error).message)
     }
-  }, [prospectId, sumber, status, q])
+  }, [prospectId, sumber, status, asal, q])
   useEffect(() => { const t = setTimeout(load, q ? 300 : 0); return () => clearTimeout(t) }, [load, q])
   useEffect(() => { if (focusId) setOpenId(focusId) }, [focusId])
-  const paged = usePaged(data?.items ?? [], [status, q, prospectId])
+  const paged = usePaged(data?.items ?? [], [status, asal, q, prospectId])
   const can = data?.can
 
   const list = (
@@ -81,6 +85,15 @@ export function TechAnalysisView({ user, prospectId, prefill, focusId, compact =
           <div className="pap-card-head">
             <div><h2>{sumber === 'ppic' ? 'Pengajuan analisa teknik PPIC' : 'Analisa teknik order baru / spec baru'}</h2><p>{sumber === 'ppic' ? 'Pengajuan dari Sales Order Accurate (customer & produk sudah terisi), dianalisa Dept Teknik lalu diberi rekomendasi Direksi.' : 'Spek order dari Marketing dianalisa Dept Teknik per urutan proses mesin, lalu diberi rekomendasi Direksi. Bisa dicetak PDF & Word.'}</p></div>
             {allowCreate && (sumber === 'ppic' ? can?.ppic : can?.create) && <button className="pap-primary-button" onClick={() => setCreating(true)}><Plus /> {sumber === 'ppic' ? 'Ajukan dari Sales Order' : 'Analisa baru'}</button>}
+          </div>
+        )}
+        {!compact && !sumber && (
+          <div className="pap-ta-asal" role="tablist" aria-label="Asal data analisa">
+            {ASAL.filter(([k]) => k !== 'produk' || (data?.asalCounts?.produk ?? 0) > 0 || asal === 'produk').map(([k, label]) => (
+              <button key={k || 'semua'} type="button" role="tab" aria-selected={asal === k} className={asal === k ? 'active' : ''} onClick={() => setAsal(k)}>
+                {label}<b>{data?.asalCounts?.[k || 'semua'] ?? 0}</b>
+              </button>
+            ))}
           </div>
         )}
         {!compact && (

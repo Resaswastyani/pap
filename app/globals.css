@@ -3628,3 +3628,14 @@ a.pap-row-action { text-decoration:none; }
 .pap-notif-voice-select { max-width:185px; height:26px; padding:0 6px; border:1px solid var(--pap-border); border-radius:8px; background:var(--pap-surface); color:var(--pap-text); font-size:11.5px; }
 .pap-notif-head { flex-wrap:wrap; gap:6px; }
 .pap-notif-head-actions { flex-wrap:wrap; justify-content:flex-end; }
+
+/* Analisa Teknik: tab asal data (Prospek / Sales Order / Data Produk) */
+.pap-ta-asal { display:flex; flex-wrap:wrap; gap:6px; padding:0 20px 12px; }
+.pap-ta-asal button { display:inline-flex; align-items:center; gap:8px; padding:7px 12px; border:1px solid var(--pap-border); border-radius:99px; background:var(--pap-surface); color:var(--pap-text); font-size:13px; font-weight:600; cursor:pointer; }
+.pap-ta-asal button b { min-width:22px; padding:1px 7px; border-radius:99px; background:rgb(127 127 127 / .14); font-size:11.5px; text-align:center; }
+.pap-ta-asal button.active { border-color:#7c5cfc; background:#7c5cfc; color:#fff; }
+.pap-ta-asal button.active b { background:rgb(255 255 255 / .25); }
+/* Lembar cetak Analisa Teknik: halaman 3 Gambar Produk (gambar lebih besar) */
+.pap-print .pap-sheet.ta1-page3 { margin-top:18px; }
+@media print { .pap-sheet.ta1-page3 { margin-top:0; break-before:page; page-break-before:always; } }
+.ta-v1.ta1-page3 .ta1-gambar img { max-height:300px; }

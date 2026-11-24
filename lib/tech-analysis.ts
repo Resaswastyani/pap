@@ -101,6 +101,9 @@ export async function listAnalyses(params: URLSearchParams) {
   const sumber = params.get('sumber')
   const sumberSql = sumber === 'produk' ? 'a.product_id IS NOT NULL' : sumber === 'ppic' ? "a.sumber = 'ppic'" : sumber === 'marketing' ? "COALESCE(a.sumber, '') <> 'ppic'" : ''
   if (sumberSql) where.push(sumberSql)
+  // asal=prospek | so | produk: pembagian data di daftar (Sales Order = diajukan dari SO Accurate / PPIC)
+  const asal = params.get('asal')
+  if (asal && asal in ASAL_SQL) where.push(ASAL_SQL[asal as keyof typeof ASAL_SQL])
   const status = params.get('status')
   if (status && status in TA_STATUS) where.push('a.status = ?'), args.push(status)
   const q = str(params.get('q'), 100)
@@ -111,8 +114,21 @@ export async function listAnalyses(params: URLSearchParams) {
     args,
   )
   const [counts] = await db.query<Row[]>(`SELECT a.status, COUNT(*) AS n FROM prospect_tech_analyses a${sumberSql ? ` WHERE ${sumberSql}` : ''} GROUP BY a.status`)
-  return { items: rows.map(serializeAnalysis), counts: Object.fromEntries(counts.map((c) => [String(c.status), Number(c.n)])) }
+  // Jumlah per asal data (untuk tab Semua / Prospek / Sales Order / Data Produk)
+  const [[asalRow]] = await db.query<Row[]>(
+    `SELECT ${Object.entries(ASAL_SQL).map(([k, sql]) => `SUM(${sql}) AS ${k}`).join(', ')}, COUNT(*) AS semua FROM prospect_tech_analyses a${sumberSql ? ` WHERE ${sumberSql}` : ''}`,
+  )
+  const asalCounts = Object.fromEntries(['semua', ...Object.keys(ASAL_SQL)].map((k) => [k, Number(asalRow?.[k]) || 0]))
+  return { items: rows.map(serializeAnalysis), counts: Object.fromEntries(counts.map((c) => [String(c.status), Number(c.n)])), asalCounts }
 }
+
+// Asal data analisa: Sales Order (SO Accurate / PPIC) didahulukan; selain itu dari Data Produk atau Prospek
+const SO_SQL = "(a.so_accurate_id IS NOT NULL OR a.so_number IS NOT NULL OR a.sumber = 'ppic')"
+export const ASAL_SQL = {
+  prospek: `(NOT ${SO_SQL} AND a.product_id IS NULL)`,
+  so: SO_SQL,
+  produk: `(NOT ${SO_SQL} AND a.product_id IS NOT NULL)`,
+} as const
 
 export async function nextAnalysisNumber() {
   const year = new Date(Date.now() + 7 * 3600e3).getUTCFullYear()
