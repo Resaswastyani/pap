@@ -690,6 +690,16 @@ export async function syncAll(budgetMs = 45_000, only?: SyncEntity[]) {
   } catch (error) {
     console.error('[production jobs]', error)
   }
+  // Prospek yang sudah order >= 2x di Accurate otomatis pindah ke Customer (hanya query database)
+  if (!only || only.includes('sales-invoice') || only.includes('customer')) {
+    try {
+      const { promoteOrderedProspects } = await import('@/lib/prospect-promotion')
+      const promo = await promoteOrderedProspects()
+      if (promo.terhubung || promo.pindah || promo.orderPertama) console.log('[prospek -> customer]', JSON.stringify(promo))
+    } catch (error) {
+      console.error('[prospek -> customer]', error)
+    }
+  }
   return results
 }
 
