@@ -160,6 +160,8 @@ body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #1b1d2e; }
 const fileCard = (g: { name: string; type: string; link: string | null }) =>
   `<div class="ta1-filecard"><b>${esc(g.type)}</b><span>${esc(g.name)}</span><small>Pratinjau tidak tersedia${g.link ? ' · buka lewat link di bawah' : ''}</small></div>`
 function figure(g: { name: string; src: string | null; type: string; link: string | null }) {
+  // File PDF: halaman pertama dirender jadi gambar di browser (app/cetak/analisa-teknik/pdf-figures.tsx); kartu tampil bila gagal
+  if (!g.src && g.type === 'PDF' && g.link && !/^https?:/.test(g.link)) return `<div class="ta1-pdf" data-pdf="${esc(g.link)}" data-name="${esc(g.name)}"></div>${fileCard(g)}`
   if (!g.src) return fileCard(g)
   // Gambar gagal dimuat (mis. file Drive privat): sembunyikan, tampilkan kartu file di sebelahnya
   return `<img src="${esc(g.src)}" alt="${esc(g.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">${fileCard(g).replace('<div class="ta1-filecard"', '<div class="ta1-filecard" style="display:none"')}`

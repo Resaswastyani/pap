@@ -19,7 +19,8 @@ export function PrintButton({ wordUrl, hint = 'untuk mengirim ke customer', embe
   // Dibuka dari tombol Cetak (?print=1): dialog cetak langsung muncul setelah lembar & logo termuat
   useEffect(() => {
     if (!autoPrint) return
-    const run = () => setTimeout(() => window.print(), 300)
+    // Tunggu render tambahan (mis. pratinjau lampiran PDF di Analisa Teknik) bila ada
+    const run = () => setTimeout(() => { Promise.resolve(window.papPrintReady).finally(() => window.print()) }, 300)
     if (document.readyState === 'complete') run()
     else window.addEventListener('load', run, { once: true })
   }, [autoPrint])

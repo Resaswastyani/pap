@@ -4,6 +4,7 @@ import { ApiError } from '@/lib/api'
 import { analysisImages, loadAnalysis, requireTechAnalysis } from '@/lib/tech-analysis'
 import { techAnalysisHtml, techAnalysisSettings } from '@/lib/tech-analysis-document'
 import { getCurrentUser } from '@/lib/users'
+import { PdfFigures } from '@/app/cetak/analisa-teknik/pdf-figures'
 import { PrintButton } from '../../quotation/[id]/print-button'
 
 export const metadata: Metadata = { title: 'Analisa Teknik Order · SIMPAP' }
@@ -24,6 +25,7 @@ export default async function CetakAnalisaTeknikPage({ params, searchParams }: {
   }
   return (
     <main className="pap-print">
+      <PdfFigures />
       <PrintButton wordUrl={`/api/tech-analyses/${a.id}/word`} hint="untuk diarsipkan / diserahkan ke Dept Teknik" autoPrint={autoPrint} />
       {/* Semua isi data sudah di-escape di template */}
       <div dangerouslySetInnerHTML={{ __html: techAnalysisHtml(a, await techAnalysisSettings(), '/logo-pap.png', await analysisImages(a.id)) }} />

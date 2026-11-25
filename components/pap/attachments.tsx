@@ -5,6 +5,7 @@ import { Camera, Clipboard, Download, FileText, Link2, Paperclip, Trash2, X } fr
 import { attachmentPreview } from '@/lib/attachment-preview'
 import { ATTACHMENT_MAX_BYTES, VIDEO_ATTACHMENT_MAX_BYTES } from '@/lib/permissions'
 import { compressImage, isCompressibleImage } from './compress'
+import { pdfFirstPage } from './pdf-preview'
 import { api, formatDate, formatSize, Notice, confirmDialog } from './ui'
 
 // Lampiran generik Prospek & Request Sample: semua format file (maks 2 MB), foto langsung dari kamera, atau link
@@ -245,12 +246,22 @@ export function AttachmentPanel({ title = 'Lampiran', basePath, fileBase, canAdd
 function AttachmentThumb({ a, fileBase }: { a: Attachment; fileBase: string }) {
   const p = attachmentPreview(a, fileBase)
   const [failed, setFailed] = useState(false)
+  // File PDF: halaman pertama dirender jadi gambar kecil
+  const [pdfSrc, setPdfSrc] = useState('')
+  const isPdf = !p.isLink && p.type === 'PDF'
+  useEffect(() => {
+    if (!isPdf) return
+    let alive = true
+    pdfFirstPage(p.href, 360).then((r) => { if (alive) setPdfSrc(r.src) }).catch(() => {})
+    return () => { alive = false }
+  }, [isPdf, p.href])
+  const src = p.src ?? (pdfSrc || null)
   return (
     <figure className="pap-oc-design">
       <a href={p.href} target="_blank" rel="noreferrer" title={`Buka ${p.name}`}>
-        {p.src && !failed
+        {src && !failed
           // aislop-ignore-next-line next/no-img-element -- pratinjau lampiran privat lewat API (bukan aset statis)
-          ? <img src={p.src} alt={p.name} loading="lazy" onError={() => setFailed(true)} />
+          ? <img src={src} alt={p.name} loading="lazy" onError={() => setFailed(true)} />
           : <span className="pap-oc-dz-noprev">{p.isLink ? <Link2 /> : <FileText />}<small>{p.type}</small></span>}
       </a>
       <figcaption title={p.name}>{p.name}</figcaption>
