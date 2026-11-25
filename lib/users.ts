@@ -12,6 +12,8 @@ export type UserProfile = {
   role: { id: number; code: string; name: string; isAdmin: boolean; isSuperAdmin: boolean }
   permissions: PermissionCode[]
   menus: MenuKey[]
+  // Aksi yang dicabut untuk role user di matriks Menu x Aksi: "menu:action" (mis. "prospek:delete")
+  denied: string[]
   // Versi foto profil (untuk URL ?v= agar cache browser diperbarui saat foto diganti); null = belum ada foto
   avatar: string | null
   // NIP data karyawan (HRD) yang terhubung ke akun ini; dipakai Izin & Cuti agar pengguna hanya mengajukan untuk dirinya
@@ -70,6 +72,7 @@ export async function toProfile(user: UserRow): Promise<UserProfile> {
   const isSuperAdmin = !!user.is_super_admin
   let permissions: PermissionCode[] = ALL_PERMISSIONS
   let menus: MenuKey[] = ALL_MENU_KEYS
+  let denied: string[] = []
   if (!isSuperAdmin) {
     permissions = await getEffectivePermissions(user.id, user.role_id)
     const [rows] = await db.query<(RowDataPacket & { menu_key: MenuKey })[]>('SELECT menu_key FROM division_menus WHERE division_id = ?', [user.division_id])
@@ -79,7 +82,11 @@ export async function toProfile(user: UserRow): Promise<UserProfile> {
     allowed.add('tiket')
     // Action Plan terbuka untuk semua; isi dibatasi per akun (lihat lib/action-plan.ts apScope)
     allowed.add('action-plan')
-    menus = ALL_MENU_KEYS.filter((key) => allowed.has(key))
+    // Matriks Menu x Aksi (Manajemen Role): aksi yang dicabut untuk role ini; "Lihat" dicabut = menu ditutup
+    const [deny] = await db.query<(RowDataPacket & { menu_key: string; action: string })[]>('SELECT menu_key, action FROM role_menu_denials WHERE role_id = ?', [user.role_id])
+    denied = deny.map((d) => `${d.menu_key}:${d.action}`)
+    const noView = new Set(deny.filter((d) => d.action === 'view').map((d) => d.menu_key))
+    menus = ALL_MENU_KEYS.filter((key) => allowed.has(key) && !noView.has(key))
   }
   return {
     id: user.id,
@@ -89,6 +96,7 @@ export async function toProfile(user: UserRow): Promise<UserProfile> {
     role: { id: user.role_id, code: user.role_code, name: user.role_name, isAdmin: !!user.is_admin, isSuperAdmin },
     permissions,
     menus,
+    denied,
     avatar: user.avatar_at ? String(user.avatar_at) : null,
     employeeNip: user.employee_nip ?? null,
   }

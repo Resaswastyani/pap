@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { LayoutList, Save, ShieldCheck } from 'lucide-react'
+import { KeyRound, LayoutList, Save, ShieldCheck } from 'lucide-react'
 import { DivisionMenus } from './division-menus'
+import { MenuAccess } from './menu-access'
 import { api, Notice } from './ui'
 
 type Role = { id: number; code: string; name: string; description: string | null; is_admin: boolean; is_super_admin: boolean; user_count: number; permissions: string[] }
@@ -113,16 +114,28 @@ function RolePermissions() {
   )
 }
 
-// Manajemen Role: permission per role dan menu per divisi
+// Manajemen Role: akses menu & aksi per role, permission khusus per role, dan menu per divisi
 export function RolesPage() {
-  const [view, setView] = useState<'permission' | 'menu'>('permission')
+  const [view, setView] = useState<'akses' | 'permission' | 'menu'>('akses')
   return (
     <>
       <div className="pap-segmented pap-view-switch" role="tablist" aria-label="Tampilan Manajemen Role">
-        <button role="tab" aria-selected={view === 'permission'} className={view === 'permission' ? 'active' : ''} onClick={() => setView('permission')}><ShieldCheck /> Permission role</button>
+        <button role="tab" aria-selected={view === 'akses'} className={view === 'akses' ? 'active' : ''} onClick={() => setView('akses')}><KeyRound /> Akses menu & aksi</button>
+        <button role="tab" aria-selected={view === 'permission'} className={view === 'permission' ? 'active' : ''} onClick={() => setView('permission')}><ShieldCheck /> Permission khusus</button>
         <button role="tab" aria-selected={view === 'menu'} className={view === 'menu' ? 'active' : ''} onClick={() => setView('menu')}><LayoutList /> Menu per divisi</button>
       </div>
-      {view === 'permission' ? <RolePermissions /> : (
+      {view === 'akses' ? (
+        <>
+          <div className="pap-page-heading">
+            <div>
+              <p className="pap-eyebrow">SISTEM</p>
+              <h1>Akses Menu & Aksi</h1>
+              <span>Atur per role menu yang boleh dilihat dan aksi yang boleh dilakukan (tambah, ubah, hapus) untuk semua menu SIMPAP. Berlaku langsung di server untuk semua modul.</span>
+            </div>
+          </div>
+          <MenuAccess />
+        </>
+      ) : view === 'permission' ? <RolePermissions /> : (
         <>
           <div className="pap-page-heading">
             <div>

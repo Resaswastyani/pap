@@ -21,12 +21,31 @@ export async function requireUser(...permissions: PermissionCode[]) {
   return user as UserProfile
 }
 
+// Tolak aksi (tambah / ubah / hapus) yang dicabut untuk role user di matriks Menu x Aksi (Manajemen Role)
+async function checkMenuAction(request: Request) {
+  const { actionFor, menusForPath, MENU_ACTIONS } = await import('@/lib/menu-actions')
+  const path = new URL(request.url).pathname
+  const keys = menusForPath(path)
+  const action = keys ? actionFor(request.method, path) : null
+  if (!keys || !action) return
+  const user = await getCurrentUser()
+  if (!user || user.role.isSuperAdmin || !user.denied.length) return
+  // Hanya menu yang dimiliki user yang dihitung; diizinkan bila salah satunya belum dicabut
+  const mine = keys.filter((k) => user.menus.includes(k))
+  if (!mine.length) return // akses menu diputuskan oleh route-nya sendiri
+  if (mine.every((k) => user.denied.includes(`${k}:${action}`))) {
+    fail(403, `Role ${user.role.name} tidak diizinkan ${MENU_ACTIONS[action].toLowerCase()} data di menu ini. Hubungi tim IT bila perlu.`)
+  }
+}
+
 // Bungkus handler route: ApiError jadi respons JSON, error lain jadi 500.
 // Aksi tambah/ubah/hapus yang berhasil otomatis dicatat ke log aktivitas.
 export function handle<A extends unknown[]>(fn: (...args: A) => Promise<Response>) {
   return async (...args: A) => withActivity(args[0] instanceof Request ? args[0] : null, async () => {
     const started = Date.now()
     try {
+      // Matriks Menu x Aksi: tambah / ubah / hapus yang dicabut untuk role user ditolak di sini untuk semua modul
+      if (args[0] instanceof Request && args[0].method !== 'GET') await checkMenuAction(args[0])
       return await fn(...args)
     } catch (error) {
       if (error instanceof ApiError) return NextResponse.json({ error: error.message }, { status: error.status })

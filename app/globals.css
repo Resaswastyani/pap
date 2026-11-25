@@ -3667,3 +3667,20 @@ a.pap-row-action { text-decoration:none; }
 .pap-customer-table th, .pap-customer-table td { padding-left:14px; padding-right:14px; }
 .pap-sector-cell { width:142px; }
 .pap-sector-select { width:142px; padding-right:24px; }
+
+/* Manajemen Role: matriks Akses menu & aksi */
+.pap-ma-roles { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:10px; margin-bottom:16px; }
+.pap-ma-role { display:flex; flex-direction:column; align-items:flex-start; gap:6px; padding:14px; border:1px solid var(--pap-border); border-radius:14px; background:var(--pap-surface); color:var(--pap-text); text-align:left; cursor:pointer; transition:border-color .15s, box-shadow .15s; }
+.pap-ma-role b { font-size:18px; letter-spacing:-.01em; }
+.pap-ma-role small { color:var(--pap-muted); font-size:12px; }
+.pap-ma-role:hover { border-color:rgb(124 92 252 / .45); }
+.pap-ma-role.active { border-color:#7c5cfc; box-shadow:0 0 0 3px rgb(124 92 252 / .14); }
+.pap-ma-tools { flex-wrap:wrap; }
+.pap-ma-copy { display:inline-flex; align-items:center; gap:6px; color:var(--pap-muted); }
+.pap-ma-copy svg { width:16px; }
+.pap-ma-table th.center, .pap-ma-table td.center { width:96px; text-align:center; }
+.pap-ma-head { display:inline-flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; }
+.pap-ma-head svg { width:15px; height:15px; }
+.pap-ma-table tr.pap-ma-off td:first-child .pap-cell-title { color:var(--pap-muted); text-decoration:line-through; }
+.pap-ma-savebar { position:sticky; bottom:12px; z-index:20; display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:14px; padding:12px 14px; border:1px solid #7c5cfc66; border-radius:14px; background:var(--pap-surface); box-shadow:0 12px 30px rgb(0 0 0 / .14); }
+.pap-ma-savebar > span { flex:1; min-width:200px; font-size:13px; }
