@@ -20,6 +20,10 @@ const val = (v: string) => (v.trim() ? v : '<span class="ta1-blank">&nbsp;</span
 export const BISA_LABEL = { bisa: 'BISA diproduksi dengan produktivitas optimal', bersyarat: 'BISA dengan syarat / penyesuaian', tidak: 'TIDAK BISA diproduksi dengan produktivitas optimal' } as const
 export const KUALITAS_LABEL = { mudah: 'Mudah', sedang: 'Sedang', sulit: 'Sulit' } as const
 
+// Judul formulir: dari Prospek / Marketing = Analisa; dari Sales Order (PPIC) = Rekomendasi Proses Produksi
+const TITLE_ANALISA = 'Analisa Aspek Tehnik Atas Rencana Order Baru / Spec Baru'
+const TITLE_SO = 'Rekomendasi Proses Produksi - dari Dept Tehnik &#8594; Tujuan PRODUKTIVITAS MAKSIMAL'
+
 export async function techAnalysisSettings() {
   return loadSettings('doc.')
 }
@@ -40,13 +44,24 @@ export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, l
   // Nama penandatangan di bawah garis tanda tangan (kosong = ruang isi tangan)
   const sign = (name: string | null) => (name ? `<b>${esc(name)}</b>` : '<span class="ta1-muted">( ........................................ )</span>')
 
-  return `<div class="pap-sheet pap-ta ta-v1">
-<table class="pap-sheet-head"><tbody><tr>
+  const kop = `<table class="pap-sheet-head"><tbody><tr>
   <td class="logo"><img src="${esc(logoSrc)}" alt="" width="110"></td>
   <td><h1>${esc(perusahaan)}</h1><p>Flexible Plastic Packaging Manufacture</p>${doc.alamat ? `<p>${esc(doc.alamat)}</p>` : ''}</td>
-</tr></tbody></table>
+</tr></tbody></table>`
+  const procTable = `<table class="ta1-proc">
+  <thead><tr><th class="ck"></th><th class="m">Mesin / Proses</th><th class="k">Kecepatan Mesin</th><th class="k2">Kec Roto Max</th><th class="k3">Jalur</th><th class="k3">Tumpuk</th><th>Keterangan Lainnya</th><th class="r">Hasil Produktivitas (Kg/Jam)</th></tr></thead>
+  <tbody>${a.proses.map((p) => `<tr class="${p.dipakai ? 'on' : ''}"><td class="ck">${p.dipakai ? '&#9745;' : '&#9744;'}</td><td class="m">${esc(p.mesin)}</td><td class="k">${p.kec_label ? `${esc(p.kec_label)} = ` : ''}${p.kecepatan ? `<b>${esc(p.kecepatan)}</b>` : ''}</td><td class="k2">${p.kec_roto_max ? `<b>${esc(p.kec_roto_max)}</b>` : ''}</td>${/^inline blow/i.test(p.mesin.trim()) ? `<td class="k3" colspan="2">Jml Warna${p.warna ? ` = <b>${esc(p.warna)}</b>` : ''}</td>` : `<td class="k3">${p.jalur ? esc(p.jalur) : ''}</td><td class="k3">${p.tumpuk ? esc(p.tumpuk) : ''}</td>`}<td>${br(p.keterangan)}</td><td class="r">${p.produktivitas !== null ? `<b>${n(p.produktivitas)}</b>` : ''}</td></tr>`).join('')}
+  <tr><td class="ck">&#9744;</td><td class="m">&nbsp;</td><td class="k"></td><td class="k2"></td><td class="k3"></td><td class="k3"></td><td></td><td class="r"></td></tr>
+  <tr><td class="ck">&#9744;</td><td class="m">&nbsp;</td><td class="k"></td><td class="k2"></td><td class="k3"></td><td class="k3"></td><td></td><td class="r"></td></tr></tbody>
+  ${used.length ? `<tfoot><tr><td></td><td colspan="6"><b>${used.length} proses dipakai</b></td><td class="r"><b>${totalProd ? n(totalProd) : ''}</b></td></tr></tfoot>` : ''}
+</table>`
+  // Dari Sales Order (PPIC): formulir "Rekomendasi Proses Produksi" Dept Tehnik (satu halaman + gambar produk)
+  if (a.sumber === 'ppic') return rekomendasiHtml(a, kop, procTable, sign) + gambarPages(a, gambar, thumbs, TITLE_SO)
 
-<h2 class="ta1-title">Analisa Aspek Tehnik Atas Rencana Order Baru / Spec Baru</h2>
+  return `<div class="pap-sheet pap-ta ta-v1">
+${kop}
+
+<h2 class="ta1-title">${TITLE_ANALISA}</h2>
 <p class="ta1-sub">Dari Dept ${dept} ke Dept Tehnik</p>
 
 <table class="ta1-info"><tbody><tr>
@@ -70,19 +85,13 @@ export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, l
 </tbody></table>
 
 <p class="ta1-h">Rekomendasi/Analisa Sesuai Urutan Proses <i>(diisi oleh Tehnik)</i></p>
-<table class="ta1-proc">
-  <thead><tr><th class="ck"></th><th class="m">Mesin / Proses</th><th class="k">Kecepatan Mesin</th><th class="k2">Kec Roto Max</th><th class="k3">Jalur</th><th class="k3">Tumpuk</th><th>Keterangan Lainnya</th><th class="r">Hasil Produktivitas (Kg/Jam)</th></tr></thead>
-  <tbody>${a.proses.map((p) => `<tr class="${p.dipakai ? 'on' : ''}"><td class="ck">${p.dipakai ? '&#9745;' : '&#9744;'}</td><td class="m">${esc(p.mesin)}</td><td class="k">${p.kec_label ? `${esc(p.kec_label)} = ` : ''}${p.kecepatan ? `<b>${esc(p.kecepatan)}</b>` : ''}</td><td class="k2">${p.kec_roto_max ? `<b>${esc(p.kec_roto_max)}</b>` : ''}</td>${/^inline blow/i.test(p.mesin.trim()) ? `<td class="k3" colspan="2">Jml Warna${p.warna ? ` = <b>${esc(p.warna)}</b>` : ''}</td>` : `<td class="k3">${p.jalur ? esc(p.jalur) : ''}</td><td class="k3">${p.tumpuk ? esc(p.tumpuk) : ''}</td>`}<td>${br(p.keterangan)}</td><td class="r">${p.produktivitas !== null ? `<b>${n(p.produktivitas)}</b>` : ''}</td></tr>`).join('')}
-  <tr><td class="ck">&#9744;</td><td class="m">&nbsp;</td><td class="k"></td><td class="k2"></td><td class="k3"></td><td class="k3"></td><td></td><td class="r"></td></tr>
-  <tr><td class="ck">&#9744;</td><td class="m">&nbsp;</td><td class="k"></td><td class="k2"></td><td class="k3"></td><td class="k3"></td><td></td><td class="r"></td></tr></tbody>
-  ${used.length ? `<tfoot><tr><td></td><td colspan="6"><b>${used.length} proses dipakai</b></td><td class="r"><b>${totalProd ? n(totalProd) : ''}</b></td></tr></tfoot>` : ''}
-</table>
+${procTable}
 
 </div>
 <br class="ta1-pb" clear="all" style="page-break-before:always">
 <div class="pap-sheet pap-ta ta-v1 ta1-page2">
 <table class="ta1-p2head"><tbody><tr>
-  <td><b>Analisa Aspek Tehnik Atas Rencana Order Baru / Spec Baru</b><div class="ta1-muted">${esc(a.nama_produk)} · ${esc(a.nama_customer)}</div></td>
+  <td><b>${TITLE_ANALISA}</b><div class="ta1-muted">${esc(a.nama_produk)} · ${esc(a.nama_customer)}</div></td>
   <td class="no">No. <b>${esc(a.nomor)}</b><div class="ta1-muted">Halaman 2</div></td>
 </tr></tbody></table>
 
@@ -102,7 +111,49 @@ export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, l
   <tr class="name"><td>${sign(a.created_name)}</td><td>${sign(a.teknik_name)}</td><td>${sign(a.direksi_name)}</td></tr>
   <tr class="date"><td>Tanggal: ${tgl(a.tanggal_serah) || '……………………'}</td><td>Tanggal: ${tgl(a.teknik_at) || '……………………'}</td><td>Tanggal: ${tgl(a.direksi_at) || '……………………'}</td></tr>
 </tbody></table>
-</div>${gambarPages(a, gambar, thumbs)}`
+</div>${gambarPages(a, gambar, thumbs, TITLE_ANALISA)}`
+}
+
+// Formulir "Rekomendasi Proses Produksi" (analisa dari Sales Order / PPIC), mengikuti formulir Excel Dept Tehnik
+function rekomendasiHtml(a: TechAnalysis, kop: string, procTable: string, sign: (name: string | null) => string) {
+  const stamp = (on: boolean) => (on ? '<span class="ta1-stamp">Diparaf digital</span>' : '')
+  const r = (label: string, value: string, nama = '', paraf = '') =>
+    `<tr><td class="lbl">${label}</td><td class="eq">=</td><td class="val">${val(value)}</td><td class="nm">${nama}</td><td class="pf">${paraf}</td></tr>`
+  // Isian Teknik / Direksi lain yang ada di SIMPAP (tampil hanya bila diisi)
+  const notes = [
+    a.bisa_produksi ? `<b>Kesimpulan:</b> ${esc(BISA_LABEL[a.bisa_produksi])}${a.penjelasan_produksi ? ` · ${br(a.penjelasan_produksi)}` : ''}` : '',
+    a.kesulitan_kualitas ? `<b>Kesulitan kwalitas:</b> ${esc(KUALITAS_LABEL[a.kesulitan_kualitas])}${a.penjelasan_kualitas ? ` · ${br(a.penjelasan_kualitas)}` : ''}` : '',
+    a.catatan_lain ? `<b>Catatan:</b> ${br(a.catatan_lain)}` : '',
+    a.rekomendasi_direksi ? `<b>Rekomendasi Direksi / Opr Mgr:</b> ${br(a.rekomendasi_direksi)}` : '',
+  ].filter(Boolean)
+  return `<div class="pap-sheet pap-ta ta-v1 ta1-so">
+${kop}
+
+<h2 class="ta1-title">${TITLE_SO}</h2>
+<p class="ta1-sub">Dari Dept PPIC (Sales Order) ke Dept Tehnik</p>
+
+<table class="ta1-info"><tbody>
+  <tr><td><b>Status Order</b> = <span class="ta1-muted">&#9744; Baru &nbsp; &#9744; Repeat</span> <i class="ta1-muted">(diisi PPIC)</i></td><td class="no">No. Pengajuan <b>${esc(a.nomor)}</b></td></tr>
+  <tr><td><b>Dibuat Tanggal</b> = ${val(tgl(a.tanggal_serah))}</td><td></td></tr>
+</tbody></table>
+
+<table class="ta1-spec ta1-sohead"><tbody>
+  <tr class="hd"><td class="lbl"></td><td class="eq"></td><td class="val"></td><td class="nm"><b>Nama</b></td><td class="pf"><b>Td Tangan / Paraf</b></td></tr>
+  ${r('<b>Nama Produk</b> <i>(diisi PPIC)</i>', `<b>${esc(a.nama_produk)}</b>`)}
+  ${r('<b>Nomor Order / Buffer Stock</b> <i>(diisi PPIC)</i>', esc(a.so_number ?? ''))}
+  ${r('<b>Nama Customer</b> <i>(diisi PPIC)</i>', esc(a.nama_customer))}
+  ${r('Jumlah Gambar / Kantong <i>(diisi PPIC)</i>', a.jumlah_gambar !== null ? n(a.jumlah_gambar) : '')}
+  ${r('<b>Dibuat oleh</b> <i>(diisi Tehnik)</i>', tgl(a.teknik_at), sign(a.teknik_name), stamp(!!a.teknik_name))}
+  ${r('<b>Disetujui</b> <i>(diisi Direksi / Opr Mgr)</i>', tgl(a.direksi_at), sign(a.direksi_name), stamp(!!a.direksi_name))}
+</tbody></table>
+
+<p class="ta1-h">Rekomendasi sesuai Urutan Proses <i>(diisi oleh Tehnik)</i></p>
+${procTable}
+${notes.length ? `<div class="ta1-sonotes">${notes.map((x) => `<p>${x}</p>`).join('')}</div>` : ''}
+
+<p class="ta1-socat"><i>Catatan : Untuk Order2 Mass Product, atau Repeat Order cukup menggunakan Rekomendasi yg sudah pernah ada (cukup dilampirkan).<br>
+Kecuali ada Perubahan Rekomendasi Proses Produksi yang baru dari Bagian Tehnik (jika ada perubahan2 tehnologi).</i></p>
+</div>`
 }
 
 // CSS untuk Word (halaman cetak memakai aturan yang sama di globals.css, bagian "Lembar Analisa Teknik")
@@ -153,6 +204,9 @@ body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #1b1d2e; }
 .ta1-sign tr.space td { height: 56pt; vertical-align: middle; }
 .ta1-sign tr.name td { border-top: 1px solid #1b1d2e; padding-top: 3pt; }
 .ta1-sign tr.date td { color: #555; font-size: 8.5pt; }
+.ta1-sohead td.lbl { width: 32%; } .ta1-sohead td.nm { width: 22%; } .ta1-sohead td.pf { width: 17%; text-align: center; }
+.ta1-sonotes { margin-top: 8pt; padding: 6pt 8pt; border: 1px solid #c9ccd8; font-size: 9pt; } .ta1-sonotes p { margin: 0 0 3pt; }
+.ta1-socat { margin-top: 14pt; font-size: 9pt; color: #333; }
 .ta1-stamp { padding: 1pt 6pt; border: 1px dashed #12a37a; color: #0b7a5a; font-size: 8pt; }
 `
 
@@ -169,7 +223,8 @@ function figure(g: { name: string; src: string | null; type: string; link: strin
 
 // Gambar Produk: setiap gambar satu halaman A4 tersendiri (Halaman 3, 4, ...) dengan kop ringkas, gambar memenuhi halaman.
 // Sumber: lampiran (file gambar, link Drive, file / link lain) + desain Master Data. Word (thumbs=false): nama file + link saja.
-function gambarPages(a: TechAnalysis, files: TaGambar[], thumbs: boolean) {
+function gambarPages(a: TechAnalysis, files: TaGambar[], thumbs: boolean, title: string) {
+  const first = a.sumber === 'ppic' ? 2 : 3 // Rekomendasi SO = 1 halaman, Analisa = 2 halaman
   const desain = (a.desain ?? []).map((d) => ({ name: d.name, src: `/api/order-custom/designs/${encodeURIComponent(d.id)}/thumb?s=1200` as string | null, link: d.web_link, type: 'Master Data' }))
   const all = [...files.map((f) => ({ ...f, link: f.link ?? null, type: f.type ?? 'Gambar' })), ...desain]
   if (!all.length) return ''
@@ -178,8 +233,8 @@ function gambarPages(a: TechAnalysis, files: TaGambar[], thumbs: boolean) {
 <br class="ta1-pb" clear="all" style="page-break-before:always">
 <div class="pap-sheet pap-ta ta-v1 ta1-page2 ta1-page3">
 <table class="ta1-p2head"><tbody><tr>
-  <td><b>Analisa Aspek Tehnik Atas Rencana Order Baru / Spec Baru</b><div class="ta1-muted">${esc(a.nama_produk)} · ${esc(a.nama_customer)}</div></td>
-  <td class="no">No. <b>${esc(a.nomor)}</b><div class="ta1-muted">Halaman ${i + 3} · Gambar Produk${all.length > 1 ? ` ${i + 1}/${all.length}` : ''}</div></td>
+  <td><b>${title}</b><div class="ta1-muted">${esc(a.nama_produk)} · ${esc(a.nama_customer)}</div></td>
+  <td class="no">No. <b>${esc(a.nomor)}</b><div class="ta1-muted">Halaman ${i + first} · Gambar Produk${all.length > 1 ? ` ${i + 1}/${all.length}` : ''}</div></td>
 </tr></tbody></table>
 <p class="ta1-h">Gambar Produk${per ? ` <i>(${per.slice(3)})</i>` : ''}</p>
 <div class="ta1-fig">${thumbs ? figure(g) : ''}<p>${g.link ? `<a href="${esc(g.link)}">${esc(g.name)}</a>` : esc(g.name)}</p>${g.link && /^https?:/.test(g.link) ? `<p class="ta1-url">${esc(g.link)}</p>` : ''}</div>

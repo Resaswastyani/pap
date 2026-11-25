@@ -17,7 +17,7 @@ export const GET = handle(async (request: Request, ctx: Ctx) => {
   return new Response(`﻿${html}`, {
     headers: {
       'Content-Type': 'application/msword; charset=utf-8',
-      'Content-Disposition': `attachment; filename="Analisa-Teknik-${a.nomor.replace(/[^\w.-]+/g, '_')}.doc"`,
+      'Content-Disposition': `attachment; filename="${a.sumber === 'ppic' ? 'Rekomendasi-Proses-Produksi' : 'Analisa-Teknik'}-${a.nomor.replace(/[^\w.-]+/g, '_')}.doc"`,
       'Cache-Control': 'no-store',
     },
   })
