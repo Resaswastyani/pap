@@ -1773,13 +1773,6 @@
       "count": 1
     },
     {
-      "rule": "complexity/function-too-long",
-      "engine": "code-quality",
-      "file": "components/pap/customer-page.tsx",
-      "fingerprint": "ae67c39629ba736e",
-      "count": 1
-    },
-    {
       "rule": "react/set-state-in-effect",
       "engine": "lint",
       "file": "components/pap/customer-page.tsx",
@@ -1923,7 +1916,7 @@
       "rule": "complexity/function-too-long",
       "engine": "code-quality",
       "file": "components/pap/dokumen-order-page.tsx",
-      "fingerprint": "9f7f363933d596e3",
+      "fingerprint": "0a645c9c3715779a",
       "count": 1
     },
     {
@@ -3323,7 +3316,7 @@
       "rule": "jsx-a11y/prefer-tag-over-role",
       "engine": "lint",
       "file": "components/pap/quotation-page.tsx",
-      "fingerprint": "9bf4ceab1dba9636",
+      "fingerprint": "5e0e0dc44d4c3708",
       "count": 1
     },
     {
