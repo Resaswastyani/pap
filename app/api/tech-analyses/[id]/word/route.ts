@@ -9,7 +9,7 @@ export const GET = handle(async (request: Request, ctx: Ctx) => {
   const user = await requireUser()
   requireTechAnalysis(user)
   const a = await loadAnalysis(int((await ctx.params).id) ?? fail(404, 'Analisa teknik tidak ditemukan.'))
-  const body = techAnalysisHtml(a, await techAnalysisSettings(), `${publicOrigin(request)}/logo-pap.png`, await analysisImages(a.id), false)
+  const body = techAnalysisHtml(a, await techAnalysisSettings(), `${publicOrigin(request)}/logo-pap.png`, await analysisImages(a.id, `${publicOrigin(request)}/api/notes/attachments`), false)
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="utf-8"><title>${a.nomor}</title>
 <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->

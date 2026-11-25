@@ -205,7 +205,7 @@ function MarketingFields({ v, set, disabled, products, onPickProduct, lockNames,
         </div>
         {v.print_jenis === 'print' && <Field label="Jumlah warna print"><input className="pap-input" inputMode="numeric" disabled={disabled} value={v.jumlah_warna} onChange={numOnly('jumlah_warna')} /></Field>}
         {v.print_jenis === 'print' && <Field label="Tingkat kesulitan print"><input className="pap-input" maxLength={255} disabled={disabled} value={v.kesulitan_print} onChange={on('kesulitan_print')} placeholder="mis. gradasi, register ketat" /></Field>}
-        <Field label="Jumlah gambar per kantong"><input className="pap-input" inputMode="numeric" disabled={disabled} value={v.jumlah_gambar} onChange={numOnly('jumlah_gambar')} placeholder="mis. 2" /></Field>
+        <Field label="Jumlah gambar per kantong (diisi PPIC)"><input className="pap-input" inputMode="numeric" disabled={disabled} value={v.jumlah_gambar} onChange={numOnly('jumlah_gambar')} placeholder="mis. 2" /></Field>
       </div>
       <Field label="Spec lainnya (airhole, pillow case, dll.)" full><textarea className="pap-input" rows={2} maxLength={5000} disabled={disabled} value={v.spec_lainnya} onChange={on('spec_lainnya')} /></Field>
       <div className="pap-form-grid pap-ta-grid4">
@@ -235,7 +235,7 @@ export function GambarProduk({ desain, onDesain, customerId, disabled, analysisI
     <div className="pap-ta-gambar">
       <h4 className="pap-ta-sub-h"><ImageIcon className="pap-inline-icon" /> Gambar produk</h4>
       {analysisId
-        ? <AttachmentPanel title="File gambar" basePath={`/api/notes/tech_analysis/${analysisId}/attachments`} fileBase="/api/notes/attachments" canAdd={canAdd && !disabled} currentUserId={0} isAdmin={false} pasteImages={canAdd && !disabled} />
+        ? <AttachmentPanel title="File gambar" basePath={`/api/notes/tech_analysis/${analysisId}/attachments`} fileBase="/api/notes/attachments" canAdd={canAdd && !disabled} currentUserId={0} isAdmin={false} pasteImages={canAdd && !disabled} preview />
         : pending && onPending && <AttachmentInput value={pending} onChange={onPending} pasteImages />}
       <div className="pap-ta-desain">
         <span className="pap-ta-desain-label">Desain dari Master Data <small className="pap-muted">(Logo &amp; Desain)</small></span>
@@ -692,7 +692,7 @@ export function TeknikSpecPanel({ value, onChange }: { value: TeknikSpec | null 
                 </label>
                 {t?.frekuensi === 'rutin' && <label><span>Rutin per … bulan</span><input className="pap-input" inputMode="numeric" value={t.rutin_bulan} onChange={num('rutin_bulan')} /></label>}
                 <label className="full"><span>Spec lainnya (airhole, pillow case, dll.)</span><input className="pap-input" maxLength={1000} value={t?.spec_lainnya ?? ''} onChange={txt('spec_lainnya')} placeholder="Kosong = pakai Spek khusus / catatan produk" /></label>
-                <label><span>Jumlah gambar / kantong</span><input className="pap-input" inputMode="numeric" value={t?.jumlah_gambar ?? ''} onChange={num('jumlah_gambar')} placeholder="mis. 2" /></label>
+                <label><span>Jumlah gambar / kantong (diisi PPIC)</span><input className="pap-input" inputMode="numeric" value={t?.jumlah_gambar ?? ''} onChange={num('jumlah_gambar')} placeholder="mis. 2" /></label>
                 <label className="full"><span>Critical to quality</span><input className="pap-input" maxLength={1000} value={t?.critical_to_quality ?? ''} onChange={txt('critical_to_quality')} placeholder="mis. sealing kuat, warna logo sesuai" /></label>
               </div>
               {/* Gambar per produk: file baru diunggah setelah disimpan; yang sudah tersimpan tampil di analisanya */}

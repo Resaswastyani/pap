@@ -24,8 +24,8 @@ export async function techAnalysisSettings() {
   return loadSettings('doc.')
 }
 
-// gambar: lampiran file gambar produk; thumbs=false (Word) = hanya nama file desain Master Data + link
-export type TaGambar = { name: string; src: string }
+// gambar: lampiran gambar produk (file gambar, link Drive / gambar, file & link lain); thumbs=false (Word) = nama + link saja
+export type TaGambar = { name: string; src: string | null; link?: string | null; type?: string }
 export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, logoSrc: string, gambar: TaGambar[] = [], thumbs = true) {
   const perusahaan = doc.nama || 'PT. Pandawa Amerta Packindo'
   // Pengaju: PPIC (dari Sales Order) atau Marketing
@@ -63,7 +63,7 @@ export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, l
   ${row('Lebar (cm)', n(a.lebar_cm), '', true)}
   ${row('Tebal (mm)', n(a.tebal_mm, 4), '', true)}
   ${row('POLOS / Jml Print', esc(print), `Tingkat Kesulitan Print = ${esc(a.kesulitan_print ?? '')}`, true)}
-  ${row('Jumlah Gambar / Kantong', a.jumlah_gambar !== null ? n(a.jumlah_gambar) : '', '', true)}
+  ${row('Jumlah Gambar / Kantong <i>(diisi PPIC)</i>', a.jumlah_gambar !== null ? n(a.jumlah_gambar) : '', '', true)}
   ${row('Spec Lainnya <span class="ta1-muted">(Airhole, Pillow Case, dll)</span>', br(a.spec_lainnya), '', true)}
   ${row('<b>Qty Order</b>', qty, esc(frek))}
   ${row('<b>Critical to Quality</b>', br(a.critical_to_quality))}
@@ -156,11 +156,20 @@ body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #1b1d2e; }
 .ta1-stamp { padding: 1pt 6pt; border: 1px dashed #12a37a; color: #0b7a5a; font-size: 8pt; }
 `
 
+// Gambar yang bisa dipratinjau; bila tidak (PDF, CDR, link biasa, Drive belum dibagikan) tampil kartu jenis file + link
+const fileCard = (g: { name: string; type: string; link: string | null }) =>
+  `<div class="ta1-filecard"><b>${esc(g.type)}</b><span>${esc(g.name)}</span><small>Pratinjau tidak tersedia${g.link ? ' · buka lewat link di bawah' : ''}</small></div>`
+function figure(g: { name: string; src: string | null; type: string; link: string | null }) {
+  if (!g.src) return fileCard(g)
+  // Gambar gagal dimuat (mis. file Drive privat): sembunyikan, tampilkan kartu file di sebelahnya
+  return `<img src="${esc(g.src)}" alt="${esc(g.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">${fileCard(g).replace('<div class="ta1-filecard"', '<div class="ta1-filecard" style="display:none"')}`
+}
+
 // Gambar Produk: setiap gambar satu halaman A4 tersendiri (Halaman 3, 4, ...) dengan kop ringkas, gambar memenuhi halaman.
-// Sumber: file gambar yang diunggah + desain Master Data. Word (thumbs=false): nama file + link saja.
+// Sumber: lampiran (file gambar, link Drive, file / link lain) + desain Master Data. Word (thumbs=false): nama file + link saja.
 function gambarPages(a: TechAnalysis, files: TaGambar[], thumbs: boolean) {
-  const desain = (a.desain ?? []).map((d) => ({ name: d.name, src: `/api/order-custom/designs/${encodeURIComponent(d.id)}/thumb?s=1200`, link: d.web_link }))
-  const all = [...files.map((f) => ({ ...f, link: null as string | null })), ...desain]
+  const desain = (a.desain ?? []).map((d) => ({ name: d.name, src: `/api/order-custom/designs/${encodeURIComponent(d.id)}/thumb?s=1200` as string | null, link: d.web_link, type: 'Master Data' }))
+  const all = [...files.map((f) => ({ ...f, link: f.link ?? null, type: f.type ?? 'Gambar' })), ...desain]
   if (!all.length) return ''
   const per = a.jumlah_gambar ? ` · ${n(a.jumlah_gambar)} gambar / kantong` : ''
   return all.map((g, i) => `
@@ -171,6 +180,6 @@ function gambarPages(a: TechAnalysis, files: TaGambar[], thumbs: boolean) {
   <td class="no">No. <b>${esc(a.nomor)}</b><div class="ta1-muted">Halaman ${i + 3} · Gambar Produk${all.length > 1 ? ` ${i + 1}/${all.length}` : ''}</div></td>
 </tr></tbody></table>
 <p class="ta1-h">Gambar Produk${per ? ` <i>(${per.slice(3)})</i>` : ''}</p>
-<div class="ta1-fig">${thumbs ? `<img src="${esc(g.src)}" alt="${esc(g.name)}">` : ''}<p>${g.link ? `<a href="${esc(g.link)}">${esc(g.name)}</a>` : esc(g.name)}</p></div>
+<div class="ta1-fig">${thumbs ? figure(g) : ''}<p>${g.link ? `<a href="${esc(g.link)}">${esc(g.name)}</a>` : esc(g.name)}</p>${g.link && /^https?:/.test(g.link) ? `<p class="ta1-url">${esc(g.link)}</p>` : ''}</div>
 </div>`).join('')
 }

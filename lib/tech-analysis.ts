@@ -2,6 +2,7 @@
 // Bagian Marketing diisi Marketing; analisa proses & kesimpulan diisi Dept Teknik; rekomendasi oleh Direksi (GM / admin).
 import type { RowDataPacket } from 'mysql2'
 import { fail, str } from '@/lib/api'
+import { attachmentPreview } from '@/lib/attachment-preview'
 import { db } from '@/lib/db'
 import { notify } from '@/lib/notifications'
 import { pushToUsers } from '@/lib/push'
@@ -176,9 +177,14 @@ export async function readMarketingSection(body: Record<string, unknown>) {
 }
 
 // File gambar yang diunggah pada analisa (lampiran note_attachments, hanya gambar) untuk lembar cetak
-export async function analysisImages(id: number) {
-  const [rows] = await db.query<Row[]>("SELECT id, name FROM note_attachments WHERE owner_type = 'tech_analysis' AND owner_id = ? AND kind = 'file' AND mime LIKE 'image/%' ORDER BY id LIMIT 12", [id])
-  return rows.map((r) => ({ name: String(r.name), src: `/api/notes/attachments/${Number(r.id)}` }))
+// Semua lampiran gambar produk: file gambar, link Google Drive (thumbnail), link gambar, dan file / link lain (kartu nama + link).
+// fileBase absolut untuk Word agar link bisa dibuka dari dokumen.
+export async function analysisImages(id: number, fileBase = '/api/notes/attachments') {
+  const [rows] = await db.query<Row[]>("SELECT id, kind, name, url, mime FROM note_attachments WHERE owner_type = 'tech_analysis' AND owner_id = ? ORDER BY id LIMIT 12", [id])
+  return rows.map((r) => {
+    const p = attachmentPreview({ id: Number(r.id), kind: r.kind as 'file' | 'link', name: String(r.name), url: (r.url as string | null) ?? null, mime: (r.mime as string | null) ?? null }, fileBase)
+    return { name: p.name, src: p.src, link: p.href, type: p.type }
+  })
 }
 
 // Desain dari Master Data (Logo & Desain hasil sinkron Google Drive): hanya id yang ada di drive_files, maks 12

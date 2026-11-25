@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, Clipboard, Download, FileText, Link2, Paperclip, Trash2, X } from 'lucide-react'
+import { attachmentPreview } from '@/lib/attachment-preview'
 import { ATTACHMENT_MAX_BYTES, VIDEO_ATTACHMENT_MAX_BYTES } from '@/lib/permissions'
 import { compressImage, isCompressibleImage } from './compress'
 import { api, formatDate, formatSize, Notice, confirmDialog } from './ui'
@@ -158,8 +159,9 @@ export async function uploadPendingAttachments(basePath: string, pending: Pendin
 }
 
 // Daftar lampiran di halaman detail + tambah file / foto / link
-export function AttachmentPanel({ title = 'Lampiran', basePath, fileBase, canAdd, currentUserId, isAdmin, allowVideo = false, pasteImages = false }: {
-  title?: string; basePath: string; fileBase: string; canAdd: boolean; currentUserId: number; isAdmin: boolean; allowVideo?: boolean; pasteImages?: boolean
+// preview: tampilkan pratinjau (gambar, thumbnail link Google Drive, kartu jenis file untuk PDF / link lain) di atas daftar
+export function AttachmentPanel({ title = 'Lampiran', basePath, fileBase, canAdd, currentUserId, isAdmin, allowVideo = false, pasteImages = false, preview = false }: {
+  title?: string; basePath: string; fileBase: string; canAdd: boolean; currentUserId: number; isAdmin: boolean; allowVideo?: boolean; pasteImages?: boolean; preview?: boolean
 }) {
   const [items, setItems] = useState<Attachment[]>([])
   const [busy, setBusy] = useState(false)
@@ -220,6 +222,7 @@ export function AttachmentPanel({ title = 'Lampiran', basePath, fileBase, canAdd
           <button type="button" className="pap-primary-button" disabled={busy || !url.trim()} onClick={addLink}>Simpan link</button>
         </div>
       )}
+      {preview && items.length > 0 && <div className="pap-oc-designs">{items.map((a) => <AttachmentThumb key={a.id} a={a} fileBase={fileBase} />)}</div>}
       <ul className="pap-file-list">
         {items.map((a) => (
           <li key={a.id}>
@@ -235,6 +238,23 @@ export function AttachmentPanel({ title = 'Lampiran', basePath, fileBase, canAdd
       </ul>
       {!items.length && <p className="pap-muted">Belum ada lampiran.</p>}
     </section>
+  )
+}
+
+// Satu kotak pratinjau lampiran; klik membuka gambar / file / link di tab baru (layar penuh)
+function AttachmentThumb({ a, fileBase }: { a: Attachment; fileBase: string }) {
+  const p = attachmentPreview(a, fileBase)
+  const [failed, setFailed] = useState(false)
+  return (
+    <figure className="pap-oc-design">
+      <a href={p.href} target="_blank" rel="noreferrer" title={`Buka ${p.name}`}>
+        {p.src && !failed
+          // aislop-ignore-next-line next/no-img-element -- pratinjau lampiran privat lewat API (bukan aset statis)
+          ? <img src={p.src} alt={p.name} loading="lazy" onError={() => setFailed(true)} />
+          : <span className="pap-oc-dz-noprev">{p.isLink ? <Link2 /> : <FileText />}<small>{p.type}</small></span>}
+      </a>
+      <figcaption title={p.name}>{p.name}</figcaption>
+    </figure>
   )
 }
 
