@@ -56,10 +56,10 @@ export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, l
   <td><h1>${esc(perusahaan)}</h1><p>Flexible Plastic Packaging Manufacture</p>${doc.alamat ? `<p>${esc(doc.alamat)}</p>` : ''}</td>
 </tr></tbody></table>`
   const procTable = `<table class="ta1-proc">
-  <thead><tr><th class="ck"></th><th class="m">Mesin / Proses</th><th class="k">Kecepatan Mesin</th><th class="k2">Kec Roto Max</th><th class="k3">Jalur</th><th class="k3">Tumpuk</th><th>Keterangan Lainnya</th><th class="r">Hasil Produktivitas (Kg/Jam)</th></tr></thead>
-  <tbody>${a.proses.map((p) => `<tr class="${p.dipakai ? 'on' : ''}"><td class="ck">${p.dipakai ? '&#9745;' : '&#9744;'}</td><td class="m">${esc(p.mesin)}</td><td class="k">${p.kec_label ? `${esc(p.kec_label)} = ` : ''}${p.kecepatan ? `<b>${esc(p.kecepatan)}</b>` : ''}</td><td class="k2">${p.kec_roto_max ? `<b>${esc(p.kec_roto_max)}</b>` : ''}</td>${/^inline blow/i.test(p.mesin.trim()) ? `<td class="k3" colspan="2">Jml Warna${p.warna ? ` = <b>${esc(p.warna)}</b>` : ''}</td>` : `<td class="k3">${p.jalur ? esc(p.jalur) : ''}</td><td class="k3">${p.tumpuk ? esc(p.tumpuk) : ''}</td>`}<td>${br(p.keterangan)}</td><td class="r">${p.produktivitas !== null ? `<b>${n(p.produktivitas)}</b>` : ''}</td></tr>`).join('')}
-  <tr><td class="ck">&#9744;</td><td class="m">&nbsp;</td><td class="k"></td><td class="k2"></td><td class="k3"></td><td class="k3"></td><td></td><td class="r"></td></tr>
-  <tr><td class="ck">&#9744;</td><td class="m">&nbsp;</td><td class="k"></td><td class="k2"></td><td class="k3"></td><td class="k3"></td><td></td><td class="r"></td></tr></tbody>
+  <thead><tr><th class="ck"></th><th class="m">Mesin / Proses</th><th class="k">Kecepatan Mesin</th><th class="k2">Kec Roto Max</th><th class="k3">Jml Warna</th><th class="k3">Jalur</th><th class="k3">Tumpuk</th><th>Keterangan Lainnya</th><th class="r">Hasil Produktivitas (Kg/Jam)</th></tr></thead>
+  <tbody>${a.proses.map((p) => `<tr class="${p.dipakai ? 'on' : ''}"><td class="ck">${p.dipakai ? '&#9745;' : '&#9744;'}</td><td class="m">${esc(p.mesin)}</td><td class="k">${p.kec_label ? `${esc(p.kec_label)} = ` : ''}${p.kecepatan ? `<b>${esc(p.kecepatan)}</b>` : ''}</td><td class="k2">${p.kec_roto_max ? `<b>${esc(p.kec_roto_max)}</b>` : ''}</td><td class="k3">${p.warna ? `<b>${esc(p.warna)}</b>` : ''}</td><td class="k3">${p.jalur ? esc(p.jalur) : ''}</td><td class="k3">${p.tumpuk ? esc(p.tumpuk) : ''}</td><td>${br(p.keterangan)}</td><td class="r">${p.produktivitas !== null ? `<b>${n(p.produktivitas)}</b>` : ''}</td></tr>`).join('')}
+  <tr><td class="ck">&#9744;</td><td class="m">&nbsp;</td><td class="k"></td><td class="k2"></td><td class="k3"></td><td class="k3"></td><td class="k3"></td><td></td><td class="r"></td></tr>
+  <tr><td class="ck">&#9744;</td><td class="m">&nbsp;</td><td class="k"></td><td class="k2"></td><td class="k3"></td><td class="k3"></td><td class="k3"></td><td></td><td class="r"></td></tr></tbody>
   ${used.length ? `<tfoot><tr><td></td><td colspan="6"><b>${used.length} proses dipakai</b></td><td class="r"><b>${totalProd ? n(totalProd) : ''}</b></td></tr></tfoot>` : ''}
 </table>`
   // Dari Sales Order (PPIC): formulir "Rekomendasi Proses Produksi" Dept Tehnik (satu halaman + gambar produk)
@@ -194,7 +194,7 @@ body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #1b1d2e; }
 .ta1-fig { border: 1px solid #999; padding: 6pt; text-align: center; } .ta1-fig img { max-width: 100%; } .ta1-fig p { margin: 4pt 0 0; font-size: 9pt; }
 .ta1-proc th { background: #e9ebf3; font-size: 8.5pt; }
 .ta1-proc td.ck { width: 16pt; text-align: center; }
-.ta1-proc td.m { width: 24%; } .ta1-proc td.k { width: 16%; } .ta1-proc td.k2, .ta1-proc th.k2 { width: 10%; } .ta1-proc td.k3, .ta1-proc th.k3 { width: 7%; } .ta1-proc td.r, .ta1-proc th.r { width: 13%; text-align: right; }
+.ta1-proc td.m { width: 20%; } .ta1-proc td.k { width: 16%; } .ta1-proc td.k2, .ta1-proc th.k2 { width: 10%; } .ta1-proc td.k3, .ta1-proc th.k3 { width: 7%; } .ta1-proc td.r, .ta1-proc th.r { width: 13%; text-align: right; }
 .ta1-proc tr.on td { background: #eefaf3; }
 .ta1-concl { width: 100%; border-collapse: collapse; margin-top: 12pt; }
 .ta1-concl td { padding: 4pt 5pt; border-bottom: 1px solid #e3e5ee; vertical-align: top; }
