@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, ClipboardCheck, Eye, FileDown, FilePen, ImageIcon, Plus, Printer, Ruler, Save, Search, Send, Trash2, Undo2, Wrench, X } from 'lucide-react'
+import { CheckCircle2, ClipboardCheck, Eye, FileDown, FilePen, FileText, ImageIcon, Plus, Printer, Ruler, Save, Search, Send, Trash2, Undo2, Wrench, X } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { api, confirmDialog, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged } from './ui'
+import { TaSignatures } from './tech-analysis-signature'
 import { AttachmentInput, AttachmentPanel, emptyAttachments, pendingCount, uploadPendingAttachments, type PendingAttachments } from './attachments'
 import { DesignPicker, DesignThumb, type Desain } from './order-custom-page'
 
@@ -517,6 +518,9 @@ function TechAnalysisDetail({ id, user, onClose, onChanged }: { id: number; user
           {can.direksi && <div className="pap-inline-actions pap-ta-actions"><span className="pap-spacer" /><button type="button" className="pap-primary-button" disabled={busy || !rek.trim()} onClick={saveDireksi}><ClipboardCheck /> Simpan & paraf</button></div>}
         </div>
       )}
+
+      {/* Tanda tangan digital Pengaju (PPIC / Marketing), Dept Tehnik, Direksi: tercetak di PDF & Word */}
+      <TaSignatures analysis={a} userName={user.name} onChanged={() => onChanged()} />
     </Modal>
   )
 }
@@ -711,7 +715,7 @@ export function DocActions({ id, nomor, compact = false }: { id: number; nomor: 
   const base = `/cetak/analisa-teknik/${id}`
   return compact ? (
     <span className="pap-ta-doc-icons">
-      <a className="pap-row-action" href={base} target="_blank" rel="noreferrer" title="Pratinjau PDF" aria-label={`Pratinjau PDF ${nomor}`}><Eye /><span>PDF</span></a>
+      <a className="pap-row-action" href={base} target="_blank" rel="noreferrer" title="Pratinjau PDF" aria-label={`Pratinjau PDF ${nomor}`}><FileText /><span>PDF</span></a>
       <a className="pap-row-action" href={`${base}?print=1`} target="_blank" rel="noreferrer" title="Cetak" aria-label={`Cetak ${nomor}`}><Printer /><span>Cetak</span></a>
       <a className="pap-row-action" href={`/api/tech-analyses/${id}/word`} title="Unduh Word" aria-label={`Unduh Word ${nomor}`}><FileDown /><span>Word</span></a>
     </span>

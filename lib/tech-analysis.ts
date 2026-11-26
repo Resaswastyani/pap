@@ -3,6 +3,7 @@
 import type { RowDataPacket } from 'mysql2'
 import { fail, str } from '@/lib/api'
 import { attachmentPreview } from '@/lib/attachment-preview'
+import { activeTaSignatures, type TaSignRole, type TaTtd } from '@/lib/tech-analysis-signature'
 import { db } from '@/lib/db'
 import { notify } from '@/lib/notifications'
 import { pushToUsers } from '@/lib/push'
@@ -47,6 +48,12 @@ export const canSubmitSection = (u: UserProfile) => canMarketingSection(u) || ca
 export const canMarketingSection = (u: UserProfile) => u.role.isAdmin || isManagement(u) || MARKETING(u)
 export const canTeknikSection = (u: UserProfile) => u.role.isAdmin || u.division.code === 'teknik'
 export const canDireksiSection = (u: UserProfile) => isManagement(u)
+// Tanda tangan digital: Pengaju = PPIC / Marketing; Dept Tehnik setelah diserahkan; Direksi setelah dianalisa
+export const canSignAs = (u: UserProfile, a: { status: string }): Record<TaSignRole, boolean> => ({
+  pengaju: canSubmitSection(u),
+  teknik: canTeknikSection(u) && a.status !== 'draft',
+  direksi: canDireksiSection(u) && (a.status === 'dianalisa' || a.status === 'selesai'),
+})
 
 type Row = RowDataPacket & Record<string, unknown>
 const num = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v))
@@ -81,6 +88,8 @@ export function serializeAnalysis(r: Row) {
     teknik_oleh: num(r.teknik_oleh), teknik_name: (r.teknik_name as string) ?? null, teknik_at: r.teknik_at ? String(r.teknik_at) : null,
     rekomendasi_direksi: (r.rekomendasi_direksi as string) ?? null, direksi_oleh: num(r.direksi_oleh), direksi_name: (r.direksi_name as string) ?? null, direksi_at: r.direksi_at ? String(r.direksi_at) : null,
     created_by: num(r.created_by), created_name: (r.created_name as string) ?? null, created_at: String(r.created_at), updated_at: String(r.updated_at),
+    // Tanda tangan digital aktif per peran (diisi loadAnalysis / lembar prospek; kosong di daftar)
+    ttd: {} as TaTtd,
   }
 }
 export type TechAnalysis = ReturnType<typeof serializeAnalysis>
@@ -88,7 +97,9 @@ export type TechAnalysis = ReturnType<typeof serializeAnalysis>
 export async function loadAnalysis(id: number) {
   const [[r]] = await db.query<Row[]>(`${SELECT} WHERE a.id = ?`, [id])
   if (!r) fail(404, 'Analisa teknik tidak ditemukan.')
-  return serializeAnalysis(r!)
+  const a = serializeAnalysis(r!)
+  a.ttd = (await activeTaSignatures([a.id])).get(a.id) ?? {}
+  return a
 }
 
 export async function listAnalyses(params: URLSearchParams) {
@@ -354,5 +365,7 @@ export async function prospectAnalysisSheets(prospectId: number, user: UserProfi
   // Analisa milik prospek yang namanya tidak cocok dengan produk saat ini tetap ikut
   for (const a of items) if (!sheets.includes(a)) sheets.push(a)
   if (!sheets.length) sheets.push(blank(''))
+  const ttd = await activeTaSignatures(sheets.filter((x) => x.id).map((x) => x.id))
+  for (const x of sheets) x.ttd = ttd.get(x.id) ?? {}
   return { prospect: { id: prospectId, nama_usaha: String(p.nama_usaha) }, sheets }
 }

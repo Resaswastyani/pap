@@ -4,6 +4,10 @@
 // memakai tabel agar tampil sama di browser, PDF, dan Microsoft Word.
 import { loadSettings } from '@/lib/hpp'
 import type { TechAnalysis } from '@/lib/tech-analysis'
+import type { TaSignRole } from '@/lib/tech-analysis-signature'
+
+// Isi kolom tanda tangan: gambar TTD digital, nama penandatangan, tanggal tanda tangan
+type Sig = { img: (p: TaSignRole) => string; nama: (p: TaSignRole, fallback: string | null) => string; tgl: (p: TaSignRole, fallback: string | null) => string }
 
 const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
 const tgl = (v: string | null) => {
@@ -43,6 +47,9 @@ export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, l
   const totalProd = used.reduce((s, p) => s + (p.produktivitas ?? 0), 0)
   // Nama penandatangan di bawah garis tanda tangan (kosong = ruang isi tangan)
   const sign = (name: string | null) => (name ? `<b>${esc(name)}</b>` : '<span class="ta1-muted">( ........................................ )</span>')
+  // Tanda tangan digital (gambar lewat /api/ttd/<token>; Word butuh URL absolut dari logoSrc)
+  const origin = logoSrc.replace(/\/logo-pap\.png$/, '')
+  const ttd: Sig = { img: (p) => { const t = a.ttd?.[p]; return t ? `<img class="ta1-sigimg" src="${esc(`${origin}/api/ttd/${t.token}`)}" alt="Tanda tangan ${esc(t.nama)}" height="54">` : '' }, nama: (p, fallback) => sign(a.ttd?.[p]?.nama ?? fallback), tgl: (p, fallback) => tgl(a.ttd?.[p]?.signed_at ?? fallback) }
 
   const kop = `<table class="pap-sheet-head"><tbody><tr>
   <td class="logo"><img src="${esc(logoSrc)}" alt="" width="110"></td>
@@ -56,7 +63,7 @@ export function techAnalysisHtml(a: TechAnalysis, doc: Record<string, string>, l
   ${used.length ? `<tfoot><tr><td></td><td colspan="6"><b>${used.length} proses dipakai</b></td><td class="r"><b>${totalProd ? n(totalProd) : ''}</b></td></tr></tfoot>` : ''}
 </table>`
   // Dari Sales Order (PPIC): formulir "Rekomendasi Proses Produksi" Dept Tehnik (satu halaman + gambar produk)
-  if (a.sumber === 'ppic') return rekomendasiHtml(a, kop, procTable, sign) + gambarPages(a, gambar, thumbs, TITLE_SO)
+  if (a.sumber === 'ppic') return rekomendasiHtml(a, kop, procTable, ttd) + gambarPages(a, gambar, thumbs, TITLE_SO)
 
   return `<div class="pap-sheet pap-ta ta-v1">
 ${kop}
@@ -107,16 +114,17 @@ ${procTable}
 
 <table class="ta1-sign"><tbody>
   <tr class="role"><td>Dibuat oleh,<div>Dept ${dept}</div></td><td>Dianalisa oleh,<div>Dept Tehnik</div></td><td>Rekomendasi,<div>Direksi</div></td></tr>
-  <tr class="space"><td>${a.tanggal_serah ? '<span class="ta1-stamp">Diserahkan</span>' : '&nbsp;'}</td><td>${a.teknik_name ? '<span class="ta1-stamp">Diparaf digital</span>' : '&nbsp;'}</td><td>${a.direksi_name ? '<span class="ta1-stamp">Diparaf digital</span>' : '&nbsp;'}</td></tr>
-  <tr class="name"><td>${sign(a.created_name)}</td><td>${sign(a.teknik_name)}</td><td>${sign(a.direksi_name)}</td></tr>
-  <tr class="date"><td>Tanggal: ${tgl(a.tanggal_serah) || '……………………'}</td><td>Tanggal: ${tgl(a.teknik_at) || '……………………'}</td><td>Tanggal: ${tgl(a.direksi_at) || '……………………'}</td></tr>
+  <tr class="space"><td>${ttd.img('pengaju') || (a.tanggal_serah ? '<span class="ta1-stamp">Diserahkan</span>' : '&nbsp;')}</td><td>${ttd.img('teknik') || (a.teknik_name ? '<span class="ta1-stamp">Diparaf digital</span>' : '&nbsp;')}</td><td>${ttd.img('direksi') || (a.direksi_name ? '<span class="ta1-stamp">Diparaf digital</span>' : '&nbsp;')}</td></tr>
+  <tr class="name"><td>${ttd.nama('pengaju', a.created_name)}</td><td>${ttd.nama('teknik', a.teknik_name)}</td><td>${ttd.nama('direksi', a.direksi_name)}</td></tr>
+  <tr class="date"><td>Tanggal: ${ttd.tgl('pengaju', a.tanggal_serah) || '……………………'}</td><td>Tanggal: ${ttd.tgl('teknik', a.teknik_at) || '……………………'}</td><td>Tanggal: ${ttd.tgl('direksi', a.direksi_at) || '……………………'}</td></tr>
 </tbody></table>
 </div>${gambarPages(a, gambar, thumbs, TITLE_ANALISA)}`
 }
 
 // Formulir "Rekomendasi Proses Produksi" (analisa dari Sales Order / PPIC), mengikuti formulir Excel Dept Tehnik
-function rekomendasiHtml(a: TechAnalysis, kop: string, procTable: string, sign: (name: string | null) => string) {
-  const stamp = (on: boolean) => (on ? '<span class="ta1-stamp">Diparaf digital</span>' : '')
+function rekomendasiHtml(a: TechAnalysis, kop: string, procTable: string, ttd: Sig) {
+  // Kolom Td Tangan / Paraf: gambar tanda tangan digital, atau cap "Diparaf digital" bila hanya disetujui di SIMPAP
+  const paraf = (p: TaSignRole, on: boolean) => ttd.img(p) || (on ? '<span class="ta1-stamp">Diparaf digital</span>' : '')
   const r = (label: string, value: string, nama = '', paraf = '') =>
     `<tr><td class="lbl">${label}</td><td class="eq">=</td><td class="val">${val(value)}</td><td class="nm">${nama}</td><td class="pf">${paraf}</td></tr>`
   // Isian Teknik / Direksi lain yang ada di SIMPAP (tampil hanya bila diisi)
@@ -143,8 +151,9 @@ ${kop}
   ${r('<b>Nomor Order / Buffer Stock</b> <i>(diisi PPIC)</i>', esc(a.so_number ?? ''))}
   ${r('<b>Nama Customer</b> <i>(diisi PPIC)</i>', esc(a.nama_customer))}
   ${r('Jumlah Gambar / Kantong <i>(diisi PPIC)</i>', a.jumlah_gambar !== null ? n(a.jumlah_gambar) : '')}
-  ${r('<b>Dibuat oleh</b> <i>(diisi Tehnik)</i>', tgl(a.teknik_at), sign(a.teknik_name), stamp(!!a.teknik_name))}
-  ${r('<b>Disetujui</b> <i>(diisi Direksi / Opr Mgr)</i>', tgl(a.direksi_at), sign(a.direksi_name), stamp(!!a.direksi_name))}
+  ${r('<b>Diajukan oleh</b> <i>(diisi PPIC)</i>', ttd.tgl('pengaju', a.tanggal_serah), ttd.nama('pengaju', a.created_name), paraf('pengaju', false))}
+  ${r('<b>Dibuat oleh</b> <i>(diisi Tehnik)</i>', ttd.tgl('teknik', a.teknik_at), ttd.nama('teknik', a.teknik_name), paraf('teknik', !!a.teknik_name))}
+  ${r('<b>Disetujui</b> <i>(diisi Direksi / Opr Mgr)</i>', ttd.tgl('direksi', a.direksi_at), ttd.nama('direksi', a.direksi_name), paraf('direksi', !!a.direksi_name))}
 </tbody></table>
 
 <p class="ta1-h">Rekomendasi sesuai Urutan Proses <i>(diisi oleh Tehnik)</i></p>
@@ -204,9 +213,10 @@ body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #1b1d2e; }
 .ta1-sign tr.space td { height: 56pt; vertical-align: middle; }
 .ta1-sign tr.name td { border-top: 1px solid #1b1d2e; padding-top: 3pt; }
 .ta1-sign tr.date td { color: #555; font-size: 8.5pt; }
-.ta1-sohead td.lbl { width: 32%; } .ta1-sohead td.nm { width: 22%; } .ta1-sohead td.pf { width: 17%; text-align: center; }
+.ta1-sohead td.lbl { width: 32%; } .ta1-sohead td.nm { width: 22%; } .ta1-sohead td.pf { width: 17%; text-align: center; } .ta1-sohead .ta1-sigimg { height: 32pt; max-width: 90pt; }
 .ta1-sonotes { margin-top: 8pt; padding: 6pt 8pt; border: 1px solid #c9ccd8; font-size: 9pt; } .ta1-sonotes p { margin: 0 0 3pt; }
 .ta1-socat { margin-top: 14pt; font-size: 9pt; color: #333; }
+.ta1-sigimg { height: 46pt; width: auto; max-width: 150pt; }
 .ta1-stamp { padding: 1pt 6pt; border: 1px dashed #12a37a; color: #0b7a5a; font-size: 8pt; }
 `
 

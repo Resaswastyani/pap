@@ -1416,11 +1416,11 @@ table.pap-sheet-head { display:table; width:100%; padding-bottom:0; border-colla
 .pap-shift-sum { display:flex; flex-direction:column; gap:2px; min-width:0; padding:10px 12px; border:1px solid var(--pap-border); border-radius:12px; }
 .pap-shift-sum strong { font-size:14px; overflow-wrap:anywhere; }
 .pap-shift-sum small { color:var(--pap-muted); font-size:11px; }
-.pap-shift-tag { align-self:flex-start; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:800; letter-spacing:.02em; }
+/* Rencana Produksi: label di kartu ringkasan shift (dibatasi agar tidak mengubah label bagian di Jadwal Shift) */
+.pap-shift-sum .pap-shift-tag { align-self:flex-start; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:800; letter-spacing:.02em; }
 .pap-shift-sum.s1 .pap-shift-tag, .pap-shift-chip.s1 { background:rgb(124 92 252 / .12); color:#6a4ee0; }
 .pap-shift-sum.s2 .pap-shift-tag, .pap-shift-chip.s2 { background:rgb(29 185 138 / .14); color:#11916b; }
 .pap-shift-sum.s3 .pap-shift-tag, .pap-shift-chip.s3 { background:rgb(245 158 11 / .16); color:#b26b00; }
-.pap-shift-cell { display:flex; flex-direction:column; align-items:flex-start; gap:4px; min-width:150px; }
 .pap-shift-chips { display:flex; flex-wrap:wrap; gap:4px; }
 .pap-shift-chip { padding:3px 8px; border-radius:999px; font-size:11px; white-space:nowrap; }
 .pap-shift-chip b { font-weight:800; }
@@ -2979,6 +2979,8 @@ button.pap-ap-gantt-label { cursor:pointer; }
 .pap-sig-head strong svg { width:17px; height:17px; color:#7c5cfc; }
 .pap-sig-head p { margin:4px 0 0; font-size:12px; line-height:1.5; }
 .pap-sig-slots { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.pap-sig-slots.pap-sig-slots-3 { grid-template-columns:repeat(3,minmax(0,1fr)); }
+@media (max-width:900px) { .pap-sig-slots.pap-sig-slots-3 { grid-template-columns:1fr; } }
 .pap-sig-slot { display:flex; flex-direction:column; gap:10px; min-width:0; padding:14px; border:1px solid var(--pap-border); border-radius:12px; background:var(--pap-surface); }
 .pap-sig-slot.kosong { border-style:dashed; }
 .pap-sig-slot.sah { border-color:rgb(29 185 138 / .45); }
@@ -3197,7 +3199,18 @@ button.pap-ap-gantt-label { cursor:pointer; }
 }
 
 /* Aksi dokumen analisa teknik: Pratinjau PDF / Cetak / Word */
-.pap-ta-row-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
+/* Kolom aksi daftar analisa: Detail di atas, PDF / Cetak / Word satu grup ikon dengan lebar sama */
+td:has(> .pap-ta-row-actions) { text-align:right; }
+.pap-ta-row-actions { display:inline-grid; grid-template-columns:1fr; gap:6px; justify-items:stretch; }
+.pap-ta-row-actions .pap-row-actions { display:grid; grid-template-columns:1fr; justify-content:stretch; }
+.pap-ta-row-actions .pap-row-actions .pap-row-action { width:100%; justify-content:center; }
+.pap-ta-row-actions .pap-ta-doc-icons { display:grid; grid-template-columns:repeat(3,1fr); gap:0; }
+.pap-ta-row-actions .pap-ta-doc-icons .pap-row-action { justify-content:center; padding:0 9px; border-radius:0; }
+.pap-ta-row-actions .pap-ta-doc-icons .pap-row-action + .pap-row-action { margin-left:-1px; }
+.pap-ta-row-actions .pap-ta-doc-icons .pap-row-action:first-child { border-radius:8px 0 0 8px; }
+.pap-ta-row-actions .pap-ta-doc-icons .pap-row-action:last-child { border-radius:0 8px 8px 0; }
+.pap-ta-row-actions .pap-ta-doc-icons .pap-row-action:hover { position:relative; z-index:1; }
+.pap-ta-row-actions .pap-ta-doc-icons .pap-row-action span { display:none; }
 .pap-ta-doc-icons { display:inline-flex; flex-wrap:wrap; gap:6px; }
 a.pap-row-action { text-decoration:none; }
 .pap-ta-doc-icons .pap-row-action svg { width:13px; height:13px; }
@@ -3379,6 +3392,8 @@ a.pap-row-action { text-decoration:none; }
 .ta-v1 .ta1-sign tr.name td { border-top:0; }
 .ta-v1 .ta1-sign tr.name td > * { display:inline-block; min-width:80%; padding-top:5px; border-top:1px solid #1b1d2e; }
 .ta-v1 .ta1-sign tr.date td { color:#5f6478; font-size:11px; }
+.ta-v1 .ta1-sigimg { display:block; margin:0 auto; height:62px; width:auto; max-width:190px; object-fit:contain; }
+.ta-v1 .ta1-sohead .ta1-sigimg { height:auto; max-height:42px; max-width:100%; }
 .ta-v1 .ta1-stamp { padding:2px 8px; border:1px dashed #12a37a; border-radius:6px; color:#0b7a5a; font-size:10.5px; font-weight:700; }
 @media print { .ta-v1 .ta1-sign { break-inside:avoid; } }
 
