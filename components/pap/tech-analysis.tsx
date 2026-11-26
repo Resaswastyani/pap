@@ -93,7 +93,7 @@ export function TechAnalysisView({ user, prospectId, prefill, focusId, compact =
       <div className={compact ? 'pap-ta-compact' : 'pap-table-card'}>
         {!compact && (
           <div className="pap-card-head">
-            <div><h2>{sumber === 'ppic' ? 'Pengajuan analisa teknik PPIC' : 'Analisa teknik order baru / spec baru'}</h2><p>{sumber === 'ppic' ? 'Pengajuan dari Sales Order Accurate (customer & produk sudah terisi), dianalisa Dept Teknik lalu diberi rekomendasi Direksi.' : 'Spek order dari Marketing dianalisa Dept Teknik per urutan proses mesin, lalu diberi rekomendasi Direksi. Bisa dicetak PDF & Word.'}</p></div>
+            <div><h2>{sumber === 'ppic' ? 'Pengajuan analisa teknik PPIC' : 'Analisa teknik order baru dan spec lama'}</h2><p>{sumber === 'ppic' ? 'Pengajuan dari Sales Order Accurate (customer & produk sudah terisi), dianalisa Dept Teknik lalu diberi rekomendasi Direksi.' : 'Spek order dari Marketing dan PPIC dianalisa Dept Teknik per urutan proses mesin, lalu diberi rekomendasi Direksi. Bisa dicetak PDF & Word.'}</p></div>
             {allowCreate && (sumber === 'ppic' ? can?.ppic : can?.create) && <button className="pap-primary-button" onClick={() => setCreating(true)}><Plus /> {sumber === 'ppic' ? 'Ajukan dari Sales Order' : 'Analisa baru'}</button>}
           </div>
         )}
@@ -533,7 +533,7 @@ export function TechAnalysisPage({ user, focusId }: { user: UserProfile; focusId
         <div>
           <p className="pap-eyebrow">TEKNIK</p>
           <h1>Analisa Teknik Order</h1>
-          <span>Analisa aspek teknik atas rencana order baru / spec baru dari Marketing: urutan proses mesin, kecepatan & produktivitas, kesimpulan bisa / tidak diproduksi, dan rekomendasi Direksi.</span>
+          <span>Analisa aspek teknik atas rencana order baru dan spec lama dari Marketing dan PPIC: urutan proses mesin, kecepatan & produktivitas, kesimpulan bisa / tidak diproduksi, dan rekomendasi Direksi.</span>
         </div>
       </div>
       <TechAnalysisView user={user} focusId={focusId} />
