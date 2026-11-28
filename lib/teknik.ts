@@ -16,6 +16,11 @@ export function requireTeknikMenu(user: UserProfile, key: 'perawatan-mesin' | 's
 export const canManageTeknik = (user: UserProfile) => isManagement(user) || user.division.code === 'teknik'
 // Pemroses pengajuan pembelian: divisi Purchasing, GM, admin
 export const canProcessPurchase = (user: UserProfile) => isManagement(user) || user.division.code === 'purchasing'
+// Pengajuan pembelian: diperiksa Purchasing (supplier, harga) -> disetujui GM -> disetujui Accounting -> dipesan Purchasing
+export const canCheckPurchase = (user: UserProfile) => user.division.code === 'purchasing'
+export const canApproveAsGm = (user: UserProfile) => user.division.code === 'general_manager'
+export const canApproveAsAccounting = (user: UserProfile) => user.division.code === 'accounting'
+export const canApprovePurchase = (user: UserProfile) => canApproveAsGm(user) || canApproveAsAccounting(user)
 // Pengaju pembelian: Teknik (sparepart/peralatan), PPIC (bahan baku/pendukung), Purchasing (pengajuan sendiri), GM, admin
 export const canRequestPurchase = (user: UserProfile) => canManageTeknik(user) || canProcessPurchase(user) || user.division.code === 'ppic'
 // Ubah isi pengajuan: selama masih diajukan, oleh pengaju atau Purchasing. Hapus: sebelum dipesan (diajukan / ditolak / batal).

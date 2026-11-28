@@ -2971,6 +2971,9 @@ button.pap-ap-gantt-label { cursor:pointer; }
 .pap-shift-edit svg { width:12px; height:12px; }
 
 /* ---------- Tanda tangan digital penawaran ---------- */
+/* Tanda tangan persetujuan GM / Accounting di detail Pengajuan Pembelian */
+.pap-pr-sig { display:grid; gap:2px; }
+.pap-pr-sig .pap-sig-image { max-width:220px; }
 .pap-sheet-sign .sig { display:flex; align-items:flex-end; justify-content:center; height:72px; }
 .pap-sheet-sign .sig img { max-width:220px; height:68px; width:auto; object-fit:contain; }
 .pap-sheet-sign .sig-note { margin-top:4px !important; color:#667; font-size:8px; line-height:1.35; word-break:break-all; }

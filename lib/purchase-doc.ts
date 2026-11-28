@@ -10,7 +10,7 @@ type DocItem = { nama: string; spesifikasi?: string | null; jumlah: number; satu
 export type PurchaseDocView = {
   judul: string; nomor: string; tanggal: string; status: string; prioritas: string; dibutuhkan: string | null
   pengaju: string; divisi: string; kategori?: string | null; perihal?: string | null; keperluan: string | null; referensi?: string | null
-  items: DocItem[]; harga: boolean; realisasi: boolean; keterangan: string[]; tanda: { label: string; nama: string | null }[]
+  items: DocItem[]; harga: boolean; realisasi: boolean; keterangan: string[]; tanda: { label: string; nama: string | null; jabatan?: string | null; ttd?: string | null }[]
 }
 
 const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
@@ -24,10 +24,13 @@ export async function purchaseDocHtml(v: PurchaseDocView, logoSrc: string) {
   const perusahaan = doc.nama || 'PT. Pandawa Amerta Packindo'
   const telepon = String(doc.telepon || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
   const cols = 3 + (v.harga ? 2 : 0) + (v.realisasi ? 1 : 0)
+  // Gambar tanda tangan lewat /api/ttd/<token>; Word butuh URL absolut (diambil dari logoSrc)
+  const origin = logoSrc.replace(/\/logo-pap\.png$/, '')
   const totalEst = v.items.reduce((s, i) => s + i.jumlah * (i.harga ?? 0), 0)
   const totalReal = v.items.reduce((s, i) => s + i.jumlah * (i.realisasi ?? 0), 0)
+  // Kolom kanan (Tanggal, Divisi, Dibutuhkan) mulai di tengah lembar agar rapi; lebar lewat atribut agar sama di cetak & Word
   const meta = (a: [string, string], b?: [string, string]) =>
-    `<tr><td>${esc(a[0])}</td><td${b ? '' : ' colspan="3"'}>: ${a[1]}</td>${b ? `<td>${esc(b[0])}</td><td>: ${b[1]}</td>` : ''}</tr>`
+    `<tr><td width="15%">${esc(a[0])}</td><td width="37%"${b ? '' : ' colspan="3"'}>: ${a[1]}</td>${b ? `<td width="15%">${esc(b[0])}</td><td>: ${b[1]}</td>` : ''}</tr>`
 
   return `<div class="pap-sheet">
 <table class="pap-sheet-head"><tbody><tr>
@@ -35,7 +38,7 @@ export async function purchaseDocHtml(v: PurchaseDocView, logoSrc: string) {
   <td><h1>${esc(perusahaan)}</h1><p>Flexible Plastic Packaging Manufacture</p>${doc.alamat ? `<p>${esc(doc.alamat)}</p>` : ''}${telepon.length ? `<p>Telp/WA: ${telepon.map(esc).join(' · ')}</p>` : ''}${doc.email ? `<p>${esc(doc.email)}</p>` : ''}</td>
 </tr></tbody></table>
 <h2 class="pap-sheet-title">${esc(v.judul)}</h2>
-<table class="pap-sheet-meta"><tbody>
+<table class="pap-sheet-meta" width="100%" style="width:100%"><tbody>
   ${meta(['Nomor', esc(v.nomor)], ['Tanggal', tanggal(v.tanggal)])}
   ${meta(['Diajukan oleh', `<b>${esc(v.pengaju)}</b>`], ['Divisi', esc(v.divisi)])}
   ${meta(['Prioritas', esc(v.prioritas)], ['Dibutuhkan', tanggal(v.dibutuhkan)])}
@@ -54,7 +57,7 @@ ${v.keperluan ? `<h3>Keperluan</h3><p class="pre">${esc(v.keperluan)}</p>` : ''}
 </table>
 ${v.keterangan.length ? `<h3>Keterangan</h3><p class="pre">${v.keterangan.map(esc).join('\n')}</p>` : ''}
 <table class="pap-sheet-sign"><tbody><tr>
-  ${v.tanda.map((t) => `<td><p>${esc(t.label)},</p><div class="space">&nbsp;</div><p><b>${t.nama ? esc(t.nama) : '(..............................)'}</b></p></td>`).join('')}
+  ${v.tanda.map((t) => `<td><p>${esc(t.label)},</p>${t.ttd ? `<div class="sig"><img src="${esc(`${origin}/api/ttd/${t.ttd}`)}" alt="Tanda tangan ${esc(t.nama ?? '')}" height="68"></div>` : '<div class="space">&nbsp;</div>'}<p><b>${t.nama ? esc(t.nama) : '(..............................)'}</b></p>${t.jabatan ? `<p>${esc(t.jabatan)}</p>` : ''}</td>`).join('')}
 </tr></tbody></table>
 </div>`
 }
@@ -78,7 +81,9 @@ export async function purchaseRequestView(id: number, user: UserProfile): Promis
     harga: false, realisasi: false, keterangan,
     tanda: [
       { label: 'Diajukan oleh', nama: String(pr.requested_name) },
-      { label: 'Mengetahui (GM)', nama: null },
+      { label: 'Diperiksa (Purchasing)', nama: pr.checked_name ?? null },
+      { label: 'Disetujui (GM)', nama: pr.gm_ttd_nama ?? pr.gm_approved_name ?? null, jabatan: pr.gm_ttd_jabatan, ttd: pr.gm_ttd_token },
+      { label: 'Disetujui (Accounting)', nama: pr.acc_ttd_nama ?? pr.acc_approved_name ?? null, jabatan: pr.acc_ttd_jabatan, ttd: pr.acc_ttd_token },
     ],
   }
 }

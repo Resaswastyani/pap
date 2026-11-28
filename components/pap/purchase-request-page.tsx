@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { Ban, CheckCircle2, FileText, PackageCheck, Pencil, Phone, Plus, Printer, Save, Search, ShoppingCart, Trash2, Truck, XCircle } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Ban, CheckCircle2, FileText, PackageCheck, PenLine, Pencil, Phone, Plus, Printer, Save, Search, ShieldCheck, ShoppingCart, Trash2, Truck, XCircle } from 'lucide-react'
 import type { UserProfile } from '@/lib/users'
 import { AttachmentPanel } from './attachments'
 import { SupplierList, SupplierSelect } from './supplier-list'
+import { SignaturePad, type SignaturePadHandle } from './signature-pad'
 import { api, Field, formatDate, Modal, Notice, Pager, RowActions, usePaged, useQuickAction, confirmDialog, FreshBadge } from './ui'
 
 type Status = 'diajukan' | 'disetujui' | 'dipesan' | 'diterima' | 'ditolak' | 'batal'
@@ -12,7 +13,8 @@ type Priority = 'darurat' | 'tinggi' | 'normal'
 type Pr = {
   id: number; nomor: string; keperluan: string; prioritas: Priority; dibutuhkan: string | null; status: Status; repair_id: number | null; repair_nomor: string | null
   repair_mesin: string | null; vendor_accurate_id: number | null; vendor_name: string | null; vendor_phone: string | null; catatan_purchasing: string | null; po_number: string | null; po_status: string | null; po_percent: number | null; requested_by: number; requested_name: string; requester_division: string
-  processed_name: string | null; processed_at: string | null; received_at: string | null; created_at: string; item_count: number; item_names: string | null
+  processed_name: string | null; processed_at: string | null; checked_name: string | null; checked_at: string | null; gm_approved_name: string | null; gm_approved_at: string | null; acc_approved_name: string | null; acc_approved_at: string | null;
+  gm_ttd_nama: string | null; gm_ttd_jabatan: string | null; gm_ttd_token: string | null; acc_ttd_nama: string | null; acc_ttd_jabatan: string | null; acc_ttd_token: string | null; received_at: string | null; created_at: string; item_count: number; item_names: string | null
 }
 type PrItem = { id: number; item_id: number | null; item_kode: string | null; item_stok: number | null; nama: string; spesifikasi: string | null; jumlah: number; satuan: string }
 type TechItem = { id: number; kode: string; nama: string; satuan: string; stok: number; stok_minimum: number }
@@ -88,7 +90,7 @@ export function PurchaseRequestPage({ user, focusId }: { user: UserProfile; focu
         <div>
           <p className="pap-eyebrow">TEKNIK · PURCHASING</p>
           <h1>Pengajuan Pembelian</h1>
-          <span>Teknik mengajukan sparepart / peralatan, PPIC mengajukan bahan baku / pendukung, Purchasing juga bisa membuat pengajuan sendiri; Purchasing menyetujui, memesan (nomor PO Accurate), dan menandai diterima. Barang yang terhubung ke data sparepart otomatis masuk stok saat diterima.</span>
+          <span>Teknik mengajukan sparepart / peralatan, PPIC mengajukan bahan baku / pendukung, Purchasing juga bisa membuat pengajuan sendiri. Pengajuan diperiksa Purchasing (supplier, harga), lalu wajib disetujui GM dan Accounting; setelah itu Purchasing memesan (nomor PO Accurate) dan menandai diterima. Barang yang terhubung ke data sparepart otomatis masuk stok saat diterima.</span>
         </div>
         {can.create && tab === 'pengajuan' && <button className="pap-primary-button" onClick={() => setFormOpen(true)}><Plus /> Ajukan pembelian</button>}
       </div>
@@ -117,7 +119,7 @@ export function PurchaseRequestPage({ user, focusId }: { user: UserProfile; focu
                   <td><div className="pap-repair-keluhan">{p.item_names}</div><div className="pap-cell-sub">{p.item_count} barang · {p.keperluan}</div></td>
                   <td><span className={`pap-status ${PRIORITY_TONE[p.prioritas]}`}>{PRIORITY_LABEL[p.prioritas]}</span></td>
                   <td className="pap-nowrap">{p.dibutuhkan ? formatDate(p.dibutuhkan) : '—'}</td>
-                  <td><span className={`pap-status ${STATUS_TONE[p.status]}`}>{STATUS_LABEL[p.status]}</span>{(p.vendor_name || p.po_number || p.processed_name) && <div className="pap-cell-sub">{[p.vendor_name, p.po_number, p.processed_name].filter(Boolean).join(' · ')}</div>}</td>
+                  <td><span className={`pap-status ${STATUS_TONE[p.status]}`}>{STATUS_LABEL[p.status]}</span>{p.status === 'diajukan' && <div className="pap-cell-sub">Purchasing {p.checked_name ? '✓' : '–'} · GM {p.gm_approved_name ? '✓' : '–'} · Accounting {p.acc_approved_name ? '✓' : '–'}</div>}{(p.vendor_name || p.po_number || p.processed_name) && <div className="pap-cell-sub">{[p.vendor_name, p.po_number, p.processed_name].filter(Boolean).join(' · ')}</div>}</td>
                   <td className="pap-actions-cell"><RowActions label={p.nomor} onView={() => setDetailId(p.id)} onEdit={editable(p) ? () => openEdit(p.id) : undefined} /></td>
                 </tr>
               ))}
@@ -245,18 +247,21 @@ function PrForm({ techItems, repairs, initial, onClose, onSaved }: { techItems: 
 function PrDetail({ id, user, onClose, onChanged, onEdit, onDeleted }: { id: number; user: UserProfile; onClose: () => void; onChanged: () => void; onEdit: (item: Pr, rows: PrItem[]) => void; onDeleted: (nomor: string) => void }) {
   const [item, setItem] = useState<Pr | null>(null)
   const [rows, setRows] = useState<PrItem[]>([])
-  const [can, setCan] = useState({ process: false, cancel: false, edit: false, delete: false })
+  const [can, setCan] = useState({ process: false, cancel: false, edit: false, delete: false, check: false, approveGm: false, approveAccounting: false, reject: false })
   const [catatan, setCatatan] = useState('')
   const [poNumber, setPoNumber] = useState('')
   const [openPos, setOpenPos] = useState<{ number: string; vendor_name: string | null }[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [mine, setMine] = useState<MySig>(null)
+  const [signing, setSigning] = useState(false)
   const load = useCallback(async () => {
     try {
-      const res = await api<{ item: Pr; items: PrItem[]; can: typeof can }>(`/api/purchase-requests/${id}`)
+      const res = await api<{ item: Pr; items: PrItem[]; can: typeof can; mine: MySig }>(`/api/purchase-requests/${id}`)
       setItem(res.item)
       setRows(res.items)
       setCan(res.can)
+      setMine(res.mine)
     } catch (e) {
       setError((e as Error).message)
     }
@@ -297,6 +302,30 @@ function PrDetail({ id, user, onClose, onChanged, onEdit, onDeleted }: { id: num
     } finally {
       setBusy(false)
     }
+  }
+  // Purchasing selesai memeriksa (supplier, harga, catatan) -> diteruskan ke GM
+  async function check() {
+    if (!(await confirmDialog('Teruskan pengajuan ini ke GM untuk disetujui?'))) return
+    setBusy(true)
+    setError('')
+    try {
+      await api(`/api/purchase-requests/${id}`, { method: 'PATCH', json: { check: true, catatan } })
+      setCatatan('')
+      await load()
+      onChanged()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  // Setujui = tanda tangan dulu (form tanda tangan), lalu persetujuan tersimpan bersama gambar tanda tangannya
+  async function approve(ttd: SignInput) {
+    await api(`/api/purchase-requests/${id}`, { method: 'PATCH', json: { approve: true, catatan, ttd } })
+    setSigning(false)
+    setCatatan('')
+    await load()
+    onChanged()
   }
   async function remove() {
     if (!item || !(await confirmDialog(`Hapus pengajuan ${item.nomor}? Data bisa dipulihkan dari menu Data Terhapus.`))) return
@@ -362,12 +391,31 @@ function PrDetail({ id, user, onClose, onChanged, onEdit, onDeleted }: { id: num
           </table>
         </div>
       </section>
-      {item.catatan_purchasing && <section className="pap-detail-section"><h3>Catatan Purchasing</h3><p className="pap-prewrap">{item.catatan_purchasing}</p></section>}
+      {s === 'diajukan' && (
+        <section className="pap-detail-section">
+          <h3>Pemeriksaan & persetujuan (Purchasing → GM → Accounting)</h3>
+          <dl className="pap-detail-grid">
+            <div><dt>Diperiksa Purchasing</dt><dd>{item.checked_name ? <><CheckCircle2 className="pap-inline-icon" /> {item.checked_name} · {formatDate(item.checked_at, true)}</> : <span className="pap-muted">Menunggu pemeriksaan Purchasing</span>}</dd></div>
+            <div><dt>GM</dt><dd>{item.gm_approved_name ? <ApprovalSig nama={item.gm_ttd_nama ?? item.gm_approved_name} jabatan={item.gm_ttd_jabatan} token={item.gm_ttd_token} at={item.gm_approved_at} /> : <span className="pap-muted">{item.checked_name ? 'Menunggu persetujuan' : 'Menunggu pemeriksaan Purchasing dulu'}</span>}</dd></div>
+            <div><dt>Accounting</dt><dd>{item.acc_approved_name ? <ApprovalSig nama={item.acc_ttd_nama ?? item.acc_approved_name} jabatan={item.acc_ttd_jabatan} token={item.acc_ttd_token} at={item.acc_approved_at} /> : <span className="pap-muted">{item.gm_approved_name ? 'Menunggu persetujuan' : 'Menunggu persetujuan GM dulu'}</span>}</dd></div>
+          </dl>
+          {(can.approveGm || can.approveAccounting) && (
+            <>
+              <textarea className="pap-input" rows={2} maxLength={5000} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Catatan persetujuan, atau alasan ditolak" />
+              <div className="pap-inline-actions pap-wrap">
+                <button className="pap-btn danger" disabled={busy} onClick={() => act('ditolak')}><XCircle /> Tolak</button>
+                <button className="pap-primary-button" disabled={busy} onClick={() => setSigning(true)}><PenLine /> Tanda tangan &amp; setujui sebagai {can.approveGm ? 'GM' : 'Accounting'}</button>
+              </div>
+            </>
+          )}
+        </section>
+      )}
+      {item.catatan_purchasing && <section className="pap-detail-section"><h3>Catatan</h3><p className="pap-prewrap">{item.catatan_purchasing}</p></section>}
       {can.process && ['diajukan', 'disetujui', 'dipesan'].includes(s) && (
         <section className="pap-detail-section">
           <h3>Proses Purchasing</h3>
           <Field label="Supplier (dari Accurate)"><SupplierSelect value={item.vendor_accurate_id} disabled={busy} onChange={pickVendor} /></Field>
-          <textarea className="pap-input" rows={2} maxLength={5000} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Catatan: harga, estimasi tiba, atau alasan ditolak" />
+          {!(s === 'diajukan' && (can.approveGm || can.approveAccounting)) && <textarea className="pap-input" rows={2} maxLength={5000} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Catatan: harga, estimasi tiba, atau alasan ditolak" />}
           {(s === 'disetujui' || s === 'dipesan') && (
             <>
               <input className="pap-input" list={`pr-po-${item.id}`} maxLength={80} value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder={item.po_number ? `No. PO Accurate: ${item.po_number}` : 'No. PO Accurate (mis. PO.2026.10.00021)'} aria-label="Nomor PO Accurate" />
@@ -375,15 +423,96 @@ function PrDetail({ id, user, onClose, onChanged, onEdit, onDeleted }: { id: num
             </>
           )}
           <div className="pap-inline-actions pap-wrap">
-            {s === 'diajukan' && <button className="pap-btn danger" disabled={busy} onClick={() => act('ditolak')}><XCircle /> Tolak</button>}
-            {s === 'diajukan' && <button className="pap-primary-button" disabled={busy} onClick={() => act('disetujui')}><CheckCircle2 /> Setujui</button>}
+            {s === 'diajukan' && !(can.approveGm || can.approveAccounting) && <button className="pap-btn danger" disabled={busy} onClick={() => act('ditolak')}><XCircle /> Tolak</button>}
+            {can.check && <button className="pap-primary-button" disabled={busy} onClick={check}><CheckCircle2 /> Periksa &amp; teruskan ke GM</button>}
             {s === 'disetujui' && <button className="pap-primary-button" disabled={busy} onClick={() => act('dipesan')}><ShoppingCart /> Tandai sudah dipesan</button>}
             {(s === 'disetujui' || s === 'dipesan') && <button className="pap-primary-button" disabled={busy} onClick={() => act('diterima')}><PackageCheck /> Barang diterima</button>}
           </div>
+          {can.check && <p className="pap-hint">Pilih supplier dan tulis catatan (harga, estimasi tiba) bila perlu, lalu teruskan ke GM. Setelah GM, Accounting menyetujui.</p>}
+          {s === 'diajukan' && item.checked_name && !can.approveGm && !can.approveAccounting && <p className="pap-hint">Sudah diperiksa Purchasing; menunggu persetujuan {item.gm_approved_name ? 'Accounting' : 'GM'}.</p>}
           {(s === 'disetujui' || s === 'dipesan') && rows.some((r) => r.item_id) && <p className="pap-hint">Saat ditandai diterima, barang yang terhubung ke data sparepart otomatis masuk stok.</p>}
         </section>
       )}
+      {(s === 'disetujui' || s === 'dipesan' || s === 'diterima') && item.gm_approved_name && (
+        <section className="pap-detail-section">
+          <h3>Pemeriksaan & persetujuan</h3>
+          <dl className="pap-detail-grid">
+            {item.checked_name && <div><dt>Diperiksa Purchasing</dt><dd><CheckCircle2 className="pap-inline-icon" /> {item.checked_name} · {formatDate(item.checked_at, true)}</dd></div>}
+            <div><dt>GM</dt><dd><ApprovalSig nama={item.gm_ttd_nama ?? item.gm_approved_name} jabatan={item.gm_ttd_jabatan} token={item.gm_ttd_token} at={item.gm_approved_at} /></dd></div>
+            {item.acc_approved_name && <div><dt>Accounting</dt><dd><ApprovalSig nama={item.acc_ttd_nama ?? item.acc_approved_name} jabatan={item.acc_ttd_jabatan} token={item.acc_ttd_token} at={item.acc_approved_at} /></dd></div>}
+          </dl>
+        </section>
+      )}
+      {signing && (
+        <ApproveSignDialog nomor={item.nomor} peran={can.approveGm ? 'GM' : 'Accounting'} userName={user.name} mine={mine} onClose={() => setSigning(false)} onSubmit={approve} />
+      )}
       <AttachmentPanel title="Lampiran (foto barang, penawaran / nota vendor)" basePath={`/api/notes/purchase_request/${item.id}/attachments`} fileBase="/api/notes/attachments" canAdd={!['ditolak', 'batal'].includes(s)} currentUserId={user.id} isAdmin={user.role.isAdmin} />
+    </Modal>
+  )
+}
+
+type MySig = { image: string; jabatan: string | null } | null
+type SignInput = { nama: string; jabatan: string; image: string; setuju: true; simpan: boolean }
+
+// Tanda tangan penyetuju (GM / Accounting) di detail pengajuan
+function ApprovalSig({ nama, jabatan, token, at }: { nama: string; jabatan: string | null; token: string | null; at: string | null }) {
+  return (
+    <div className="pap-pr-sig">
+      {/* aislop-ignore-next-line next/no-img-element -- gambar tanda tangan privat lewat API (bukan aset statis) */}
+      {token && <div className="pap-sig-image"><img src={`/api/ttd/${token}`} alt={`Tanda tangan ${nama}`} /></div>}
+      <div><ShieldCheck className="pap-inline-icon" /> <b>{nama}</b>{jabatan && <> · {jabatan}</>}</div>
+      <small className="pap-muted">{formatDate(at, true)}</small>
+    </div>
+  )
+}
+
+// Form tanda tangan persetujuan: nama, jabatan, gambar tanda tangan (atau pakai yang tersimpan), pernyataan sah
+function ApproveSignDialog({ nomor, peran, userName, mine, onClose, onSubmit }: {
+  nomor: string; peran: 'GM' | 'Accounting'; userName: string; mine: MySig; onClose: () => void; onSubmit: (ttd: SignInput) => Promise<void>
+}) {
+  const pad = useRef<SignaturePadHandle | null>(null)
+  const [nama, setNama] = useState(userName)
+  const [jabatan, setJabatan] = useState(mine?.jabatan ?? (peran === 'GM' ? 'General Manager' : 'Accounting'))
+  const [empty, setEmpty] = useState(true)
+  const [simpan, setSimpan] = useState(!mine)
+  const [setuju, setSetuju] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    const image = pad.current?.toDataUrl()
+    if (!image) return setError('Gambar tanda tangan dulu di kotak yang tersedia.')
+    if (!nama.trim()) return setError('Isi nama penandatangan.')
+    if (!setuju) return setError('Centang pernyataan persetujuan.')
+    setBusy(true)
+    try {
+      await onSubmit({ nama, jabatan, image, setuju: true, simpan })
+    } catch (err) {
+      setError((err as Error).message)
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal title={`Tanda tangan persetujuan ${peran}`} subtitle={`Pengajuan pembelian ${nomor}`} wide onClose={onClose}
+      footer={<><span className="pap-spacer" /><button type="button" className="pap-btn" onClick={onClose}>Batal</button><button className="pap-primary-button" form="pap-pr-sig-form" disabled={busy || empty || !setuju}><CheckCircle2 /> {busy ? 'Menyimpan...' : `Setujui sebagai ${peran}`}</button></>}>
+      <form id="pap-pr-sig-form" className="pap-sig-form" onSubmit={submit}>
+        {error && <Notice onClose={() => setError('')}>{error}</Notice>}
+        <div className="pap-form-grid">
+          <label className="pap-field"><span>Nama penandatangan *</span><input className="pap-input" maxLength={150} required value={nama} onChange={(e) => setNama(e.target.value)} /></label>
+          <label className="pap-field"><span>Jabatan</span><input className="pap-input" maxLength={150} value={jabatan} onChange={(e) => setJabatan(e.target.value)} /></label>
+        </div>
+        <div className="pap-field">
+          <div className="pap-sig-pad-head">
+            <span>Tanda tangan *</span>
+            {mine && <button type="button" className="pap-link-button pap-shift-edit" onClick={() => pad.current?.load(mine.image)}>Pakai tanda tangan tersimpan</button>}
+          </div>
+          <SignaturePad ref={pad} onChange={setEmpty} />
+        </div>
+        <label className="pap-ma-check"><input type="checkbox" checked={simpan} onChange={(e) => setSimpan(e.target.checked)} /> Simpan sebagai tanda tangan saya (dipakai lagi tanpa menggambar ulang)</label>
+        <label className="pap-sig-consent"><input type="checkbox" checked={setuju} onChange={(e) => setSetuju(e.target.checked)} /><span>Saya menyetujui pengajuan pembelian {nomor} sebagai {peran} dan menyatakan tanda tangan ini sah.</span></label>
+        <small className="pap-muted">Tanda tangan tercetak di formulir PDF & Word. Bila isi pengajuan diubah, persetujuan dan tanda tangan diulang.</small>
+      </form>
     </Modal>
   )
 }
