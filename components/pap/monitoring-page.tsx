@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowDownRight, ArrowUpRight, Banknote, CalendarClock, C
 import type { UserProfile } from '@/lib/users'
 import { formatRupiah } from './accurate'
 import { MonthNav, monthLabel } from './accurate-production'
-import { BarList, ColumnChart } from './charts'
+import { ColumnChart } from './charts'
 import type { DashboardTarget } from './dashboard-page'
 import { formatDate, Notice } from './ui'
 import { ArrangeButton, ArrangeGrid, useArrange } from './arrange'
@@ -197,12 +197,30 @@ export function MonitoringPage({ onNavigate }: { user: UserProfile; onNavigate: 
             <section key="kpi-karyawan" data-title="KPI karyawan per divisi" className="pap-table-card pap-dash-card">
               <div className="pap-card-head"><div><h2>KPI karyawan per divisi</h2><p>Rata-rata skor {monthLabel(periode)} (0–100)</p></div><button className="pap-link-button" onClick={() => onNavigate('KPI Karyawan')}>KPI Karyawan <ChevronRight /></button></div>
               {data.kpi.ok ? (
-                <div className="pap-dash-body">
-                  <BarList items={data.kpi.data.karyawan.map((r) => ({ key: r.divisi, label: `${r.divisi} (${r.dinilai})`, value: r.rata, display: `${String(r.rata).replace('.', ',')}${r.pembinaan ? ` · ${r.pembinaan} pembinaan` : ''}`, tone: r.rata < 70 ? 'critical' : 's1' }))} max={100} />
-                  <div className="pap-mon-kpi">
-                    <div><h3><Trophy /> Skor tertinggi</h3><ol>{data.kpi.data.terbaik.map((x, i) => <li key={`${x.nama}-${i}`}>{x.nama} <small>{x.divisi}</small> <b>{String(x.skor).replace('.', ',')}</b></li>)}</ol></div>
-                    <div><h3><AlertTriangle /> Perlu pembinaan</h3>{data.kpi.data.pembinaan.length ? <ol>{data.kpi.data.pembinaan.map((x, i) => <li key={`${x.nama}-${i}`} title={x.tindak_lanjut ?? 'Belum ada tindak lanjut'}>{x.nama} <small>{x.divisi}</small> <b className="pap-text-danger">{String(x.skor).replace('.', ',')}</b></li>)}</ol> : <p className="pap-muted">Tidak ada.</p>}</div>
-                  </div>
+                // Tabel seperti KPI marketing: rata-rata per divisi, skor tertinggi, lalu yang perlu pembinaan
+                <div className="pap-table-wrap">
+                  <table className="pap-mon-kpi-table">
+                    <thead><tr><th>Divisi / Karyawan</th><th>Keterangan</th><th className="pap-num">Skor</th></tr></thead>
+                    <tbody>
+                      <tr className="pap-mon-kpi-group"><td colSpan={3}>Rata-rata per divisi</td></tr>
+                      {data.kpi.data.karyawan.map((r) => (
+                        <tr key={`d-${r.divisi}`}>
+                          <td>{r.divisi} <small className="pap-muted">({r.dinilai} dinilai)</small></td>
+                          <td>{r.pembinaan ? <span className="pap-text-danger">{r.pembinaan} pembinaan</span> : <span className="pap-muted">—</span>}</td>
+                          <td className={`pap-num ${r.rata < 70 ? 'pap-text-danger' : ''}`}><b>{String(r.rata).replace('.', ',')}</b></td>
+                        </tr>
+                      ))}
+                      <tr className="pap-mon-kpi-group"><td colSpan={3}><Trophy className="pap-inline-icon" /> Skor tertinggi</td></tr>
+                      {data.kpi.data.terbaik.map((x, i) => (
+                        <tr key={`t-${x.nama}-${i}`}><td>{x.nama}</td><td className="pap-muted">{x.divisi}</td><td className="pap-num"><b>{String(x.skor).replace('.', ',')}</b></td></tr>
+                      ))}
+                      <tr className="pap-mon-kpi-group"><td colSpan={3}><AlertTriangle className="pap-inline-icon" /> Perlu pembinaan</td></tr>
+                      {data.kpi.data.pembinaan.length ? data.kpi.data.pembinaan.map((x, i) => (
+                        <tr key={`p-${x.nama}-${i}`} title={x.tindak_lanjut ?? 'Belum ada tindak lanjut'}><td>{x.nama}</td><td className="pap-muted">{x.divisi}</td><td className="pap-num pap-text-danger"><b>{String(x.skor).replace('.', ',')}</b></td></tr>
+                      )) : <tr><td colSpan={3} className="pap-muted">Tidak ada.</td></tr>}
+                    </tbody>
+                  </table>
+                  {!data.kpi.data.karyawan.length && <div className="pap-empty">Belum ada penilaian KPI karyawan bulan ini.</div>}
                 </div>
               ) : <Err s={data.kpi} />}
             </section>
